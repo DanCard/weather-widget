@@ -219,7 +219,7 @@ class SettingsSourceListRoboTest {
     }
 
     @Test
-    fun `adding Google puts it first`() {
+    fun `adding Google appends it last`() {
         assumeTrue(
             "this build has no Google key",
             BuiltInApiKeys.hasEffectiveKey(WeatherSource.GOOGLE_WEATHER, WidgetStateManager(context)),
@@ -227,8 +227,8 @@ class SettingsSourceListRoboTest {
         withSettings { activity ->
             activity.availableRow(WeatherSource.GOOGLE_WEATHER).performClick()
             idle()
-            assertEquals(listOf(WeatherSource.GOOGLE_WEATHER) + seeded, stored())
-            assertEquals(WeatherSource.GOOGLE_WEATHER.id, activity.rotationAdapter.ids.first())
+            assertEquals(seeded + WeatherSource.GOOGLE_WEATHER, stored())
+            assertEquals(WeatherSource.GOOGLE_WEATHER.id, activity.rotationAdapter.ids.last())
         }
     }
 

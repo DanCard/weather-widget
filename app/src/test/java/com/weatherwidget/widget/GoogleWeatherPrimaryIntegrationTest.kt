@@ -17,10 +17,9 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 
 /**
- * Real [WeatherSourcePreferences] + SharedPreferences + bound widgets: enabling Google makes it
- * primary and every widget follows; the debug migration does that once and a later untick sticks;
- * builds whose defaults lack Google (release, or debug without a baked key) never migrate. User's calls
- * 2026-10-06 and 2026-10-25.
+ * Real [WeatherSourcePreferences] + SharedPreferences + bound widgets: enabling Google appends it
+ * like any other source and keeps each widget's choice; debug and release builds do not default to
+ * Google or migrate it in.
  */
 @Category(LongDuration::class)
 @RunWith(RobolectricTestRunner::class)
@@ -69,30 +68,24 @@ class GoogleWeatherPrimaryIntegrationTest {
     }
 
     @Test
-    fun `fresh debug install shows Google on every widget`() {
+    fun `fresh debug install shows NWS on every widget`() {
         prefsStore().edit().clear().commit()
         val prefs = preferences(debugDefaults)
-        assertEquals(WeatherSource.GOOGLE_WEATHER, prefs.primarySource())
-        assertEquals(WeatherSource.GOOGLE_WEATHER, prefs.currentDisplaySource(widgetA))
+        assertEquals(WeatherSource.NWS, prefs.primarySource())
+        assertEquals(WeatherSource.NWS, prefs.currentDisplaySource(widgetA))
     }
 
     @Test
-    fun `debug migration enables Google as primary once, switches widgets, and an untick sticks`() {
+    fun `debug build does not migrate Google in`() {
         seedExistingInstall()
         val prefs = preferences(debugDefaults)
 
         assertEquals(
-            listOf(WeatherSource.GOOGLE_WEATHER, WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN),
+            listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN),
             prefs.enabledSources(),
         )
-        assertEquals(WeatherSource.GOOGLE_WEATHER, prefs.currentDisplaySource(widgetA))
-        assertEquals(WeatherSource.GOOGLE_WEATHER, prefs.currentDisplaySource(widgetB))
-
-        // The user turns it off in Settings; the migration must not bring it back.
-        val off = WeatherSourceOrdering.toggle(prefs.enabledSources().map { it.id }, WeatherSource.GOOGLE_WEATHER, false)!!
-        prefs.setVisibleSources(off.map(WeatherSource::fromId))
-        val reread = preferences(debugDefaults)
-        assertEquals(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN), reread.enabledSources())
+        assertEquals(WeatherSource.NWS, prefs.currentDisplaySource(widgetA))
+        assertEquals(WeatherSource.OPEN_METEO, prefs.currentDisplaySource(widgetB))
     }
 
     @Test
@@ -116,16 +109,17 @@ class GoogleWeatherPrimaryIntegrationTest {
     }
 
     @Test
-    fun `enabling Google in Settings makes it primary and switches every widget`() {
+    fun `enabling Google in Settings appends it last and keeps each widget's choice`() {
         seedExistingInstall()
         val prefs = preferences(releaseDefaults)
 
         val on = WeatherSourceOrdering.toggle(prefs.enabledSources().map { it.id }, WeatherSource.GOOGLE_WEATHER, true)!!
         prefs.setVisibleSources(on.map(WeatherSource::fromId))
 
-        assertEquals(WeatherSource.GOOGLE_WEATHER, prefs.primarySource())
-        assertEquals(WeatherSource.GOOGLE_WEATHER, prefs.currentDisplaySource(widgetA))
-        assertEquals(WeatherSource.GOOGLE_WEATHER, prefs.currentDisplaySource(widgetB))
+        assertEquals(WeatherSource.GOOGLE_WEATHER, prefs.enabledSources().last())
+        assertEquals(WeatherSource.NWS, prefs.primarySource())
+        assertEquals(WeatherSource.NWS, prefs.currentDisplaySource(widgetA))
+        assertEquals(WeatherSource.OPEN_METEO, prefs.currentDisplaySource(widgetB))
     }
 
     @Test
@@ -142,11 +136,13 @@ class GoogleWeatherPrimaryIntegrationTest {
     }
 
     @Test
-    fun `moving Google down after enabling is allowed`() {
+    fun `moving Google up or down after enabling is allowed`() {
         seedExistingInstall()
         val prefs = preferences(debugDefaults)
-        val down = WeatherSourceOrdering.moveDown(prefs.enabledSources().map { it.id }, WeatherSource.GOOGLE_WEATHER)
-        prefs.setVisibleSources(down.map(WeatherSource::fromId))
-        assertEquals(WeatherSource.NWS, preferences(debugDefaults).primarySource())
+        val on = WeatherSourceOrdering.toggle(prefs.enabledSources().map { it.id }, WeatherSource.GOOGLE_WEATHER, true)!!
+        prefs.setVisibleSources(on.map(WeatherSource::fromId))
+        val up = WeatherSourceOrdering.moveUp(prefs.enabledSources().map { it.id }, WeatherSource.GOOGLE_WEATHER)
+        prefs.setVisibleSources(up.map(WeatherSource::fromId))
+        assertEquals(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.GOOGLE_WEATHER, WeatherSource.SILURIAN), prefs.enabledSources())
     }
 }

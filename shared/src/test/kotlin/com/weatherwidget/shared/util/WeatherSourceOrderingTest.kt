@@ -226,9 +226,9 @@ class WeatherSourceOrderingTest {
     }
 
     @Test
-    fun `enabling Google makes it primary`() {
+    fun `enabling Google appends it last`() {
         val result = WeatherSourceOrdering.toggle(listOf("NWS", "OPEN_METEO"), WeatherSource.GOOGLE_WEATHER, makeVisible = true)
-        assertEquals(listOf("GOOGLE_WEATHER", "NWS", "OPEN_METEO"), result)
+        assertEquals(listOf("NWS", "OPEN_METEO", "GOOGLE_WEATHER"), result)
     }
 
     @Test
@@ -250,10 +250,10 @@ class WeatherSourceOrderingTest {
     }
 
     @Test
-    fun `a newly enabled primary-on-enable source takes over the display`() {
+    fun `enabling a source keeps the display's own choice`() {
         assertEquals(
-            "GOOGLE_WEATHER",
-            WeatherSourceOrdering.selectionAfterChange(listOf("NWS", "OPEN_METEO"), listOf("GOOGLE_WEATHER", "NWS", "OPEN_METEO"), "OPEN_METEO"),
+            "OPEN_METEO",
+            WeatherSourceOrdering.selectionAfterChange(listOf("NWS", "OPEN_METEO"), listOf("NWS", "OPEN_METEO", "GOOGLE_WEATHER"), "OPEN_METEO"),
         )
     }
 
@@ -266,11 +266,9 @@ class WeatherSourceOrderingTest {
     }
 
     @Test
-    fun `newlyPrimary names only a primary-on-enable source just enabled at the front`() {
-        assertEquals(WeatherSource.GOOGLE_WEATHER, WeatherSourceOrdering.newlyPrimary(listOf("NWS"), listOf("GOOGLE_WEATHER", "NWS")))
-        // Reordering an enabled Google to the front is not "becoming primary on enable".
+    fun `newlyPrimary is null when PRIMARY_ON_ENABLE is empty`() {
+        assertNull(WeatherSourceOrdering.newlyPrimary(listOf("NWS"), listOf("GOOGLE_WEATHER", "NWS")))
         assertNull(WeatherSourceOrdering.newlyPrimary(listOf("NWS", "GOOGLE_WEATHER"), listOf("GOOGLE_WEATHER", "NWS")))
-        // Other sources are appended, never primary-on-enable.
         assertNull(WeatherSourceOrdering.newlyPrimary(listOf("NWS"), listOf("NWS", "OPEN_WEATHER_MAP")))
         assertNull(WeatherSourceOrdering.newlyPrimary(listOf("NWS", "SILURIAN"), listOf("SILURIAN")))
     }

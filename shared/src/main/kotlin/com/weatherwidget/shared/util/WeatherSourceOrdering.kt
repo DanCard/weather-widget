@@ -37,10 +37,9 @@ object WeatherSourceOrdering {
 
     /**
      * Sources that become primary (first) when the user enables them. Every other source is
-     * appended. A starting position, not a pin: the user can reorder afterwards. (User's call
-     * 2026-10-06; OWM, once pinned last, is now simply appended.)
+     * appended. A starting position, not a pin: the user can reorder afterwards.
      */
-    val PRIMARY_ON_ENABLE: Set<WeatherSource> = setOf(WeatherSource.GOOGLE_WEATHER)
+    val PRIMARY_ON_ENABLE: Set<WeatherSource> = emptySet()
 
     /** Inserts [source] where enabling it places it: front for [PRIMARY_ON_ENABLE], else the end. */
     fun withEnabled(ids: List<String>, source: WeatherSource): List<String> {

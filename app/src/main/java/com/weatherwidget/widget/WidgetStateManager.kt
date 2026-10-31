@@ -611,7 +611,6 @@ class WidgetStateManager internal constructor(
         private val DEFAULT_VISIBLE_SOURCES =
             DefaultVisibleSources.forBuild(
                 debug = BuildConfig.DEBUG,
-                hasBakedGoogleKey = BuiltInApiKeys.baked(WeatherSource.GOOGLE_WEATHER) != null,
             )
 
         @Synchronized

@@ -168,7 +168,6 @@ internal class WeatherSourcePreferences(
         migrateSilurianIfNeeded()
         migrateOpenWeatherMapPositionIfNeeded()
         migrateNwsReenabledIfNeeded()
-        migrateGoogleWeatherEnabledIfNeeded()
 
         val fallback = defaultVisibleSources.map { it.id }
         val raw = prefs.getString(KEY_VISIBLE_SOURCES_ORDER, null)
@@ -326,35 +325,6 @@ internal class WeatherSourcePreferences(
         eventLogger("NWS_ENABLED_MIGRATION", "outcome=$outcome")
     }
 
-    /**
-     * One-time, for builds whose defaults include Google (debug builds that baked a Google key; see
-     * [DefaultVisibleSources]): enable it on an install that already has a stored list, as primary, and switch every
-     * widget to it. Flag-gated like the Silurian migration, so a later untick sticks.
-     */
-    private fun migrateGoogleWeatherEnabledIfNeeded() {
-        if (WeatherSource.GOOGLE_WEATHER !in defaultVisibleSources) return
-        if (prefs.getBoolean(KEY_GOOGLE_WEATHER_ENABLED_MIGRATION_DONE, false)) return
-        val current = prefs.getString(KEY_VISIBLE_SOURCES_ORDER, null)
-        val editor = prefs.edit().putBoolean(KEY_GOOGLE_WEATHER_ENABLED_MIGRATION_DONE, true)
-        val ids = current?.split(",")?.map(String::trim)?.filter { it.isNotEmpty() }
-        val outcome = if (ids != null && WeatherSource.GOOGLE_WEATHER.id !in ids) {
-            editor.putString(
-                KEY_VISIBLE_SOURCES_ORDER,
-                WeatherSourceOrdering.withEnabled(ids, WeatherSource.GOOGLE_WEATHER).joinToString(","),
-            )
-            activeWidgetIds().forEach { editor.putString(displaySourceKey(it), WeatherSource.GOOGLE_WEATHER.id) }
-            // The widgets now show a source with no data. This runs inside a prefs read (any thread,
-            // possibly a worker), so it only marks the switch; the startup paint starts the fetch
-            // and banner (SourceSwitchFetch via WidgetStartupCoordinator).
-            editor.putString(KEY_PENDING_SOURCE_SWITCH, WeatherSource.GOOGLE_WEATHER.id)
-            "enabled_primary"
-        } else {
-            "unchanged"
-        }
-        editor.apply()
-        Log.d(TAG, "Google Weather debug enable migration: outcome=$outcome")
-        eventLogger(TAG, "Google Weather debug enable migration: outcome=$outcome")
-    }
 
     /** A source switch the debug migration made and nobody has fetched for yet; cleared on read. */
     fun consumePendingSourceSwitch(): WeatherSource? {

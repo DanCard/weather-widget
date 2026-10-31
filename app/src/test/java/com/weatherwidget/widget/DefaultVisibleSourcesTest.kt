@@ -8,28 +8,13 @@ import org.junit.experimental.categories.Category
 
 @Category(ShortDuration::class)
 class DefaultVisibleSourcesTest {
+    private val debug = listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN, WeatherSource.TOMORROW_IO)
     private val release = listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN)
 
     @Test
-    fun `debug build with a baked Google key defaults to Google first`() {
-        assertEquals(
-            listOf(
-                WeatherSource.GOOGLE_WEATHER,
-                WeatherSource.NWS,
-                WeatherSource.OPEN_METEO,
-                WeatherSource.SILURIAN,
-                WeatherSource.TOMORROW_IO,
-            ),
-            DefaultVisibleSources.forBuild(debug = true, hasBakedGoogleKey = true),
-        )
-    }
-
-    @Test
-    fun `debug build without a Google key leaves Google off`() {
-        assertEquals(
-            listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN, WeatherSource.TOMORROW_IO),
-            DefaultVisibleSources.forBuild(debug = true, hasBakedGoogleKey = false),
-        )
+    fun `debug build defaults to standard sources and Tomorrow io`() {
+        assertEquals(debug, DefaultVisibleSources.forBuild(debug = true, hasBakedGoogleKey = true))
+        assertEquals(debug, DefaultVisibleSources.forBuild(debug = true, hasBakedGoogleKey = false))
     }
 
     @Test

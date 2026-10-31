@@ -337,7 +337,7 @@ class WidgetStateManagerTest {
     @Test
     fun `getVisibleSourcesOrder uses tomorrow io default order on fresh install (debug build)`() {
         // Unit tests run against the debug variant (BuildConfig.DEBUG = true), where Tomorrow.io is in
-        // the default set, and Google Weather (first, as primary) too when this machine baked a key.
+        // the default set.
         // DefaultVisibleSourcesTest covers every debug/key combination without depending on the build.
         val context = ApplicationProvider.getApplicationContext<Context>()
         val freshPrefs = context.getSharedPreferences("fresh_test_prefs", Context.MODE_PRIVATE)
@@ -347,10 +347,8 @@ class WidgetStateManagerTest {
 
         val sources = freshManager.getVisibleSourcesOrder()
 
-        val hasGoogleKey = BuiltInApiKeys.baked(WeatherSource.GOOGLE_WEATHER) != null
         assertEquals(
-            listOfNotNull(
-                WeatherSource.GOOGLE_WEATHER.takeIf { hasGoogleKey },
+            listOf(
                 WeatherSource.NWS,
                 WeatherSource.OPEN_METEO,
                 WeatherSource.SILURIAN,
@@ -584,8 +582,6 @@ class WidgetStateManagerTest {
 
         assertEquals(
             listOf(
-                // Debug defaults: Google Weather first, as primary (2026-10-06).
-                WeatherSource.GOOGLE_WEATHER,
                 WeatherSource.NWS,
                 WeatherSource.OPEN_METEO,
                 WeatherSource.SILURIAN,

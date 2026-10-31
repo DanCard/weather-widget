@@ -131,12 +131,10 @@ Display-source IDs are `NWS`, `OPEN_METEO`, `SILURIAN`, `TOMORROW_IO`, `WEATHER_
 Visual Crossing is not configurable.
 
 Fresh-install defaults are `NWS`, `OPEN_METEO`, `SILURIAN` (`WeatherSourceOrdering.DEFAULT_VISIBLE_IDS`).
-Android debug builds add `TOMORROW_IO`, and `GOOGLE_WEATHER` first only when the build baked a Google
-key (`DefaultVisibleSources.forBuild`). A debug build bakes in `GOOGLE_WEATHER_API_KEY` from the
-builder's gitignored `local.properties` or environment, or `""` when neither is set; release builds
-always get `""`. A keyless debug build therefore neither defaults to Google nor runs the one-time
-Google-primary migration. Release users can enable Google with their own key. Enabling
-`GOOGLE_WEATHER` makes it primary (`PRIMARY_ON_ENABLE`); every other newly enabled source is appended.
+Android debug builds add `TOMORROW_IO` (`DefaultVisibleSources.forBuild`). A debug build bakes in
+`GOOGLE_WEATHER_API_KEY` from the builder's gitignored `local.properties` or environment, or `""` when
+neither is set; release builds always get `""`. Enabling `GOOGLE_WEATHER` appends it to the enabled list
+like any other source.
 
 NWS stays in the stored list everywhere. Outside NWS coverage, `SourceCoverage.effectiveSources`
 filters it out each time the list is read, and falls back to Open-Meteo if nothing usable remains.
