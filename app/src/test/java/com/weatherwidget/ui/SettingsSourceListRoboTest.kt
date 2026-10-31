@@ -136,6 +136,17 @@ class SettingsSourceListRoboTest {
 
     // 4
     @Test
+    fun `a long-press on a row's text starts a drag`() {
+        withSettings { activity ->
+            val row = activity.holder(1)
+            assertEquals(0f, row.itemView.elevation)
+            assertTrue(row.text.performLongClick())
+            assertTrue("the row is lifted", row.itemView.elevation > 0f)
+            assertEquals("a long-press alone reorders nothing", seeded, stored())
+        }
+    }
+
+    @Test
     fun `a drag moves rows on screen and saves once, on drop`() {
         withSettings { activity ->
             val callback = activity.sourceDragCallback

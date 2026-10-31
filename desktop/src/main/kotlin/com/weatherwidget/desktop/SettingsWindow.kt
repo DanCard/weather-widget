@@ -716,7 +716,7 @@ internal fun needsKeyFromUser(source: WeatherSource, userKeys: Map<String, Strin
 
 /**
  * Weather Data Sources in two groups, matching Android: **In rotation** (the enabled list in stored
- * order; ≡ drags, ✕ removes) and **Available** (+ or a row click adds). The drag moves rows in a
+ * order; ≡ or the row text drags, ✕ removes) and **Available** (+ or a row click adds). The drag moves rows in a
  * local copy and calls [onChanged] once, on release — one config write per drag.
  * plans/261015-settings-sources-drag-reorder-and-two-groups.md.
  */
@@ -762,6 +762,40 @@ private fun ApiSourcesList(
         if (order != currentEnabled) currentOnChanged(order)
     }
 
+    fun Modifier.dragsRow(id: String): Modifier = pointerHoverIcon(PointerIcon.Hand).pointerInput(id) {
+        detectDragGestures(
+            onDragStart = {
+                draggingId = id
+                dragOffset = 0f
+            },
+            onDrag = { change, amount ->
+                change.consume()
+                dragOffset += amount.y
+                // Swap with a neighbour once the row is past half of it.
+                val at = order.indexOf(id)
+                val below = order.getOrNull(at + 1)
+                val above = order.getOrNull(at - 1)
+                if (below != null) {
+                    val step = (rowHeights[below] ?: 0) + rowSpacingPx
+                    if (dragOffset > step / 2) {
+                        order = WeatherSourceOrdering.move(order, at, at + 1)
+                        dragOffset -= step
+                        return@detectDragGestures
+                    }
+                }
+                if (above != null) {
+                    val step = (rowHeights[above] ?: 0) + rowSpacingPx
+                    if (dragOffset < -step / 2) {
+                        order = WeatherSourceOrdering.move(order, at, at - 1)
+                        dragOffset += step
+                    }
+                }
+            },
+            onDragEnd = { endDrag() },
+            onDragCancel = { endDrag() },
+        )
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(rowSpacing)) {
         SourceGroupHeader("In rotation")
         order.forEachIndexed { index, id ->
@@ -801,43 +835,14 @@ private fun ApiSourcesList(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier
                             .testTag("source_drag_$id")
-                            .pointerHoverIcon(PointerIcon.Hand)
-                            .pointerInput(id) {
-                                detectDragGestures(
-                                    onDragStart = {
-                                        draggingId = id
-                                        dragOffset = 0f
-                                    },
-                                    onDrag = { change, amount ->
-                                        change.consume()
-                                        dragOffset += amount.y
-                                        // Swap with a neighbour once the row is past half of it.
-                                        val at = order.indexOf(id)
-                                        val below = order.getOrNull(at + 1)
-                                        val above = order.getOrNull(at - 1)
-                                        if (below != null) {
-                                            val step = (rowHeights[below] ?: 0) + rowSpacingPx
-                                            if (dragOffset > step / 2) {
-                                                order = WeatherSourceOrdering.move(order, at, at + 1)
-                                                dragOffset -= step
-                                                return@detectDragGestures
-                                            }
-                                        }
-                                        if (above != null) {
-                                            val step = (rowHeights[above] ?: 0) + rowSpacingPx
-                                            if (dragOffset < -step / 2) {
-                                                order = WeatherSourceOrdering.move(order, at, at - 1)
-                                                dragOffset += step
-                                            }
-                                        }
-                                    },
-                                    onDragEnd = { endDrag() },
-                                    onDragCancel = { endDrag() },
-                                )
-                            }
+                            .dragsRow(id)
                             .padding(12.dp),
                     )
-                    SourceText(source, unavailable = id in unavailableHere, modifier = Modifier.weight(1f))
+                    SourceText(
+                        source,
+                        unavailable = id in unavailableHere,
+                        modifier = Modifier.weight(1f).testTag("source_text_$id").dragsRow(id),
+                    )
                     IconButton(
                         onClick = { remove(source) },
                         modifier = Modifier.testTag("source_remove_$id"),

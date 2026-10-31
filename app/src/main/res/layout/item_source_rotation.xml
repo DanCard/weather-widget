@@ -10,7 +10,7 @@
     android:paddingTop="6dp"
     android:paddingBottom="6dp">
 
-    <!-- A drag starts only from a touch-down here (ItemTouchHelper long-press drag is off), so
+    <!-- A drag starts at once from a touch-down here (ItemTouchHelper long-press drag is off), so
          scrolling the Settings page over the list never picks up a row. -->
     <ImageView
         android:id="@+id/source_drag_handle"
@@ -21,7 +21,9 @@
         android:scaleType="center"
         android:src="@drawable/ic_drag_handle" />
 
+    <!-- Long-press here also starts a drag; a swipe still scrolls the page. -->
     <LinearLayout
+        android:id="@+id/source_text"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginStart="4dp"

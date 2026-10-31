@@ -78,6 +78,21 @@ class SettingsWindowSourceListTest {
         assertEquals("added sources append", listOf("NWS", "SILURIAN", "OPEN_METEO"), draftSources())
     }
 
+    @Test
+    fun draggingTheRowTextDown_reorders() {
+        launch()
+        val text = tag("source_text_NWS").performScrollTo()
+        val rowHeight = tag("source_row_NWS").fetchSemanticsNode().size.height.toFloat()
+        text.performTouchInput {
+            down(center)
+            repeat(20) { moveBy(Offset(0f, rowHeight * 2.2f / 20)) }
+            up()
+        }
+        composeTestRule.waitForIdle()
+
+        assertEquals(listOf("OPEN_METEO", "SILURIAN", "NWS"), draftSources())
+    }
+
     // 10
     @Test
     fun draggingTheHandleDown_reordersOnceOnRelease() {

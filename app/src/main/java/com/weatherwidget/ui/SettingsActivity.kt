@@ -466,6 +466,7 @@ class SettingsActivity : AppCompatActivity() {
         inner class Holder(view: View) : RecyclerView.ViewHolder(view) {
             val name: TextView = view.findViewById(R.id.source_name)
             val description: TextView = view.findViewById(R.id.source_description)
+            val text: View = view.findViewById(R.id.source_text)
             val handle: ImageView = view.findViewById(R.id.source_drag_handle)
             val remove: ImageButton = view.findViewById(R.id.source_remove_button)
             val a11yActionIds = mutableListOf<Int>()
@@ -505,6 +506,10 @@ class SettingsActivity : AppCompatActivity() {
                 if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN) sourceDragHelper.startDrag(holder)
                 false
             }
+            holder.text.setOnLongClickListener {
+                sourceDragHelper.startDrag(holder)
+                true
+            }
 
             // A handle you can only drag is out of reach for TalkBack and switch access; these
             // actions do the same moves one slot at a time. Positions are read when invoked.
@@ -528,8 +533,9 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     /**
-     * Drags start only from the ≡ handle (long-press drag is off), so scrolling Settings over the
-     * list never picks up a row. Each step moves the row on screen; [clearView] saves once.
+     * Drags start from the ≡ handle or a long-press on a row's text, never from ✕ (ItemTouchHelper's
+     * own long-press drag, which covers the whole row, is off), so scrolling Settings over the list
+     * never picks up a row. Each step moves the row on screen; [clearView] saves once.
      */
     @VisibleForTesting
     internal inner class SourceDragCallback : ItemTouchHelper.SimpleCallback(ItemTouchHelper.UP or ItemTouchHelper.DOWN, 0) {
