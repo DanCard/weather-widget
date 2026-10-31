@@ -402,6 +402,8 @@ internal object DailyInteractionRenderer {
         repository: WeatherRepository? = null,
         gapFiller: ClimateGapFiller? = null,
     ): DailyRenderData {
+        // Read once: the key and the load below must agree even if a toggle lands between them.
+        val sources = hourlySourceIds(context)
         val key =
             WidgetInteractionCache.Key.of(
                 lat,
@@ -409,6 +411,7 @@ internal object DailyInteractionRenderer {
                 today.toEpochDay(),
                 range.window.historyDays,
                 range.window.forecastDays,
+                sources,
             )
         val loaded =
             WidgetInteractionCache.getOrLoad(key) {
@@ -460,27 +463,25 @@ internal object DailyInteractionRenderer {
                 } else null
 
                 val hourlyForecasts = if (timeBounds != null) {
-                    hourlySourceIds(context).let { sources ->
-                        com.weatherwidget.widget.HourlyForecastLoader.withHistory(
-                            database = database,
-                            current = GraphDataLoader.unifyToNearestSite(
-                                hourlyDao.getHourlyForecastsForSources(
-                                    timeBounds.hourlyStartMs,
-                                    timeBounds.hourlyEndMs,
-                                    lat,
-                                    lon,
-                                    sources,
-                                ),
+                    com.weatherwidget.widget.HourlyForecastLoader.withHistory(
+                        database = database,
+                        current = GraphDataLoader.unifyToNearestSite(
+                            hourlyDao.getHourlyForecastsForSources(
+                                timeBounds.hourlyStartMs,
+                                timeBounds.hourlyEndMs,
                                 lat,
                                 lon,
+                                sources,
                             ),
-                            startMs = timeBounds.hourlyStartMs,
-                            endMs = timeBounds.hourlyEndMs,
-                            lat = lat,
-                            lon = lon,
-                            sources = sources,
-                        )
-                    }
+                            lat,
+                            lon,
+                        ),
+                        startMs = timeBounds.hourlyStartMs,
+                        endMs = timeBounds.hourlyEndMs,
+                        lat = lat,
+                        lon = lon,
+                        sources = sources,
+                    )
                 } else null
 
                 val currentTemps = if (timeBounds != null) {

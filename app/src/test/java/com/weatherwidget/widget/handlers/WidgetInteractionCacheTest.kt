@@ -9,6 +9,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
@@ -37,6 +38,21 @@ class WidgetInteractionCacheTest {
         historyDays = WINDOW_HISTORY,
         forecastDays = WINDOW_FORECAST,
     )
+
+    @Test
+    fun `a different hourly source set is a different entry`() {
+        fun keyFor(vararg sources: String) = WidgetInteractionCache.Key.of(
+            lat = 37.4219,
+            lon = -122.0840,
+            epochDay = 20_289L,
+            historyDays = WINDOW_HISTORY,
+            forecastDays = WINDOW_FORECAST,
+            hourlySourceIds = sources.toList(),
+        )
+
+        assertNotEquals(keyFor("TOMORROW_IO", "Generic"), keyFor("WEATHER_API", "Generic"))
+        assertEquals("order is not identity", keyFor("NWS", "Generic"), keyFor("Generic", "NWS"))
+    }
 
     @Test
     fun `hit within TTL returns the same cached instance`() {

@@ -149,8 +149,8 @@ equivalent to "fetch everything on every interaction."
 ### Interaction cache and the stored-data version
 
 Android's widget interaction path (`DailyInteractionRenderer`) reads its daily rows, actuals,
-snapshots and hourly through `WidgetInteractionCache`, kept 60 s per site, day and load window. An
-entry also ends at the next stored-data write: the shared write runners (`ForecastPersistRun`,
+snapshots and hourly through `WidgetInteractionCache`, kept 60 s per site, day, load window and
+hourly source set, so a source switch never reads another source's hours. An entry also ends at the next stored-data write: the shared write runners (`ForecastPersistRun`,
 `CurrentConditionsRun`, `NwsGapFillRun`) bump `StoredDataVersion` after they store rows, and
 `VersionedTtlCache` (`:shared`) misses on any bump since the entry's load began. So the UI-only
 repaint a screen sends after its fetch (History, Observations) draws the fetched rows, without each

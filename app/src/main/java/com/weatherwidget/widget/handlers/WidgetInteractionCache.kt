@@ -40,6 +40,10 @@ internal object WidgetInteractionCache {
      * ([DailyLoadWindowResolver]). Widgets in one tap burst resolve the same window and so still
      * share a single load, but a nav tap that widens the window can never be served a narrower
      * entry left over from before it.
+     *
+     * [hourlySourceIds] is in the key because the hourly rows are loaded for exactly those sources:
+     * without it, a source switch inside the TTL reads the previous source's rows, finds none for the
+     * new one, and the header falls back to today's daily rain chance.
      */
     data class Key(
         val latQ: Long,
@@ -47,6 +51,7 @@ internal object WidgetInteractionCache {
         val epochDay: Long,
         val historyDays: Long,
         val forecastDays: Long,
+        val hourlySourceIds: Set<String> = emptySet(),
     ) {
         companion object {
             fun of(
@@ -55,6 +60,7 @@ internal object WidgetInteractionCache {
                 epochDay: Long,
                 historyDays: Long,
                 forecastDays: Long,
+                hourlySourceIds: Collection<String> = emptyList(),
             ): Key =
                 Key(
                     latQ = Math.round(lat * COORD_QUANTIZE),
@@ -62,6 +68,7 @@ internal object WidgetInteractionCache {
                     epochDay = epochDay,
                     historyDays = historyDays,
                     forecastDays = forecastDays,
+                    hourlySourceIds = hourlySourceIds.toSet(),
                 )
         }
     }
