@@ -170,9 +170,9 @@ object DailyRainLabelLayout {
      * The night chance starts centred in the gap, tucked under the higher of the two low labels, and
      * nudges left, right or down around the neighbours' icons and low labels
      * ([DailyRainLabelPlanner.placeNightLabel]), preferring down when there is lots of room below, then
-     * eases off anything it hugs ([DailyRainLabelPlanner.easeOffNeighbors]). It stays *between* the two lows: its bottom never goes
-     * below the lower low label's bottom, so a slight overlap wins over sinking under both. When the
-     * lows sit on the day-name row (the coldest days), there is no room under them, so it rises until it
+     * eases off anything it hugs ([DailyRainLabelPlanner.easeOffNeighbors]). It may sink below both
+     * lows, down to the day-name row, when nothing above is clear; a label that does also slides right
+     * ([DailyRainLabelPlanner.slideRightAfterSinking]). When the lows sit on the day-name row (the coldest days), there is no room under them, so it rises until it
      * clears the row — level with the lows, in the gap between them.
      */
     fun layoutNight(host: Host, input: NightInput, platform: String): Placed {
@@ -208,8 +208,7 @@ object DailyRainLabelLayout {
         }
 
         val homeTop = minOf(tuckTop, input.dayLabelTop - size.height)
-        // Between the two lows: never below the lower one's bottom (home itself is always allowed).
-        val maxBottom = minOf(input.dayLabelTop, maxOf(lowerLowBottom, homeTop + size.height))
+        val maxBottom = input.dayLabelTop
         val roomyBelow = input.dayLabelTop - (homeTop + size.height) >= DailyRainLabels.NIGHT_ROOMY_BELOW_DP * p
         val maxShiftPx = input.columnWidth * DailyRainLabels.NIGHT_NUDGE_MAX_SHIFT_FRACTION
         val placed = DailyRainLabelPlanner.placeNightLabel(
@@ -225,9 +224,23 @@ object DailyRainLabelLayout {
             density = p,
             sidewaysCost = if (roomyBelow) DailyRainLabels.NIGHT_ROOMY_SIDEWAYS_COST else 1f,
         )
+        val sunk = placed.dyPx > 0f && placed.top + size.height > lowerLowBottom
+        val placedCenterX = if (sunk) {
+            DailyRainLabelPlanner.slideRightAfterSinking(
+                centerX = placed.centerX,
+                top = placed.top,
+                width = size.width,
+                height = size.height,
+                obstacles = input.obstacles,
+                maxRight = input.canvasWidth - edge,
+                density = p,
+            )
+        } else {
+            placed.centerX
+        }
         val eased = DailyRainLabelPlanner.easeOffNeighbors(
             homeCenterX = homeCenterX,
-            centerX = placed.centerX,
+            centerX = placedCenterX,
             top = placed.top,
             width = size.width,
             height = size.height,
@@ -243,8 +256,8 @@ object DailyRainLabelLayout {
             "nightRainLabel position: platform=$platform date=${input.date} text=\"${input.text}\" fit=$placement" +
                 " anchorBottom=${anchorBottom.r()} lowerLowBottom=${lowerLowBottom.r()} roomBelowDp=${roomBelowDp.r()}" +
                 " tuckTop=${tuckTop.r()} home=(${homeCenterX.r()},${homeTop.r()}) size=${size.width.r()}x${size.height.r()}" +
-                " resolved=(${eased.centerX.r()},${eased.top.r()}) placement=${placed.placement}" +
-                " easedDp=(${((eased.centerX - placed.centerX) / p).r()},${((eased.top - placed.top) / p).r()})" +
+                " resolved=(${eased.centerX.r()},${eased.top.r()}) placement=${placed.placement} sunk=$sunk" +
+                " easedDp=(${((eased.centerX - placedCenterX) / p).r()},${((eased.top - placed.top) / p).r()})" +
                 " offsetDp=(${(placed.dxPx / p).r()},${(placed.dyPx / p).r()}) overlapDp=${(placed.overlapPx / p).r()}" +
                 " maxBottom=${maxBottom.r()} dayLabelTop=${input.dayLabelTop.r()}" +
                 " obstacles=${input.obstacles.joinToString(";", "[", "]") { "${it.left.r()},${it.top.r()},${it.right.r()},${it.bottom.r()}" }}",

@@ -60,6 +60,8 @@ object DailyRainLabels {
     const val NIGHT_TUCK_ROOMY_DOWN_DP = 2.5f
 
     // Night rain label collision nudge (DailyRainLabelPlanner.placeNightLabel).
+    /** How far right a night label slides after sinking below both lows. */
+    const val NIGHT_SINK_RIGHT_DP = 3f
     /** Search step, both axes. */
     const val NIGHT_NUDGE_STEP_DP = 1f
     /** Furthest sideways move, as a fraction of the column width. */

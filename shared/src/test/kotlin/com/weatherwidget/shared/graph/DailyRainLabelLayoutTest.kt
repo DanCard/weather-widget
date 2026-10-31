@@ -55,6 +55,44 @@ class DailyRainLabelLayoutTest {
     )
 
     @Test
+    fun `fold today night label too wide for the gap sinks below both lows and slides right`() {
+        // 2026-10-31 Fold trace: "40%" sat on the 9 and the ° of Today's "47.9°", with 6.5 dp free below.
+        val leftLow = Box(131.7f, 323.4f, 190.7f, 360.3f)
+        val rightLow = Box(196.1f, 321.9f, 230.1f, 358.8f)
+        val p = 2.6f
+        val label = DailyRainLabelLayout.layoutNight(
+            DailyRainLabelLayout.Host { _, _, _ -> DailyRainLabelLayout.TextSize(26f, 16.6f, 13f) },
+            DailyRainLabelLayout.NightInput(
+                date = "2026-10-31", text = "40%", probability = 40, isPast = false, daysFromToday = 0,
+                columnCenterX = 167f, gapCenterX = 193.1f, columnWidth = 49f,
+                leftLowLabel = leftLow, rightLowLabel = rightLow,
+                obstacles = listOf(
+                    Box(151.7f, 292.8f, 182.7f, 323.8f), leftLow,
+                    Box(190.7f, 323.4f, 202.7f, 341.9f, isDegreeSign = true),
+                    Box(203.6f, 291.2f, 234.6f, 322.2f), rightLow,
+                    Box(230.1f, 321.9f, 242.1f, 340.3f, isDegreeSign = true),
+                ),
+                dayLabelTop = 379.4f, canvasWidth = 480f, pxPerDp = p,
+            ),
+            "test",
+        )
+        val slight = DailyRainLabels.NIGHT_SLIGHT_OVERLAP_DP * p
+        assertTrue("below the 47.9: top=${label.top}", label.top >= leftLow.bottom - 2f * slight)
+        assertTrue("clear of the day names: bottom=${label.bottom}", label.bottom <= 379.4f)
+        assertEquals(193.1f + DailyRainLabels.NIGHT_SINK_RIGHT_DP * p, label.centerX, 0.01f)
+    }
+
+    @Test
+    fun `sunk night label stops short of a low level with it`() {
+        val wall = Box(110f, 100f, 150f, 130f)
+        val cx = DailyRainLabelPlanner.slideRightAfterSinking(
+            centerX = 100f, top = 105f, width = 16f, height = 14f, obstacles = listOf(wall),
+            maxRight = 400f, density = 2f,
+        )
+        assertEquals(102f, cx, 0.01f)
+    }
+
+    @Test
     fun `fold history night label sits between the two lows`() {
         val label = foldNight(dayLabelTop = 413.6f)
         // The tuck may rise into the blank descent band under Tue's digits, never further.
@@ -66,10 +104,8 @@ class DailyRainLabelLayoutTest {
     }
 
     @Test
-    fun `night label never sinks below the lower low even with room to spare`() {
-        // The lower low spans the whole gap, so no sideways nudge clears it. With room below, the
-        // search used to drop the label under it (the Fold's "10%" in the day-name row); now a
-        // slight-or-least overlap between the lows wins.
+    fun `night label sinks below the lower low when nothing above is clear`() {
+        // The lower low spans the whole gap, so no sideways nudge clears it; below it there is room.
         val upperLow = Box(10f, 50f, 45f, 80f)
         val lowerLow = Box(0f, 84f, 120f, 110f)
         val label =
@@ -83,7 +119,7 @@ class DailyRainLabelLayoutTest {
                 ),
                 "test",
             )
-        assertTrue("bottom=${label.bottom} must stay above the lower low's bottom ${lowerLow.bottom}", label.bottom <= lowerLow.bottom)
+        assertTrue("top=${label.top} must clear the lower low's bottom ${lowerLow.bottom}", label.top >= lowerLow.bottom - DailyRainLabels.NIGHT_SLIGHT_OVERLAP_DP * 2.625f)
     }
 
     @Test
@@ -200,9 +236,10 @@ class DailyRainLabelLayoutTest {
     }
 
     @Test
-    fun `night label hugging the next low stays with no room on its left`() {
+    fun `night label hugging the next low drops for room when its left is blocked`() {
         val blocked = foldSatObstacles + Box(180f, 350f, 197f, 366f)
-        assertEquals(208f, foldSatNight(obstacles = blocked).centerX, 0.01f)
+        val slide = DailyRainLabels.NIGHT_EASE_DROP_SLIDE_DP * 2.625f
+        assertEquals(208f - slide, foldSatNight(obstacles = blocked).centerX, 0.01f)
     }
 
     @Test
