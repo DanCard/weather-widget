@@ -23,6 +23,7 @@ import org.junit.Test
 import org.junit.experimental.categories.Category
 import java.nio.file.Files
 import java.nio.file.Path
+import java.time.LocalDate
 
 /**
  * One forecast delta in every view, through the real path: SQLite rows, the stitched read,
@@ -35,7 +36,9 @@ class DesktopForecastDeltaViewsIntegrationTest {
     @get:Rule
     val composeTestRule = createComposeRule()
 
-    private val incident = ForecastDeltaIncident()
+    // Tomorrow keeps the fixture's now ahead of the wall clock at any hour, so a read that ignores
+    // the passed-in now fails every run, not just the ones before 10:48.
+    private val incident = ForecastDeltaIncident(day = LocalDate.now().plusDays(1))
     private lateinit var tempDbPath: Path
     private lateinit var database: DesktopWeatherDatabase
     private lateinit var dao: DesktopWeatherDao
