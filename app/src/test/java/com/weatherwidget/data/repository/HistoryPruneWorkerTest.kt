@@ -36,7 +36,7 @@ class HistoryPruneWorkerTest : RobolectricTest() {
     @Test
     fun `worker prunes a deep stack and records its start time`() = runBlocking {
         val dao = WeatherDatabase.getDatabase(context).hourlyForecastHistoryDao()
-        val hour = 1_790_640_000_000L
+        val hour = (System.currentTimeMillis() - 10 * 24 * 3_600_000L) / 3_600_000L * 3_600_000L
         dao.insertAll(
             (1..30).map { k ->
                 HourlyForecastEntity(

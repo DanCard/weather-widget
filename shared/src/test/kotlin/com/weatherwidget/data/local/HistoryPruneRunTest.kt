@@ -18,10 +18,13 @@ class HistoryPruneRunTest {
         val freeBytes: Long = 0L,
         val failPrune: Exception? = null,
         val failVacuum: Exception? = null,
+        val failArchive: Exception? = null,
     ) : HistoryPruneRun.Host {
         val calls = mutableListOf<String>()
         val logs = mutableListOf<String>()
         var ageCutoff = 0L
+        var observationCutoff = 0L
+        var actualsCutoff = 0L
         var completedAt = 0L
 
         override suspend fun deleteOlderThan(cutoffMs: Long) {
@@ -33,6 +36,36 @@ class HistoryPruneRunTest {
             calls += "prune"
             failPrune?.let { throw it }
         }
+
+        override suspend fun deleteObservationsOlderThan(cutoffMs: Long) {
+            calls += "observations"
+            observationCutoff = cutoffMs
+        }
+
+        override suspend fun deleteHourlyActualsOlderThan(cutoffMs: Long) {
+            calls += "actuals"
+            actualsCutoff = cutoffMs
+        }
+
+        override suspend fun latestArchivedHour(): Long? = null
+
+        override suspend fun oldestObservation(): Long? {
+            calls += "archive"
+            failArchive?.let { throw it }
+            return null
+        }
+
+        override suspend fun observationSites(startMs: Long, endMs: Long) = emptyMap<Pair<Double, Double>, Int>()
+
+        override suspend fun observations(startMs: Long, endMs: Long, lat: Double, lon: Double) =
+            emptyList<com.weatherwidget.data.model.ObservationReading>()
+
+        override suspend fun hourlyForecasts(startMs: Long, endMs: Long, lat: Double, lon: Double) =
+            emptyList<com.weatherwidget.data.model.HourlyForecast>()
+
+        override fun personalStationWeight() = 1.0
+
+        override suspend fun insertHourlyActuals(rows: List<com.weatherwidget.data.model.HourlyActual>) = Unit
 
         override suspend fun freelistBytes(): Long = freeBytes
 
@@ -52,14 +85,17 @@ class HistoryPruneRunTest {
     }
 
     @Test
-    fun `age delete, prune, vacuum, then the completed marker`() = runBlocking {
+    fun `age delete, prune, archive, raw deletes, vacuum, then the completed marker`() = runBlocking {
         val host = FakeHost(freeBytes = HistoryPruneSchedule.VACUUM_MIN_FREELIST_BYTES)
         HistoryPruneRun.run(host, now)
 
-        assertEquals(listOf("age", "prune", "vacuum", "recorded"), host.calls)
-        assertEquals(RetentionPolicy.daysAgo(now, RetentionPolicy.HOURLY_HISTORY_SETTLED_DAYS), host.ageCutoff)
+        assertEquals(listOf("age", "prune", "archive", "observations", "actuals", "vacuum", "recorded"), host.calls)
+        assertEquals(RetentionPolicy.daysAgo(now, RetentionPolicy.HOURLY_FORECAST_DAYS), host.ageCutoff)
+        assertEquals(RetentionPolicy.daysAgo(now, RetentionPolicy.HOURLY_ACTUALS_DAYS), host.actualsCutoff)
+        val rawDays = (now - host.observationCutoff).toDouble() / (24 * 3_600_000L)
+        assertTrue("raw kept $rawDays days", rawDays >= RetentionPolicy.HOURLY_ACTUALS_ARCHIVE_DAYS + RetentionPolicy.OBSERVATION_ARCHIVE_MARGIN_DAYS)
         assertEquals(now, host.completedAt)
-        assertTrue(host.logs.single().startsWith("vacuum=done freedBytes=${host.freeBytes} "))
+        assertTrue(host.logs.last().startsWith("vacuum=done freedBytes=${host.freeBytes} "))
     }
 
     @Test
@@ -67,7 +103,7 @@ class HistoryPruneRunTest {
         val host = FakeHost(freeBytes = HistoryPruneSchedule.VACUUM_MIN_FREELIST_BYTES - 1)
         HistoryPruneRun.run(host, now)
 
-        assertEquals(listOf("age", "prune", "recorded"), host.calls)
+        assertEquals(listOf("age", "prune", "archive", "observations", "actuals", "recorded"), host.calls)
     }
 
     @Test
@@ -75,6 +111,15 @@ class HistoryPruneRunTest {
         val host = FakeHost(failPrune = IllegalStateException("disk"))
 
         assertThrows(IllegalStateException::class.java) { runBlocking { HistoryPruneRun.run(host, now) } }
+        assertFalse("recorded" in host.calls)
+    }
+
+    @Test
+    fun `a failed archive deletes no observations and stays due`() {
+        val host = FakeHost(failArchive = IllegalStateException("disk"))
+
+        assertThrows(IllegalStateException::class.java) { runBlocking { HistoryPruneRun.run(host, now) } }
+        assertFalse("observations" in host.calls)
         assertFalse("recorded" in host.calls)
     }
 
@@ -89,7 +134,7 @@ class HistoryPruneRunTest {
         assertEquals(now, host.completedAt)
         assertEquals(
             "vacuum=skipped reason=IllegalStateException freeBytes=${host.freeBytes}",
-            host.logs.single(),
+            host.logs.last(),
         )
     }
 

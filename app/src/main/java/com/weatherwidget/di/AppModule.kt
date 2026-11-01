@@ -217,6 +217,11 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideHourlyActualDao(database: WeatherDatabase): com.weatherwidget.data.local.HourlyActualDao =
+        database.hourlyActualDao()
+
+    @Provides
+    @Singleton
     fun provideApiUsageDao(database: WeatherDatabase): ApiUsageDao = database.apiUsageDao()
 
     @Provides

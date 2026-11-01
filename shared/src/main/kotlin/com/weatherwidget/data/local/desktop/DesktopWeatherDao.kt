@@ -968,7 +968,6 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         db.getConnection().use { conn ->
             conn.createStatement().use { stmt ->
                 stmt.execute("DELETE FROM forecasts WHERE fetchedAt < $defaultCutoff")
-                stmt.execute("DELETE FROM observations WHERE fetchedAt < ${policy.daysAgo(nowMs, policy.OBSERVATION_DAYS)}")
                 stmt.execute("DELETE FROM daily_history WHERE updatedAt < ${policy.daysAgo(nowMs, policy.DAILY_HISTORY_DAYS)}")
                 stmt.execute("DELETE FROM station_cache WHERE updatedAt < $defaultCutoff")
                 stmt.execute("DELETE FROM current_status WHERE updatedAt < $defaultCutoff")
@@ -990,12 +989,132 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         }
     }
 
-    /** The 18-month age limit on `hourly_forecasts`; runs in the housekeeping pass, not on every fetch. */
+    /** Raw observations behind the archive; runs in the housekeeping pass only ([HistoryPruneRun]). */
+    fun deleteOldObservations(cutoffMs: Long) {
+        db.getConnection().use { conn ->
+            conn.prepareStatement("DELETE FROM observations WHERE timestamp < ?").use { st ->
+                st.setLong(1, cutoffMs)
+                st.executeUpdate()
+            }
+        }
+    }
+
+    fun deleteOldHourlyActuals(cutoffMs: Long) {
+        db.getConnection().use { conn ->
+            conn.prepareStatement("DELETE FROM hourly_actuals WHERE hourMs < ?").use { st ->
+                st.setLong(1, cutoffMs)
+                st.executeUpdate()
+            }
+        }
+    }
+
+    fun latestArchivedHour(): Long? = singleLong("SELECT MAX(hourMs) FROM hourly_actuals")
+
+    fun oldestObservation(): Long? = singleLong("SELECT MIN(timestamp) FROM observations")
+
+    private fun singleLong(sql: String): Long? = db.getConnection().use { conn ->
+        conn.createStatement().use { st ->
+            st.executeQuery(sql).use { rs -> if (rs.next()) rs.getLong(1).takeUnless { rs.wasNull() } else null }
+        }
+    }
+
+    /** Exact stored sites of the observations in [startMs, endMs), with their row counts. */
+    fun observationSites(startMs: Long, endMs: Long): Map<Pair<Double, Double>, Int> = db.getConnection().use { conn ->
+        conn.prepareStatement(
+            "SELECT locationLat, locationLon, COUNT(*) FROM observations WHERE timestamp >= ? AND timestamp < ? " +
+                "GROUP BY locationLat, locationLon",
+        ).use { st ->
+            st.setLong(1, startMs)
+            st.setLong(2, endMs)
+            st.executeQuery().use { rs ->
+                buildMap { while (rs.next()) put(rs.getDouble(1) to rs.getDouble(2), rs.getInt(3)) }
+            }
+        }
+    }
+
+    /** Frozen: an existing hour is never rewritten. */
+    fun insertHourlyActuals(rows: List<com.weatherwidget.data.model.HourlyActual>) {
+        if (rows.isEmpty()) return
+        db.getConnection().use { conn ->
+            conn.autoCommit = false
+            try {
+                conn.prepareStatement(
+                    "INSERT OR IGNORE INTO hourly_actuals (hourMs, source, locationLat, locationLon, temperature, " +
+                        "precipAmountMm, cloudCover, cloudCoverLow, cloudCoverMid, cloudCoverHigh, archivedAt) " +
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                ).use { st ->
+                    rows.forEach { r ->
+                        st.setLong(1, r.hourMs)
+                        st.setString(2, r.source)
+                        st.setDouble(3, r.locationLat)
+                        st.setDouble(4, r.locationLon)
+                        st.setObject(5, r.temperature?.toDouble())
+                        st.setObject(6, r.precipAmountMm?.toDouble())
+                        st.setObject(7, r.cloudCover)
+                        st.setObject(8, r.cloudCoverLow)
+                        st.setObject(9, r.cloudCoverMid)
+                        st.setObject(10, r.cloudCoverHigh)
+                        st.setLong(11, r.archivedAt)
+                        st.addBatch()
+                    }
+                    st.executeBatch()
+                }
+                conn.commit()
+            } catch (e: Exception) {
+                conn.rollback()
+                throw e
+            } finally {
+                conn.autoCommit = true
+            }
+        }
+    }
+
+    /** This source's archived hours in [startMs, endMs) at the site, oldest first. */
+    fun getHourlyActuals(
+        locationLat: Double,
+        locationLon: Double,
+        source: String,
+        startMs: Long,
+        endMs: Long,
+    ): List<com.weatherwidget.data.model.HourlyActual> = db.getConnection().use { conn ->
+        conn.prepareStatement(
+            "SELECT * FROM hourly_actuals WHERE ${LocationMatch.JDBC_WHERE} AND source = ? AND hourMs >= ? AND hourMs < ? " +
+                "ORDER BY hourMs ASC",
+        ).use { st ->
+            st.setDouble(1, locationLat)
+            st.setDouble(2, locationLon)
+            st.setString(3, source)
+            st.setLong(4, startMs)
+            st.setLong(5, endMs)
+            st.executeQuery().use { rs ->
+                buildList {
+                    while (rs.next()) {
+                        add(
+                            com.weatherwidget.data.model.HourlyActual(
+                                hourMs = rs.getLong("hourMs"),
+                                source = rs.getString("source"),
+                                locationLat = rs.getDouble("locationLat"),
+                                locationLon = rs.getDouble("locationLon"),
+                                temperature = rs.getNullableFloat("temperature"),
+                                precipAmountMm = rs.getNullableFloat("precipAmountMm"),
+                                cloudCover = rs.getNullableInt("cloudCover"),
+                                cloudCoverLow = rs.getNullableInt("cloudCoverLow"),
+                                cloudCoverMid = rs.getNullableInt("cloudCoverMid"),
+                                cloudCoverHigh = rs.getNullableInt("cloudCoverHigh"),
+                                archivedAt = rs.getLong("archivedAt"),
+                            ),
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    /** The age limit on `hourly_forecasts`, by forecast hour; runs in the housekeeping pass, not on every fetch. */
     fun deleteOldHourlyForecasts(cutoffMs: Long) {
         db.getConnection().use { conn ->
-            conn.prepareStatement("DELETE FROM hourly_forecasts WHERE dateTime < ? OR fetchedAt < ?").use { st ->
+            conn.prepareStatement("DELETE FROM hourly_forecasts WHERE dateTime < ?").use { st ->
                 st.setLong(1, cutoffMs)
-                st.setLong(2, cutoffMs)
                 st.executeUpdate()
             }
         }

@@ -60,7 +60,8 @@ Important persisted concepts are:
   timestamps used to distinguish stable forecasts from newly observed rows.
 - `hourly_forecasts`: the one hourly table. Every fetch appends its hours under its fetch time and never
   changes an earlier fetch's row. `SettledForecastPick` decides which row stands for an hour.
-- `observations`: station/provider observations with provenance and quality metadata.
+- `observations`: station/provider observations with provenance and quality metadata, kept until archived.
+- `hourly_actuals`: the frozen blended result per hour, display source, and site, kept 18 months.
 - `daily_history`: settled daily actuals, frozen forecast comparisons, and source/writer provenance.
   Keyed on the rounded site (`DailyHistoryKey`, `LocationMatch.quantize`) on both platforms.
 - `app_logs` and API/network usage tables: diagnostics and quota visibility.

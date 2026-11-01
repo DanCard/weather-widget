@@ -143,6 +143,7 @@ class DesktopWeatherDatabase(
                 """.trimIndent())
 
                 // Network usage — persistent record of network data usage (request + response bytes)
+                stmt.execute(HOURLY_ACTUALS_DDL)
                 stmt.execute("""
                     CREATE TABLE IF NOT EXISTS network_usage (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -795,8 +796,16 @@ class DesktopWeatherDatabase(
          * the v24 bump, even though that test is about the v22 cloud columns and not about the
          * version number at all.
          */
-        const val SCHEMA_VERSION = 36
+        const val SCHEMA_VERSION = 37
         private const val HOURLY_TABLE_MERGE_VERSION = 36
+
+        /** Room's `HourlyActualEntity` declares the same columns (MIGRATION_84_85). */
+        const val HOURLY_ACTUALS_DDL =
+            "CREATE TABLE IF NOT EXISTS `hourly_actuals` (`hourMs` INTEGER NOT NULL, `source` TEXT NOT NULL, " +
+                "`locationLat` REAL NOT NULL, `locationLon` REAL NOT NULL, `temperature` REAL, " +
+                "`precipAmountMm` REAL, `cloudCover` INTEGER, `cloudCoverLow` INTEGER, `cloudCoverMid` INTEGER, " +
+                "`cloudCoverHigh` INTEGER, `archivedAt` INTEGER NOT NULL, " +
+                "PRIMARY KEY(`hourMs`, `source`, `locationLat`, `locationLon`))"
 
         private val HOURLY_FORECASTS_DDL = """
             CREATE TABLE IF NOT EXISTS hourly_forecasts (

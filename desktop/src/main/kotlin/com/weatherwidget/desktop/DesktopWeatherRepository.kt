@@ -11,6 +11,7 @@ import com.weatherwidget.data.remote.ApiKeyRedaction
 import com.weatherwidget.shared.util.DailyForecastWrite
 import com.weatherwidget.shared.util.ForecastPersistRun
 import com.weatherwidget.data.local.HistoryPruneRun
+import com.weatherwidget.data.model.HourlyActualsHistory
 import com.weatherwidget.data.local.HistoryPruneSchedule
 import com.weatherwidget.data.local.desktop.*
 import com.weatherwidget.data.model.ForecastParts
@@ -212,7 +213,8 @@ class DesktopWeatherRepository(
         // Previous Runs API serves no band data (see PriorDayBandForecast).
         val priorCloudBands = weatherDao.getPriorDayBandForecast(latitude, longitude, weatherSource, stitchedStart, now)
         val retroCloudResult = weatherDao.getCloudActuals(latitude, longitude, stitchedStart, now, weatherSource)
-        val retroCloud = retroCloudResult.hours
+        val hourlyActuals = weatherDao.getHourlyActuals(latitude, longitude, weatherSource, stitchedStart, now)
+        val retroCloud = HourlyActualsHistory.merge(retroCloudResult.hours, HourlyActualsHistory.cloud(hourlyActuals))
         val dominantCloudContribution = retroCloudResult.dominantContribution
         
         // Cover the widest zoom-out (6 days back) so the actual line spans the whole window,
@@ -284,7 +286,8 @@ class DesktopWeatherRepository(
             priorDayCloudForecast = priorCloud,
             retroCloudActual = retroCloud,
             priorDayBandForecast = priorCloudBands,
-            retroCloudBands = retroCloudResult.bands,
+            retroCloudBands = HourlyActualsHistory.merge(retroCloudResult.bands, HourlyActualsHistory.cloudBands(hourlyActuals)),
+            hourlyActuals = hourlyActuals,
             dominantCloudContribution = dominantCloudContribution,
             // The header reserves room for the widest source's rain % (HeaderContent.precipLabels).
             allSourcesHourly = weatherDao.getHourlySettledAllSources(
@@ -1091,7 +1094,7 @@ class DesktopWeatherRepository(
                 HistoryPruneSchedule.Decision.RUN ->
                     if (overdue) weatherDao.log(HISTORY_PRUNE_TAG, "overdue=true", timestampMs = now)
             }
-            HistoryPruneRun.run(DesktopHistoryPruneHost(weatherDao), now)
+            HistoryPruneRun.run(DesktopHistoryPruneHost(weatherDao, personalStationWeight), now)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

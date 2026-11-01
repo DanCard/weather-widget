@@ -4,7 +4,9 @@ import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.data.local.HistoryPruneRun
 import com.weatherwidget.data.local.HistoryPruneSchedule
 import com.weatherwidget.data.local.HourlyForecastEntity
+import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.WeatherDatabase
+import com.weatherwidget.data.local.toHourlyActual
 import com.weatherwidget.shared.contract.HistoryPruneHostContract
 import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.testutil.TestDatabase
@@ -47,6 +49,18 @@ class RoomHistoryPruneHostContractTest : HistoryPruneHostContract() {
 
     override suspend fun logged(): List<String> =
         db.appLogDao().getLogsByTag(HistoryPruneSchedule.LOG_TAG, 10).map { it.message }
+
+    override suspend fun archived() =
+        db.hourlyActualDao().getInRange(0L, Long.MAX_VALUE, 37.42, -122.08, "NWS").map { it.toHourlyActual() }
+
+    override suspend fun seedObservation(timestampMs: Long, fetchedAtMs: Long) = db.observationDao().insertAll(
+        listOf(
+            ObservationEntity(
+                stationId = "KNUQ", stationName = "KNUQ", timestamp = timestampMs, temperature = 60f, condition = "Clear",
+                locationLat = 37.42, locationLon = -122.08, fetchedAt = fetchedAtMs, api = "NWS",
+            ),
+        ),
+    )
 
     @After
     fun closeDatabase() = db.close()

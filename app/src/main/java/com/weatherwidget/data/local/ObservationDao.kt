@@ -307,6 +307,19 @@ interface ObservationDao {
             getObservationsInRange(readStart, readEnd, lat, lon, apis = null).map { it.toReading() }
         }
 
+    @Query("SELECT MIN(timestamp) FROM observations")
+    suspend fun oldestTimestamp(): Long?
+
+    /** Exact stored sites of the observations in [startMs, endMs). */
+    @Query(
+        """
+        SELECT locationLat, locationLon, COUNT(*) AS rowCount FROM observations
+        WHERE timestamp >= :startMs AND timestamp < :endMs
+        GROUP BY locationLat, locationLon
+    """,
+    )
+    suspend fun sitesInRange(startMs: Long, endMs: Long): List<ObservationSiteCount>
+
     @Query("DELETE FROM observations WHERE timestamp < :cutoffMs")
     suspend fun deleteOldObservations(cutoffMs: Long)
 
@@ -477,3 +490,5 @@ class ObservationRangeRead(
 
 /** [ObservationDao.getKeysAtSite]'s projection. */
 data class ObservationKeyRow(val stationId: String, val timestamp: Long, val stationType: StationType)
+
+data class ObservationSiteCount(val locationLat: Double, val locationLon: Double, val rowCount: Int)

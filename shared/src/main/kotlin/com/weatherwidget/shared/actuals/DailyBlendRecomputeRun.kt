@@ -33,7 +33,7 @@ object DailyBlendRecomputeRun {
     const val SLOW_DAY_MS = 250L
 
     /**
-     * Cap on tracked (day, site) signatures. Retention keeps ~10 days and a device visits few places,
+     * Cap on tracked (day, site) signatures. Retention keeps ~13 days and a device visits few places,
      * so this is never reached in normal use; a pathological run of location changes cannot grow the
      * store without bound. Cleared wholesale — a miss costs one recompute.
      */

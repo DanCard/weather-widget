@@ -1021,4 +1021,22 @@ class WeatherDatabaseMigrationTest {
         }
         db.close()
     }
+
+    @Test
+    fun migrate84To85CreatesHourlyActuals() {
+        helper.createDatabase(testDb, 84).close()
+
+        val db = helper.runMigrationsAndValidate(testDb, 85, true, WeatherDatabase.MIGRATION_84_85)
+
+        db.execSQL(
+            "INSERT INTO hourly_actuals (hourMs, source, locationLat, locationLon, temperature, archivedAt) " +
+                "VALUES (100, 'NWS', 37.417, -122.089, 60.0, 200)",
+        )
+        db.query("SELECT temperature, precipAmountMm FROM hourly_actuals").use { c ->
+            c.moveToFirst()
+            assertEquals(60f, c.getFloat(0), 0f)
+            assertTrue(c.isNull(1))
+        }
+        db.close()
+    }
 }

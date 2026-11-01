@@ -166,39 +166,62 @@ class HistorySnapshotRetentionTest {
     @Test
     fun `a single snapshot is always kept`() {
         val row = HistorySnapshotRetention.Row("OPEN_METEO", t0, 52.0, 21.0, t0 - hourMs, t0 - hourMs)
-        assertEquals(setOf(row.key), HistorySnapshotRetention.keptKeys(listOf(row), zone))
+        assertEquals(setOf(row.key), HistorySnapshotRetention.keptKeys(listOf(row), zone, nowMs = t0))
     }
 
     @Test
-    fun `hours past 30 days are collapsed to strictly one row per hour per city cluster`() {
-        val pastHour = t0 - 40 * 24 * hourMs // 40 days in the past
-        // 5 snapshots for the same past hour, across slightly different coordinates in the same city
-        val rows = listOf(
-            HistorySnapshotRetention.Row("OPEN_METEO", pastHour, 49.841, 24.031, pastHour - 5 * hourMs, pastHour - 4 * hourMs),
-            HistorySnapshotRetention.Row("OPEN_METEO", pastHour, 49.843, 24.032, pastHour - 3 * hourMs, pastHour - 2 * hourMs), // newest pre-hour: winner
-            HistorySnapshotRetention.Row("OPEN_METEO", pastHour, 49.840, 24.029, pastHour - 1 * hourMs, pastHour + 10_000L), // post-hour hindcast
-            HistorySnapshotRetention.Row("NWS", pastHour, 49.841, 24.031, pastHour - 5 * hourMs, pastHour - 4 * hourMs), // NWS winner
-            HistorySnapshotRetention.Row("NWS", pastHour, 49.842, 24.030, pastHour - 1 * hourMs, pastHour + 20_000L), // post-hour hindcast
-        )
-        val keep = HistorySnapshotRetention.keptKeys(rows, zone, nowMs = t0)
-        // Exactly 2 rows kept, each the stitcher's settled pick: the newest fetched at or before the hour.
-        assertEquals(2, keep.size)
-        assertTrue(keep.contains(rows[1].key))
-        assertTrue(keep.contains(rows[3].key))
+    fun `past 5 days the newest hindcast goes and the settled pick stays`() {
+        val hour = t0 - 6 * 24 * hourMs
+        val preHour = HistorySnapshotRetention.Row("OPEN_METEO", hour, 49.84, 24.03, hour - 2 * hourMs, hour - 2 * hourMs)
+        val hindcast = HistorySnapshotRetention.Row("OPEN_METEO", hour, 49.84, 24.03, hour + 2 * hourMs, hour + 2 * hourMs)
+
+        assertEquals(setOf(preHour.key), HistorySnapshotRetention.keptKeys(listOf(preHour, hindcast), zone, nowMs = t0))
     }
 
     @Test
-    fun `settled archive keeps distinct city clusters that are far apart`() {
-        val pastHour = t0 - 45 * 24 * hourMs
-        // Lviv (49.84, 24.03) vs Kyiv (50.45, 30.52) - hundreds of km apart
-        val rows = listOf(
-            HistorySnapshotRetention.Row("OPEN_METEO", pastHour, 49.841, 24.031, pastHour - 2 * hourMs, pastHour + 1000L),
-            HistorySnapshotRetention.Row("OPEN_METEO", pastHour, 50.451, 30.521, pastHour - 2 * hourMs, pastHour + 2000L),
+    fun `inside 5 days the newest hindcast stays beside the settled pick`() {
+        val hour = t0 - 4 * 24 * hourMs
+        val preHour = HistorySnapshotRetention.Row("OPEN_METEO", hour, 49.84, 24.03, hour - 2 * hourMs, hour - 2 * hourMs)
+        val hindcast = HistorySnapshotRetention.Row("OPEN_METEO", hour, 49.84, 24.03, hour + 2 * hourMs, hour + 2 * hourMs)
+
+        assertEquals(
+            setOf(preHour.key, hindcast.key),
+            HistorySnapshotRetention.keptKeys(listOf(preHour, hindcast), zone, nowMs = t0),
         )
-        val keep = HistorySnapshotRetention.keptKeys(rows, zone, nowMs = t0)
-        assertEquals(2, keep.size)
-        assertTrue(keep.contains(rows[0].key))
-        assertTrue(keep.contains(rows[1].key))
+    }
+
+    @Test
+    fun `past 5 days the rain and band readers keep their rows`() {
+        val hour = t0 - 20 * 24 * hourMs
+        val day = java.time.Instant.ofEpochMilli(hour).atZone(zone).toLocalDate()
+        val priorDay = day.minusDays(1).atTime(12, 0).atZone(zone).toInstant().toEpochMilli()
+        val dayAhead = HistorySnapshotRetention.Row(
+            "OPEN_METEO", hour, 49.84, 24.03, priorDay, priorDay, cloudCoverMid = 30, precipProbability = 40,
+        )
+        val preHour = HistorySnapshotRetention.Row("OPEN_METEO", hour, 49.84, 24.03, hour - hourMs, hour - hourMs)
+
+        val keep = HistorySnapshotRetention.keptKeys(listOf(dayAhead, preHour), zone, nowMs = t0)
+
+        assertTrue(dayAhead.key in keep)
+        assertTrue(preHour.key in keep)
+    }
+
+    @Test
+    fun `hours past the retained window keep nothing`() {
+        val hour = t0 - (RetentionPolicy.HOURLY_FORECAST_DAYS + 1) * 24 * hourMs
+        val row = HistorySnapshotRetention.Row("OPEN_METEO", hour, 49.84, 24.03, hour - hourMs, hour - hourMs)
+
+        assertTrue(HistorySnapshotRetention.keptKeys(listOf(row), zone, nowMs = t0).isEmpty())
+    }
+
+    @Test
+    fun `retention outlasts every reader that looks back`() {
+        // Rain accuracy starts at local midnight 30 calendar days back; the cloud curve reaches 31.
+        assertTrue(
+            RetentionPolicy.HOURLY_FORECAST_DAYS * 24 >
+                com.weatherwidget.shared.graph.PriorDayCloudRun.PAST_DAYS * 24,
+        )
+        assertTrue(RetentionPolicy.HOURLY_FORECAST_DAYS * 24 > -com.weatherwidget.util.NavigationUtils.MIN_HOURLY_OFFSET)
     }
 
     /** Nothing reads a value that only a hindcast carries: the stitcher fills from the pre-hour rows. */

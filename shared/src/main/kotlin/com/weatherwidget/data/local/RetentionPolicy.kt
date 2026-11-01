@@ -3,8 +3,9 @@ package com.weatherwidget.data.local
 /**
  * How long each table keeps rows — ONE policy for Android and desktop (user's decision, 2026-09-30).
  *
- * `daily_history` is the long record (accuracy stats, "yesterday", history navigation) and keeps
- * 18 months. Every other table keeps at most a month, except the usage records ([USAGE_DAYS]):
+ * `daily_history` and `hourly_actuals` are the long record (accuracy stats, "yesterday", history
+ * navigation) and keep 18 months. Every other table keeps at most a month, except the usage records
+ * ([USAGE_DAYS]):
  * desktop's `network_usage` (~0.7 MB at 90 days) and `api_usage_stats` (~16 rows a day), which feed
  * the 90-day and calendar-month columns of Settings → Usage stats (user, 2026-10-08).
  *
@@ -14,17 +15,30 @@ package com.weatherwidget.data.local
 object RetentionPolicy {
     const val DAILY_HISTORY_DAYS = 547L
 
+    /** hourly_actuals: the blended hourly record, as long as the daily one. */
+    const val HOURLY_ACTUALS_DAYS = DAILY_HISTORY_DAYS
+
     /**
-     * hourly_forecasts keeps 1 settled row per hour up to 18 months (matching daily_history),
-     * while retaining multi-snapshot variants within [DEFAULT_DAYS].
+     * An hour is archived to hourly_actuals at this age. Past
+     * `DailyBlendRecomputeRun.MAX_DAYS_BACK` (9) plus its 24 h of context and a partial calendar day,
+     * so no recompute still needs the hour's raw rows, and late station reports have landed.
      */
-    const val HOURLY_HISTORY_SETTLED_DAYS = DAILY_HISTORY_DAYS
+    const val HOURLY_ACTUALS_ARCHIVE_DAYS = 11L
 
-    /** forecasts, current_status, station_cache; hourly_forecasts active window. */
+    /** Raw observations outlive the archive by this much: every blend reads 24 h either side. */
+    const val OBSERVATION_ARCHIVE_MARGIN_DAYS = 2L
+
+    /** hourly_forecasts keeps every reader's snapshots this long; older hours lose their newest-snapshot rows. */
+    const val HOURLY_FORECAST_FULL_DAYS = 5L
+
+    /**
+     * Forecast hours are deleted at this age. The 30-day pan, rain accuracy (30 calendar days) and
+     * the prior-day cloud curve (31 days) all reach 31 days of age.
+     */
+    const val HOURLY_FORECAST_DAYS = 32L
+
+    /** forecasts, current_status, station_cache. */
     const val DEFAULT_DAYS = 30L
-
-    /** Raw station readings; the daily actuals they feed live on in daily_history. */
-    const val OBSERVATION_DAYS = 10L
 
     const val APP_LOG_HOURS = 72L
 

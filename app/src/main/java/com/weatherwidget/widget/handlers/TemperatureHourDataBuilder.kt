@@ -140,6 +140,7 @@ internal fun buildHourDataResult(
     onBlendDebug: ((() -> String) -> Unit)? = null,
     smoothedForecasts: Map<Long, Float>? = null,
     personalStationWeight: Double = 1.0,
+    archivedTemps: Map<Long, Float> = emptyMap(),
 ): BuildHourDataResult {
     val now = LocalDateTime.now()
 
@@ -184,6 +185,7 @@ internal fun buildHourDataResult(
         // Names the thermometer behind the observed line for the graph's dominant-station label. The
         // blend runs either way; this only asks it to keep the top-weight row for the newest point.
         captureLatestDominantAtOrBeforeMs = now.atZone(zoneId).toInstant().toEpochMilli(),
+        archivedTemps = archivedTemps,
     )
     val stationCount = sourceActuals.map { it.stationId }.toSet().size
     if (sourceActuals.isNotEmpty()) {

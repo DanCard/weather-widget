@@ -25,6 +25,9 @@ import java.time.ZoneId
  * 4. **Rain accuracy:** newest bucket captured on the hour's previous local calendar day
  *    (`RainAccuracyCalculator` — "1-day-ahead"). Local = [zone], the device zone at prune time.
  *
+ * Rule 1 runs only for hours under [FULL_WINDOW_MS] old: those hindcasts draw nothing past that age.
+ * Hours past [RETAINED_WINDOW_MS] keep no row at all.
+ *
  * Each is "the newest row within a window that never moves", and new snapshots only ever arrive with
  * later buckets, so a row that is not the newest in its window now can never become it later —
  * pruning is safe for future hours as well as past ones, and idempotent. Rule 2 for an hour not yet
@@ -42,8 +45,11 @@ object HistorySnapshotRetention {
     /** Matches `PriorDayBandForecast.LEAD_MS`. */
     const val BAND_LEAD_MS = 24L * 3_600_000L
 
-    /** Active window where multi-snapshot rules run (30 days); older hours are settled to 1 row per hour per city cluster. */
-    const val ACTIVE_WINDOW_MS = RetentionPolicy.DEFAULT_DAYS * 24L * 3_600_000L
+    /** Hours younger than this keep rule 1's newest snapshots as well. */
+    const val FULL_WINDOW_MS = RetentionPolicy.HOURLY_FORECAST_FULL_DAYS * 24L * 3_600_000L
+
+    /** Hours older than this keep nothing. */
+    const val RETAINED_WINDOW_MS = RetentionPolicy.HOURLY_FORECAST_DAYS * 24L * 3_600_000L
 
     data class Row(
         val source: String,
@@ -78,65 +84,51 @@ object HistorySnapshotRetention {
         val kept = HashSet<Key>()
         if (rows.isEmpty()) return kept
 
-        val cutoffActiveMs = nowMs - ACTIVE_WINDOW_MS
-        val (activeRows, settledRows) = rows.partition { it.dateTime >= cutoffActiveMs }
+        val fullCutoffMs = nowMs - FULL_WINDOW_MS
+        val retained = rows.filter { it.dateTime >= nowMs - RETAINED_WINDOW_MS }
+        if (retained.isEmpty()) return kept
 
-        // Tier 1: Active 30-day window
-        if (activeRows.isNotEmpty()) {
-            val clusterMap = clusterCenters(activeRows, LocationMatch.SAME_SITE_TOLERANCE_DEG)
-            activeRows.groupBy {
-                val cluster = clusterMap[it.lat to it.lon] ?: (it.lat to it.lon)
-                GroupKey(it.source, it.dateTime, cluster.first, cluster.second)
-            }.forEach { (_, group) ->
-                // 1. newest, both ways (ties: keep every tied row — readers break ties arbitrarily)
+        val clusterMap = clusterCenters(
+            retained.groupingBy { it.lat to it.lon }.eachCount(),
+            LocationMatch.SAME_SITE_TOLERANCE_DEG,
+        )
+        retained.groupBy {
+            val cluster = clusterMap[it.lat to it.lon] ?: (it.lat to it.lon)
+            GroupKey(it.source, it.dateTime, cluster.first, cluster.second)
+        }.forEach { (_, group) ->
+            val hour = group.first().dateTime
+            // 1. newest, both ways (ties: keep every tied row — readers break ties arbitrarily)
+            if (hour >= fullCutoffMs) {
                 keepMax(group, kept) { it.bucket }
                 keepMax(group, kept) { it.fetchedAt }
-                // 3. prior-day band
-                val hour = group.first().dateTime
-                keepMax(
-                    group.filter { it.bucket <= hour - BAND_LEAD_MS && (it.cloudCoverMid != null || it.cloudCoverHigh != null) },
-                    kept,
-                ) { it.bucket }
-                // 4. captured on the previous local calendar day
-                val day = Instant.ofEpochMilli(hour).atZone(zone).toLocalDate()
-                val dayStart = day.atStartOfDay(zone).toInstant().toEpochMilli()
-                val prevDayStart = day.minusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
-                keepMax(group.filter { it.bucket in prevDayStart until dayStart }, kept) { it.bucket }
-                // 2. settled pick and its per-field backfill, from the same window (ties: keep all)
-                val window = SettledForecastPick.backfillOrder(group, hour, nowMs) { it.fetchedAt }
-                keepFetchedAtOf(window.firstOrNull(), window, kept)
-                for (field in coalescedFields) {
-                    val withField = window.filter { field(it) != null }
-                    keepFetchedAtOf(withField.firstOrNull(), withField, kept)
-                }
             }
-        }
-
-        // Tier 2: Settled archive (30 days to 18 months)
-        if (settledRows.isNotEmpty()) {
-            val clusterMap = clusterCenters(settledRows, LocationMatch.TOLERANCE_DEG)
-            settledRows.groupBy {
-                val cluster = clusterMap[it.lat to it.lon] ?: (it.lat to it.lon)
-                GroupKey(it.source, it.dateTime, cluster.first, cluster.second)
-            }.forEach { (_, group) ->
-                // Keep strictly one row per hour per source per city cluster: the stitcher's settled
-                // pick, so an archived hour draws the same forecast it did while active. Ties on
-                // fetchedAt break to the latest bucket.
-                val hour = group.first().dateTime
-                val pickedAt = SettledForecastPick.pick(group, hour, nowMs) { it.fetchedAt }!!.fetchedAt
-                kept += group.filter { it.fetchedAt == pickedAt }.maxBy { it.bucket }.key
+            // 3. prior-day band
+            keepMax(
+                group.filter { it.bucket <= hour - BAND_LEAD_MS && (it.cloudCoverMid != null || it.cloudCoverHigh != null) },
+                kept,
+            ) { it.bucket }
+            // 4. captured on the previous local calendar day
+            val day = Instant.ofEpochMilli(hour).atZone(zone).toLocalDate()
+            val dayStart = day.atStartOfDay(zone).toInstant().toEpochMilli()
+            val prevDayStart = day.minusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+            keepMax(group.filter { it.bucket in prevDayStart until dayStart }, kept) { it.bucket }
+            // 2. settled pick and its per-field backfill, from the same window (ties: keep all)
+            val window = SettledForecastPick.backfillOrder(group, hour, nowMs) { it.fetchedAt }
+            keepFetchedAtOf(window.firstOrNull(), window, kept)
+            for (field in coalescedFields) {
+                val withField = window.filter { field(it) != null }
+                keepFetchedAtOf(withField.firstOrNull(), withField, kept)
             }
         }
 
         return kept
     }
 
-    private fun clusterCenters(rows: List<Row>, toleranceDeg: Double): Map<Pair<Double, Double>, Pair<Double, Double>> {
-        val freq = rows.groupingBy { it.lat to it.lon }.eachCount()
-        val sortedPoints = freq.keys.sortedByDescending { freq[it] ?: 0 }
+    /** Each point's cluster centre, most frequent points first. [counts]: rows per exact point. */
+    fun clusterCenters(counts: Map<Pair<Double, Double>, Int>, toleranceDeg: Double): Map<Pair<Double, Double>, Pair<Double, Double>> {
         val centers = mutableListOf<Pair<Double, Double>>()
         val mapping = mutableMapOf<Pair<Double, Double>, Pair<Double, Double>>()
-        for (pt in sortedPoints) {
+        for (pt in counts.keys.sortedByDescending { counts[it] ?: 0 }) {
             val matched = centers.firstOrNull { (cLat, cLon) ->
                 kotlin.math.abs(pt.first - cLat) <= toleranceDeg &&
                     kotlin.math.abs(pt.second - cLon) <= toleranceDeg

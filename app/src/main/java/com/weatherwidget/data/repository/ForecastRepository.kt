@@ -141,7 +141,6 @@ class ForecastRepository
         )
         private val retentionManager = WeatherRetentionManager(
             forecastDao = forecastDao,
-            observationDao = observationDao,
             dailyHistoryDao = dailyHistoryDao,
             appLogDao = appLogDao,
             apiUsageDao = { com.weatherwidget.data.local.WeatherDatabase.getDatabase(context).apiUsageDao() },

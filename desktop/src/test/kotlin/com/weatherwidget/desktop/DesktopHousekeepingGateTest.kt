@@ -76,7 +76,8 @@ class DesktopHousekeepingGateTest {
         repo().pruneHistorySnapshotsIfDue(now)
 
         assertEquals(now, markers().single().timestamp)
-        assertTrue(pruneRows().single().message.startsWith("days="))
+        assertTrue(pruneRows().any { it.message.startsWith("days=") })
+        assertTrue(pruneRows().any { it.message.startsWith("hourly_actuals ") })
     }
 
     @Test
@@ -118,9 +119,9 @@ class DesktopHousekeepingGateTest {
     }
 
     @Test
-    fun `the housekeeping pass applies the 18-month age limit`() = runBlocking {
+    fun `the housekeeping pass applies the forecast age limit`() = runBlocking {
         seed()
-        val old = now - (com.weatherwidget.data.local.RetentionPolicy.HOURLY_HISTORY_SETTLED_DAYS + 1) * 24 * 3_600_000L
+        val old = now - (com.weatherwidget.data.local.RetentionPolicy.HOURLY_FORECAST_DAYS + 1) * 24 * 3_600_000L
         dao.upsertHourlyForecastHistory(
             lat, lon, WeatherSource.OPEN_METEO.id, old,
             listOf(HourlyForecast(old, 60f, "Clear", source = WeatherSource.OPEN_METEO.id, fetchedAt = old)),

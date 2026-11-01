@@ -52,6 +52,23 @@ class DesktopRainHourNowGateTest {
     )
 
     @Test
+    fun `an archived hour fills in where no raw rows remain, and a live hour beats it`() {
+        val points = (0 until 12).map { forecastHour(it, 2f) }
+        fun archived(hour: Int, mm: Float) = com.weatherwidget.data.model.HourlyActual(
+            hourMs = points[hour].dateTime, source = "NWS", locationLat = 0.0, locationLon = 0.0,
+            precipAmountMm = mm, archivedAt = 0L,
+        )
+
+        val rows = buildRainHours(
+            points, listOf(observation(6, 1f)), now = epoch(7),
+            hourlyActuals = listOf(archived(3, 0.5f), archived(6, 9f)),
+        )
+
+        assertEquals(0.5f, rows[3].actualPrecipAmountMm)
+        assertEquals("Live hour wins", 1f, rows[6].actualPrecipAmountMm)
+    }
+
+    @Test
     fun `hours at and after now carry no actual`() {
         // NOW is 07:00. Observations exist for 06:00 and -- as a stand-in for a mis-filed row -- for
         // 09:00. Only the elapsed one may reach the graph.

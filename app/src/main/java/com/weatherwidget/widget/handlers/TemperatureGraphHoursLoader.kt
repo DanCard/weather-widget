@@ -1,5 +1,6 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.data.local.toHourlyActual
 import android.content.Context
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationEntity
@@ -96,6 +97,18 @@ internal object TemperatureGraphHoursLoader {
             loaded
         }
 
+        // Hours past the raw observations, from the 18-month archive. Deferred with the actuals.
+        val archivedTemps = if (deferGraphActuals) {
+            emptyMap()
+        } else {
+            val readStart = alignedCenter.minusHours(zoom.backHours).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            val readEnd = alignedCenter.plusHours(zoom.forwardHours).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            com.weatherwidget.data.model.HourlyActualsHistory.temperatures(
+                database.hourlyActualDao().getInRange(readStart, readEnd + 1, lat, lon, displaySource.id)
+                    .map { it.toHourlyActual() },
+            )
+        }
+
         val buildHourDataStartMs = System.currentTimeMillis()
         val blendDebugCollector = BlendDebugCollector()
         val hourDataResult = buildHourDataResult(
@@ -108,6 +121,7 @@ internal object TemperatureGraphHoursLoader {
             onBlendDebug = { lineProvider -> blendDebugCollector.recordDetailed(lineProvider) },
             smoothedForecasts = smoothedForecasts,
             personalStationWeight = stateManager.getPersonalStationWeight(),
+            archivedTemps = archivedTemps,
         )
         val hourData = hourDataResult.hours
         val buildHourDataMs = System.currentTimeMillis() - buildHourDataStartMs

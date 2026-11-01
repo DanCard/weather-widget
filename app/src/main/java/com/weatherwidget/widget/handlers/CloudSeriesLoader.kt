@@ -4,6 +4,8 @@ import android.content.Context
 import android.util.Log
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherDatabase
+import com.weatherwidget.data.local.toHourlyActual
+import com.weatherwidget.data.model.HourlyActualsHistory
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.actuals.MetarCloudBlender
 import com.weatherwidget.shared.graph.CloudBands
@@ -94,6 +96,18 @@ internal object CloudSeriesLoader {
             MetarCloudBlender.empty(isMetarBlend = false)
         }
 
+        val archivedActuals = if (cloudSeriesAvailable) {
+            runCatching {
+                WeatherDatabase.getDatabase(context).hourlyActualDao()
+                    .getInRange(windowStart, windowEnd, siteLat, siteLon, effectiveDisplaySource.id)
+                    .map { it.toHourlyActual() }
+            }.getOrElse {
+                Log.w(TAG, "archived cloud read failed; older hours stay forecast only", it)
+                emptyList()
+            }
+        } else {
+            emptyList()
+        }
         val metarStats = if (retroActual.isMetarBlend) " ${retroActual.stats.summary()}" else ""
         Log.i(
             TAG,
@@ -109,7 +123,10 @@ internal object CloudSeriesLoader {
             windowEnd = windowEnd,
             priorCloud = priorCloud,
             priorBands = priorBands,
-            retroActual = retroActual,
+            retroActual = retroActual.copy(
+                hours = HourlyActualsHistory.merge(retroActual.hours, HourlyActualsHistory.cloud(archivedActuals)),
+                bands = HourlyActualsHistory.merge(retroActual.bands, HourlyActualsHistory.cloudBands(archivedActuals)),
+            ),
         )
     }
 }

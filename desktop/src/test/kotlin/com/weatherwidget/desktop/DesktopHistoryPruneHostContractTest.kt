@@ -52,6 +52,21 @@ class DesktopHistoryPruneHostContractTest : HistoryPruneHostContract() {
     override suspend fun logged(): List<String> =
         dao.getRecentLogsByTags(listOf(HistoryPruneSchedule.LOG_TAG), limit = 10).map { it.message }
 
+    override suspend fun archived() = dao.getHourlyActuals(37.42, -122.08, "NWS", 0L, Long.MAX_VALUE)
+
+    override suspend fun seedObservation(timestampMs: Long, fetchedAtMs: Long) {
+        db.getConnection().use { conn ->
+            conn.prepareStatement(
+                "INSERT INTO observations (stationId, stationName, timestamp, temperature, condition, locationLat, " +
+                    "locationLon, fetchedAt, api) VALUES ('KNUQ', 'KNUQ', ?, 60, 'Clear', 37.42, -122.08, ?, 'NWS')",
+            ).use { st ->
+                st.setLong(1, timestampMs)
+                st.setLong(2, fetchedAtMs)
+                st.executeUpdate()
+            }
+        }
+    }
+
     @After
     fun deleteDatabase() {
         Files.deleteIfExists(path)

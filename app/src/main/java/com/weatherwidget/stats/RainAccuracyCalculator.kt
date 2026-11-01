@@ -2,7 +2,10 @@ package com.weatherwidget.stats
 
 import com.weatherwidget.data.local.HourlyForecastHistoryDao
 import com.weatherwidget.data.local.HourlyForecastEntity
+import com.weatherwidget.data.local.HourlyActualDao
 import com.weatherwidget.data.local.ObservationDao
+import com.weatherwidget.data.local.toHourlyActual
+import com.weatherwidget.data.model.HourlyActualsHistory
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.local.toReading
@@ -32,6 +35,7 @@ class RainAccuracyCalculator
     constructor(
         private val hourlyForecastHistoryDao: HourlyForecastHistoryDao,
         private val observationDao: ObservationDao,
+        private val hourlyActualDao: HourlyActualDao,
     ) {
         suspend fun getDailyRainAccuracy(
             source: WeatherSource,
@@ -68,7 +72,12 @@ class RainAccuracyCalculator
                 // so the precip reducer's input set is not the temperature blend's. Not a hot path.
                 val observations =
                     observationDao.getObservationsInRange(dayStartMs, dayEndMs, lat, lon, apis = null)
-                val actualByHour = actualPrecipByHour(observations, source, zoneId)
+                val archived = hourlyActualDao.getInRange(dayStartMs, dayEndMs, lat, lon, source.id)
+                    .map { it.toHourlyActual() }
+                val actualByHour = HourlyActualsHistory.merge(
+                    actualPrecipByHour(observations, source, zoneId),
+                    HourlyActualsHistory.rainByHour(archived, zoneId),
+                )
 
                 val (predDay, predNight) = bucketDayNight(predByHour)
                 val (actualDay, actualNight) = bucketDayNight(actualByHour)

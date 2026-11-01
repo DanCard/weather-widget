@@ -1,8 +1,11 @@
 package com.weatherwidget.shared.contract
 
 import com.weatherwidget.data.local.HistoryPruneRun
+import com.weatherwidget.data.local.HourlyActualsArchiveRun
+import com.weatherwidget.data.model.HourlyActual
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -10,6 +13,7 @@ import org.junit.Test
 /**
  * What [HistoryPruneRun.Host] means on Android's Room Host and desktop's SQLite Host
  * (plans/261101-reliable-hourly-prune-scheduling.md). Rows sit in the merged `hourly_forecasts`.
+ * Also covers its parent port, [HourlyActualsArchiveRun.Host].
  */
 abstract class HistoryPruneHostContract {
     data class Seed(val hourMs: Long, val labelMs: Long, val fetchedAtMs: Long)
@@ -26,6 +30,11 @@ abstract class HistoryPruneHostContract {
 
     protected abstract suspend fun logged(): List<String>
 
+    protected abstract suspend fun archived(): List<HourlyActual>
+
+    /** One observation at the seeded site. */
+    protected abstract suspend fun seedObservation(timestampMs: Long, fetchedAtMs: Long)
+
     private lateinit var host: HistoryPruneRun.Host
     private val now = System.currentTimeMillis()
 
@@ -35,19 +44,19 @@ abstract class HistoryPruneHostContract {
     }
 
     @Test
-    fun `the age delete takes rows old by hour or by fetch, and leaves the rest`() = runBlocking {
+    fun `the age delete goes by forecast hour, however old the fetch`() = runBlocking {
         val cutoff = now - 100 * DAY
         seed(
             listOf(
                 Seed(hourMs = cutoff - DAY, labelMs = cutoff + DAY, fetchedAtMs = cutoff + DAY),
                 Seed(hourMs = cutoff + DAY, labelMs = cutoff - DAY, fetchedAtMs = cutoff - DAY),
-                Seed(hourMs = cutoff + DAY, labelMs = cutoff + DAY, fetchedAtMs = cutoff + DAY),
+                Seed(hourMs = cutoff + 2 * DAY, labelMs = cutoff + DAY, fetchedAtMs = cutoff + DAY),
             ),
         )
 
         host.deleteOlderThan(cutoff)
 
-        assertEquals(1, rowCount())
+        assertEquals(2, rowCount())
     }
 
     @Test
@@ -73,6 +82,45 @@ abstract class HistoryPruneHostContract {
         host.vacuum()
 
         assertEquals(0L, host.freelistBytes())
+    }
+
+    @Test
+    fun `archived hours are frozen, and their age delete goes by hour`() = runBlocking {
+        val hour = (now - 20 * DAY) / HOUR * HOUR
+        val first = HourlyActual(hour, "NWS", 37.42, -122.08, temperature = 60f, precipAmountMm = 0f, archivedAt = now)
+        val old = HourlyActual(hour - 100 * DAY, "NWS", 37.42, -122.08, temperature = 50f, archivedAt = now)
+
+        host.insertHourlyActuals(listOf(first, old))
+        host.insertHourlyActuals(listOf(first.copy(temperature = 99f)))
+        assertEquals(hour, host.latestArchivedHour())
+        host.deleteHourlyActualsOlderThan(hour - DAY)
+
+        assertEquals(listOf(first), archived())
+    }
+
+    @Test
+    fun `observations age by reading time, however new the fetch`() = runBlocking {
+        val cutoff = now - 13 * DAY
+        assertNull(host.oldestObservation())
+        seedObservation(cutoff - DAY, fetchedAtMs = now)
+        seedObservation(cutoff + DAY, fetchedAtMs = now)
+        assertEquals(cutoff - DAY, host.oldestObservation())
+
+        host.deleteObservationsOlderThan(cutoff)
+
+        assertEquals(cutoff + DAY, host.oldestObservation())
+    }
+
+    @Test
+    fun `the archive reads the site's observations and hourly rows in its window`() = runBlocking {
+        val hour = (now - 12 * DAY) / HOUR * HOUR
+        seedObservation(hour, fetchedAtMs = hour)
+        seedObservation(hour + 2 * DAY, fetchedAtMs = hour)
+        seed(listOf(Seed(hour, hour - HOUR, hour - HOUR)))
+
+        assertEquals(mapOf((37.42 to -122.08) to 1), host.observationSites(hour, hour + HOUR))
+        assertEquals(listOf(hour), host.observations(hour, hour + HOUR, 37.42, -122.08).map { it.timestamp })
+        assertEquals(listOf(hour), host.hourlyForecasts(hour, hour + 1, 37.42, -122.08).map { it.dateTime })
     }
 
     @Test

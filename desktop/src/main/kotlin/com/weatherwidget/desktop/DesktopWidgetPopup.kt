@@ -328,6 +328,7 @@ internal fun WidgetPopup(
                                 PrecipitationGraph(
                                     hourly = snapshot.raw.hourly,
                                     observations = snapshot.raw.rawObservations,
+                                    hourlyActuals = snapshot.hourlyActuals,
                                     displaySourceId = config.displaySource,
                                     latitude = config.lat,
                                     longitude = config.lon,
@@ -355,6 +356,7 @@ internal fun WidgetPopup(
                                     currentObservedAt = snapshot.resolved.currentObservedAt,
                                     appliedDelta = snapshot.resolved.appliedDelta,
                                     observations = snapshot.raw.rawObservations,
+                                    hourlyActuals = snapshot.hourlyActuals,
                                     displaySourceId = config.displaySource,
                                     latitude = config.lat,
                                     longitude = config.lon,

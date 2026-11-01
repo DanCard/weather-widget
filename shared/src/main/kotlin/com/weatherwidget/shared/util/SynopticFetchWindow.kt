@@ -4,7 +4,7 @@ package com.weatherwidget.shared.util
  * How much of the Synoptic timeseries window to ask for on a routine refresh.
  *
  * A full sync used to always request `recent=1440` (24 h) and keep ~5% of it. Observations are
- * stored for 10 days, so earlier hours are already on disk — only the gap since the newest stored
+ * stored for about 13 days, so earlier hours are already on disk — only the gap since the newest stored
  * reading is missing. First run / new location / a gap past [GAP_MS] still gets the deep window,
  * because there is nothing local to fall back on.
  */

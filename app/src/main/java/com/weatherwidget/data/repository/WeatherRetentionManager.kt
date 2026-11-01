@@ -4,7 +4,6 @@ import androidx.annotation.VisibleForTesting
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.DailyHistoryDao
 import com.weatherwidget.data.local.ForecastDao
-import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.RetentionPolicy
 import com.weatherwidget.data.model.WeatherSource
 
@@ -13,7 +12,6 @@ import com.weatherwidget.data.model.WeatherSource
  */
 internal class WeatherRetentionManager(
     private val forecastDao: ForecastDao,
-    private val observationDao: ObservationDao,
     private val dailyHistoryDao: DailyHistoryDao,
     private val appLogDao: AppLogDao,
     /** Resolved lazily: the repository is constructed in unit tests with a mocked context. */
@@ -33,7 +31,6 @@ internal class WeatherRetentionManager(
         val logsCutoffTimestamp = RetentionPolicy.hoursAgo(now, RetentionPolicy.APP_LOG_HOURS)
         forecastDao.deleteOldForecasts(defaultCutoff)
         forecastDao.deleteClimateNormalRows(WeatherSource.GENERIC_GAP.id)
-        observationDao.deleteOldObservations(RetentionPolicy.daysAgo(now, RetentionPolicy.OBSERVATION_DAYS))
         dailyHistoryDao.deleteOldExtremes(RetentionPolicy.daysAgo(now, RetentionPolicy.DAILY_HISTORY_DAYS))
         // Best-effort: usage bookkeeping must never fail a sync.
         try {

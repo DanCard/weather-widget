@@ -177,6 +177,12 @@ object ActualTemperatureSeriesBuilder {
          * computed anyway, so the marginal cost here is retaining the rows rather than deriving them.
          */
         captureBreakdowns: Int = 0,
+        /**
+         * Archived hour marks ([com.weatherwidget.data.model.HourlyActualsHistory.temperatures]), for
+         * hours past the raw observations. A frozen result: never fed to the blend, and a blended
+         * point at the same mark wins.
+         */
+        archivedTemps: Map<Long, Float> = emptyMap(),
     ): ActualTemperatureSeriesResult {
         val forecastsByTime = HourlyForecastSelector.selectForecastsByTime(hourlyForecasts, displaySourceId, userLat, userLon)
         val alignedCenter = WeatherTimeUtils.alignToNearestHourHalfUp(centerTime)
@@ -240,13 +246,14 @@ object ActualTemperatureSeriesBuilder {
         for (timeMs in allTimes) {
             val topHour = topHoursByMs[timeMs]
             val actual = actualByTime[timeMs]
-            val actualTemp = actual?.temperature
+            val archived = archivedTemps[timeMs]?.takeIf { actual == null }
+            val actualTemp = actual?.temperature ?: archived
             val isPast = timeMs < nowMs
             if (topHour != null) {
                 points += topHour.copy(
                     isActual = isPast && actualTemp != null,
                     actualTemp = actualTemp,
-                    isObservedActual = isPast && actual?.condition == "observed",
+                    isObservedActual = isPast && (actual?.condition == "observed" || archived != null),
                 )
             } else {
                 points += ActualTemperaturePoint(

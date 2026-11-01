@@ -172,6 +172,7 @@ fun TemperatureGraph(
     // The resolver's delta, the one the daily view shows. No default: every caller must supply it.
     appliedDelta: Float?,
     observations: List<ObservationReading> = emptyList(),
+    hourlyActuals: List<com.weatherwidget.data.model.HourlyActual> = emptyList(),
     displaySourceId: String = "NWS",
     latitude: Double = 0.0,
     longitude: Double = 0.0,
@@ -259,6 +260,7 @@ fun TemperatureGraph(
         // Every contributor behind the newest point, for the now-dot hover overlay. captureMeta is
         // already on for the dominant label above, so this only retains rows already computed.
         captureBreakdowns = 1,
+        archivedTemps = com.weatherwidget.data.model.HourlyActualsHistory.temperatures(hourlyActuals),
     )
 
 

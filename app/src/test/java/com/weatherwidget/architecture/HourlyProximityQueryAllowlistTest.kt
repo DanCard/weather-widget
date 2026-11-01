@@ -50,6 +50,7 @@ class HourlyProximityQueryAllowlistTest {
         "HourlyForecastStore.kt" to "write-path dedup filters to the exact quantized site; RoomGoogleHistoryHost.liveHours keeps same-site rows only",
         "RoomForecastPersistHost.kt" to "ForecastPersistRun's stored-hours read filters to the exact quantized key (pinned by ForecastPersistHostContract)",
         "RoomDailyBlendRecomputeHost.kt" to "actuals context read is immediately wrapped in unifyToNearestSite",
+        "RoomHistoryPruneHost.kt" to "archive blend context read is immediately wrapped in unifyToNearestSite",
         "UIUpdateScheduler.kt" to "update cadence heuristic: the newest row per hour, never drawn",
         "DataFreshness.kt" to "staleness check; freshest row wins regardless of site",
         "NowcastRefresher.kt" to

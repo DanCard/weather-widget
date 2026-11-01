@@ -11,6 +11,7 @@ import android.view.View
 import android.widget.RemoteViews
 import com.weatherwidget.R
 import com.weatherwidget.data.local.HourlyForecastEntity
+import com.weatherwidget.data.local.toHourlyActual
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.shared.util.HeaderButtons
 import com.weatherwidget.shared.util.HeaderContent
@@ -655,7 +656,13 @@ object PrecipViewHandler {
             // Unscoped: precip actuals are the hybrid set (measured NWS rows alongside the
             // provider's own reports), so this is not the temperature blend's scope.
             .getObservationsInRange(queryStartMs, queryEndMs, lat, lon, apis = null)
-        val actualPrecipByHour = buildActualPrecipByHour(observations, displaySource, zoneId)
+        val archived = WeatherDatabase.getDatabase(context).hourlyActualDao()
+            .getInRange(queryStartMs, queryEndMs, lat, lon, displaySource.id)
+            .map { it.toHourlyActual() }
+        val actualPrecipByHour = com.weatherwidget.data.model.HourlyActualsHistory.merge(
+            buildActualPrecipByHour(observations, displaySource, zoneId),
+            com.weatherwidget.data.model.HourlyActualsHistory.rainByHour(archived, zoneId),
+        )
         if (actualPrecipByHour.isNotEmpty()) {
             Log.d(
                 TAG,

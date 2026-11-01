@@ -64,6 +64,7 @@ private val COLOR_DAY_NIGHT_DIVIDER = Color.White.copy(alpha = 0.2f)
 fun PrecipitationGraph(
     hourly: List<HourlyForecast>,
     observations: List<ObservationReading> = emptyList(),
+    hourlyActuals: List<com.weatherwidget.data.model.HourlyActual> = emptyList(),
     displaySourceId: String = "NWS",
     latitude: Double = 0.0,
     longitude: Double = 0.0,
@@ -246,6 +247,7 @@ fun PrecipitationGraph(
                 com.weatherwidget.data.model.WeatherSource.fromId(displaySourceId),
             ),
             now = now,
+            hourlyActuals = hourlyActuals,
         )
         val selectedRain = RainPeriodSelection.selectPeriods(
             hours = rainHours,
@@ -427,11 +429,15 @@ internal fun buildRainHours(
     observations: List<ObservationReading>,
     /** Epoch millis; matches `HourlyGraphSetup.now`. */
     now: Long,
+    hourlyActuals: List<com.weatherwidget.data.model.HourlyActual> = emptyList(),
 ): List<RainPeriodSelection.RainHour> {
     val zoneId = ZoneId.systemDefault()
     val nowLdt = LocalDateTime.ofInstant(Instant.ofEpochMilli(now), zoneId)
     // One amount per hour for the site: stations are combined, not added (ObservedPrecip).
-    val actualByHour = com.weatherwidget.shared.actuals.ObservedPrecip.byHour(observations, zoneId)
+    val actualByHour = com.weatherwidget.data.model.HourlyActualsHistory.merge(
+        com.weatherwidget.shared.actuals.ObservedPrecip.byHour(observations, zoneId),
+        com.weatherwidget.data.model.HourlyActualsHistory.rainByHour(hourlyActuals, zoneId),
+    )
     return points.map { forecast ->
         val hour = LocalDateTime.ofInstant(Instant.ofEpochMilli(forecast.dateTime), zoneId)
         RainPeriodSelection.RainHour(

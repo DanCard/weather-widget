@@ -43,7 +43,8 @@ class HistoryPruneWorker(
             val lastCompleted = prefs.getLong(KEY_LAST_COMPLETED_START_MS, 0L)
             val since = if (!migrationDone) 0L else minOf(lastCompleted, startedAt - activeScanWindowMs)
 
-            HistoryPruneRun.run(RoomHistoryPruneHost(db, prefs, since, startedAt), startedAt)
+            val weight = WidgetPersonalStationWeightProvider(context)
+            HistoryPruneRun.run(RoomHistoryPruneHost(db, prefs, since, startedAt, weight::currentWeight), startedAt)
         }
 
         /** Unique (KEEP): a pending or running prune absorbs any further request. */

@@ -11,7 +11,7 @@ import java.nio.file.Path
 
 /**
  * Desktop applies the shared RetentionPolicy — the same values as Android: daily_history 18 months,
- * network_usage 90 days, observations 10 days, app_logs 72 h (except permanent markers), everything
+ * network_usage 90 days, app_logs 72 h (except permanent markers), everything
  * else 30 days. Each table is checked on both sides of its boundary.
  */
 @Category(MediumDuration::class)
@@ -60,7 +60,7 @@ class DesktopRetentionPolicyTest {
         val windows = mapOf(
             "forecasts" to 30.0,
             "station_cache" to 30.0, "current_status" to 30.0,
-            "observations" to 10.0, "daily_history" to 547.0, "network_usage" to 90.0,
+            "daily_history" to 547.0, "network_usage" to 90.0,
         )
         for ((table, days) in windows) {
             insert(table, days - 1, 1)

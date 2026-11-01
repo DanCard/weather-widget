@@ -292,6 +292,8 @@ data class ForecastSnapshot(
      * (`HeaderContent.precipLabels`). Empty where nothing reserves.
      */
     val allSourcesHourly: List<HourlyForecast> = emptyList(),
+    /** Archived hours of this source behind the raw observations ([HourlyActualsHistory]). */
+    val hourlyActuals: List<HourlyActual> = emptyList(),
 )
 
 sealed class DataStatus {
