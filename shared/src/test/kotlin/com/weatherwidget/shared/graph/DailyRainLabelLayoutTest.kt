@@ -55,6 +55,62 @@ class DailyRainLabelLayoutTest {
     )
 
     @Test
+    fun `fold night label pinned on the floor under the left low nudges right and down`() {
+        // 2026-10-31 Fold NWS trace: "48%" touched the 9 of Today's "47.9°", 2 dp left of centre.
+        val leftLow = Box(85.6f, 338.2f, 156.6f, 375.1f)
+        val rightLow = Box(150.0f, 336.8f, 196.0f, 373.7f)
+        val p = 2.6f
+        val label = DailyRainLabelLayout.layoutNight(
+            DailyRainLabelLayout.Host { _, _, _ -> DailyRainLabelLayout.TextSize(26f, 16.7f, 13f) },
+            DailyRainLabelLayout.NightInput(
+                date = "2026-10-31", text = "48%", probability = 48, isPast = false, daysFromToday = 0,
+                columnCenterX = 115f, gapCenterX = 147f, columnWidth = 52f,
+                leftLowLabel = leftLow, rightLowLabel = rightLow,
+                obstacles = listOf(
+                    Box(105.6f, 307.5f, 136.6f, 338.5f),
+                    Box(85.6f, 338.2f, 144.6f, 375.1f, isLowDigits = true),
+                    Box(144.6f, 338.2f, 156.6f, 356.6f, isDegreeSign = true),
+                    Box(157.5f, 306.1f, 188.5f, 337.1f),
+                    Box(150.0f, 336.8f, 184.0f, 373.7f, isLowDigits = true),
+                    Box(184.0f, 336.8f, 196.0f, 355.2f, isDegreeSign = true),
+                ),
+                dayLabelTop = 379.4f, canvasWidth = 664f, pxPerDp = p,
+            ),
+            "test",
+        )
+        assertEquals(141.8f + DailyRainLabels.NIGHT_FLOOR_SLIDE_DP * p, label.centerX, 0.05f)
+        assertEquals(379.4f - 16.7f + DailyRainLabels.NIGHT_FLOOR_DROP_DP * p, label.top, 0.05f)
+    }
+
+    @Test
+    fun `desktop night label stuck on the floor against a degree sign drops into its blank descent`() {
+        // 2026-10-31 desktop OWM trace: "37%" sat on the ° of "47.6°", 17 px above the day name's ink.
+        val degree = Box(308.8f, 799f, 325.8f, 824.5f, isDegreeSign = true)
+        fun drop(top: Float, blank: Float, obstacles: List<Box> = listOf(degree)) = DailyRainLabelPlanner.dropOffDegreeAtFloor(
+            centerX = 341.2f, top = top, width = 50f, height = 34f, blankBelowPx = blank,
+            obstacles = obstacles, maxBottom = 843f, density = 3f,
+        )
+        assertEquals("3 dp", 818f, drop(809f, 12f), 0.01f)
+        assertEquals("blank descent", 816f, drop(809f, 7f), 0.01f)
+        assertEquals("room above the floor", 800f, drop(800f, 12f), 0.01f)
+        assertEquals("nearly clear of the °", 809f, drop(809f, 12f, listOf(degree.copy(bottom = 812f))), 0.01f)
+        assertEquals("no ° level", 809f, drop(809f, 12f, listOf(degree.copy(left = 100f, right = 120f))), 0.01f)
+    }
+
+    @Test
+    fun `floor ease leaves a label that stayed centred, is above the floor, or is clear of the digits`() {
+        val digits = Box(85.6f, 338.2f, 144.6f, 375.1f, isLowDigits = true)
+        val low = Box(85.6f, 338.2f, 156.6f, 375.1f)
+        fun ease(centerX: Float, top: Float, home: Float = 147f) = DailyRainLabelPlanner.easeOffLeftLowAtFloor(
+            homeCenterX = home, centerX = centerX, top = top, width = 26f, height = 16.7f,
+            leftLowLabel = low, obstacles = listOf(digits), maxBottom = 379.4f, density = 2.6f,
+        )
+        assertEquals("centred", DailyRainLabelPlanner.NightLabelEase(147f, 362.7f), ease(147f, 362.7f))
+        assertEquals("room below", DailyRainLabelPlanner.NightLabelEase(141.8f, 355f), ease(141.8f, 355f))
+        assertEquals("clear of digits", DailyRainLabelPlanner.NightLabelEase(160f, 362.7f), ease(160f, 362.7f, home = 170f))
+    }
+
+    @Test
     fun `fold today night label too wide for the gap sinks below both lows and slides right`() {
         // 2026-10-31 Fold trace: "40%" sat on the 9 and the ° of Today's "47.9°", with 6.5 dp free below.
         val leftLow = Box(131.7f, 323.4f, 190.7f, 360.3f)
@@ -307,7 +363,8 @@ class DailyRainLabelLayoutTest {
         val label = emuNight("4%", 11f, 10f, 57f, Box(-2.5f, 326.6f, 59.5f, 357.2f), Box(54.5f, 334.4f, 116.5f, 365f), "49.3°", "53.2°")
         assertTrue("right of where the slide left it: ${label.centerX}", label.centerX > 50f)
         assertTrue("below the left digits' ink: top=${label.top}", label.top >= 350f)
-        assertTrue("clear of the day names: bottom=${label.bottom}", label.bottom <= 362.2f)
+        // The floor ease spends 0.5 dp of the label's blank descent.
+        assertTrue("clear of the day names: bottom=${label.bottom}", label.bottom <= 362.2f + DailyRainLabels.NIGHT_FLOOR_DROP_DP * 2.75f)
     }
 
     @Test

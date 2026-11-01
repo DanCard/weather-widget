@@ -105,6 +105,12 @@ object DailyRainLabels {
     const val NIGHT_EASE_MAX_DROP_DP = 4f
     /** How far left a night label slides after that drop. */
     const val NIGHT_EASE_DROP_SLIDE_DP = 0.5f
+    /** How far back right a night label pinned on the floor under the left low slides. */
+    const val NIGHT_FLOOR_SLIDE_DP = 1.5f
+    /** How far past the floor that label drops, into the blank descent of its own line box. */
+    const val NIGHT_FLOOR_DROP_DP = 0.5f
+    /** Furthest a night label stuck on the floor beside a ° drops past it. */
+    const val NIGHT_FLOOR_DEGREE_DROP_DP = 3f
     /**
      * The raised ° of a low-temp label fills only this top fraction of the label's text box; the
      * pocket under it is blank, so a night label may sit there (DailyRainLabelPlanner.lowLabelObstacles).

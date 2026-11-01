@@ -578,6 +578,59 @@ object DailyRainLabelPlanner {
     }
 
     /**
+     * Eases a night label the search moved left, onto the day-name floor and under [leftLowLabel]'s
+     * digits: back right by up to [DailyRainLabels.NIGHT_FLOOR_SLIDE_DP] (never past [homeCenterX]) and
+     * [DailyRainLabels.NIGHT_FLOOR_DROP_DP] past [maxBottom], which only spends the blank descent at the
+     * bottom of the label's own line box. No drop step can do this: they all stop at [maxBottom].
+     * User, 2026-10-31, Fold NWS "48%" under "47.9°".
+     */
+    fun easeOffLeftLowAtFloor(
+        homeCenterX: Float,
+        centerX: Float,
+        top: Float,
+        width: Float,
+        height: Float,
+        leftLowLabel: Box,
+        obstacles: List<Box>,
+        maxBottom: Float,
+        density: Float,
+    ): NightLabelEase {
+        val atFloor = maxBottom - (top + height) < density
+        val digits = obstacles.firstOrNull { it.isLowDigits && it.left == leftLowLabel.left }
+        val underDigits = digits != null && centerX - width / 2f < digits.right
+        if (centerX >= homeCenterX || !atFloor || !underDigits) return NightLabelEase(centerX, top)
+        val slide = minOf(DailyRainLabels.NIGHT_FLOOR_SLIDE_DP * density, homeCenterX - centerX)
+        return NightLabelEase(centerX + slide, maxBottom - height + DailyRainLabels.NIGHT_FLOOR_DROP_DP * density)
+    }
+
+    /**
+     * Drops a night label on the day-name floor that is still side-on against a ° (level with it by
+     * more than [DailyRainLabels.NIGHT_SLIGHT_OVERLAP_DP]) past that floor, by at most
+     * [DailyRainLabels.NIGHT_FLOOR_DEGREE_DROP_DP] and [blankBelowPx], the blank line box under its own
+     * digits. [dropClearOfDegree] stops at the floor. User, 2026-10-31, desktop OWM "37%" on "47.6°".
+     */
+    fun dropOffDegreeAtFloor(
+        centerX: Float,
+        top: Float,
+        width: Float,
+        height: Float,
+        blankBelowPx: Float,
+        obstacles: List<Box>,
+        maxBottom: Float,
+        density: Float,
+    ): Float {
+        if (maxBottom - (top + height) >= density) return top
+        val left = centerX - width / 2f
+        val right = centerX + width / 2f
+        val slightPx = DailyRainLabels.NIGHT_SLIGHT_OVERLAP_DP * density
+        val overlap = obstacles
+            .filter { it.isDegreeSign && minOf(right, it.right) > maxOf(left, it.left) }
+            .maxOfOrNull { it.bottom - top } ?: return top
+        if (overlap <= slightPx) return top
+        return top + minOf(overlap, DailyRainLabels.NIGHT_FLOOR_DEGREE_DROP_DP * density, blankBelowPx).coerceAtLeast(0f)
+    }
+
+    /**
      * A low-temp label as night-label obstacles: the digits at full height, and — when [text] ends in
      * ° — the degree sign over only the top [DailyRainLabels.DEGREE_SIGN_HEIGHT_FRACTION] of the box.
      * One full-height box made the blank pocket under the ° an obstacle, pushing night labels toward
