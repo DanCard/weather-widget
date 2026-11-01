@@ -174,8 +174,7 @@ class GraphDataLoaderCloudCoverStitchTest {
             lon = lon,
             source = WeatherSource.NWS.id,
         )
-        assertEquals(1, historyWindow.size)
-        assertEquals(77, historyWindow[0].cloudCover)
+        assertEquals(77, historyWindow.single { it.cloudCover != null }.cloudCover)
 
         val result = GraphDataLoader.loadGraphWindowHourlyForecasts(
             hourlyDao = db.hourlyForecastDao(),

@@ -326,7 +326,6 @@ class WeatherRepositoryTest {
 
         coVerify {
             forecastDao.deleteOldForecasts(match { it in (expected30DayCutoff - tolerance)..(expected30DayCutoff + tolerance) })
-            hourlyForecastDao.deleteOldForecasts(match { it in (expected30DayCutoff - tolerance)..(expected30DayCutoff + tolerance) })
             observationDao.deleteOldObservations(match { it in (expected10DayCutoff - tolerance)..(expected10DayCutoff + tolerance) })
             dailyHistoryDao.deleteOldExtremes(match { it in (expected18MonthCutoff - tolerance)..(expected18MonthCutoff + tolerance) })
         }

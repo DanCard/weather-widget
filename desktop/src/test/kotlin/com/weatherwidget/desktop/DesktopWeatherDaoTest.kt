@@ -578,8 +578,6 @@ class DesktopWeatherDaoTest {
         // Every elapsed hour now has a same-site row; the snapshotted one kept its original value.
         assertEquals(offered.map { it.dateTime }, stored.map { it.dateTime }.distinct().sorted())
         assertEquals(99f, stored.first { it.dateTime == snapshotted }.temperature, 0f)
-        // Nothing reached the live table.
-        assertTrue(dao.getHourlyForecasts(lat, lon, source, now - 24 * h, now + 24 * h).isEmpty())
 
         // Second pass: everything covered, nothing to write.
         val coveredAgain = dao.getHourlyHistoryCoveredHours(lat, lon, source, offered.first().dateTime, offered.last().dateTime + 1)

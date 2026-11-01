@@ -18,7 +18,7 @@ class DesktopForecastPersistHostContractTest : ForecastPersistHostContract() {
     override fun open(): (String, Double, Double) -> ForecastPersistRun.Host<*> {
         val path = Files.createTempFile("weather_contract", ".db").also { paths.add(it) }
         val dao = DesktopWeatherDao(DesktopWeatherDatabase(path).apply { initialize() })
-        return { source, lat, lon -> DesktopForecastPersistHost(dao, source, lat, lon) { LABEL } }
+        return { source, lat, lon -> DesktopForecastPersistHost(dao, source, lat, lon) }
     }
 
     @After

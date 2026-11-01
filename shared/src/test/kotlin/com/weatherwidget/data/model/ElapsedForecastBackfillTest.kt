@@ -8,7 +8,7 @@ import org.junit.experimental.categories.Category
 
 /**
  * plans/260911-backfill-elapsed-hour-forecast-history-on-fresh-site.md: which elapsed hours of a
- * fetched payload may be filed into `hourly_forecast_history`.
+ * fetched payload may be filed into `hourly_forecasts`.
  */
 @Category(ShortDuration::class)
 class ElapsedForecastBackfillTest {

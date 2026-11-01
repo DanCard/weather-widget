@@ -91,7 +91,7 @@ class DesktopCloudLayerSchemaIntegrationTest {
         dao.upsertHourlyForecastHistory(37.417, -122.089, "OPEN_METEO", hour - 7_200_000L, listOf(row))
 
         val live = dao.getLatestHourly(37.417, -122.089, "OPEN_METEO", 10_000).single { it.dateTime == hour }
-        val history = dao.getHourlyHistory(37.417, -122.089, "OPEN_METEO", hour, hour).single()
+        val history = dao.getHourlyHistory(37.417, -122.089, "OPEN_METEO", hour, hour).first()
         assertEquals(listOf(100, 3, 64, 98), listOf(live.cloudCover, live.cloudCoverLow, live.cloudCoverMid, live.cloudCoverHigh))
         assertEquals(
             listOf(100, 3, 64, 98),

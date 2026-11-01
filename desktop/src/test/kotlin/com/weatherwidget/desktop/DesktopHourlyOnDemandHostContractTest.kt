@@ -23,9 +23,9 @@ class DesktopHourlyOnDemandHostContractTest : HourlyOnDemandHostContract() {
         return host to Seed { row ->
             db.getConnection().use { conn ->
                 conn.prepareStatement(
-                    "INSERT INTO hourly_forecasts (dateTime, locationLat, locationLon, temperature, condition, source, fetchedAt) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO hourly_forecasts (dateTime, locationLat, locationLon, temperature, condition, source, fetchedAt, timestampToGroupPredictions) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 ).use { stmt ->
-                    listOf(row.dateTime, row.locationLat, row.locationLon, row.temperature, row.condition, row.source, row.fetchedAt)
+                    listOf(row.dateTime, row.locationLat, row.locationLon, row.temperature, row.condition, row.source, row.fetchedAt, row.fetchedAt)
                         .forEachIndexed { i, v -> stmt.setObject(i + 1, v) }
                     stmt.executeUpdate()
                 }

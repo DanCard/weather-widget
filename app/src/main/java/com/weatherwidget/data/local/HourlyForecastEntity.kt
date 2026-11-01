@@ -3,10 +3,15 @@ package com.weatherwidget.data.local
 import androidx.room.Entity
 import androidx.room.Index
 
+/**
+ * The one hourly table: every fetch appends its hours under its own label and never changes a row
+ * another fetch wrote (`plans/261101-one-hourly-forecast-table.md`). Which row stands for an hour is
+ * [com.weatherwidget.data.model.SettledForecastPick]; [HistorySnapshotRetention] prunes the rest.
+ */
 @Entity(
     tableName = "hourly_forecasts",
-    primaryKeys = ["dateTime", "source", "locationLat", "locationLon"],
-    indices = [Index(value = ["locationLat", "locationLon"])],
+    primaryKeys = ["dateTime", "source", "locationLat", "locationLon", "timestampToGroupPredictions"],
+    indices = [Index(value = ["locationLat", "locationLon", "source", "dateTime", "fetchedAt"])],
 )
 data class HourlyForecastEntity(
     val dateTime: Long, // Epoch ms
@@ -23,6 +28,8 @@ data class HourlyForecastEntity(
     val cloudCoverLow: Int? = null, // Low-layer only (0-100); what the cloud graph draws
     val cloudCoverMid: Int? = null, // Mid-layer only (0-100)
     val cloudCoverHigh: Int? = null, // High-layer only (0-100)
+    // The fetch time. Rows from before 2026-10-24 carry the start of a 4 h / 12 h window.
+    val timestampToGroupPredictions: Long = fetchedAt,
 )
 
 fun HourlyForecastEntity.toHourlyForecast() = com.weatherwidget.data.model.HourlyForecast(

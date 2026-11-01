@@ -271,7 +271,9 @@ class DesktopBackfillIntegrationTest {
             oldTimelineHour - 1L,
             futureHour + 1L,
         )
-        assertEquals(listOf(currentTimelineHour, futureHour), live.map { it.dateTime })
+        // The elapsed hour keeps the earlier fetch's row: this refresh wrote nothing there.
+        assertEquals(listOf(oldTimelineHour, currentTimelineHour, futureHour), live.map { it.dateTime })
+        assertEquals("Predicted", live.first().condition)
         val archived = dao.getHourlyHistory(
             lat,
             lon,

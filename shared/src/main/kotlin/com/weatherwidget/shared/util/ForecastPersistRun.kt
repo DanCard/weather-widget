@@ -14,8 +14,7 @@ import java.time.ZoneId
  * one order on both platforms (user 2026-10-24; `plans/261024-shared-forecast-persist-rules.md`):
  *
  * 1. The live hours ([HourlyForecastWrite]) over this site's stored rows.
- * 2. The fetch's snapshot under [Host.snapshotLabel], and under the same label the payload's
- *    elapsed hours where the site has none ([ElapsedForecastBackfill]).
+ * 2. Under the same label, the payload's elapsed hours where the site has none ([ElapsedForecastBackfill]).
  * 3. The daily rows ([DailyForecastWrite]): every day from today, each day's summaries from the whole download, else the row as sent, else the hours stored
  *    now (step 1's, plus hours a Google one-page fetch left in place) — [DailyHourlySummaries].
  *
@@ -36,11 +35,6 @@ class ForecastPersistRun<K>(
 
         /** Writes [rows] live, as given (fetchedAt included). */
         suspend fun writeHourly(rows: List<HourlyForecast>)
-
-        /** The fetch's `com.weatherwidget.shared.history.HourlySnapshotRun` label; null writes no snapshot (tests). */
-        suspend fun snapshotLabel(nowMs: Long): Long?
-
-        suspend fun writeSnapshot(label: Long, rows: List<HourlyForecast>)
 
         /** The elapsed-hour backfill's store, filing new rows under [label]. */
         fun elapsedStore(label: Long, nowMs: Long): ElapsedForecastBackfill.Store
@@ -69,14 +63,12 @@ class ForecastPersistRun<K>(
 
     data class Result(
         val liveHours: Int,
-        val snapshotLabel: Long?,
-        val snapshotHours: Int,
         val elapsed: ElapsedForecastBackfill.Summary?,
         val dailyWritten: Int,
         val dailyRestamped: Int,
     ) {
         val wroteAny: Boolean
-            get() = liveHours > 0 || snapshotHours > 0 || (elapsed?.let { it.stored > 0 } ?: false) ||
+            get() = liveHours > 0 || (elapsed?.let { it.stored > 0 } ?: false) ||
                 dailyWritten > 0 || dailyRestamped > 0
     }
 
@@ -89,16 +81,11 @@ class ForecastPersistRun<K>(
         if (!hourlyPlan?.live.isNullOrEmpty()) host.writeHourly(hourlyPlan!!.live)
 
         val history = fetch.hourly + fetch.elapsedHourly
-        val label = if (history.isEmpty()) null else host.snapshotLabel(nowMs)
-        val snapshot = hourlyPlan?.live.orEmpty()
-        if (label != null && snapshot.isNotEmpty()) host.writeSnapshot(label, snapshot)
-        val elapsed = label?.let { backfillElapsed(history, it, nowMs) }
+        val elapsed = if (history.isEmpty()) null else backfillElapsed(history, nowMs, nowMs)
 
         val daily = fetch.daily?.let { persistDaily(it, history, fetch.userRefresh, nowMs, zone) }
         val result = Result(
             liveHours = hourlyPlan?.live?.size ?: 0,
-            snapshotLabel = label,
-            snapshotHours = if (label == null) 0 else snapshot.size,
             elapsed = elapsed,
             dailyWritten = daily?.write?.size ?: 0,
             dailyRestamped = daily?.restamp?.size ?: 0,

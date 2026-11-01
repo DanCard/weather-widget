@@ -41,7 +41,7 @@ class LocationMatchContractTest {
 
         for (case in LocationMatchContract.CASES) {
             // Isolate each case so a prior row can't satisfy a later "should not match" query.
-            dao.deleteOldForecasts(System.currentTimeMillis() + 1_000_000_000L)
+            db.clearAllTables()
             dao.insertAll(
                 listOf(TestData.hourly(dateTime = dateTime, lat = case.storedLat, lon = case.storedLon)),
             )

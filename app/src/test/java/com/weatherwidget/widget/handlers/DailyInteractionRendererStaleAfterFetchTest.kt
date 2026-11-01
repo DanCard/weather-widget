@@ -55,7 +55,7 @@ class DailyInteractionRendererStaleAfterFetchTest : RobolectricTest() {
     private suspend fun persistNws(saturdayRain: Int, nowMs: Long) {
         val host = RoomForecastPersistHost(
             db.forecastDao(), db.hourlyForecastDao(), db.hourlyForecastHistoryDao(), db.appLogDao(), "NWS", lat, lon,
-        ) { null }
+        )
         val daily = (0L..7L).map { offset ->
             val date = today.plusDays(offset)
             DailyForecast(

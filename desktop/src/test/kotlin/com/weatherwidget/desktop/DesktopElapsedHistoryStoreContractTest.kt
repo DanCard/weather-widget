@@ -23,7 +23,7 @@ class DesktopElapsedHistoryStoreContractTest : ElapsedForecastBackfillStoreContr
         return store to Seed { row, bucket ->
             db.getConnection().use { conn ->
                 conn.prepareStatement(
-                    "INSERT INTO hourly_forecast_history (dateTime, locationLat, locationLon, temperature, condition, source, timestampToGroupPredictions, fetchedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO hourly_forecasts (dateTime, locationLat, locationLon, temperature, condition, source, timestampToGroupPredictions, fetchedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 ).use { stmt ->
                     listOf(row.dateTime, row.locationLat, row.locationLon, row.temperature, row.condition, row.source, bucket, row.fetchedAt)
                         .forEachIndexed { i, v -> stmt.setObject(i + 1, v) }

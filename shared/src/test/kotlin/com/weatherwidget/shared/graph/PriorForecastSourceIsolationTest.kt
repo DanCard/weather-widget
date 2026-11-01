@@ -8,7 +8,7 @@ import org.junit.Test
 import org.junit.experimental.categories.Category
 
 /**
- * `OPEN_METEO_PRIOR24` rows live in `hourly_forecast_history` beside the app's own snapshots. They
+ * `OPEN_METEO_PRIOR24` rows live in `hourly_forecasts` beside the app's own snapshots. They
  * must never surface as an Open-Meteo forecast.
  *
  * The hazard is specific: [HourlyForecastStitcher]'s history fallback picks the row with the

@@ -19,7 +19,7 @@ abstract class GoogleHistoryHostContract {
         /** Writes a live `hourly_forecasts` row as given (never read by the run; staleness no longer matters). */
         fun live(row: HourlyForecast)
 
-        /** Writes an `hourly_forecast_history` row as given, under [bucket]. */
+        /** Writes an `hourly_forecasts` row as given, under [bucket]. */
         fun history(row: HourlyForecast, bucket: Long)
     }
 
@@ -44,14 +44,13 @@ abstract class GoogleHistoryHostContract {
      * is requested only for a site with no history in the last day, however stale its live hours are.
      */
     @Test
-    fun `run - history only for a site without coverage, never for stale live hours`() = runBlocking {
+    fun `run - history only for a site without coverage`() = runBlocking {
         val now = System.currentTimeMillis()
         val hourStart = now - Math.floorMod(now, HOUR)
         val stale = hourStart - 5 * HOUR
 
-        val (bare, bareSeed) = open()
-        bareSeed.live(hr(stale, 10).copy(fetchedAt = stale - 8 * HOUR))
-        assertTrue("no history at the site", GoogleHistoryRun(bare).needsHistory(now))
+        val (bare, _) = open()
+        assertTrue("nothing at the site", GoogleHistoryRun(bare).needsHistory(now))
 
         val (covered, coveredSeed) = open()
         coveredSeed.live(hr(stale, 10).copy(fetchedAt = stale - 8 * HOUR))

@@ -10,14 +10,12 @@ import java.time.LocalDate
 /**
  * Desktop SQLite side of [ForecastPersistRun] for one source at one site. Reads are on the site's exact
  * quantized key, as Android's `RoomForecastPersistHost`; pinned to it by `ForecastPersistHostContract`.
- * [snapshotLabel] is the fetch's `HourlySnapshotRun` label.
  */
 internal class DesktopForecastPersistHost(
     private val weatherDao: DesktopWeatherDao,
     override val sourceId: String,
     override val latitude: Double,
     override val longitude: Double,
-    private val snapshotLabel: suspend (nowMs: Long) -> Long?,
 ) : ForecastPersistRun.Host<DesktopWeatherDao.ForecastKey> {
     private val keyLat = LocationMatch.quantize(latitude)
     private val keyLon = LocationMatch.quantize(longitude)
@@ -28,11 +26,6 @@ internal class DesktopForecastPersistHost(
 
     override suspend fun writeHourly(rows: List<HourlyForecast>) =
         weatherDao.upsertHourlyForecasts(latitude, longitude, sourceId, rows)
-
-    override suspend fun snapshotLabel(nowMs: Long) = snapshotLabel.invoke(nowMs)
-
-    override suspend fun writeSnapshot(label: Long, rows: List<HourlyForecast>) =
-        weatherDao.upsertHourlyForecastHistory(latitude, longitude, sourceId, label, rows)
 
     override fun elapsedStore(label: Long, nowMs: Long) =
         DesktopElapsedHistoryStore(weatherDao, latitude, longitude, sourceId, label)

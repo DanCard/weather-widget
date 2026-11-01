@@ -43,7 +43,7 @@ class RoomSourceFetchTableHostContractTest : SourceFetchTableHostContract() {
             override suspend fun writeHourly(sourceId: String, lat: Double, lon: Double, rows: List<HourlyForecast>) =
                 RoomForecastPersistHost(
                     db.forecastDao(), db.hourlyForecastDao(), db.hourlyForecastHistoryDao(), db.appLogDao(), sourceId, lat, lon,
-                ) { null }.writeHourly(rows)
+                ).writeHourly(rows)
         }
     }
 

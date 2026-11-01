@@ -126,29 +126,31 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             try {
                 val sql = """
                     INSERT OR REPLACE INTO hourly_forecasts 
-                    (dateTime, locationLat, locationLon, temperature, condition, source, precipProbability, cloudCover, cloudCoverLow, cloudCoverMid, cloudCoverHigh, precipAmountMm, fetchedAt)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (timestampToGroupPredictions, dateTime, locationLat, locationLon, temperature, condition, source, precipProbability, cloudCover, cloudCoverLow, cloudCoverMid, cloudCoverHigh, precipAmountMm, fetchedAt)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """.trimIndent()
                 conn.prepareStatement(sql).use { stmt ->
                     val now = System.currentTimeMillis()
-                    // Quantize the PK coordinate so geocoding/GPS jitter overwrites instead of
-                    // accumulating per-precision fragments (see LocationMatch.quantize).
+                    // Quantize the PK coordinate so geocoding/GPS jitter does not accumulate
+                    // per-precision fragments (see LocationMatch.quantize).
                     val keyLat = LocationMatch.quantize(locationLat)
                     val keyLon = LocationMatch.quantize(locationLon)
                     for (h in hourly) {
-                        stmt.setLong(1, h.dateTime)
-                        stmt.setDouble(2, keyLat)
-                        stmt.setDouble(3, keyLon)
-                        stmt.setFloat(4, h.temperature)
-                        stmt.setString(5, h.condition)
-                        stmt.setString(6, source)
-                        stmt.setNullableInt(7, h.precipProbability)
-                        stmt.setNullableInt(8, h.cloudCover)
-                        stmt.setNullableInt(9, h.cloudCoverLow)
-                        stmt.setNullableInt(10, h.cloudCoverMid)
-                        stmt.setNullableInt(11, h.cloudCoverHigh)
-                        stmt.setNullableFloat(12, h.precipAmountMm)
-                        stmt.setLong(13, h.fetchedAt.takeIf { it > 0L } ?: now)
+                        val fetchedAt = h.fetchedAt.takeIf { it > 0L } ?: now
+                        stmt.setLong(1, fetchedAt)
+                        stmt.setLong(2, h.dateTime)
+                        stmt.setDouble(3, keyLat)
+                        stmt.setDouble(4, keyLon)
+                        stmt.setFloat(5, h.temperature)
+                        stmt.setString(6, h.condition)
+                        stmt.setString(7, source)
+                        stmt.setNullableInt(8, h.precipProbability)
+                        stmt.setNullableInt(9, h.cloudCover)
+                        stmt.setNullableInt(10, h.cloudCoverLow)
+                        stmt.setNullableInt(11, h.cloudCoverMid)
+                        stmt.setNullableInt(12, h.cloudCoverHigh)
+                        stmt.setNullableFloat(13, h.precipAmountMm)
+                        stmt.setLong(14, fetchedAt)
                         stmt.addBatch()
                     }
                     stmt.executeBatch()
@@ -193,7 +195,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             conn.autoCommit = false
             try {
                 val sql = """
-                    INSERT OR REPLACE INTO hourly_forecast_history
+                    INSERT OR REPLACE INTO hourly_forecasts
                     (dateTime, locationLat, locationLon, temperature, condition, source, timestampToGroupPredictions, precipProbability, cloudCover, cloudCoverLow, cloudCoverMid, cloudCoverHigh, precipAmountMm, fetchedAt)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """.trimIndent()
@@ -268,7 +270,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         db.getConnection().use { conn ->
             val sql = """
                 SELECT dateTime, timestampToGroupPredictions, cloudCoverMid, cloudCoverHigh, locationLat, locationLon
-                FROM hourly_forecast_history
+                FROM hourly_forecasts
                 WHERE ${LocationMatch.JDBC_WHERE} AND source = ?
                   AND dateTime >= ? AND dateTime < ?
                   AND timestampToGroupPredictions >= ? AND timestampToGroupPredictions <= ?
@@ -308,7 +310,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         )
 
     /**
-     * Hours in [startMs, endMs) that already have a `hourly_forecast_history` row for [source] at
+     * Hours in [startMs, endMs) that already have a `hourly_forecasts` row for [source] at
      * the same site as ([locationLat], [locationLon]) — any bucket, any jitter fragment within
      * [LocationMatch.sameSite]. The coverage set `ElapsedForecastBackfill.select` subtracts.
      */
@@ -316,7 +318,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         val covered = mutableSetOf<Long>()
         db.getConnection().use { conn ->
             val sql = """
-                SELECT DISTINCT dateTime, locationLat, locationLon FROM hourly_forecast_history
+                SELECT DISTINCT dateTime, locationLat, locationLon FROM hourly_forecasts
                 WHERE ${LocationMatch.JDBC_WHERE} AND source = ? AND dateTime >= ? AND dateTime < ?
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
@@ -341,7 +343,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             conn.autoCommit = false
             try {
                 val sql = """
-                    INSERT OR REPLACE INTO hourly_forecast_history 
+                    INSERT OR REPLACE INTO hourly_forecasts 
                     (dateTime, locationLat, locationLon, temperature, condition, source, timestampToGroupPredictions, precipProbability, cloudCover, cloudCoverLow, cloudCoverMid, cloudCoverHigh, precipAmountMm, fetchedAt)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """.trimIndent()
@@ -966,9 +968,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         db.getConnection().use { conn ->
             conn.createStatement().use { stmt ->
                 stmt.execute("DELETE FROM forecasts WHERE fetchedAt < $defaultCutoff")
-                stmt.execute("DELETE FROM hourly_forecasts WHERE fetchedAt < $defaultCutoff")
                 val historyCutoff = policy.daysAgo(nowMs, policy.HOURLY_HISTORY_SETTLED_DAYS)
-                stmt.execute("DELETE FROM hourly_forecast_history WHERE dateTime < $historyCutoff OR fetchedAt < $historyCutoff")
+                stmt.execute("DELETE FROM hourly_forecasts WHERE dateTime < $historyCutoff OR fetchedAt < $historyCutoff")
                 stmt.execute("DELETE FROM observations WHERE fetchedAt < ${policy.daysAgo(nowMs, policy.OBSERVATION_DAYS)}")
                 stmt.execute("DELETE FROM daily_history WHERE updatedAt < ${policy.daysAgo(nowMs, policy.DAILY_HISTORY_DAYS)}")
                 stmt.execute("DELETE FROM station_cache WHERE updatedAt < $defaultCutoff")
@@ -995,7 +996,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
     data class HistoryPruneResult(val days: Int, val scanned: Int, val deleted: Int, val elapsedMs: Long)
 
     /**
-     * Deletes the `hourly_forecast_history` snapshots no reader uses — the shared
+     * Deletes the `hourly_forecasts` snapshots no reader uses — the shared
      * [com.weatherwidget.data.local.HistorySnapshotRetention] rule, run one local day of hours at a
      * time in its own transaction (the rule is about local calendar days, which SQL date math gets
      * wrong across DST). Desktop keeps history for 18 months (not Android's 30 days), so this is
@@ -1008,7 +1009,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         var deleted = 0
         db.getConnection().use { conn ->
             val (min, max) = conn.createStatement().use { st ->
-                st.executeQuery("SELECT MIN(dateTime), MAX(dateTime) FROM hourly_forecast_history").use { rs ->
+                st.executeQuery("SELECT MIN(dateTime), MAX(dateTime) FROM hourly_forecasts").use { rs ->
                     if (!rs.next() || rs.getObject(1) == null) return HistoryPruneResult(0, 0, 0, 0)
                     rs.getLong(1) to rs.getLong(2)
                 }
@@ -1018,10 +1019,10 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             val select = conn.prepareStatement(
                 "SELECT dateTime, source, locationLat, locationLon, timestampToGroupPredictions, fetchedAt, " +
                     "cloudCover, cloudCoverLow, cloudCoverMid, cloudCoverHigh, precipProbability, precipAmountMm " +
-                    "FROM hourly_forecast_history WHERE dateTime >= ? AND dateTime < ?",
+                    "FROM hourly_forecasts WHERE dateTime >= ? AND dateTime < ?",
             )
             val delete = conn.prepareStatement(
-                "DELETE FROM hourly_forecast_history WHERE dateTime = ? AND source = ? AND locationLat = ? " +
+                "DELETE FROM hourly_forecasts WHERE dateTime = ? AND source = ? AND locationLat = ? " +
                     "AND locationLon = ? AND timestampToGroupPredictions = ?",
             )
             try {
@@ -1575,6 +1576,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             val sql = """
                 SELECT * FROM hourly_forecasts 
                 WHERE ${LocationMatch.JDBC_WHERE} AND source = ? AND fetchedAt >= ?
+                GROUP BY dateTime, source, locationLat, locationLon
+                HAVING fetchedAt = MAX(fetchedAt)
                 ORDER BY dateTime ASC
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
@@ -1605,13 +1608,15 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         return result
     }
 
-    /** Plain dateTime-range read of the LIVE hourly_forecasts table (no history blend). */
+    /** The newest fetch's row per hour and site in the range (no settled pick). */
     fun getHourlyForecasts(locationLat: Double, locationLon: Double, source: String, startMs: Long, endMs: Long): List<HourlyForecast> {
         val result = mutableListOf<HourlyForecast>()
         db.getConnection().use { conn ->
             val sql = """
                 SELECT * FROM hourly_forecasts
                 WHERE ${LocationMatch.JDBC_WHERE} AND source = ? AND dateTime >= ? AND dateTime <= ?
+                GROUP BY dateTime, source, locationLat, locationLon
+                HAVING fetchedAt = MAX(fetchedAt)
                 ORDER BY dateTime ASC
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
@@ -1650,6 +1655,9 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             val sql = """
                 SELECT * FROM hourly_forecasts
                 WHERE ${LocationMatch.JDBC_WHERE} AND dateTime >= ? AND dateTime <= ?
+                  AND source != '${com.weatherwidget.shared.graph.PriorDayCloudForecast.SOURCE_ID}'
+                GROUP BY dateTime, source, locationLat, locationLon
+                HAVING fetchedAt = MAX(fetchedAt)
                 ORDER BY dateTime ASC
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
@@ -1695,7 +1703,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             // for future timestamps; the real source supplies all past/near hours.
             val sql = """
                 SELECT dateTime, temperature, condition, precipProbability, cloudCover, cloudCoverLow, cloudCoverMid, cloudCoverHigh, precipAmountMm, fetchedAt, source, locationLat, locationLon
-                FROM hourly_forecast_history
+                FROM hourly_forecasts
                 WHERE ${LocationMatch.JDBC_WHERE} AND (source = ? OR (source = 'Generic' AND dateTime > ?)) AND dateTime >= ? AND dateTime <= ?
                 ORDER BY dateTime ASC, (source = ?) DESC, timestampToGroupPredictions DESC
             """.trimIndent()
@@ -1736,7 +1744,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
     }
 
     /**
-     * Every `hourly_forecast_history` snapshot of [source] at the site with `dateTime` in
+     * Every `hourly_forecasts` snapshot of [source] at the site with `dateTime` in
      * [startMs, endMs), freshest snapshot first per hour, unmerged — Android's
      * `HourlyForecastHistoryDao.getHistoryInRangeForBucketWindow` (`DailyHistoryRun.Host.hourlyHistory`).
      * Unlike [getHourlyHistory] (also unmerged): source only, no `Generic`, end exclusive. A null
@@ -1747,7 +1755,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         db.getConnection().use { conn ->
             val sql = """
                 SELECT dateTime, temperature, condition, precipProbability, cloudCover, cloudCoverLow, cloudCoverMid, cloudCoverHigh, precipAmountMm, fetchedAt, source, locationLat, locationLon
-                FROM hourly_forecast_history
+                FROM hourly_forecasts
                 WHERE ${LocationMatch.JDBC_WHERE} AND (? IS NULL OR source = ?) AND dateTime >= ? AND dateTime < ?
                 ORDER BY dateTime ASC, timestampToGroupPredictions DESC
             """.trimIndent()
@@ -1781,32 +1789,10 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         return result
     }
 
-    /**
-     * The label of [source]'s newest `hourly_forecast_history` snapshot at this site (same-site
-     * match), or null — `HourlySnapshotRun.Host.lastSnapshotMs`, as Android's `getLatestSnapshotLabel`.
-     */
-    fun getLatestHourlySnapshotLabel(locationLat: Double, locationLon: Double, source: String): Long? {
-        db.getConnection().use { conn ->
-            conn.prepareStatement(
-                "SELECT MAX(timestampToGroupPredictions) FROM hourly_forecast_history WHERE ${LocationMatch.JDBC_SAME_SITE_WHERE} AND source = ?",
-            ).use { stmt ->
-                stmt.setDouble(1, locationLat)
-                stmt.setDouble(2, locationLon)
-                stmt.setString(3, source)
-                val rs = stmt.executeQuery()
-                if (rs.next()) {
-                    val label = rs.getLong(1)
-                    return if (rs.wasNull()) null else label
-                }
-            }
-        }
-        return null
-    }
-
     fun getHourlyHistoryCount(locationLat: Double, locationLon: Double, source: String, startMs: Long, endMs: Long): Int {
         db.getConnection().use { conn ->
             val sql = """
-                SELECT COUNT(DISTINCT dateTime) FROM hourly_forecast_history
+                SELECT COUNT(DISTINCT dateTime) FROM hourly_forecasts
                 WHERE ${LocationMatch.JDBC_WHERE} AND (source = ? OR source = 'Generic')
                 AND dateTime >= ? AND dateTime <= ?
             """.trimIndent()

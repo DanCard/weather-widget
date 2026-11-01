@@ -4,7 +4,6 @@ import com.weatherwidget.shared.observations.NwsGapFillRun
 import com.weatherwidget.shared.util.ClimateNormalsRun
 import com.weatherwidget.shared.actuals.DailyBlendRecomputeRun
 import com.weatherwidget.shared.history.WeatherApiHistoryRun
-import com.weatherwidget.shared.history.HourlySnapshotRun
 import com.weatherwidget.shared.actuals.NwsStationActualsRun
 import com.weatherwidget.shared.graph.PriorDayCloudRun
 import com.weatherwidget.shared.observations.CurrentConditionsRun
@@ -747,10 +746,6 @@ class DesktopWeatherRepository(
      * is blank for a day while every payload carries the values (`ElapsedForecastBackfill`).
      * Same source only; existing rows are never touched, so in steady state this stores nothing.
      */
-    /** This fetch's snapshot label from the shared rule ([HourlySnapshotRun]). */
-    private suspend fun snapshotLabel(now: Long): Long =
-        HourlySnapshotRun.run(DesktopHourlySnapshotHost(weatherDao, weatherSource, latitude, longitude), now).labelMs
-
     /** The popup's quota banners: the shared [QuotaState.record] rule over the `app_logs` contract rows. */
     private suspend fun recordProductQuotas(result: RawFetch, now: Long) =
         QuotaState.record(DesktopQuotaState(weatherDao), weatherSource, result, now)
@@ -777,7 +772,7 @@ class DesktopWeatherRepository(
         // Tomorrow's Timeline response also contains a revised six-hour lookback; that slice belongs
         // only in observations and never reaches the forecast tables (it is `subHourly`, not `hourly`).
         val persisted = ForecastPersistRun(
-            DesktopForecastPersistHost(weatherDao, weatherSource, latitude, longitude) { snapshotLabel(it) },
+            DesktopForecastPersistHost(weatherDao, weatherSource, latitude, longitude),
         ).persist(
             ForecastPersistRun.Fetch(
                 hourly = result.hourly,

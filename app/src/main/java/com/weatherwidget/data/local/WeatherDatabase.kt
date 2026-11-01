@@ -12,8 +12,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.weatherwidget.shared.observations.MetarPlausibility
 
 @Database(
-    entities = [ForecastEntity::class, HourlyForecastEntity::class, HourlyForecastHistoryEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, ApiUsageEntity::class, DailyHistoryEntity::class, SourceViewDayEntity::class, SourceViewTrackingEntity::class, SourceLastViewEntity::class],
-    version = 83,
+    entities = [ForecastEntity::class, HourlyForecastEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, ApiUsageEntity::class, DailyHistoryEntity::class, SourceViewDayEntity::class, SourceViewTrackingEntity::class, SourceLastViewEntity::class],
+    version = 84,
     exportSchema = true,
 )
 @TypeConverters(CloudVerticalKindConverters::class, StationTypeConverters::class)
@@ -905,6 +905,18 @@ abstract class WeatherDatabase : RoomDatabase() {
 
         // Data only: every daily_history row onto its rounded site (LocationMatch.quantize), colliding
         // fragments of one (date, source, site) merged by the shared rule desktop's
+        // One hourly table: live rows join the snapshots under their fetch time, then the snapshot table
+        // takes the live table's name. `plans/261101-one-hourly-forecast-table.md`; desktop schema v36.
+        val MIGRATION_83_84 = object : Migration(83, 84) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                com.weatherwidget.data.local.HourlyTableMerge.STATEMENTS.forEach(db::execSQL)
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_hourly_forecasts_locationLat_locationLon_source_dateTime_fetchedAt` " +
+                        "ON `hourly_forecasts` (`locationLat`, `locationLon`, `source`, `dateTime`, `fetchedAt`)",
+                )
+            }
+        }
+
         // quantizeDailyHistoryKeys uses (DailyHistoryKey.mergeAll: newest fragment, gaps filled).
         // Writers recorded the raw GPS fix of the moment — one site's days sat on 13 keys on the Pixel.
         // plans/261025-shared-daily-blend-recompute.md, phase 0. No schema change.
@@ -1047,7 +1059,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                             },
                         )
                         .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
-                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54, MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57, MIGRATION_57_58, MIGRATION_58_59, MIGRATION_59_60, MIGRATION_60_61, MIGRATION_61_62, MIGRATION_62_63, MIGRATION_63_64, MIGRATION_64_65, MIGRATION_65_66, MIGRATION_66_67, MIGRATION_67_68, MIGRATION_68_69, MIGRATION_69_70, MIGRATION_70_71, MIGRATION_71_72, MIGRATION_72_73, MIGRATION_73_74, MIGRATION_74_75, MIGRATION_75_76, MIGRATION_76_77, MIGRATION_77_78, MIGRATION_78_79, MIGRATION_79_80, MIGRATION_80_81, MIGRATION_81_82, MIGRATION_82_83)
+                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54, MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57, MIGRATION_57_58, MIGRATION_58_59, MIGRATION_59_60, MIGRATION_60_61, MIGRATION_61_62, MIGRATION_62_63, MIGRATION_63_64, MIGRATION_64_65, MIGRATION_65_66, MIGRATION_66_67, MIGRATION_67_68, MIGRATION_68_69, MIGRATION_69_70, MIGRATION_70_71, MIGRATION_71_72, MIGRATION_72_73, MIGRATION_73_74, MIGRATION_74_75, MIGRATION_75_76, MIGRATION_76_77, MIGRATION_77_78, MIGRATION_78_79, MIGRATION_79_80, MIGRATION_80_81, MIGRATION_81_82, MIGRATION_82_83, MIGRATION_83_84)
                         .fallbackToDestructiveMigration(dropAllTables = true)
                         .build()
                 INSTANCE = instance

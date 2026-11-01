@@ -54,7 +54,7 @@ class CurrentTempInputSettledRoboTest {
                     dateTime = ms(12), locationLat = key.first, locationLon = key.second, temperature = 60f,
                     condition = "Clear", source = source.id, timestampToGroupPredictions = ms(11, 40), fetchedAt = ms(11, 40),
                 ),
-                // Another source's history is not read for this display source.
+                // Another source's row stays that source's: it never stands in for the display source.
                 HourlyForecastHistoryEntity(
                     dateTime = ms(12), locationLat = key.first, locationLon = key.second, temperature = 50f,
                     condition = "Clear", source = WeatherSource.NWS.id, timestampToGroupPredictions = ms(11, 40), fetchedAt = ms(11, 40),
@@ -66,6 +66,6 @@ class CurrentTempInputSettledRoboTest {
             db.hourlyForecastDao(), db.hourlyForecastHistoryDao(), source, lat, lon, now,
         )
 
-        assertEquals(listOf(source.id to 60f), rows.filter { it.dateTime == ms(12) }.map { it.source to it.temperature })
+        assertEquals(listOf(source.id to 60f), rows.filter { it.dateTime == ms(12) && it.source == source.id }.map { it.source to it.temperature })
     }
 }

@@ -39,13 +39,13 @@ class DesktopStitchedHourlyReadContractTest : StitchedHourlyReadContract() {
     /** Plain INSERTs: the DAO's writers quantize and stamp `fetchedAt`. */
     private class DesktopSeed(private val db: DesktopWeatherDatabase) : Seed {
         override fun hourly(row: HourlyForecast) = insert(
-            "INSERT INTO hourly_forecasts (dateTime, locationLat, locationLon, temperature, condition, source, cloudCover, fetchedAt) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            row.dateTime, row.locationLat, row.locationLon, row.temperature, row.condition, row.source, row.cloudCover, row.fetchedAt,
+            "INSERT OR REPLACE INTO hourly_forecasts (dateTime, locationLat, locationLon, temperature, condition, source, cloudCover, fetchedAt, timestampToGroupPredictions) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            row.dateTime, row.locationLat, row.locationLon, row.temperature, row.condition, row.source, row.cloudCover, row.fetchedAt, row.fetchedAt,
         )
 
         override fun hourlyHistory(row: HourlyForecast, snapshotBucketMs: Long) = insert(
-            "INSERT INTO hourly_forecast_history (dateTime, locationLat, locationLon, temperature, condition, source, " +
+            "INSERT INTO hourly_forecasts (dateTime, locationLat, locationLon, temperature, condition, source, " +
                 "cloudCover, timestampToGroupPredictions, fetchedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             row.dateTime, row.locationLat, row.locationLon, row.temperature, row.condition, row.source, row.cloudCover,
             snapshotBucketMs, row.fetchedAt,

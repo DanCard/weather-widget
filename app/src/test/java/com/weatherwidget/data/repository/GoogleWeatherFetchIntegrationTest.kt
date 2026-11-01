@@ -106,16 +106,13 @@ class GoogleWeatherFetchIntegrationTest {
         assertTrue("expected ~10 daily rows, got $dailyDates", dailyDates >= 9)
 
         val nowHour = Instant.now().truncatedTo(ChronoUnit.HOURS).toEpochMilli()
-        val future = count("SELECT COUNT(*) FROM hourly_forecasts WHERE source = ?", source)
+        val future = count("SELECT COUNT(*) FROM hourly_forecasts WHERE source = ? AND dateTime >= $nowHour", source)
         assertTrue("72 forecast hours expected in hourly_forecasts, got $future", future in 70..74)
         val maxFuture = count("SELECT MAX(dateTime) FROM hourly_forecasts WHERE source = ?", source)
         assertEquals(nowHour + 71 * 3_600_000L, maxFuture)
 
-        // Today's elapsed hours (from history/hours) are history-only material, never live rows.
-        val elapsedLive = count("SELECT COUNT(*) FROM hourly_forecasts WHERE source = ? AND dateTime < ?", source, nowHour - 3_600_000L)
-        assertEquals(0L, elapsedLive)
         val elapsedHistory = count(
-            "SELECT COUNT(DISTINCT dateTime) FROM hourly_forecast_history WHERE source = ? AND dateTime < ?",
+            "SELECT COUNT(DISTINCT dateTime) FROM hourly_forecasts WHERE source = ? AND dateTime < ?",
             source,
             nowHour,
         )

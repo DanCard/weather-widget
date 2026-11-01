@@ -61,48 +61,15 @@ class DesktopWeatherDatabase(
                     stmt.execute("CREATE INDEX IF NOT EXISTS idx_forecasts_confirmed ON forecasts(targetDate, source, locationLat, locationLon, lastConfirmedAt)")
                 }
 
-                // Hourly Forecasts
-                stmt.execute("""
-                    CREATE TABLE IF NOT EXISTS hourly_forecasts (
-                        dateTime INTEGER NOT NULL,
-                        locationLat REAL NOT NULL,
-                        locationLon REAL NOT NULL,
-                        temperature REAL NOT NULL,
-                        condition TEXT NOT NULL,
-                        source TEXT NOT NULL,
-                        precipProbability INTEGER,
-                        cloudCover INTEGER,
-                        cloudCoverLow INTEGER,
-                        cloudCoverMid INTEGER,
-                        cloudCoverHigh INTEGER,
-                        precipAmountMm REAL,
-                        fetchedAt INTEGER NOT NULL,
-                        PRIMARY KEY (dateTime, source, locationLat, locationLon)
-                    )
-                """.trimIndent())
-                stmt.execute("CREATE INDEX IF NOT EXISTS idx_hourly_location ON hourly_forecasts(locationLat, locationLon)")
-
-                // Hourly Forecast History
-                stmt.execute("""
-                    CREATE TABLE IF NOT EXISTS hourly_forecast_history (
-                        dateTime INTEGER NOT NULL,
-                        locationLat REAL NOT NULL,
-                        locationLon REAL NOT NULL,
-                        temperature REAL NOT NULL,
-                        condition TEXT NOT NULL,
-                        source TEXT NOT NULL,
-                        timestampToGroupPredictions INTEGER NOT NULL,
-                        precipProbability INTEGER,
-                        cloudCover INTEGER,
-                        cloudCoverLow INTEGER,
-                        cloudCoverMid INTEGER,
-                        cloudCoverHigh INTEGER,
-                        precipAmountMm REAL,
-                        fetchedAt INTEGER NOT NULL,
-                        PRIMARY KEY (dateTime, source, locationLat, locationLon, timestampToGroupPredictions)
-                    )
-                """.trimIndent())
-                stmt.execute("CREATE INDEX IF NOT EXISTS idx_hourly_history_lookup ON hourly_forecast_history(locationLat, locationLon, source, timestampToGroupPredictions)")
+                // Hourly forecasts: one table since v36. A database still below v36 keeps its two
+                // old tables until migrate() merges them.
+                val hourlyVersion = stmt.executeQuery("PRAGMA user_version").use { if (it.next()) it.getInt(1) else 0 }
+                if (hourlyVersion in 1 until HOURLY_TABLE_MERGE_VERSION) {
+                    createLegacyHourlyTables(stmt)
+                } else {
+                    stmt.execute(HOURLY_FORECASTS_DDL)
+                    stmt.execute(HOURLY_FORECASTS_INDEX)
+                }
 
                 // Observations
                 stmt.execute(OBSERVATIONS_DDL)
@@ -672,8 +639,30 @@ class DesktopWeatherDatabase(
                     stmt.execute("CREATE INDEX IF NOT EXISTS idx_forecasts_confirmed ON forecasts(targetDate, source, locationLat, locationLon, lastConfirmedAt)")
                 }
             }
+            // v36: one hourly table. Room MIGRATION_83_84. plans/261101-one-hourly-forecast-table.md
+            if (from < HOURLY_TABLE_MERGE_VERSION) {
+                com.weatherwidget.data.local.HourlyTableMerge.STATEMENTS.forEach(stmt::execute)
+                stmt.execute("DROP INDEX IF EXISTS idx_hourly_location")
+                stmt.execute(HOURLY_FORECASTS_INDEX)
+            }
             stmt.execute("PRAGMA user_version = $to")
         }
+    }
+
+    /** The two hourly tables as they stood before v36, for the migrations that still touch them. */
+    private fun createLegacyHourlyTables(stmt: java.sql.Statement) {
+        stmt.execute(
+            HOURLY_FORECASTS_DDL
+                .replace("hourly_forecasts", "hourly_forecast_history"),
+        )
+        stmt.execute(
+            HOURLY_FORECASTS_DDL.lines()
+                .filterNot { "timestampToGroupPredictions INTEGER" in it }
+                .joinToString("\n")
+                .replace(", timestampToGroupPredictions)", ")"),
+        )
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_hourly_location ON hourly_forecasts(locationLat, locationLon)")
+        stmt.execute("CREATE INDEX IF NOT EXISTS idx_hourly_history_lookup ON hourly_forecast_history(locationLat, locationLon, source, timestampToGroupPredictions)")
     }
 
     private fun hasTable(stmt: java.sql.Statement, table: String): Boolean {
@@ -806,7 +795,31 @@ class DesktopWeatherDatabase(
          * the v24 bump, even though that test is about the v22 cloud columns and not about the
          * version number at all.
          */
-        const val SCHEMA_VERSION = 35
+        const val SCHEMA_VERSION = 36
+        private const val HOURLY_TABLE_MERGE_VERSION = 36
+
+        private val HOURLY_FORECASTS_DDL = """
+            CREATE TABLE IF NOT EXISTS hourly_forecasts (
+                        dateTime INTEGER NOT NULL,
+                        locationLat REAL NOT NULL,
+                        locationLon REAL NOT NULL,
+                        temperature REAL NOT NULL,
+                        condition TEXT NOT NULL,
+                        source TEXT NOT NULL,
+                        timestampToGroupPredictions INTEGER NOT NULL,
+                        precipProbability INTEGER,
+                        cloudCover INTEGER,
+                        cloudCoverLow INTEGER,
+                        cloudCoverMid INTEGER,
+                        cloudCoverHigh INTEGER,
+                        precipAmountMm REAL,
+                        fetchedAt INTEGER NOT NULL,
+                        PRIMARY KEY (dateTime, source, locationLat, locationLon, timestampToGroupPredictions)
+            )
+        """.trimIndent()
+
+        private const val HOURLY_FORECASTS_INDEX =
+            "CREATE INDEX IF NOT EXISTS idx_hourly_site ON hourly_forecasts(locationLat, locationLon, source, dateTime, fetchedAt)"
 
         /**
          * Requests per local day, source and endpoint ([com.weatherwidget.data.remote.ApiUsageClassifier]).

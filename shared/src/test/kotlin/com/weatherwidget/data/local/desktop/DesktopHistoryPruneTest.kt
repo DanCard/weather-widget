@@ -60,7 +60,7 @@ class DesktopHistoryPruneTest {
         }
         db.getConnection().use { conn ->
             conn.prepareStatement(
-                "INSERT INTO hourly_forecast_history (dateTime, locationLat, locationLon, temperature, condition, source, " +
+                "INSERT INTO hourly_forecasts (dateTime, locationLat, locationLon, temperature, condition, source, " +
                     "timestampToGroupPredictions, precipProbability, cloudCover, cloudCoverLow, cloudCoverMid, cloudCoverHigh, " +
                     "precipAmountMm, fetchedAt) VALUES (?, ?, ?, 60, 'Clear', ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             ).use { st ->
@@ -83,7 +83,7 @@ class DesktopHistoryPruneTest {
         val keys = mutableSetOf<HistorySnapshotRetention.Key>()
         db.getConnection().use { conn ->
             conn.createStatement().use { st ->
-                st.executeQuery("SELECT dateTime, source, locationLat, locationLon, timestampToGroupPredictions FROM hourly_forecast_history").use { rs ->
+                st.executeQuery("SELECT dateTime, source, locationLat, locationLon, timestampToGroupPredictions FROM hourly_forecasts").use { rs ->
                     while (rs.next()) keys += HistorySnapshotRetention.Key(rs.getLong(1), rs.getString(2), rs.getDouble(3), rs.getDouble(4), rs.getLong(5))
                 }
             }

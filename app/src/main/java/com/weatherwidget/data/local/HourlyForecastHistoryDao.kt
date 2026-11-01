@@ -10,7 +10,7 @@ interface HourlyForecastHistoryDao {
      */
     @Query(
         """
-        SELECT * FROM hourly_forecast_history
+        SELECT * FROM hourly_forecasts
         WHERE ${LocationMatch.ROOM_WHERE}
         AND source = :source
         AND timestampToGroupPredictions = :timestampToGroupPredictions
@@ -35,7 +35,7 @@ interface HourlyForecastHistoryDao {
      */
     @Query(
         """
-        SELECT * FROM hourly_forecast_history
+        SELECT * FROM hourly_forecasts
         WHERE ${LocationMatch.ROOM_WHERE}
         AND source = :source
         AND dateTime >= :startDateTime AND dateTime < :endDateTime
@@ -55,7 +55,7 @@ interface HourlyForecastHistoryDao {
 
     @Query(
         """
-        SELECT * FROM hourly_forecast_history
+        SELECT * FROM hourly_forecasts
         WHERE ${LocationMatch.ROOM_WHERE}
         AND dateTime >= :startDateTime AND dateTime < :endDateTime
         AND timestampToGroupPredictions >= :bucketStart AND timestampToGroupPredictions < :bucketEnd
@@ -76,13 +76,13 @@ interface HourlyForecastHistoryDao {
      * [getHistoryInRangeForBucketWindow]) because several widgets can display different sources at
      * once, so the render paths need the union of their display sources plus `GENERIC_GAP`.
      *
-     * This is the hot one: `hourly_forecast_history` holds every snapshot of every hour, so the
+     * This is the hot one: `hourly_forecasts` holds every snapshot of every hour, so the
      * AllSources variant returned 33,473 rows over a 72h-back/168h-forward window on a Samsung Fold
      * where the display source accounted for 7,597. Prefer this on any render path.
      */
     @Query(
         """
-        SELECT * FROM hourly_forecast_history
+        SELECT * FROM hourly_forecasts
         WHERE ${LocationMatch.ROOM_WHERE}
         AND source IN (:sources)
         AND dateTime >= :startDateTime AND dateTime < :endDateTime
@@ -107,7 +107,7 @@ interface HourlyForecastHistoryDao {
      */
     @Query(
         """
-        SELECT * FROM hourly_forecast_history
+        SELECT * FROM hourly_forecasts
         WHERE ${LocationMatch.ROOM_WHERE}
         AND dateTime >= :startDateTime AND dateTime < :endDateTime
         ORDER BY dateTime ASC
@@ -129,7 +129,7 @@ interface HourlyForecastHistoryDao {
      */
     @Query(
         """
-        SELECT * FROM hourly_forecast_history
+        SELECT * FROM hourly_forecasts
         WHERE source = :priorSource
           AND dateTime >= :startDateTime
           AND dateTime < :endDateTime
@@ -185,7 +185,7 @@ interface HourlyForecastHistoryDao {
      */
     @Query(
         """
-        SELECT * FROM hourly_forecast_history
+        SELECT * FROM hourly_forecasts
         WHERE source = :source
           AND dateTime >= :startDateTime
           AND dateTime < :endDateTime
@@ -242,38 +242,31 @@ interface HourlyForecastHistoryDao {
             lat, lon,
         )
 
-    /**
-     * The label of [source]'s newest snapshot at this site ([LocationMatch.sameSite] box), or null —
-     * `HourlySnapshotRun.Host.lastSnapshotMs`.
-     */
-    @Query(
-        """
-        SELECT MAX(timestampToGroupPredictions) FROM hourly_forecast_history
-        WHERE source = :source
-          AND locationLat BETWEEN :lat - ${LocationMatch.SAME_SITE_TOLERANCE_DEG} AND :lat + ${LocationMatch.SAME_SITE_TOLERANCE_DEG}
-          AND locationLon BETWEEN :lon - ${LocationMatch.SAME_SITE_TOLERANCE_DEG} AND :lon + ${LocationMatch.SAME_SITE_TOLERANCE_DEG}
-    """,
-    )
-    suspend fun getLatestSnapshotLabel(lat: Double, lon: Double, source: String): Long?
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(entity = HourlyForecastEntity::class, onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(history: List<HourlyForecastHistoryEntity>)
 
-    @Query("DELETE FROM hourly_forecast_history WHERE dateTime < :cutoffTime OR fetchedAt < :cutoffTime")
+    @Query("DELETE FROM hourly_forecasts WHERE dateTime < :cutoffTime OR fetchedAt < :cutoffTime")
     suspend fun deleteOldHistory(cutoffTime: Long)
 
     /** Every snapshot of every hour in [startDateTime, endDateTime), all sites and sources: the prune's day chunk. */
-    @Query("SELECT * FROM hourly_forecast_history WHERE dateTime >= :startDateTime AND dateTime < :endDateTime")
+    @Query("SELECT * FROM hourly_forecasts WHERE dateTime >= :startDateTime AND dateTime < :endDateTime")
     suspend fun getAllInDateTimeRange(startDateTime: Long, endDateTime: Long): List<HourlyForecastHistoryEntity>
 
     /** Hour range of snapshots fetched at or after [sinceFetchedAt] (0 = every row). */
-    @Query("SELECT MIN(dateTime) FROM hourly_forecast_history WHERE fetchedAt >= :sinceFetchedAt")
+    @Query("SELECT MIN(dateTime) FROM hourly_forecasts WHERE fetchedAt >= :sinceFetchedAt")
     suspend fun minDateTime(sinceFetchedAt: Long = 0L): Long?
 
-    @Query("SELECT MAX(dateTime) FROM hourly_forecast_history WHERE fetchedAt >= :sinceFetchedAt")
+    @Query("SELECT MAX(dateTime) FROM hourly_forecasts WHERE fetchedAt >= :sinceFetchedAt")
     suspend fun maxDateTime(sinceFetchedAt: Long = 0L): Long?
 
-    /** Deletes by primary key (dateTime, source, locationLat, locationLon, timestampToGroupPredictions). */
-    @androidx.room.Delete
-    suspend fun deleteRows(rows: List<HourlyForecastHistoryEntity>)
+    /**
+     * Deletes by primary key. Through [HourlyRowKey], never the row itself: Room would match a
+     * key-less class on every column, and `= NULL` matches nothing, so no row with an empty field
+     * could ever be pruned.
+     */
+    @androidx.room.Delete(entity = HourlyForecastEntity::class)
+    suspend fun deleteKeys(keys: List<HourlyRowKey>)
+
+    suspend fun deleteRows(rows: List<HourlyForecastHistoryEntity>) = deleteKeys(rows.map { it.key() })
 }

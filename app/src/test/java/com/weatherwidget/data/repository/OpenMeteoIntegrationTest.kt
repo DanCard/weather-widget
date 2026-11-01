@@ -261,7 +261,7 @@ class OpenMeteoIntegrationTest {
         data class HistRow(val dateTime: Long, val timestampToGroupPredictions: Long, val cloudCover: Int?, val fetchedAt: Long)
         val rows = mutableListOf<HistRow>()
         db.query(
-            "SELECT dateTime, timestampToGroupPredictions, cloudCover, fetchedAt FROM hourly_forecast_history " +
+            "SELECT dateTime, timestampToGroupPredictions, cloudCover, fetchedAt FROM hourly_forecasts " +
                 "WHERE source = ? ORDER BY dateTime",
             arrayOf<Any?>("OPEN_METEO"),
         ).use { c ->

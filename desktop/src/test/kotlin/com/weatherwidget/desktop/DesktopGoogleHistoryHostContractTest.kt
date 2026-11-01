@@ -29,14 +29,14 @@ class DesktopGoogleHistoryHostContractTest : GoogleHistoryHostContract() {
         return DesktopGoogleHistoryHost(DesktopWeatherDao(db), LAT, LON) to object : Seed {
             override fun live(row: HourlyForecast) {
                 insert(
-                    "INSERT INTO hourly_forecasts (dateTime, locationLat, locationLon, temperature, condition, source, precipProbability, fetchedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                    listOf(row.dateTime, row.locationLat, row.locationLon, row.temperature, row.condition, row.source, row.precipProbability, row.fetchedAt),
+                    "INSERT INTO hourly_forecasts (dateTime, locationLat, locationLon, temperature, condition, source, precipProbability, fetchedAt, timestampToGroupPredictions) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    listOf(row.dateTime, row.locationLat, row.locationLon, row.temperature, row.condition, row.source, row.precipProbability, row.fetchedAt, row.fetchedAt),
                 )
             }
 
             override fun history(row: HourlyForecast, bucket: Long) {
                 insert(
-                    "INSERT INTO hourly_forecast_history (dateTime, locationLat, locationLon, temperature, condition, source, timestampToGroupPredictions, precipProbability, fetchedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO hourly_forecasts (dateTime, locationLat, locationLon, temperature, condition, source, timestampToGroupPredictions, precipProbability, fetchedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     listOf(row.dateTime, row.locationLat, row.locationLon, row.temperature, row.condition, row.source, bucket, row.precipProbability, row.fetchedAt),
                 )
             }

@@ -1,24 +1,9 @@
 package com.weatherwidget.data.local
 
-import androidx.room.ColumnInfo
-import androidx.room.Entity
-import androidx.room.Index
-
 /**
- * Historical snapshots of the hourly forecast — what each hour was *predicted* to be, captured at
- * [timestampToGroupPredictions] — the fetch time, since 2026-10-24; every fetch since 2026-11-01
- * (`:shared` [com.weatherwidget.shared.history.HourlySnapshotRun]). Rows written before then carry the
- * start of a 4 h / 12 h window.
- *
- * Unlike [HourlyForecastEntity] (latest-only, REPLACE-overwritten), this preserves prior
- * predictions: [timestampToGroupPredictions] is part of the primary key, so each snapshot keeps its own row. Payload mirrors
- * [HourlyForecastEntity]; [fetchedAt] is the real fetch time (kept for debugging/retention).
+ * A row of the one hourly table ([HourlyForecastEntity]) read or written with its label, for callers
+ * that work on every fetch's rows rather than the newest per hour.
  */
-@Entity(
-    tableName = "hourly_forecast_history",
-    primaryKeys = ["dateTime", "source", "locationLat", "locationLon", "timestampToGroupPredictions"],
-    indices = [Index(value = ["locationLat", "locationLon", "source", "timestampToGroupPredictions"])],
-)
 data class HourlyForecastHistoryEntity(
     val dateTime: Long, // Epoch ms of the forecasted hour
     val locationLat: Double,
@@ -35,6 +20,17 @@ data class HourlyForecastHistoryEntity(
     val cloudCoverMid: Int? = null, // Mid-layer only (0-100)
     val cloudCoverHigh: Int? = null, // High-layer only (0-100)
 )
+
+/** The one hourly table's primary key. */
+data class HourlyRowKey(
+    val dateTime: Long,
+    val source: String,
+    val locationLat: Double,
+    val locationLon: Double,
+    val timestampToGroupPredictions: Long,
+)
+
+fun HourlyForecastHistoryEntity.key() = HourlyRowKey(dateTime, source, locationLat, locationLon, timestampToGroupPredictions)
 
 /** Carries fetchedAt and the storage-key coordinates so the shared site selectors can collapse fragments. */
 fun HourlyForecastHistoryEntity.toHourlyForecast() = com.weatherwidget.data.model.HourlyForecast(

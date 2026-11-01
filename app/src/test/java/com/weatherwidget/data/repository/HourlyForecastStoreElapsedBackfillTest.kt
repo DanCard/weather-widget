@@ -24,7 +24,7 @@ import org.junit.experimental.categories.Category
 /**
  * plans/260911-backfill-elapsed-hour-forecast-history-on-fresh-site.md test #6: the `:shared`
  * [ForecastPersistRun] on the store's Room Host files a payload's elapsed hours as history only where
- * the site has none, never touches the live table, and is a no-op on a second pass.
+ * the site has none, and is a no-op on a second pass.
  */
 @Category(LongDuration::class)
 class HourlyForecastStoreElapsedBackfillTest : RobolectricTest() {
@@ -85,7 +85,7 @@ class HourlyForecastStoreElapsedBackfillTest : RobolectricTest() {
     )
 
     @Test
-    fun `fresh site - elapsed hours are filed as history and the live table is untouched`() = runTest {
+    fun `fresh site - elapsed hours are filed as history`() = runTest {
         val summary = backfill(payload())!!
 
         val elapsed = payload().filter { it.dateTime < now - ElapsedForecastBackfill.ELAPSED_BOUNDARY_MS }
@@ -94,7 +94,6 @@ class HourlyForecastStoreElapsedBackfillTest : RobolectricTest() {
         assertEquals(elapsed.size, summary.stored)
         assertEquals(elapsed.map { it.dateTime }, historyRows().map { it.dateTime })
         assertEquals(elapsed.map { it.temperature }, historyRows().map { it.temperature })
-        assertTrue("backfill must never write the live table", liveRows().isEmpty())
         // Written at the quantized site, like every other hourly write.
         assertTrue(historyRows().all { it.locationLat == LocationMatch.quantize(lat) })
     }
@@ -159,40 +158,5 @@ class HourlyForecastStoreElapsedBackfillTest : RobolectricTest() {
         val live = liveRows().map { it.dateTime }
         assertTrue(live.isNotEmpty())
         assertTrue(live.all { it >= System.currentTimeMillis() - ElapsedForecastBackfill.ELAPSED_BOUNDARY_MS })
-    }
-
-    /**
-     * One decision per fetch (user, 2026-10-24, HourlySnapshotRun): the run asks the store's decision
-     * once — a skipped fetch files nothing; a saved one files the snapshot and the elapsed hours under
-     * the same label.
-     */
-    @Test
-    fun `the snapshot and the backfill share the store's one decision`() = runTest {
-        val asked = mutableListOf<Long>()
-        val context = ApplicationProvider.getApplicationContext<Context>()
-        fun storeDeciding(label: Long?) = HourlyForecastStore(
-            hourlyForecastDao = db.hourlyForecastDao(),
-            hourlyForecastHistoryDao = db.hourlyForecastHistoryDao(),
-            observationDao = db.observationDao(),
-            widgetStateManager = WidgetStateManager(context),
-            clock = { now },
-            appLogDao = db.appLogDao(),
-            dailyHistoryDao = db.dailyHistoryDao(),
-            snapshotLabel = { _, _, _, t -> asked += t; label },
-        )
-        suspend fun fetch(on: HourlyForecastStore) =
-            ForecastPersistRun(on.forecastPersistHost(db.forecastDao(), db.appLogDao(), source, lat, lon))
-                .persist(ForecastPersistRun.Fetch(hourly = payload(), daily = null, keep = null), now)
-
-        assertEquals(null, fetch(storeDeciding(label = null)).snapshotLabel)
-        assertEquals(1, asked.size)
-        assertTrue(historyRows().isEmpty())
-
-        asked.clear()
-        fetch(storeDeciding(label = now))
-        assertEquals(1, asked.size)
-        assertEquals(setOf(now), historyRows().map { it.timestampToGroupPredictions }.toSet())
-        // Elapsed (backfilled) and upcoming (snapshotted) hours both landed.
-        assertTrue(historyRows().any { it.dateTime < now } && historyRows().any { it.dateTime > now })
     }
 }

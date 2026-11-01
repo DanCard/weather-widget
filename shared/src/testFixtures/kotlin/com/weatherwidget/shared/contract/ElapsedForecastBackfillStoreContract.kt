@@ -14,7 +14,7 @@ import java.time.ZoneOffset
  * snapshotted, and that an insert makes them so.
  */
 abstract class ElapsedForecastBackfillStoreContract {
-    /** Writes a `hourly_forecast_history` row as given. */
+    /** Writes a `hourly_forecasts` row as given. */
     fun interface Seed {
         fun hourlyHistory(row: HourlyForecast, snapshotBucketMs: Long)
     }

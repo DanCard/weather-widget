@@ -38,13 +38,6 @@ internal class HourlyForecastStore(
     private val appLogDao: com.weatherwidget.data.local.AppLogDao,
     /** For the observation write's retired-product cleanup ([writeObservations]). */
     private val dailyHistoryDao: com.weatherwidget.data.local.DailyHistoryDao,
-    /**
-     * The `:shared` [com.weatherwidget.shared.history.HourlySnapshotRun] label for [sourceId]'s fetch at
-     * the site now ([RoomHourlySnapshotHost] in production; a test may pass null to save no snapshot).
-     * The default — every fetch, under its own time — is for tests.
-     */
-    private val snapshotLabel: suspend (sourceId: String, latitude: Double, longitude: Double, nowMs: Long) -> Long? =
-        { _, _, _, nowMs -> nowMs },
 ) {
     data class HistoricalActualsWriteSummary(
         val rowCount: Int,
@@ -66,7 +59,7 @@ internal class HourlyForecastStore(
 
     /**
      * [sourceId]'s live rows from [hours]: the `:shared` [HourlyForecastWrite] rule (same as desktop)
-     * over this site's stored rows, then the fetch's snapshot if [decideSnapshot] keeps one.
+     * over this site's stored rows.
      */
     private suspend fun saveHourly(
         hours: List<HourlyForecast>,
@@ -88,14 +81,10 @@ internal class HourlyForecastStore(
         plan.trimLine?.let { appLogDao.log(HourlyOnDemand.TRIM_TAG, it, "VERBOSE") }
         if (plan.live.isEmpty()) return
         hourlyForecastDao.insertAll(plan.live.map { it.copy(locationLat = keyLat, locationLon = keyLon).toEntity(keyLat, keyLon) })
-
-        val snapshotAt = decideSnapshot(sourceId, keyLat, keyLon, now) ?: return
-        hourlyForecastHistoryDao.insertAll(plan.live.map { it.toHistoryEntity(keyLat, keyLon, sourceId, snapshotAt) })
     }
 
     /**
-     * [ForecastPersistRun]'s Room side for [sourceId]'s fetch at this site, on this store's DAOs and
-     * snapshot decision. [forecastDao] is [ForecastSnapshotStore.forecastDao].
+     * [ForecastPersistRun]'s Room side for [sourceId]'s fetch at this site, on this store's DAOs. [forecastDao] is [ForecastSnapshotStore.forecastDao].
      */
     fun forecastPersistHost(
         forecastDao: com.weatherwidget.data.local.ForecastDao,
@@ -105,7 +94,7 @@ internal class HourlyForecastStore(
         longitude: Double,
     ) = RoomForecastPersistHost(
         forecastDao, hourlyForecastDao, hourlyForecastHistoryDao, appLogDao, sourceId, latitude, longitude,
-    ) { nowMs -> decideSnapshot(sourceId, latitude, longitude, nowMs) }
+    )
 
     /**
      * [sourceId]'s stored hourly rows at this exact site (write-quantized key) in [startMs]..[endMs].
@@ -150,22 +139,6 @@ internal class HourlyForecastStore(
     /** [GoogleHistoryRun]'s Room side at this site. */
     fun googleHistoryHost(latitude: Double, longitude: Double): GoogleHistoryRun.Host =
         RoomGoogleHistoryHost(hourlyForecastHistoryDao, latitude, longitude)
-
-    /** The last [snapshotLabel] decision per source and site: (decided at, label or null). */
-    private val recentSnapshotDecisions = java.util.concurrent.ConcurrentHashMap<Triple<String, Double, Double>, Pair<Long, Long?>>()
-
-    /**
-     * One snapshot decision per fetch: a second ask within [HourlySnapshotRun.SAME_FETCH_MS] (the
-     * [ForecastPersistRun] asks once; a test's direct [saveHourlyEntities] may follow it) reuses it
-     * rather than asking (and logging) again. A skip stays a skip.
-     */
-    private suspend fun decideSnapshot(sourceId: String, latitude: Double, longitude: Double, nowMs: Long): Long? {
-        val key = Triple(sourceId, LocationMatch.quantize(latitude), LocationMatch.quantize(longitude))
-        recentSnapshotDecisions[key]?.let { (decidedAt, label) ->
-            if (nowMs - decidedAt in 0 until com.weatherwidget.shared.history.HourlySnapshotRun.SAME_FETCH_MS) return label
-        }
-        return snapshotLabel(sourceId, latitude, longitude, nowMs).also { recentSnapshotDecisions[key] = nowMs to it }
-    }
 
     /**
      * The provider history [HistoricalActualsBackfill] files from [hourlyData], written by the shared

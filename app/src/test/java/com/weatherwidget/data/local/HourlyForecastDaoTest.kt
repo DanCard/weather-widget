@@ -1,5 +1,6 @@
 package com.weatherwidget.data.local
 
+import com.weatherwidget.shared.graph.PriorDayCloudForecast
 import com.weatherwidget.testutil.TestData
 import com.weatherwidget.testutil.TestData.LAT
 import com.weatherwidget.testutil.TestData.LON
@@ -84,20 +85,30 @@ class HourlyForecastDaoTest {
         assertEquals(65f, result[0].temperature)
     }
 
+    /** The prior-day cloud series shares the table; an all-sources read must not take it for a forecast. */
     @Test
-    fun `deleteOldForecasts removes entries before cutoff`() = runTest {
+    fun `an all-sources read leaves out the synthetic prior-day source`() = runTest {
         dao.insertAll(
             listOf(
-                TestData.hourly(dateTime = "2026-02-18T12:00", fetchedAt = 1000L),
-                TestData.hourly(dateTime = "2026-02-20T12:00", fetchedAt = 5000L),
+                TestData.hourly(dateTime = "2026-02-20T12:00", source = "NWS"),
+                TestData.hourly(dateTime = "2026-02-20T12:00", source = PriorDayCloudForecast.SOURCE_ID),
             ),
         )
 
-        dao.deleteOldForecasts(3000L)
+        val start = TestData.toEpoch("2026-02-20T00:00")
+        val end = TestData.toEpoch("2026-02-21T00:00")
+        assertEquals(listOf("NWS"), dao.getHourlyForecasts(start, end, TestData.LAT, TestData.LON).map { it.source })
+    }
 
-        val remaining = dao.getHourlyForecasts(TestData.toEpoch("2026-02-18T00:00"), TestData.toEpoch("2026-02-20T23:00"), LAT, LON)
-        assertEquals(1, remaining.size)
-        assertEquals(TestData.toEpoch("2026-02-20T12:00"), remaining[0].dateTime)
+    /** The one table: an older fetch's row stays stored, and the query returns the newest per hour. */
+    @Test
+    fun `a later fetch adds a row and reads back as the newest`() = runTest {
+        dao.insertAll(listOf(TestData.hourly(dateTime = "2026-02-20T12:00", temperature = 60f, fetchedAt = 1000L)))
+        dao.insertAll(listOf(TestData.hourly(dateTime = "2026-02-20T12:00", temperature = 70f, fetchedAt = 5000L)))
+
+        val start = TestData.toEpoch("2026-02-20T00:00")
+        val end = TestData.toEpoch("2026-02-21T00:00")
+        assertEquals(listOf(70f), dao.getHourlyForecasts(start, end, TestData.LAT, TestData.LON).map { it.temperature })
     }
 
     @Test

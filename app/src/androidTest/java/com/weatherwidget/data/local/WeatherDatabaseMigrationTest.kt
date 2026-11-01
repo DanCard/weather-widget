@@ -989,4 +989,36 @@ class WeatherDatabaseMigrationTest {
             assertEquals(37.417, c.getDouble(1), 0.0)
         }
     }
+
+    /** plans/261101-one-hourly-forecast-table.md: live rows join the snapshots, none lost, one table left. */
+    @Test
+    fun migrate83To84_mergesLiveRowsIntoTheOneHourlyTable() {
+        helper.createDatabase(testDb, 83).apply {
+            val hour = 1_792_900_800_000L
+            val live = "INSERT INTO hourly_forecasts (dateTime, locationLat, locationLon, temperature, condition, source, fetchedAt) VALUES "
+            val history = "INSERT INTO hourly_forecast_history (dateTime, locationLat, locationLon, temperature, condition, source, " +
+                "timestampToGroupPredictions, fetchedAt) VALUES "
+            // Fetched at 200 and snapshotted then: one row after the merge, not two.
+            execSQL("$live ($hour, 37.417, -122.089, 60.0, 'Cloudy', 'NWS', 200)")
+            execSQL("$history ($hour, 37.417, -122.089, 60.0, 'Cloudy', 'NWS', 200, 200)")
+            // An older snapshot of the same hour stays.
+            execSQL("$history ($hour, 37.417, -122.089, 55.0, 'Clear', 'NWS', 100, 100)")
+            // A live row with no snapshot joins under its fetch time.
+            execSQL("$live (${hour + 3_600_000L}, 37.417, -122.089, 61.0, 'Rain', 'NWS', 300)")
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 84, true, WeatherDatabase.MIGRATION_83_84)
+
+        db.query("SELECT timestampToGroupPredictions, temperature FROM hourly_forecasts ORDER BY dateTime, fetchedAt").use { c ->
+            val rows = mutableListOf<Pair<Long, Float>>()
+            while (c.moveToNext()) rows += c.getLong(0) to c.getFloat(1)
+            assertEquals(listOf(100L to 55f, 200L to 60f, 300L to 61f), rows)
+        }
+        db.query("SELECT COUNT(*) FROM sqlite_master WHERE name = 'hourly_forecast_history'").use { c ->
+            c.moveToFirst()
+            assertEquals(0, c.getInt(0))
+        }
+        db.close()
+    }
 }

@@ -21,7 +21,7 @@ import org.junit.experimental.categories.Category
 /**
  * The one-time backfill (post-upgrade) that fills forecastDayPrecipChance/forecastNightPrecipChance
  * for daily_history rows written before this feature existed, from the as-predicted
- * hourly_forecast_history archive (DesktopWeatherDao.getHourlyHistory already returns the freshest
+ * hourly_forecasts archive (DesktopWeatherDao.getHourlyHistory already returns the freshest
  * snapshot per hour — never the live, REPLACE-overwritten hourly_forecasts table).
  */
 @Category(MediumDuration::class)
@@ -53,7 +53,7 @@ class DesktopBackfillChanceSnapshotTest {
     }
 
     @Test
-    fun `backfill fills null chance columns from hourly_forecast_history window max`() {
+    fun `backfill fills null chance columns from hourly_forecasts window max`() {
         val yesterday = today.minusDays(5)
         val yesterdayStart = yesterday.toEpochDay() * 86_400_000L
 
@@ -96,7 +96,7 @@ class DesktopBackfillChanceSnapshotTest {
                 ),
             ),
         )
-        // No hourly_forecast_history rows seeded — best-effort must leave chances null, not crash.
+        // No hourly_forecasts rows seeded — best-effort must leave chances null, not crash.
 
         runBlocking { repository.backfillForecastChanceSnapshotsIfNeeded(System.currentTimeMillis()) }
         val stored = dao.getExtremesInRange(yesterdayStart, yesterdayStart, lat, lon).first { it.source == source }

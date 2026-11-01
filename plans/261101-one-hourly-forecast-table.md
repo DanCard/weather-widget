@@ -88,6 +88,18 @@ Open for phase 3: `HourlyStaleFragmentCollapseTest`'s note that the current hour
 matches `SettledForecastPick`, which freezes it; the desktop blend host does not collapse sites as
 Android's does.
 
+## Phase 3 notes (2026-11-01)
+- `HourlySnapshotRun` went here, not in phase 4: its 5-minute label reuse would have let a second fetch
+  replace the first fetch's rows. The label is now the fetch time.
+- `HourlyForecastHistoryEntity` stays as a keyless read/write shape until phase 4, so `deleteRows` goes through
+  `HourlyRowKey`: Room would otherwise match every column, and `= NULL` matches nothing, so no row with an
+  empty field could be pruned.
+- The synthetic `OPEN_METEO_PRIOR24` series shares the table; the two all-sources reads exclude it.
+- The 30-day live retention delete is gone: on one table it would have removed settled history.
+- Real database copies, before any device: integrity ok, row counts exact (desktop 52,360, Samsung 38,396,
+  Pixel 69,846), merge under 50 ms. About 2,000 older rows per database read newer than the old live row; all
+  are before 2026-10-31 under window labels, with identical temperature and rain chance.
+
 ## Phases
 Each phase is its own commit and leaves both platforms working.
 

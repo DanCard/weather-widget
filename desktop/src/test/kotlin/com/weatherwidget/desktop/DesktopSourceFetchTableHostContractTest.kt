@@ -29,7 +29,7 @@ class DesktopSourceFetchTableHostContractTest : SourceFetchTableHostContract() {
             )
 
             override suspend fun writeHourly(sourceId: String, lat: Double, lon: Double, rows: List<HourlyForecast>) =
-                DesktopForecastPersistHost(dao, sourceId, lat, lon) { null }.writeHourly(rows)
+                DesktopForecastPersistHost(dao, sourceId, lat, lon).writeHourly(rows)
         }
     }
 

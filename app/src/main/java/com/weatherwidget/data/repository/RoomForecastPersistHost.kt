@@ -22,8 +22,7 @@ import java.time.LocalDate
 /**
  * Room side of [ForecastPersistRun] for one source at one site: every read on the site's exact
  * quantized key, as desktop's `DesktopForecastPersistHost`; pinned to it by `ForecastPersistHostContract`
- * (`:shared` testFixtures). [snapshotLabel] is the fetch's `HourlySnapshotRun` decision
- * ([HourlyForecastStore.snapshotLabelFor] in production).
+ * (`:shared` testFixtures).
  */
 internal class RoomForecastPersistHost(
     private val forecastDao: ForecastDao,
@@ -33,7 +32,6 @@ internal class RoomForecastPersistHost(
     override val sourceId: String,
     override val latitude: Double,
     override val longitude: Double,
-    private val snapshotLabel: suspend (nowMs: Long) -> Long?,
 ) : ForecastPersistRun.Host<ForecastEntity> {
     private val keyLat = LocationMatch.quantize(latitude)
     private val keyLon = LocationMatch.quantize(longitude)
@@ -45,11 +43,6 @@ internal class RoomForecastPersistHost(
 
     override suspend fun writeHourly(rows: List<HourlyForecast>) =
         hourlyForecastDao.insertAll(rows.map { it.copy(locationLat = keyLat, locationLon = keyLon, source = sourceId).toEntity(keyLat, keyLon) })
-
-    override suspend fun snapshotLabel(nowMs: Long) = snapshotLabel.invoke(nowMs)
-
-    override suspend fun writeSnapshot(label: Long, rows: List<HourlyForecast>) =
-        historyDao.insertAll(rows.map { it.toHistoryEntity(keyLat, keyLon, sourceId, label) })
 
     override fun elapsedStore(label: Long, nowMs: Long) =
         RoomElapsedHistoryStore(historyDao, latitude, longitude, sourceId, label, nowMs)
@@ -139,20 +132,3 @@ internal fun ForecastEntity.toStored() = DailyForecastWrite.Stored(
     ref = this,
 )
 
-internal fun HourlyForecast.toHistoryEntity(keyLat: Double, keyLon: Double, sourceId: String, label: Long) =
-    HourlyForecastHistoryEntity(
-        dateTime = dateTime,
-        locationLat = keyLat,
-        locationLon = keyLon,
-        temperature = temperature,
-        condition = condition,
-        source = sourceId,
-        timestampToGroupPredictions = label,
-        precipProbability = precipProbability,
-        cloudCover = cloudCover,
-        cloudCoverLow = cloudCoverLow,
-        cloudCoverMid = cloudCoverMid,
-        cloudCoverHigh = cloudCoverHigh,
-        precipAmountMm = precipAmountMm,
-        fetchedAt = fetchedAt,
-    )

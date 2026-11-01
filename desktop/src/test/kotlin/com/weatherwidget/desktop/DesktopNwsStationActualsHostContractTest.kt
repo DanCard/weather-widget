@@ -35,13 +35,13 @@ class DesktopNwsStationActualsHostContractTest : NwsStationActualsHostContract()
     /** Plain INSERTs for hourly (the DAO's writers quantize and stamp `fetchedAt`); observations as stored. */
     private class DesktopSeed(private val db: DesktopWeatherDatabase, private val dao: DesktopWeatherDao) : Seed {
         override fun hourly(row: HourlyForecast) = insert(
-            "INSERT INTO hourly_forecasts (dateTime, locationLat, locationLon, temperature, condition, source, fetchedAt) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            row.dateTime, row.locationLat, row.locationLon, row.temperature, row.condition, row.source, row.fetchedAt,
+            "INSERT INTO hourly_forecasts (dateTime, locationLat, locationLon, temperature, condition, source, fetchedAt, timestampToGroupPredictions) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            row.dateTime, row.locationLat, row.locationLon, row.temperature, row.condition, row.source, row.fetchedAt, row.fetchedAt,
         )
 
         override fun hourlyHistory(row: HourlyForecast, snapshotBucketMs: Long) = insert(
-            "INSERT INTO hourly_forecast_history (dateTime, locationLat, locationLon, temperature, condition, source, " +
+            "INSERT INTO hourly_forecasts (dateTime, locationLat, locationLon, temperature, condition, source, " +
                 "timestampToGroupPredictions, fetchedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             row.dateTime, row.locationLat, row.locationLon, row.temperature, row.condition, row.source,
             snapshotBucketMs, row.fetchedAt,

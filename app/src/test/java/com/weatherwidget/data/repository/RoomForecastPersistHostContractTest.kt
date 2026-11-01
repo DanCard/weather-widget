@@ -21,7 +21,7 @@ class RoomForecastPersistHostContractTest : ForecastPersistHostContract() {
         return { source, lat, lon ->
             RoomForecastPersistHost(
                 db.forecastDao(), db.hourlyForecastDao(), db.hourlyForecastHistoryDao(), db.appLogDao(), source, lat, lon,
-            ) { LABEL }
+            )
         }
     }
 

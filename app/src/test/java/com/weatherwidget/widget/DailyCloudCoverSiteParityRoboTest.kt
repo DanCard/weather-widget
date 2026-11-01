@@ -173,7 +173,7 @@ class DailyCloudCoverSiteParityRoboTest {
         // Wipe the far-fragment fixture and reseed with the near one. Stale rows go in FIRST so
         // they precede the fresh rows under `ORDER BY dateTime ASC` — the ordering that made
         // firstOrNull pick them.
-        db.hourlyForecastDao().deleteOldForecasts(Long.MAX_VALUE)
+        db.clearAllTables()
         seedTwoSiteDatabase(
             staleLat = sameSiteFragmentLat,
             staleLon = sameSiteFragmentLon,
@@ -186,7 +186,7 @@ class DailyCloudCoverSiteParityRoboTest {
 
     @Test
     fun `ordinary graph and api-toggle text paths ignore stale 21 percent rain fragment`() = runTest {
-        db.hourlyForecastDao().deleteOldForecasts(Long.MAX_VALUE)
+        db.clearAllTables()
         seedTwoSiteDatabase(
             staleLat = 37.415,
             staleLon = -122.087,

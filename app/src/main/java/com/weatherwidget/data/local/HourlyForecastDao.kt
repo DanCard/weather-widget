@@ -2,6 +2,10 @@ package com.weatherwidget.data.local
 
 import androidx.room.*
 
+/**
+ * The newest fetch's row per hour, source and site of the one hourly table, and its writes. For every
+ * fetch's rows, see [HourlyForecastHistoryDao].
+ */
 @Dao
 interface HourlyForecastDao {
     @Query(
@@ -10,6 +14,9 @@ interface HourlyForecastDao {
         WHERE ${LocationMatch.ROOM_WHERE}
         AND dateTime >= :startDateTime
         AND dateTime <= :endDateTime
+        AND source != '${com.weatherwidget.shared.graph.PriorDayCloudForecast.SOURCE_ID}'
+        GROUP BY dateTime, source, locationLat, locationLon
+        HAVING fetchedAt = MAX(fetchedAt)
         ORDER BY dateTime ASC
     """,
     )
@@ -27,6 +34,8 @@ interface HourlyForecastDao {
         AND dateTime >= :startDateTime
         AND dateTime <= :endDateTime
         AND source = :source
+        GROUP BY dateTime, source, locationLat, locationLon
+        HAVING fetchedAt = MAX(fetchedAt)
         ORDER BY dateTime ASC
     """,
     )
@@ -54,6 +63,8 @@ interface HourlyForecastDao {
         AND dateTime >= :startDateTime
         AND dateTime <= :endDateTime
         AND source IN (:sources)
+        GROUP BY dateTime, source, locationLat, locationLon
+        HAVING fetchedAt = MAX(fetchedAt)
         ORDER BY dateTime ASC
     """,
     )
@@ -67,10 +78,4 @@ interface HourlyForecastDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(forecasts: List<HourlyForecastEntity>)
-
-    @Query("DELETE FROM hourly_forecasts WHERE fetchedAt < :cutoffTime")
-    suspend fun deleteOldForecasts(cutoffTime: Long)
-
-    @Query("DELETE FROM hourly_forecasts WHERE fetchedAt < :cutoffTime AND source = :source")
-    suspend fun deleteOldForecastsBySource(cutoffTime: Long, source: String)
 }
