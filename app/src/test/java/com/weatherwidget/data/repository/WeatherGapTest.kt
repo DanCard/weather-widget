@@ -87,7 +87,6 @@ class WeatherGapTest {
         val currentRepo = CurrentTempRepository(
             context,
             observationDao,
-            hourlyForecastDao,
             appLogDao,
             nwsApi,
             openMeteoApi,

@@ -89,7 +89,6 @@ class NwsMiddayOverrideTest {
         currentTempRepository = CurrentTempRepository(
             context,
             observationDao,
-            hourlyForecastDao,
             appLogDao,
             nwsApi,
             openMeteoApi,

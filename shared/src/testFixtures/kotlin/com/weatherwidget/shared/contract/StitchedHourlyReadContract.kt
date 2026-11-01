@@ -20,9 +20,13 @@ abstract class StitchedHourlyReadContract {
         fun hourlyHistory(row: HourlyForecast, snapshotBucketMs: Long)
     }
 
-    /** The platform's stitched read of [SOURCE] at [LAT], [LON]; [startMs] and [endMs] fall between hours. */
-    fun interface Reader {
+    /** The platform's stitched reads at [LAT], [LON]; [startMs] and [endMs] fall between hours. */
+    interface Reader {
+        /** [SOURCE] alone. */
         suspend fun read(startMs: Long, endMs: Long, nowMs: Long): List<HourlyForecast>
+
+        /** [SOURCE] and [OTHER_SOURCE], each settled on its own rows. */
+        suspend fun readAllSources(startMs: Long, endMs: Long, nowMs: Long): List<HourlyForecast>
     }
 
     /** A fresh, empty database. */
@@ -58,6 +62,19 @@ abstract class StitchedHourlyReadContract {
         assertEquals(62f to 40, readHour(H0, nowMs = H0 + 2 * DAY))
     }
 
+    /** The header's reserve must match the rain % it reserves for, not a post-hour rewrite. */
+    @Test
+    fun `every source settles on its own pre-hour forecast`() = runBlocking {
+        history(H0, 61f, fetchedAt = H0 - HOUR)
+        seed.hourly(hr(H0, 70f, fetchedAt = H0 + 20 * MINUTE))
+        seed.hourlyHistory(hr(H0, 52f, fetchedAt = H0 - HOUR).copy(source = OTHER_SOURCE), snapshotBucketMs = H0 - HOUR)
+        seed.hourly(hr(H0, 58f, fetchedAt = H0 + 20 * MINUTE).copy(source = OTHER_SOURCE))
+
+        val rows = reader.readAllSources(H0 - HOUR / 2, H0 + HOUR / 2, nowMs = H0 + 30 * MINUTE)
+
+        assertEquals(mapOf(SOURCE to 61f, OTHER_SOURCE to 52f), rows.associate { it.source to it.temperature })
+    }
+
     /** User, 2026-10-27: "Freeze wins always" — a stale forecast beats a later live rewrite (a Google refill). */
     @Test
     fun `a stale past hour keeps its forecast over a refilled live row`() = runBlocking {
@@ -77,6 +94,7 @@ abstract class StitchedHourlyReadContract {
 
     companion object {
         const val SOURCE = "NWS"
+        const val OTHER_SOURCE = "OPEN_METEO"
         const val LAT = 37.417
         const val LON = -122.089
         const val MINUTE = 60_000L

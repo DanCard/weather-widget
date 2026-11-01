@@ -23,8 +23,12 @@ class DesktopStitchedHourlyReadContractTest : StitchedHourlyReadContract() {
         val path = Files.createTempFile("weather_stitched_read_contract", ".db").also { paths.add(it) }
         val db = DesktopWeatherDatabase(path).apply { initialize() }
         val dao = DesktopWeatherDao(db)
-        val reader = Reader { startMs, endMs, nowMs ->
-            dao.getHourlyWithHistory(LAT, LON, SOURCE, startMs, endMs, maxAgeMs = Long.MAX_VALUE / 2, nowMs = nowMs)
+        val reader = object : Reader {
+            override suspend fun read(startMs: Long, endMs: Long, nowMs: Long) =
+                dao.getHourlyWithHistory(LAT, LON, SOURCE, startMs, endMs, maxAgeMs = Long.MAX_VALUE / 2, nowMs = nowMs)
+
+            override suspend fun readAllSources(startMs: Long, endMs: Long, nowMs: Long) =
+                dao.getHourlySettledAllSources(LAT, LON, startMs, endMs, nowMs)
         }
         return reader to DesktopSeed(db)
     }

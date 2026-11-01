@@ -216,13 +216,16 @@ object HeaderWidthChecker {
         val zone = java.time.ZoneId.systemDefault()
         val fromMs = minOf(now, centerTime).minusHours(1).atZone(zone).toInstant().toEpochMilli()
         val toMs = maxOf(now, centerTime).plusHours(LINE_RAIN_WINDOW_HOURS).atZone(zone).toInstant().toEpochMilli()
-        val rows = GraphDataLoader.loadHeaderLineHourlyForecasts(
-            com.weatherwidget.data.local.WeatherDatabase.getDatabase(context).hourlyForecastDao(),
+        val database = com.weatherwidget.data.local.WeatherDatabase.getDatabase(context)
+        val rows = GraphDataLoader.loadSettledHourlyForecasts(
+            database.hourlyForecastDao(),
+            database.hourlyForecastHistoryDao(),
             lat,
             lon,
             fromMs,
             toMs,
             sourceIds + com.weatherwidget.data.model.WeatherSource.GENERIC_GAP.id,
+            now.atZone(zone).toInstant().toEpochMilli(),
         )
         return HeaderContent.lineInputs(
             view = view,

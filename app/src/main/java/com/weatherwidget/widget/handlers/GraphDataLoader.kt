@@ -234,19 +234,38 @@ object GraphDataLoader {
             .ifEmpty { "none" }
 
     /**
-     * Every one of [sourceIds]' hourly rows at this site in [startMs]..[endMs], for the header
-     * line's reserve (`HeaderWidthChecker.lineInputs`): the render paths load only the displayed
-     * sources'.
+     * [sourceIds]' settled hourly rows at this site in [startMs]..[endMs]: live + history through the
+     * shared stitcher per source, as desktop's `getHourlySettledAllSources`. For a reader that must
+     * match what the graph and header draw (the header line's reserve, the observations blend).
      */
-    suspend fun loadHeaderLineHourlyForecasts(
+    suspend fun loadSettledHourlyForecasts(
         hourlyDao: HourlyForecastDao,
+        historyDao: HourlyForecastHistoryDao,
         lat: Double,
         lon: Double,
         startMs: Long,
         endMs: Long,
         sourceIds: List<String>,
-    ): List<HourlyForecastEntity> =
-        unifyToNearestSite(hourlyDao.getHourlyForecastsForSources(startMs, endMs, lat, lon, sourceIds), lat, lon)
+        nowMs: Long,
+    ): List<HourlyForecastEntity> {
+        val live = hourlyDao.getHourlyForecastsForSources(startMs, endMs, lat, lon, sourceIds)
+        val history = historyDao.getHistoryInRangeForBucketWindowForSources(
+            startDateTime = startMs,
+            endDateTime = endMs + 1,
+            bucketStart = Long.MIN_VALUE,
+            bucketEnd = Long.MAX_VALUE,
+            lat = lat,
+            lon = lon,
+            sources = sourceIds,
+        )
+        return HourlyForecastStitcher.stitchBySource(
+            current = live.map { it.toHourlyForecast() },
+            history = history.map { it.toHourlyForecast() },
+            nowMs = nowMs,
+            centerLat = lat,
+            centerLon = lon,
+        ).map { it.toEntity(lat, lon) }
+    }
 
     /**
      * Hourly rows for `:shared` CurrentTempRun's inputs ([com.weatherwidget.widget.CurrentTempRun.inputWindow]:

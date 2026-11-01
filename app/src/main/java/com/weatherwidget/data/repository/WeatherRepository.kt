@@ -56,18 +56,6 @@ class WeatherRepository
             return currentTempRepository.refreshCurrentTemperature(latitude, longitude, source, reason, forceRefresh)
         }
 
-        suspend fun getInterpolatedTemperature(
-            latitude: Double, 
-            longitude: Double, 
-            time: LocalDateTime = LocalDateTime.now()
-        ): Float? = currentTempRepository.getInterpolatedTemperature(latitude, longitude, time)
-        
-        suspend fun getNextInterpolationUpdateTime(
-            latitude: Double, 
-            longitude: Double, 
-            time: LocalDateTime = LocalDateTime.now()
-        ): LocalDateTime = currentTempRepository.getNextInterpolationUpdateTime(latitude, longitude, time)
-        
         suspend fun getCachedDataBySource(latitude: Double, longitude: Double, source: WeatherSource) = 
             forecastRepository.getCachedDataBySource(latitude, longitude, source)
             

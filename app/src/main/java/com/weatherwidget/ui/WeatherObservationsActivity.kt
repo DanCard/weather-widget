@@ -126,6 +126,9 @@ class WeatherObservationsActivity : AppCompatActivity() {
     lateinit var hourlyForecastDao: com.weatherwidget.data.local.HourlyForecastDao
 
     @Inject
+    lateinit var hourlyForecastHistoryDao: com.weatherwidget.data.local.HourlyForecastHistoryDao
+
+    @Inject
     lateinit var gpsResampler: GpsResampler
 
     @Inject
@@ -278,19 +281,17 @@ class WeatherObservationsActivity : AppCompatActivity() {
                         { it.locationLat },
                         { it.locationLon },
                     ).map { it.toReading() }
-                    // unifyToNearestSite, not the raw rows: the proximity box spans ~7 miles, so a
-                    // neighbouring site's fragment would otherwise feed forecasts the graph never used
-                    // and the table would stop matching the dot it exists to explain.
-                    val hourly = GraphDataLoader.unifyToNearestSite(
-                        hourlyForecastDao.getHourlyForecastsBySource(
-                            sinceMs,
-                            now + (48 * 60 * 60 * 1000),
-                            lat,
-                            lon,
-                            currentSource.id,
-                        ),
+                    // Settled, as desktop's table and the graph: this table explains the dot the graph
+                    // draws, so it must read the same forecast at this site, not the raw box rows.
+                    val hourly = GraphDataLoader.loadSettledHourlyForecasts(
+                        hourlyForecastDao,
+                        hourlyForecastHistoryDao,
                         lat,
                         lon,
+                        sinceMs,
+                        now + (48 * 60 * 60 * 1000),
+                        listOf(currentSource.id),
+                        now,
                     ).map { it.toHourlyForecast() }
 
                     val result = ActualTemperatureSeriesBuilder.blendObservationSeries(

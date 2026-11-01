@@ -1739,23 +1739,25 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
      * Every `hourly_forecast_history` snapshot of [source] at the site with `dateTime` in
      * [startMs, endMs), freshest snapshot first per hour, unmerged — Android's
      * `HourlyForecastHistoryDao.getHistoryInRangeForBucketWindow` (`DailyHistoryRun.Host.hourlyHistory`).
-     * Unlike [getHourlyHistory] (also unmerged): source only, no `Generic`, end exclusive.
+     * Unlike [getHourlyHistory] (also unmerged): source only, no `Generic`, end exclusive. A null
+     * [source] reads every source.
      */
-    fun getHourlyHistorySnapshots(locationLat: Double, locationLon: Double, source: String, startMs: Long, endMs: Long): List<HourlyForecast> {
+    fun getHourlyHistorySnapshots(locationLat: Double, locationLon: Double, source: String?, startMs: Long, endMs: Long): List<HourlyForecast> {
         val result = mutableListOf<HourlyForecast>()
         db.getConnection().use { conn ->
             val sql = """
                 SELECT dateTime, temperature, condition, precipProbability, cloudCover, cloudCoverLow, cloudCoverMid, cloudCoverHigh, precipAmountMm, fetchedAt, source, locationLat, locationLon
                 FROM hourly_forecast_history
-                WHERE ${LocationMatch.JDBC_WHERE} AND source = ? AND dateTime >= ? AND dateTime < ?
+                WHERE ${LocationMatch.JDBC_WHERE} AND (? IS NULL OR source = ?) AND dateTime >= ? AND dateTime < ?
                 ORDER BY dateTime ASC, timestampToGroupPredictions DESC
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setDouble(1, locationLat)
                 stmt.setDouble(2, locationLon)
                 stmt.setString(3, source)
-                stmt.setLong(4, startMs)
-                stmt.setLong(5, endMs)
+                stmt.setString(4, source)
+                stmt.setLong(5, startMs)
+                stmt.setLong(6, endMs)
                 val rs = stmt.executeQuery()
                 while (rs.next()) {
                     result.add(HourlyForecast(
@@ -1819,6 +1821,19 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             }
         }
     }
+
+    /**
+     * Every source's settled hourly rows at the site in [startMs]..[endMs], through the shared stitcher
+     * per source: Android's `GraphDataLoader.loadSettledHourlyForecasts`.
+     */
+    fun getHourlySettledAllSources(locationLat: Double, locationLon: Double, startMs: Long, endMs: Long, nowMs: Long = System.currentTimeMillis()): List<HourlyForecast> =
+        HourlyForecastStitcher.stitchBySource(
+            current = getHourlyForecastsAllSources(locationLat, locationLon, startMs, endMs),
+            history = getHourlyHistorySnapshots(locationLat, locationLon, source = null, startMs, endMs + 1),
+            nowMs = nowMs,
+            centerLat = locationLat,
+            centerLon = locationLon,
+        )
 
     fun getHourlyWithHistory(locationLat: Double, locationLon: Double, source: String, startMs: Long, endMs: Long, maxAgeMs: Long, nowMs: Long = System.currentTimeMillis()): List<HourlyForecast> {
         val current = getLatestHourly(locationLat, locationLon, source, maxAgeMs).filter { it.dateTime in startMs..endMs }

@@ -290,8 +290,8 @@ class DesktopWeatherRepository(
             retroCloudBands = retroCloudResult.bands,
             dominantCloudContribution = dominantCloudContribution,
             // The header reserves room for the widest source's rain % (HeaderContent.precipLabels).
-            allSourcesHourly = weatherDao.getHourlyForecastsAllSources(
-                latitude, longitude, stitchedStart, now + HourlyOnDemand.REACH_HOURS * 3_600_000L,
+            allSourcesHourly = weatherDao.getHourlySettledAllSources(
+                latitude, longitude, stitchedStart, now + HourlyOnDemand.REACH_HOURS * 3_600_000L, now,
             ),
         )
     }

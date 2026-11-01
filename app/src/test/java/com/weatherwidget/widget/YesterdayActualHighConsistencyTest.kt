@@ -66,7 +66,6 @@ class YesterdayActualHighConsistencyTest {
         val currentTempRepository = CurrentTempRepository(
             context,
             db.observationDao(),
-            db.hourlyForecastDao(),
             db.appLogDao(),
             nwsApi,
             openMeteoApi,

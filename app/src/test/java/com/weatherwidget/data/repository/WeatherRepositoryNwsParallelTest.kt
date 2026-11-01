@@ -78,7 +78,6 @@ class WeatherRepositoryNwsParallelTest {
         val currentRepo = CurrentTempRepository(
             context,
             observationDao,
-            hourlyForecastDao,
             appLogDao,
             nwsApi,
             openMeteoApi,

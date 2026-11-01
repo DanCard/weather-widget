@@ -315,7 +315,6 @@ object AppModule {
     fun provideCurrentTempRepository(
         @ApplicationContext context: Context,
         observationDao: ObservationDao,
-        hourlyForecastDao: HourlyForecastDao,
         appLogDao: AppLogDao,
         nwsApi: NwsApi,
         openMeteoApi: OpenMeteoApi,
@@ -328,7 +327,7 @@ object AppModule {
         openWeatherMapApi: OpenWeatherMapApi,
         googleWeatherApi: GoogleWeatherApi,
     ): CurrentTempRepository = CurrentTempRepository(
-        context, observationDao, hourlyForecastDao, appLogDao,
+        context, observationDao, appLogDao,
         nwsApi, openMeteoApi, weatherApi, widgetStateManager, dailyHistoryDao, observationRepository, tomorrowIoApi, openWeatherMapApi,
     )
 

@@ -9,6 +9,7 @@ import com.weatherwidget.shared.contract.StitchedHourlyReadContract
 import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.testutil.TestDatabase
 import com.weatherwidget.widget.HourlyForecastLoader
+import com.weatherwidget.widget.handlers.GraphDataLoader
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.experimental.categories.Category
@@ -27,11 +28,19 @@ class RoomStitchedHourlyReadContractTest : StitchedHourlyReadContract() {
 
     override fun open(): Pair<Reader, Seed> {
         val db = TestDatabase.create().also { databases.add(it) }
-        val reader = Reader { startMs, endMs, nowMs ->
-            val sources = listOf(SOURCE)
-            val current = db.hourlyForecastDao().getHourlyForecastsForSources(startMs, endMs, LAT, LON, sources)
-            HourlyForecastLoader.withHistory(db, current, startMs, endMs, LAT, LON, sources, nowMs)
-                .map { it.toHourlyForecast() }
+        val reader = object : Reader {
+            override suspend fun read(startMs: Long, endMs: Long, nowMs: Long): List<HourlyForecast> {
+                val sources = listOf(SOURCE)
+                val current = db.hourlyForecastDao().getHourlyForecastsForSources(startMs, endMs, LAT, LON, sources)
+                return HourlyForecastLoader.withHistory(db, current, startMs, endMs, LAT, LON, sources, nowMs)
+                    .map { it.toHourlyForecast() }
+            }
+
+            override suspend fun readAllSources(startMs: Long, endMs: Long, nowMs: Long) =
+                GraphDataLoader.loadSettledHourlyForecasts(
+                    db.hourlyForecastDao(), db.hourlyForecastHistoryDao(), LAT, LON, startMs, endMs,
+                    listOf(SOURCE, OTHER_SOURCE), nowMs,
+                ).map { it.toHourlyForecast() }
         }
         return reader to RoomSeed(db)
     }

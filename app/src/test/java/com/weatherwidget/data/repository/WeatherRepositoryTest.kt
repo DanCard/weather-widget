@@ -93,7 +93,6 @@ class WeatherRepositoryTest {
         currentTempRepository = CurrentTempRepository(
             context,
             observationDao,
-            hourlyForecastDao,
             appLogDao,
             nwsApi,
             openMeteoApi,

@@ -39,7 +39,8 @@ class HourlyProximityQueryAllowlistTest {
 
     /**
      * Files allowed to call the raw queries directly, with the reason they are exempt.
-     * Reviewed 2026-07-10 during the daily cloud-cover flap fix.
+     * Reviewed 2026-07-10 during the daily cloud-cover flap fix; each read's rule audited 2026-11-01
+     * (plans/261101-one-hourly-forecast-table.md).
      */
     private val allowlist = mapOf(
         "HourlyForecastDao.kt" to "the DAO itself",
@@ -51,10 +52,9 @@ class HourlyProximityQueryAllowlistTest {
         "HourlyForecastStore.kt" to "write-path dedup filters to the exact quantized site; RoomGoogleHistoryHost.liveHours keeps same-site rows only",
         "RoomForecastPersistHost.kt" to "ForecastPersistRun's stored-hours read filters to the exact quantized key (pinned by ForecastPersistHostContract)",
         "RoomDailyHistoryHost.kt" to "DailyHistoryRun.Host read; the shared freeze passes use site-aware rain and noon-cloud resolvers",
-        "CurrentTempRepository.kt" to "pre-existing; audit before touching (current-temp windows)",
         "RoomDailyBlendRecomputeHost.kt" to "actuals context read is immediately wrapped in unifyToNearestSite",
         "NwsStationActualsStore.kt" to "NWS actuals blend context: NwsStationActualsRun.nwsHourlyForDay stitches it to this site (HourlyForecastStitcher)",
-        "UIUpdateScheduler.kt" to "pre-existing; audit before touching (update cadence heuristics)",
+        "UIUpdateScheduler.kt" to "update cadence heuristic: the newest row per hour, never drawn",
         "DataFreshness.kt" to "staleness check; freshest row wins regardless of site",
         "NowcastRefresher.kt" to
             "rain-plausibility gate takes the MAX chance; a fragment can only add one ~1 KB request, never a drawn value",
@@ -66,9 +66,7 @@ class HourlyProximityQueryAllowlistTest {
         // nothing verifies — see plans/260806-today-column-stale-fragment-delta-opus.md. It now genuinely
         // calls HourlyForecastStitcher, and HourlyCollapseChokepointTest enforces that mechanically.
         "HourlyForecastLoader.kt" to "routes the box result through HourlyForecastStitcher.stitchBySource",
-        "NoHourlyDayClickCoordinator.kt" to "pre-existing presence gate; audit before touching",
-        "WeatherObservationsActivity.kt" to
-            "Blend tab diagnostic; sole call site wrapped in GraphDataLoader.unifyToNearestSite",
+        "NoHourlyDayClickCoordinator.kt" to "presence and last-hour gates: the newest row per hour, never drawn",
         "ForecastHistoryActivity.kt" to
             "today's settled-low look-ahead; sole call site wrapped in GraphDataLoader.unifyToNearestSite",
     )

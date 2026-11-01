@@ -65,7 +65,6 @@ class WeatherRepositoryRateLimitIntegrationTest {
         val currentRepo = CurrentTempRepository(
             context,
             db.observationDao(),
-            db.hourlyForecastDao(),
             db.appLogDao(),
             nwsApi,
             openMeteoApi,

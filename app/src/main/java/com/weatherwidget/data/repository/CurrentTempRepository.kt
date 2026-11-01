@@ -6,11 +6,9 @@ import android.location.Location
 import android.util.Log
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.DailyHistoryDao
-import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.toEntity
-import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
@@ -24,7 +22,6 @@ import com.weatherwidget.data.remote.TomorrowIoApi
 import com.weatherwidget.shared.observations.CurrentConditionsFetcher
 import com.weatherwidget.shared.observations.CurrentConditionsRun
 import com.weatherwidget.shared.util.SpatialInterpolator
-import com.weatherwidget.shared.util.TemperatureInterpolator
 import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.util.NetworkRestrictionHelper
@@ -47,7 +44,6 @@ class CurrentTempRepository
     constructor(
         @param:ApplicationContext private val context: Context,
         private val observationDao: ObservationDao,
-        private val hourlyForecastDao: HourlyForecastDao,
         private val appLogDao: AppLogDao,
         private val nwsApi: NwsApi,
         private val openMeteoApi: OpenMeteoApi,
@@ -139,40 +135,6 @@ class CurrentTempRepository
                     "fetchAgeMin=${(nowMs - obsEntity.fetchedAt) / 60_000L}",
                 "INFO",
             )
-        }
-
-        suspend fun getInterpolatedTemperature(
-            latitude: Double,
-            longitude: Double,
-            time: LocalDateTime = LocalDateTime.now(),
-        ): Float? {
-            val zoneId = ZoneId.systemDefault()
-            val startMs = time.minusHours(3).truncatedTo(java.time.temporal.ChronoUnit.HOURS).atZone(zoneId).toInstant().toEpochMilli()
-            val endMs = time.plusHours(3).truncatedTo(java.time.temporal.ChronoUnit.HOURS).atZone(zoneId).toInstant().toEpochMilli()
-            val hourlyForecasts = hourlyForecastDao.getHourlyForecasts(startMs, endMs, latitude, longitude)
-
-            return if (hourlyForecasts.isEmpty()) null
-            else TemperatureInterpolator.getInterpolatedTemperature(
-                hourlyForecasts.map { it.toHourlyForecast() },
-                time.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-            )
-        }
-
-        suspend fun getNextInterpolationUpdateTime(
-            latitude: Double,
-            longitude: Double,
-            time: LocalDateTime = LocalDateTime.now(),
-        ): LocalDateTime {
-            val zoneId = ZoneId.systemDefault()
-            val currentHourMs = time.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
-                .atZone(zoneId).toInstant().toEpochMilli()
-            val nextHourMs = time.truncatedTo(java.time.temporal.ChronoUnit.HOURS).plusHours(1)
-                .atZone(zoneId).toInstant().toEpochMilli()
-            val forecasts = hourlyForecastDao.getHourlyForecasts(currentHourMs, nextHourMs, latitude, longitude)
-            
-            val tempDiff = if (forecasts.size >= 2) (forecasts[1].temperature - forecasts[0].temperature).toInt() else 0
-            val nextEpochMs = TemperatureInterpolator.getNextUpdateTime(time.atZone(zoneId).toInstant().toEpochMilli(), tempDiff)
-            return Instant.ofEpochMilli(nextEpochMs).atZone(zoneId).toLocalDateTime()
         }
 
         fun calculateDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Float {

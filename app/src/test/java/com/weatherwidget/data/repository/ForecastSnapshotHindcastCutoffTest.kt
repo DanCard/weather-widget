@@ -65,7 +65,6 @@ class ForecastSnapshotHindcastCutoffTest {
         val currentRepo = CurrentTempRepository(
             context,
             db.observationDao(),
-            db.hourlyForecastDao(),
             db.appLogDao(),
             mockk(),
             mockk(),
