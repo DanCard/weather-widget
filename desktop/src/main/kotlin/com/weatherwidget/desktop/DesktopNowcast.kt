@@ -1,6 +1,5 @@
 package com.weatherwidget.desktop
 
-import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.nowcast.NowcastDisplay
 import com.weatherwidget.shared.nowcast.NowcastStore
 import java.io.File
@@ -19,6 +18,6 @@ object DesktopNowcast {
 
 /** The nowcast as the hourly precip graph shows it. */
 internal object DesktopNowcastView {
-    fun series(config: DesktopConfig, store: NowcastStore = DesktopNowcast.store, nowMs: Long = System.currentTimeMillis()) =
-        NowcastDisplay.series(store, config.lat, config.lon, WeatherSource.fromDisplaySource(config.displaySource).id, nowMs)
+    fun series(config: DesktopConfig, sourceId: String, store: NowcastStore = DesktopNowcast.store, nowMs: Long = System.currentTimeMillis()) =
+        NowcastDisplay.series(store, config.lat, config.lon, sourceId, nowMs)
 }

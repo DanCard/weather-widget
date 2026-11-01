@@ -66,7 +66,7 @@ class DesktopDailyParityTest {
             }
         }
         return ForecastSnapshot(
-            sourceId = "NWS",
+            sourceId = fixture.displaySource,
             raw = RawFetch(
                 hourly = fixture.hourly,
                 daily = daily,

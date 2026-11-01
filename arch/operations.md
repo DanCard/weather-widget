@@ -66,7 +66,10 @@ A missing `phase=done` line after a `phase=critical` line means the deferred pha
 `phase=data_ready sinceSwitchMs=` once the UI holds the new source's data, about 600 ms normally.
 Until then the header updates in two parts: the source label moves on the click, and rain, icon and the
 rest stay on the snapshot's own source (`ForecastSnapshot.sourceId`). `HEADER_CONTENT` logs both on either
-platform, as `source=` (the data) and `label=`.
+platform, as `source=` (the data) and `label=`. The graphs and daily columns also draw for
+`ForecastSnapshot.sourceId`, so the old source's complete view stays up until the new data arrives, and
+the hourly pan check waits for it too. `NAN_TEMP_INDICES` right after `CONFIG_SAVE` means something is
+reading the new source's rows from the old snapshot.
 
 Desktop breadcrumbs written from code that must not wait on the database (`CURR_TEMP_RESULT`,
 `CURRENT_STATUS_PUBLISH`, `CONFIG_SAVE`, refresh notices, `data_ready`) go through

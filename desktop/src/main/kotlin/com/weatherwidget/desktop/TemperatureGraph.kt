@@ -20,6 +20,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.semantics.SemanticsPropertyKey
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
@@ -164,6 +166,9 @@ internal fun hourlyPointsInWindow(
 // Delegates to the shared [TemperatureColorModel] (integer-RGB blend) so desktop produces the same
 // pixels as the Android widget for any temperature. Previously blended via Compose lerp().
 
+/** The station the dominant-station label names. The label is Canvas text, which tests cannot read. */
+internal val HourlyDominantStationId = SemanticsPropertyKey<String?>("HourlyDominantStationId")
+
 @Composable
 fun TemperatureGraph(
     hourly: List<HourlyForecast>,
@@ -264,7 +269,8 @@ fun TemperatureGraph(
     )
 
 
-    Box(modifier) {
+    val dominantStationId = actualSeries.latestDominantContribution?.contribution?.stationId
+    Box(modifier.semantics { set(HourlyDominantStationId, dominantStationId) }) {
     Canvas(
         modifier = Modifier.fillMaxSize()
             .nowDotHoverInput(nowDotTarget, nowDotHovered)

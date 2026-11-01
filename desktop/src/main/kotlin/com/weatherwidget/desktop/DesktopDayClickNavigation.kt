@@ -17,13 +17,14 @@ internal fun dayClickRoutingPrecip(
     days: List<DesktopDailyDay>,
     now: LocalDateTime,
     hourly: List<HourlyForecast>,
+    displaySourceId: String = config.displaySource,
 ): DayClickResolver.RoutingPrecip {
     val clickedDay = days.find { it.date == clickedDate }
     return DayClickResolver.routingPrecipProbability(
         targetDay = clickedDate,
         now = now,
         hourly = hourly,
-        displaySourceId = config.displaySource,
+        displaySourceId = displaySourceId,
         fallbackSourceId = WeatherSource.GENERIC_GAP.id,
         dailyProbability = clickedDay?.forecast?.precipProbability
             ?: clickedDay?.snapshot?.precipProbability,
@@ -38,9 +39,10 @@ internal fun dayClickConfig(
     zone: DayClickResolver.DayTapZone = DayClickResolver.DayTapZone.MAIN_COLUMN,
     now: LocalDateTime = LocalDateTime.now(),
     hourly: List<HourlyForecast> = emptyList(),
+    displaySourceId: String = config.displaySource,
 ): DesktopConfig {
     val clickedDay = days.find { it.date == clickedDate }
-    val precipProb = dayClickRoutingPrecip(config, clickedDate, days, now, hourly).probability
+    val precipProb = dayClickRoutingPrecip(config, clickedDate, days, now, hourly, displaySourceId).probability
     val targetView = when (DayClickResolver.resolveView(zone, clickedDay?.iconName, precipProb)) {
         DayClickResolver.DayClickView.PRECIPITATION -> ViewMode.PRECIPITATION
         DayClickResolver.DayClickView.CLOUD_COVER -> ViewMode.CLOUD_COVER

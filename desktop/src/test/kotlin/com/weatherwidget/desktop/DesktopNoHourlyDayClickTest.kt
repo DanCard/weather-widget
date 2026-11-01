@@ -93,7 +93,7 @@ class DesktopNoHourlyDayClickTest {
                 WidgetPopup(
                     config = shownConfig!!,
                     forecast = ForecastSnapshot(
-                        sourceId = "NWS",
+                        sourceId = source.id,
                         raw = RawFetch(daily = dailyEntries, hourly = stored),
                         resolved = ResolvedView(currentTemp = 72f, currentCondition = "Sunny"),
                     ),

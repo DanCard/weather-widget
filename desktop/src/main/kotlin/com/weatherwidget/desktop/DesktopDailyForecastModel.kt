@@ -2,7 +2,6 @@ package com.weatherwidget.desktop
 
 import com.weatherwidget.shared.util.PreferredSourceHome
 import com.weatherwidget.data.model.ForecastSnapshot
-import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.actuals.TodayColumnOverlayContent
 import com.weatherwidget.shared.actuals.TodayColumnOverlayContentResolver
 import com.weatherwidget.shared.graph.DailyLayoutConstants
@@ -155,7 +154,7 @@ object DesktopDailyForecastModel {
                 snapshots = snapshotsByDate[date].orEmpty(),
                 hourly = forecast.raw.hourly,
                 currentTemp = currentTemp,
-                displaySourceId = config.displaySource,
+                displaySourceId = forecast.sourceId,
                 centerLat = config.lat,
                 centerLon = config.lon,
             )
@@ -169,7 +168,7 @@ object DesktopDailyForecastModel {
                 val result = TodayColumnOverlayContentResolver.resolveLatest(
                     observations = forecast.raw.rawObservations,
                     hourlyForecasts = forecast.raw.hourly,
-                    displaySourceId = WeatherSource.fromDisplaySource(config.displaySource).id,
+                    displaySourceId = forecast.sourceId,
                     userLat = config.lat,
                     userLon = config.lon,
                     nowMs = nowMs,

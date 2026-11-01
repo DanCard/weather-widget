@@ -106,6 +106,12 @@ internal fun WidgetPopup(
             is DataStatus.NoData -> CenteredMessage("Tap to configure")
             is DataStatus.Live, is DataStatus.Stale -> {
                 val snapshot = forecast ?: return@Surface
+                // A click moves config at once; the snapshot follows when its load returns, 0.3-1.4 s
+                // later. Anything drawn from the snapshot therefore uses snapshot.sourceId, never
+                // config's source: the mix found no forecast, which redrew the hourly graph without
+                // one and named a different station (the 2026-11-01 "aw020 66°" flash).
+                val snapshotIsSelectedSource =
+                    snapshot.sourceId == com.weatherwidget.data.model.WeatherSource.fromDisplaySource(config.displaySource).id
                 // One current temperature for the header and today's column: the published value,
                 // else the snapshot's own (startup / preview).
                 val displayCurrentTemp = resolvedCurrentTemp ?: snapshot.resolved.currentTemp
@@ -268,7 +274,10 @@ internal fun WidgetPopup(
                             val panFirstDay = java.time.Instant.ofEpochMilli(panStartMs).atZone(ZoneId.systemDefault()).toLocalDate()
                             val panLastDay = java.time.Instant.ofEpochMilli(panEndMs).atZone(ZoneId.systemDefault()).toLocalDate()
                             val latestHourly by rememberUpdatedState(snapshot.raw.hourly)
-                            LaunchedEffect(panFirstDay, panLastDay, config.displaySource) {
+                            // Keyed on the snapshot's source too: right after a switch the snapshot has
+                            // none of the new source's rows, so the check waits for the rows it decides on.
+                            LaunchedEffect(panFirstDay, panLastDay, config.displaySource, snapshot.sourceId) {
+                                if (!snapshotIsSelectedSource) return@LaunchedEffect
                                 kotlinx.coroutines.delay(HourlyOnDemand.PAN_SETTLE_MS)
                                 if (noHourlyFetching) return@LaunchedEffect
                                 val hourly = latestHourly
@@ -283,8 +292,6 @@ internal fun WidgetPopup(
                                     config.lon,
                                 ) { day -> NoHourlyChecker.hasHourlyForDay(hourly, day, hourlySourceIds) }
                                 if (action != HourlyOnDemand.PanAction.Nothing) {
-                                    // Which source's rows the decision saw: right after a source switch the
-                                    // snapshot can still hold the previous source's hourly.
                                     onHourlyAudit(
                                         "HOURLY_PAN_CHECK",
                                         "action=$action displaySource=${config.displaySource} " +
@@ -310,7 +317,7 @@ internal fun WidgetPopup(
                                     retroCloudActual = snapshot.retroCloudActual,
                                     priorDayBandForecast = snapshot.priorDayBandForecast,
                                     retroCloudBands = snapshot.retroCloudBands,
-                                    displaySourceId = config.displaySource,
+                                    displaySourceId = snapshot.sourceId,
                                     latitude = config.lat,
                                     longitude = config.lon,
                                     modifier = Modifier.fillMaxSize(),
@@ -329,7 +336,7 @@ internal fun WidgetPopup(
                                     hourly = snapshot.raw.hourly,
                                     observations = snapshot.raw.rawObservations,
                                     hourlyActuals = snapshot.hourlyActuals,
-                                    displaySourceId = config.displaySource,
+                                    displaySourceId = snapshot.sourceId,
                                     latitude = config.lat,
                                     longitude = config.lon,
                                     modifier = Modifier.fillMaxSize(),
@@ -344,9 +351,9 @@ internal fun WidgetPopup(
                                     onPan = handlePan,
                                     onOpenSimLoop = onOpenSimLoop,
                                     onOpenRadar = onOpenRadar,
-                                    nowcastSlots = remember(snapshot.raw, config.displaySource, config.lat, config.lon) {
+                                    nowcastSlots = remember(snapshot.raw, snapshot.sourceId, config.lat, config.lon) {
                                         val nowMs = System.currentTimeMillis()
-                                        com.weatherwidget.shared.nowcast.NowcastDisplay.bandSlots(DesktopNowcastView.series(config, nowMs = nowMs), nowMs)
+                                        com.weatherwidget.shared.nowcast.NowcastDisplay.bandSlots(DesktopNowcastView.series(config, snapshot.sourceId, nowMs = nowMs), nowMs)
                                     },
                                 )
                             } else {
@@ -357,7 +364,7 @@ internal fun WidgetPopup(
                                     appliedDelta = snapshot.resolved.appliedDelta,
                                     observations = snapshot.raw.rawObservations,
                                     hourlyActuals = snapshot.hourlyActuals,
-                                    displaySourceId = config.displaySource,
+                                    displaySourceId = snapshot.sourceId,
                                     latitude = config.lat,
                                     longitude = config.lon,
                                     modifier = Modifier.fillMaxSize(),
@@ -536,7 +543,7 @@ internal fun WidgetPopup(
                                 val clickNow = LocalDateTime.now()
                                 val clickedDay = dailyState.days.find { it.date == clickedDate }
                                 val routingPrecip = dayClickRoutingPrecip(
-                                    config, clickedDate, dailyState.days, clickNow, snapshot.raw.hourly,
+                                    config, clickedDate, dailyState.days, clickNow, snapshot.raw.hourly, snapshot.sourceId,
                                 )
                                 val precipProb = routingPrecip.probability
                                 val targetView = DayClickResolver.resolveView(zone, clickedDay?.iconName, precipProb)
@@ -558,19 +565,25 @@ internal fun WidgetPopup(
                                 )
                                 val nextConfig = dayClickConfig(
                                     config, clickedDate, dailyState.days, zone, clickNow,
-                                    snapshot.raw.hourly,
+                                    snapshot.raw.hourly, snapshot.sourceId,
                                 )
                                 val hasHourly = NoHourlyChecker.hasHourlyForDay(snapshot.raw.hourly, clickedDate, visibleSourceIds)
                                 // Google keeps 72 h of hourly; a later day is fetched now (HourlyOnDemand).
-                                val onDemandHours = HourlyOnDemand.hoursToCover(
-                                    config.displaySource,
-                                    clickedDate,
-                                    ZoneId.systemDefault(),
-                                    System.currentTimeMillis(),
-                                    snapshot.raw.hourly.filter { it.source == null || it.source == config.displaySource },
-                                    config.lat,
-                                    config.lon,
-                                )
+                                // Mid-switch the rows to judge are not here yet; the hourly view's pan
+                                // check decides once they are.
+                                val onDemandHours = if (snapshotIsSelectedSource) {
+                                    HourlyOnDemand.hoursToCover(
+                                        config.displaySource,
+                                        clickedDate,
+                                        ZoneId.systemDefault(),
+                                        System.currentTimeMillis(),
+                                        snapshot.raw.hourly.filter { it.source == null || it.source == config.displaySource },
+                                        config.lat,
+                                        config.lon,
+                                    )
+                                } else {
+                                    null
+                                }
                                 // The day's hourly view opens either way, empty where data is missing.
                                 onUpdateConfig(nextConfig)
                                 val outcome = DayTap.outcome(onDemandHours, hasHourly)
