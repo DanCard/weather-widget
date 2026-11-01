@@ -1,3 +1,9 @@
-The audit turned up another difference: Android selects the nearest daily_history row while desktop takes the
-  first one, and today's rows may include a stub reading. I'm checking whether that affects the new high line.
+Tell me how hourly rows pruning works.
+
+Fold 4: Silurian api: last night low.  The rain amount kind of doesn't fit.  the .069in overlaps.
+My thoughts:
+1. Raise the 48 degree label slightly?
+	Raise the lower bound of the graph in this case.
+2. Nudge the .069in label slightly down.
+3. Lower the font size of .069in label if it overlaps and there isn't room elsewhere.
 

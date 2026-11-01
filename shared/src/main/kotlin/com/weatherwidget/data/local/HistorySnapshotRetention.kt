@@ -13,8 +13,7 @@ import java.time.ZoneId
  *
  * 1. **Newest** by `timestampToGroupPredictions` and by `fetchedAt`: the one-time desktop/Android
  *    backfills read the freshest per hour, as does `HourlyForecastSelector`.
- * 2. **Newest non-null per coalesced field** by bucket (NWS near-term skyCover).
- * 5. **Settled pick** ([SettledForecastPick]): `HourlyForecastStitcher` (Android
+ * 2. **Settled pick** ([SettledForecastPick]): `HourlyForecastStitcher` (Android
  *    `HourlyForecastLoader`/`GraphDataLoader`, desktop `getHourlyWithHistory`) and
  *    `DailyNoonCloudCover` read the newest row fetched at or before the hour — else the earliest —
  *    and fill its null fields from that same window, newest first. So keep that row and, per
@@ -28,7 +27,7 @@ import java.time.ZoneId
  *
  * Each is "the newest row within a window that never moves", and new snapshots only ever arrive with
  * later buckets, so a row that is not the newest in its window now can never become it later —
- * pruning is safe for future hours as well as past ones, and idempotent. Rule 5 for an hour not yet
+ * pruning is safe for future hours as well as past ones, and idempotent. Rule 2 for an hour not yet
  * started keeps the newest fetch, which is also the newest pre-hour row once it starts; its
  * earliest-row fallback applies only when no row predates the hour, and none can arrive afterwards.
  *
@@ -92,8 +91,6 @@ object HistorySnapshotRetention {
                 // 1. newest, both ways (ties: keep every tied row — readers break ties arbitrarily)
                 keepMax(group, kept) { it.bucket }
                 keepMax(group, kept) { it.fetchedAt }
-                // 2. newest non-null per coalesced field
-                for (field in coalescedFields) keepMax(group.filter { field(it) != null }, kept) { it.bucket }
                 // 3. prior-day band
                 val hour = group.first().dateTime
                 keepMax(
@@ -105,7 +102,7 @@ object HistorySnapshotRetention {
                 val dayStart = day.atStartOfDay(zone).toInstant().toEpochMilli()
                 val prevDayStart = day.minusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
                 keepMax(group.filter { it.bucket in prevDayStart until dayStart }, kept) { it.bucket }
-                // 5. settled pick and its per-field backfill, from the same window (ties: keep all)
+                // 2. settled pick and its per-field backfill, from the same window (ties: keep all)
                 val window = SettledForecastPick.backfillOrder(group, hour, nowMs) { it.fetchedAt }
                 keepFetchedAtOf(window.firstOrNull(), window, kept)
                 for (field in coalescedFields) {

@@ -10,6 +10,7 @@ import com.weatherwidget.shared.observations.CurrentConditionsRun
 import com.weatherwidget.data.remote.ApiKeyRedaction
 import com.weatherwidget.shared.util.DailyForecastWrite
 import com.weatherwidget.shared.util.ForecastPersistRun
+import com.weatherwidget.data.local.HistoryPruneRun
 import com.weatherwidget.data.local.HistoryPruneSchedule
 import com.weatherwidget.data.local.desktop.*
 import com.weatherwidget.data.model.ForecastParts
@@ -85,14 +86,12 @@ class DesktopWeatherRepository(
     private val personalStationWeight: Double = 1.0,
     private val currentTimeMillis: () -> Long = System::currentTimeMillis,
     /**
-     * Whether housekeeping may run now: on AC power with the screen off (user, 2026-10-09; Android's
-     * `HistoryPruneWorker` waits for charging + device idle). A machine without a battery counts as
-     * on AC; an undetectable screen state counts as on, so the prune waits.
+     * Whether nobody is using the machine, for housekeeping (user, 2026-10-09; Android's
+     * `HistoryPruneWorker` waits for charging + device idle). An undetectable screen state counts as
+     * on, so a prune waits until it is overdue.
      */
-    private val housekeepingAllowed: () -> Boolean = {
-        PowerDetector.getPowerState().isCharging && !ScreenStateDetector.isScreenOn()
-    },
-    /** On a charger (no battery counts as charging): the daily-history upkeep's gate ([DailyHistoryRun.upkeepIfDue]). */
+    private val screenOff: () -> Boolean = { !ScreenStateDetector.isScreenOn() },
+    /** On a charger (no battery counts as charging): the housekeeping and daily-history upkeep gate ([DailyHistoryRun.upkeepIfDue]). */
     private val isCharging: () -> Boolean = { PowerDetector.getPowerState().isCharging },
 ) {
     data class RefreshOutcome(
@@ -609,7 +608,6 @@ class DesktopWeatherRepository(
             // Same retention policy as Android (RetentionPolicy); the permanent backfill markers stay.
             weatherDao.applyRetention(now, protectedLogTags = PERMANENT_LOG_MARKERS)
             scrubApiKeysFromAppLogsIfNeeded()
-            pruneHistorySnapshotsIfDue(now)
 
             // Persistent pipeline-health summary
             weatherDao.log(
@@ -1073,44 +1071,39 @@ class DesktopWeatherRepository(
      * like the chance backfill.
      */
     /**
-     * Once a day, after the one-shot backfills that read every snapshot have run
-     * (performance/260929-hourly-history-snapshot-retention.md). Best-effort: never fails a refresh.
+     * Asked by the daemon's housekeeping loop ([DesktopHousekeepingLoop]), not by a refresh: refreshes
+     * stop an hour into being away, which is exactly when this should run. Once a day, after the
+     * one-shot backfills that read every snapshot have run
+     * (performance/260929-hourly-history-snapshot-retention.md). Best-effort.
      */
-    internal fun pruneHistorySnapshotsIfDue(now: Long) {
+    internal suspend fun pruneHistorySnapshotsIfDue(now: Long) {
         try {
-            val last = weatherDao.getRecentLogsByTags(listOf(HISTORY_PRUNE_TAG), limit = 1).firstOrNull()?.timestamp ?: 0L
+            val last = weatherDao.getRecentLogsByTags(listOf(HistoryPruneSchedule.LAST_RUN_TAG), limit = 1)
+                .firstOrNull()?.timestamp ?: 0L
             val backfillsDone = listOf(CHANCE_BACKFILL_DONE_TAG, FROZEN_DISPLAY_BACKFILL_DONE_TAG)
                 .all { weatherDao.getRecentLogsByTags(listOf(it), limit = 1).isNotEmpty() }
-            when (HistoryPruneSchedule.decide(now, last, backfillsDone)) {
+            val overdue = HistoryPruneSchedule.isOverdue(now, last)
+            when (HistoryPruneSchedule.decide(now, last, backfillsDone, isCharging, screenOff)) {
                 HistoryPruneSchedule.Decision.NOT_DUE -> return
-                HistoryPruneSchedule.Decision.PREREQUISITES_PENDING -> {
-                    weatherDao.log(HISTORY_PRUNE_TAG, HistoryPruneSchedule.SKIPPED_PREREQUISITES, "INFO")
-                    return
-                }
-                HistoryPruneSchedule.Decision.RUN -> Unit
+                HistoryPruneSchedule.Decision.PREREQUISITES_PENDING ->
+                    return logPruneSkipOncePerDay(now, HistoryPruneSchedule.SKIPPED_PREREQUISITES)
+                HistoryPruneSchedule.Decision.WAITING_FOR_IDLE ->
+                    return logPruneSkipOncePerDay(now, "${HistoryPruneSchedule.SKIPPED_WAITING_FOR_IDLE} overdue=$overdue")
+                HistoryPruneSchedule.Decision.RUN ->
+                    if (overdue) weatherDao.log(HISTORY_PRUNE_TAG, "overdue=true", timestampMs = now)
             }
-            // Due, but only on AC with the screen off; the next refresh asks again (no log row, so
-            // the due check above stays keyed on the last real pass).
-            if (!housekeepingAllowed()) return
-            weatherDao.pruneHourlyHistorySnapshots()
-            // DELETE leaves the file its size; the first prune freed ~100 MB on this machine
-            // (183 MB -> 82 MB, VACUUM 0.16 s on a copy). Only when there is real space to win.
-            val freeBytes = weatherDao.freelistBytes()
-            if (freeBytes >= HistoryPruneSchedule.VACUUM_MIN_FREELIST_BYTES) {
-                val startNs = System.nanoTime()
-                try {
-                    weatherDao.vacuum()
-                    weatherDao.log(
-                        HISTORY_PRUNE_TAG,
-                        "vacuum=done freedBytes=$freeBytes ms=${(System.nanoTime() - startNs) / 1_000_000}",
-                    )
-                } catch (e: Exception) {
-                    weatherDao.log(HISTORY_PRUNE_TAG, "vacuum=skipped reason=${e.javaClass.simpleName} freeBytes=$freeBytes")
-                }
-            }
+            HistoryPruneRun.run(DesktopHistoryPruneHost(weatherDao), now)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.w(TAG, "history prune failed: ${e.message}")
         }
+    }
+
+    /** A skip is the only trace of a stalled prune, so it is logged, but the loop asks every 15 min. */
+    private fun logPruneSkipOncePerDay(now: Long, message: String) {
+        val lastLogged = weatherDao.getRecentLogsByTags(listOf(HISTORY_PRUNE_TAG), limit = 1).firstOrNull()?.timestamp ?: 0L
+        if (now - lastLogged >= HistoryPruneSchedule.MIN_INTERVAL_MS) weatherDao.log(HISTORY_PRUNE_TAG, message, timestampMs = now)
     }
 
     /**
@@ -1261,6 +1254,7 @@ class DesktopWeatherRepository(
             listOf(
                 CHANCE_BACKFILL_DONE_TAG,
                 FROZEN_DISPLAY_BACKFILL_DONE_TAG,
+                HistoryPruneSchedule.LAST_RUN_TAG,
                 APP_LOGS_KEY_SCRUB_DONE_TAG,
                 UTC_PREDICTION_DATE_REPAIR_DONE_TAG,
             )

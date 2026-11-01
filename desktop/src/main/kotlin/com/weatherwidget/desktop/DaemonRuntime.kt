@@ -962,6 +962,14 @@ internal class DaemonRuntime(
                 }
             }
 
+            // 3-. Housekeeping: the hourly prune uses no network, so nothing here waits on presence.
+            launch(Dispatchers.IO) {
+                DesktopHousekeepingLoop.run(
+                    prune = newRepo::pruneHistorySnapshotsIfDue,
+                    clock = System::currentTimeMillis,
+                )
+            }
+
             // 3a. Panel/status refresh loop: re-resolve the published current_status each
             // STATUS_TICK_MS (single owner keeps the interpolation smooth), then re-render the panel
             // from it. Boundary-aligned and phase-locked with the UI ticker in Main.kt — see

@@ -58,7 +58,7 @@ class DesktopRetentionPolicyTest {
     @Test
     fun `each table keeps rows inside its window and drops rows outside it`() {
         val windows = mapOf(
-            "forecasts" to 30.0, "hourly_forecasts" to 547.0,
+            "forecasts" to 30.0,
             "station_cache" to 30.0, "current_status" to 30.0,
             "observations" to 10.0, "daily_history" to 547.0, "network_usage" to 90.0,
         )
@@ -70,6 +70,18 @@ class DesktopRetentionPolicyTest {
         dao.applyRetention(now)
 
         for ((table, days) in windows) assertEquals("$table keeps < $days d, drops > $days d", 1, count("SELECT count(*) FROM $table"))
+    }
+
+    @Test
+    fun `hourly forecasts are left to the housekeeping pass, which deletes past 18 months`() {
+        insert("hourly_forecasts", 546.0, 1)
+        insert("hourly_forecasts", 548.0, 2)
+
+        dao.applyRetention(now)
+        assertEquals("a fetch's retention no longer touches them", 2, count("SELECT count(*) FROM hourly_forecasts"))
+
+        dao.deleteOldHourlyForecasts(com.weatherwidget.data.local.RetentionPolicy.daysAgo(now, 547))
+        assertEquals(1, count("SELECT count(*) FROM hourly_forecasts"))
     }
 
     @Test

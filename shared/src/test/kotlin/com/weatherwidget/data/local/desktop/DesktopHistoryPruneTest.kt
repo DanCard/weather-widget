@@ -91,6 +91,29 @@ class DesktopHistoryPruneTest {
         return keys
     }
 
+    /** The housekeeping loop prunes on its own connection, so a refresh can append mid-pass. */
+    @Test
+    fun `a prune while a refresh appends loses no new rows`() {
+        val hour = System.currentTimeMillis() + 48 * hourMs
+        val source = "OPEN_METEO"
+        val row = { label: Long -> com.weatherwidget.data.model.HourlyForecast(hour, 60f, "Clear", source = source) to label }
+        val labels = (1L..200L).map { hour - 40 * hourMs + it * 1_000L }
+        seed(11)
+        val writer = kotlin.concurrent.thread {
+            labels.forEach { label ->
+                val (forecast, l) = row(label)
+                dao.upsertHourlyForecastHistory(37.42, -122.08, source, l, listOf(forecast))
+            }
+        }
+        repeat(5) { dao.pruneHourlyHistorySnapshots(zone) }
+        writer.join()
+
+        assertTrue(
+            "the newest append survives every overlapping prune",
+            remainingKeys().any { it.dateTime == hour && it.bucket == labels.last() },
+        )
+    }
+
     @Test
     fun `desktop prune leaves exactly the spec's keep set, and is idempotent`() {
         val full = seed(11)

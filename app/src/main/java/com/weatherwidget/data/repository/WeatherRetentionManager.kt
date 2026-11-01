@@ -4,8 +4,6 @@ import androidx.annotation.VisibleForTesting
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.DailyHistoryDao
 import com.weatherwidget.data.local.ForecastDao
-import com.weatherwidget.data.local.HourlyForecastDao
-import com.weatherwidget.data.local.HourlyForecastHistoryDao
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.RetentionPolicy
 import com.weatherwidget.data.model.WeatherSource
@@ -15,14 +13,12 @@ import com.weatherwidget.data.model.WeatherSource
  */
 internal class WeatherRetentionManager(
     private val forecastDao: ForecastDao,
-    private val hourlyForecastDao: HourlyForecastDao,
-    private val hourlyForecastHistoryDao: HourlyForecastHistoryDao,
     private val observationDao: ObservationDao,
     private val dailyHistoryDao: DailyHistoryDao,
     private val appLogDao: AppLogDao,
     /** Resolved lazily: the repository is constructed in unit tests with a mocked context. */
     private val apiUsageDao: (() -> com.weatherwidget.data.local.ApiUsageDao)? = null,
-    /** Daily snapshot prune (see [HistorySnapshotPruner]); gated and throttled by the caller. */
+    /** Queues the daily hourly housekeeping pass ([HistoryPruneWorker]); gated and throttled by the caller. */
     private val historyPrune: (suspend () -> Unit)? = null,
     /**
      * source_view_days retention ([com.weatherwidget.shared.sourceview.SourceViewTally.retentionCutoffMs],
@@ -37,7 +33,6 @@ internal class WeatherRetentionManager(
         val logsCutoffTimestamp = RetentionPolicy.hoursAgo(now, RetentionPolicy.APP_LOG_HOURS)
         forecastDao.deleteOldForecasts(defaultCutoff)
         forecastDao.deleteClimateNormalRows(WeatherSource.GENERIC_GAP.id)
-        hourlyForecastHistoryDao.deleteOldHistory(RetentionPolicy.daysAgo(now, RetentionPolicy.HOURLY_HISTORY_SETTLED_DAYS))
         observationDao.deleteOldObservations(RetentionPolicy.daysAgo(now, RetentionPolicy.OBSERVATION_DAYS))
         dailyHistoryDao.deleteOldExtremes(RetentionPolicy.daysAgo(now, RetentionPolicy.DAILY_HISTORY_DAYS))
         // Best-effort: usage bookkeeping must never fail a sync.

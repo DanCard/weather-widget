@@ -141,8 +141,6 @@ class ForecastRepository
         )
         private val retentionManager = WeatherRetentionManager(
             forecastDao = forecastDao,
-            hourlyForecastDao = hourlyForecastDao,
-            hourlyForecastHistoryDao = hourlyForecastHistoryDao,
             observationDao = observationDao,
             dailyHistoryDao = dailyHistoryDao,
             appLogDao = appLogDao,
@@ -190,7 +188,9 @@ class ForecastRepository
                 return
             }
             HistoryPruneWorker.enqueue(context)
-            appLogDao.log(HistoryPruneSchedule.LOG_TAG, "enqueued=true", "INFO")
+            // Logged, not acted on: a phone waits for charging + idle however long that takes.
+            val overdue = HistoryPruneSchedule.isOverdue(now, prefs.getLong(HistoryPruneWorker.KEY_LAST_COMPLETED_START_MS, 0L))
+            appLogDao.log(HistoryPruneSchedule.LOG_TAG, "enqueued=true overdue=$overdue", "INFO")
         }
         private val climateNormalsRepository = ClimateNormalsRepository(
             climateNormalDao = climateNormalDao,

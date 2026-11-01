@@ -968,8 +968,6 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         db.getConnection().use { conn ->
             conn.createStatement().use { stmt ->
                 stmt.execute("DELETE FROM forecasts WHERE fetchedAt < $defaultCutoff")
-                val historyCutoff = policy.daysAgo(nowMs, policy.HOURLY_HISTORY_SETTLED_DAYS)
-                stmt.execute("DELETE FROM hourly_forecasts WHERE dateTime < $historyCutoff OR fetchedAt < $historyCutoff")
                 stmt.execute("DELETE FROM observations WHERE fetchedAt < ${policy.daysAgo(nowMs, policy.OBSERVATION_DAYS)}")
                 stmt.execute("DELETE FROM daily_history WHERE updatedAt < ${policy.daysAgo(nowMs, policy.DAILY_HISTORY_DAYS)}")
                 stmt.execute("DELETE FROM station_cache WHERE updatedAt < $defaultCutoff")
@@ -992,6 +990,17 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         }
     }
 
+    /** The 18-month age limit on `hourly_forecasts`; runs in the housekeeping pass, not on every fetch. */
+    fun deleteOldHourlyForecasts(cutoffMs: Long) {
+        db.getConnection().use { conn ->
+            conn.prepareStatement("DELETE FROM hourly_forecasts WHERE dateTime < ? OR fetchedAt < ?").use { st ->
+                st.setLong(1, cutoffMs)
+                st.setLong(2, cutoffMs)
+                st.executeUpdate()
+            }
+        }
+    }
+
     /** Result of [pruneHourlyHistorySnapshots]. */
     data class HistoryPruneResult(val days: Int, val scanned: Int, val deleted: Int, val elapsedMs: Long)
 
@@ -999,8 +1008,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
      * Deletes the `hourly_forecasts` snapshots no reader uses — the shared
      * [com.weatherwidget.data.local.HistorySnapshotRetention] rule, run one local day of hours at a
      * time in its own transaction (the rule is about local calendar days, which SQL date math gets
-     * wrong across DST). Desktop keeps history for 18 months (not Android's 30 days), so this is
-     * where the saving is largest. See performance/260929-hourly-history-snapshot-retention.md.
+     * wrong across DST). See performance/260929-hourly-history-snapshot-retention.md.
      */
     fun pruneHourlyHistorySnapshots(zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): HistoryPruneResult {
         val startNs = System.nanoTime()
@@ -1543,6 +1551,29 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
      * matching rows. The verbose current-temp tags (e.g. CurrentTempResolver, ~21k rows) otherwise
      * swamp any all-tag fetch then in-memory filter, starving the result to near-zero rows.
      */
+    /** Keeps [tag] to this one row: a marker whose only value is its latest timestamp. */
+    fun replaceLogMarker(tag: String, message: String, timestampMs: Long) {
+        db.getConnection().use { conn ->
+            conn.autoCommit = false
+            try {
+                conn.prepareStatement("DELETE FROM app_logs WHERE tag = ?").use { st ->
+                    st.setString(1, tag)
+                    st.executeUpdate()
+                }
+                conn.prepareStatement("INSERT INTO app_logs (timestamp, level, tag, message) VALUES (?, 'INFO', ?, ?)").use { st ->
+                    st.setLong(1, timestampMs)
+                    st.setString(2, tag)
+                    st.setString(3, message)
+                    st.executeUpdate()
+                }
+                conn.commit()
+            } catch (e: Exception) {
+                conn.rollback()
+                throw e
+            }
+        }
+    }
+
     fun getRecentLogsByTags(tags: List<String>, limit: Int = 100): List<DesktopLogEntity> {
         if (tags.isEmpty()) return emptyList()
         val placeholders = tags.joinToString(",") { "?" }

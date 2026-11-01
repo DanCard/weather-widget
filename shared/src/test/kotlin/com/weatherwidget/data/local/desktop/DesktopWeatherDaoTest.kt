@@ -411,7 +411,7 @@ class DesktopWeatherDaoTest {
         val hour = 1_780_682_400_000L
         for (case in com.weatherwidget.data.local.LocationMatchContract.CASES) {
             // Isolate each case so a prior row can't satisfy a later "should not match" query.
-            dao.applyRetention(System.currentTimeMillis() + WIPE_EVERYTHING_MS)
+            dao.deleteOldHourlyForecasts(Long.MAX_VALUE)
             dao.upsertHourlyForecasts(
                 case.storedLat, case.storedLon, source,
                 listOf(HourlyForecast(hour, 61f, "Cloudy", cloudCover = 80)),

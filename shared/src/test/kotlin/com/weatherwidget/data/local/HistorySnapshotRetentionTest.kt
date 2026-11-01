@@ -200,4 +200,25 @@ class HistorySnapshotRetentionTest {
         assertTrue(keep.contains(rows[0].key))
         assertTrue(keep.contains(rows[1].key))
     }
+
+    /** Nothing reads a value that only a hindcast carries: the stitcher fills from the pre-hour rows. */
+    @Test
+    fun `a post-hour hindcast is not kept just for a field the newest row lacks`() {
+        val hour = 1_790_640_000_000L
+        fun row(fetchedAt: Long, cloud: Int?) = HistorySnapshotRetention.Row(
+            source = "OPEN_METEO", dateTime = hour, lat = 37.42, lon = -122.08,
+            bucket = fetchedAt, fetchedAt = fetchedAt, cloudCover = cloud,
+        )
+        val preHour = row(hour - 3_600_000L, cloud = 40)
+        val hindcastWithCloud = row(hour + 3_600_000L, cloud = 50)
+        val newest = row(hour + 7_200_000L, cloud = null)
+
+        val kept = HistorySnapshotRetention.keptKeys(
+            listOf(preHour, hindcastWithCloud, newest),
+            ZoneId.of("America/Los_Angeles"),
+            nowMs = hour + 24 * 3_600_000L,
+        )
+
+        assertEquals(setOf(preHour.key, newest.key), kept)
+    }
 }

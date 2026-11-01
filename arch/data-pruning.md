@@ -45,14 +45,12 @@ platforms use the same order.
 it. Within the 30-day active window, the union of these rows is kept for each source/site/hour:
 
 1. The newest snapshot by label and by `fetchedAt`, for the backfills and `HourlyForecastSelector`.
-2. The newest non-null value by label for each coalesced field, such as cloud and precipitation
-   fields.
-3. The newest sufficiently old snapshot carrying the mid/high-cloud band used by prior-day graphs.
-4. The newest snapshot captured on the previous local day for rain-accuracy comparisons.
-5. The settled pick (`SettledForecastPick`), which history stitching and daily noon cloud read:
+2. The settled pick (`SettledForecastPick`), which history stitching and daily noon cloud read:
    the newest snapshot fetched at or before the hour, or the earliest snapshot when none predates
    it. Also kept, per coalesced field, is the first non-null value in that same window, newest
    first.
+3. The newest sufficiently old snapshot carrying the mid/high-cloud band used by prior-day graphs.
+4. The newest snapshot captured on the previous local day for rain-accuracy comparisons.
 
 Rows needed by any one reader survive even when another reader would not select them. A new reader
 of older snapshots must be added to this shared rule and its equivalence tests before pruning can be
@@ -61,20 +59,33 @@ considered safe.
 ## Settled archive
 
 For hours older than the active window, the rule keeps one row per source, forecast hour, and site
-cluster: the settled pick (rule 5), with the latest snapshot label breaking `fetchedAt` ties, so an
+cluster: the settled pick (rule 2), with the latest snapshot label breaking `fetchedAt` ties, so an
 archived hour draws the same forecast it drew while active. General retention
 then deletes settled hours beyond 18 months. This preserves a long forecast-evolution record without
 keeping every active-window variant for the same period.
 
 ## When pruning runs
 
-Snapshot pruning runs at most once per 24 hours and only during housekeeping conditions: charging
-with the screen off. Android enqueues `HistoryPruneWorker` with charging/idle constraints rather than
-running the prune inside a fetch. Desktop checks AC/screen state in the daemon and may vacuum after a
-prune when useful.
+`HistoryPruneRun` is one housekeeping pass, in the same order on both platforms: the 18-month age
+delete on hourly rows, the snapshot prune, a `VACUUM` at 8 MB or more free, then the completed marker.
+It runs at most once per 24 hours and never inside a fetch. `HistoryPruneSchedule` decides when.
+
+- **Android:** a sync enqueues `HistoryPruneWorker`, which WorkManager holds for charging and device
+  idle. There is no override.
+- **Desktop:** `DesktopHousekeepingLoop` asks every 15 minutes, independent of refreshes and of the
+  away rule, because it uses no network. It runs on AC with the screen off. A prune that is 3 days
+  overdue, or has never run, ignores the screen but still needs AC. A failed `VACUUM` is logged and
+  retried by a later pass.
+
+The other tables' retention still runs after each fetch.
+
+Do not tie this work to a refresh on desktop. Refreshes stop an hour into being away, so a prune that
+needed both a refresh and the screen off stalled for weeks.
 
 One-time repairs that need every historical snapshot must finish before the first prune; both
-platforms retain their completion gates. Pruning is idempotent and uses `HISTORY_PRUNE` diagnostics.
+platforms retain their completion gates. Pruning is idempotent. `HISTORY_PRUNE` logs each pass and,
+at most once a day, `skipped=waiting_for_idle` or `overdue=true`, so a stall is visible. Desktop's
+`HISTORY_PRUNE_LAST` is a one-row marker exempt from the 72-hour log window.
 
 ## Key files
 
@@ -82,5 +93,6 @@ platforms retain their completion gates. Pruning is idempotent and uses `HISTORY
 - Keep/settle specification: `shared/.../data/local/HistorySnapshotRetention.kt`
 - Snapshot creation: `shared/.../history/HourlySnapshotRun.kt`
 - Persistence order: `shared/.../util/ForecastPersistRun.kt`
-- Android execution: `WeatherRetentionManager.kt`, `HistoryPruneWorker.kt`, `HistorySnapshotPruner`
-- Desktop execution: `DesktopWeatherDao.kt`, `DesktopWeatherRepository.kt`
+- One pass and its schedule: `shared/.../data/local/HistoryPruneRun.kt`, `HistoryPruneSchedule.kt`
+- Android execution: `HistoryPruneWorker.kt`, `HistorySnapshotPruner`
+- Desktop execution: `DesktopHousekeepingLoop.kt`, `DesktopWeatherRepository.kt`, `DesktopWeatherDao.kt`
