@@ -137,76 +137,54 @@ object GraphDataLoader {
         val centerStartMs = window.centerStart.atZone(zoneId).toInstant().toEpochMilli()
         val centerEndMs = window.centerEnd.atZone(zoneId).toInstant().toEpochMilli()
 
-        // Match within the same-site box (0.002°), NOT exact float equality: stored coordinates are
-        // quantized on write (LocationMatch.quantize, 3 dp) while the query centre is the raw
-        // configured/GPS coordinate, so the two differ by up to ~0.0005°. An exact filter here would
-        // drop every cached row after quantization and blank the graph until a network fetch lands.
-        val centerRows = if (source != null) {
-            hourlyDao.getHourlyForecastsBySource(centerStartMs, centerEndMs, lat, lon, source.id)
-        } else {
-            hourlyDao.getHourlyForecasts(centerStartMs, centerEndMs, lat, lon)
-        }.filter {
-            LocationMatch.sameSite(lat, lon, it.locationLat, it.locationLon)
-        }
-        val currentRows = if (window.nowStart == null || window.nowEnd == null) {
-            centerRows
-        } else {
-            val nowStartMs = window.nowStart.atZone(zoneId).toInstant().toEpochMilli()
-            val nowEndMs = window.nowEnd.atZone(zoneId).toInstant().toEpochMilli()
+        val nowStartMs = window.nowStart?.atZone(zoneId)?.toInstant()?.toEpochMilli()
+        val nowEndMs = window.nowEnd?.atZone(zoneId)?.toInstant()?.toEpochMilli()
 
-            val nowRows = if (source != null) {
-                hourlyDao.getHourlyForecastsBySource(nowStartMs, nowEndMs, lat, lon, source.id)
+        if (hourlyHistoryDao == null || source == null) {
+            // Match within the same-site box (0.002°), NOT exact float equality: stored coordinates are
+            // quantized on write (LocationMatch.quantize, 3 dp) while the query centre is the raw
+            // configured/GPS coordinate, so the two differ by up to ~0.0005°. An exact filter here would
+            // drop every cached row after quantization and blank the graph until a network fetch lands.
+            suspend fun newest(startMs: Long, endMs: Long) = if (source != null) {
+                hourlyDao.getHourlyForecastsBySource(startMs, endMs, lat, lon, source.id)
             } else {
-                hourlyDao.getHourlyForecasts(nowStartMs, nowEndMs, lat, lon)
-            }.filter {
-                LocationMatch.sameSite(lat, lon, it.locationLat, it.locationLon)
-            }
-
-            (centerRows + nowRows)
+                hourlyDao.getHourlyForecasts(startMs, endMs, lat, lon)
+            }.filter { LocationMatch.sameSite(lat, lon, it.locationLat, it.locationLon) }
+            val center = newest(centerStartMs, centerEndMs)
+            if (nowStartMs == null || nowEndMs == null) return center
+            return (center + newest(nowStartMs, nowEndMs))
                 .distinctBy { "${it.dateTime}|${it.source}|${it.locationLat}|${it.locationLon}" }
                 .sortedBy { it.dateTime }
         }
 
-        if (hourlyHistoryDao == null || source == null) {
-            return currentRows
-        }
-
-        val historyRows = hourlyHistoryDao.getHistoryInRangeForBucketWindow(
-            startDateTime = centerStartMs,
-            endDateTime = centerEndMs,
+        suspend fun everyFetch(startMs: Long, endMs: Long) = hourlyHistoryDao.getHistoryInRangeForBucketWindow(
+            startDateTime = startMs,
+            endDateTime = endMs + 1,
             bucketStart = Long.MIN_VALUE,
             bucketEnd = Long.MAX_VALUE,
             lat = lat,
             lon = lon,
             source = source.id,
         )
+        val rows = (
+            everyFetch(centerStartMs, centerEndMs) +
+                if (nowStartMs != null && nowEndMs != null) everyFetch(nowStartMs, nowEndMs) else emptyList()
+            ).distinct()
 
-        // Same shared merge desktop uses: each hour is the newest forecast fetched at or before it
-        // (SettledForecastPick), live and history rows alike, with null fields filled from that same
-        // window; same-site fragments are collapsed. All raw buckets/fragments are passed in — the
-        // stitcher does the selection.
+        // Same shared pick desktop uses: each hour is the newest forecast fetched at or before it
+        // (SettledForecastPick), with null fields filled from that same window; same-site fragments
+        // are collapsed.
         val nowMs = com.weatherwidget.shared.util.WeatherTimeUtils.liveEpochMs(now, zoneId)
-        val stitched = HourlyForecastStitcher.stitch(
-            current = currentRows.map { it.toHourlyForecast() },
-            history = historyRows.map { it.toHourlyForecast() },
-            nowMs = nowMs,
-            centerLat = lat,
-            centerLon = lon,
-        )
+        val stitched = HourlyForecastStitcher.stitch(rows.map { it.toHourlyForecast() }, nowMs, lat, lon)
         val out = stitched.map { it.toEntity(lat, lon) }
-        // Counterpart of HourlyForecastLoader's HOURLY_LOAD line, for the interaction path.
-        // This loader had no equivalent, which is why a tap-driven paint could hand the renderer
-        // rows from a site the configured location had left with nothing recording that it had.
-        // `historyRows` is deliberately included in the counts: unlike centerRows/nowRows it is not
-        // sameSite-filtered before the stitcher sees it, so it is the input most able to introduce a
-        // foreign site. See plans/260828-interaction-paint-loads-hourly-at-the-wrong-site.md.
+        // Counterpart of HourlyForecastLoader's HOURLY_LOAD line, for the interaction path: this loader
+        // had none, so a tap-driven paint could hand the renderer another site's rows with nothing
+        // recording it. See plans/260828-interaction-paint-loads-hourly-at-the-wrong-site.md.
         appLogDao?.log(
             "HOURLY_LOAD",
-            "caller=graph_window stitched=${out.size} from current=${currentRows.size} " +
-                "history=${historyRows.size} center=$lat,$lon " +
+            "caller=graph_window stitched=${out.size} from rows=${rows.size} center=$lat,$lon " +
                 "outSites=${siteSummary(out.map { it.locationLat to it.locationLon })} " +
-                "currentSites=${siteSummary(currentRows.map { it.locationLat to it.locationLon })} " +
-                "historySites=${siteSummary(historyRows.map { it.locationLat to it.locationLon })} " +
+                "rowSites=${siteSummary(rows.map { it.locationLat to it.locationLon })} " +
                 "source=${source.id}",
         )
         return out
@@ -218,8 +196,8 @@ object GraphDataLoader {
             .ifEmpty { "none" }
 
     /**
-     * [sourceIds]' settled hourly rows at this site in [startMs]..[endMs]: live + history through the
-     * shared stitcher per source, as desktop's `getHourlySettledAllSources`. For a reader that must
+     * [sourceIds]' settled hourly rows at this site in [startMs]..[endMs], through the shared stitcher
+     * per source, as desktop's `getHourlySettledAllSources`. For a reader that must
      * match what the graph and header draw (the header line's reserve, the observations blend).
      */
     suspend fun loadSettledHourlyForecasts(
@@ -232,8 +210,7 @@ object GraphDataLoader {
         sourceIds: List<String>,
         nowMs: Long,
     ): List<HourlyForecastEntity> {
-        val live = hourlyDao.getHourlyForecastsForSources(startMs, endMs, lat, lon, sourceIds)
-        val history = historyDao.getHistoryInRangeForBucketWindowForSources(
+        val rows = historyDao.getHistoryInRangeForBucketWindowForSources(
             startDateTime = startMs,
             endDateTime = endMs + 1,
             bucketStart = Long.MIN_VALUE,
@@ -242,13 +219,8 @@ object GraphDataLoader {
             lon = lon,
             sources = sourceIds,
         )
-        return HourlyForecastStitcher.stitchBySource(
-            current = live.map { it.toHourlyForecast() },
-            history = history.map { it.toHourlyForecast() },
-            nowMs = nowMs,
-            centerLat = lat,
-            centerLon = lon,
-        ).map { it.toEntity(lat, lon) }
+        return HourlyForecastStitcher.stitchBySource(rows.map { it.toHourlyForecast() }, nowMs, lat, lon)
+            .map { it.toEntity(lat, lon) }
     }
 
     /**
@@ -256,11 +228,10 @@ object GraphDataLoader {
      * ≈ 37.5 h back for the yesterday delta). Cut it with [nowCentred] for the header's own window.
      */
     /**
-     * The current-temp input: live + history over [CurrentTempRun.inputWindow], stitched per source
-     * like the graph and desktop's `getHourlyWithHistory`. Live rows alone held a post-hour hindcast
-     * for the current hour, so Android's header disagreed with desktop's and left its own graph line
-     * (plans/261027-current-temp-reads-settled-hourly.md). History is read for [displaySource] and
-     * `GENERIC_GAP` only — the resolver uses nothing else, and this runs on the tap path.
+     * The current-temp input over [CurrentTempRun.inputWindow], stitched per source like the graph and
+     * desktop's `getHourlyWithHistory` (plans/261027-current-temp-reads-settled-hourly.md). Read for
+     * [displaySource] and `GENERIC_GAP` only — the resolver uses nothing else, and this runs on the
+     * tap path.
      */
     suspend fun loadCurrentTempInputHourlyForecasts(
         hourlyDao: HourlyForecastDao,
@@ -271,10 +242,7 @@ object GraphDataLoader {
         now: LocalDateTime,
     ): List<HourlyForecastEntity> {
         val window = com.weatherwidget.widget.CurrentTempRun.inputWindow(now)
-        val live = hourlyDao.getHourlyForecasts(window.first, window.last, lat, lon).filter {
-            LocationMatch.sameSite(lat, lon, it.locationLat, it.locationLon)
-        }
-        val history = historyDao.getHistoryInRangeForBucketWindowForSources(
+        val rows = historyDao.getHistoryInRangeForBucketWindowForSources(
             startDateTime = window.first,
             endDateTime = window.last + 1,
             bucketStart = Long.MIN_VALUE,
@@ -284,13 +252,8 @@ object GraphDataLoader {
             sources = listOf(displaySource.id, WeatherSource.GENERIC_GAP.id),
         )
         val nowMs = com.weatherwidget.shared.util.WeatherTimeUtils.liveEpochMs(now)
-        return HourlyForecastStitcher.stitchBySource(
-            current = live.map { it.toHourlyForecast() },
-            history = history.map { it.toHourlyForecast() },
-            nowMs = nowMs,
-            centerLat = lat,
-            centerLon = lon,
-        ).map { it.toEntity(lat, lon) }
+        return HourlyForecastStitcher.stitchBySource(rows.map { it.toHourlyForecast() }, nowMs, lat, lon)
+            .map { it.toEntity(lat, lon) }
     }
 
     /**

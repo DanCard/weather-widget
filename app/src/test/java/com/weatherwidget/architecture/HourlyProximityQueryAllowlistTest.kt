@@ -45,15 +45,11 @@ class HourlyProximityQueryAllowlistTest {
     private val allowlist = mapOf(
         "HourlyForecastDao.kt" to "the DAO itself",
         "GraphDataLoader.kt" to "the sanctioned chokepoint (sameSite filter / stitcher / unifyToNearestSite)",
-        "DailyInteractionRenderer.kt" to "daily render query is immediately wrapped in unifyToNearestSite",
         "DailyActualsLoader.kt" to "extracted from WidgetIntentRouter on 2026-07-28; sole call site wrapped in unifyToNearestSite",
         "SourceStalenessProbe.kt" to "extracted from WidgetIntentRouter on 2026-07-28; sole call site wrapped in unifyToNearestSite",
-        "WidgetStartupCoordinator.kt" to "startup raw rows are unified downstream by WidgetRenderer",
         "HourlyForecastStore.kt" to "write-path dedup filters to the exact quantized site; RoomGoogleHistoryHost.liveHours keeps same-site rows only",
         "RoomForecastPersistHost.kt" to "ForecastPersistRun's stored-hours read filters to the exact quantized key (pinned by ForecastPersistHostContract)",
-        "RoomDailyHistoryHost.kt" to "DailyHistoryRun.Host read; the shared freeze passes use site-aware rain and noon-cloud resolvers",
         "RoomDailyBlendRecomputeHost.kt" to "actuals context read is immediately wrapped in unifyToNearestSite",
-        "NwsStationActualsStore.kt" to "NWS actuals blend context: NwsStationActualsRun.nwsHourlyForDay stitches it to this site (HourlyForecastStitcher)",
         "UIUpdateScheduler.kt" to "update cadence heuristic: the newest row per hour, never drawn",
         "DataFreshness.kt" to "staleness check; freshest row wins regardless of site",
         "NowcastRefresher.kt" to
@@ -65,7 +61,6 @@ class HourlyProximityQueryAllowlistTest {
         // GraphDataLoader kept it. An allowlist entry is a hand-written claim of equivalence that
         // nothing verifies — see plans/260806-today-column-stale-fragment-delta-opus.md. It now genuinely
         // calls HourlyForecastStitcher, and HourlyCollapseChokepointTest enforces that mechanically.
-        "HourlyForecastLoader.kt" to "routes the box result through HourlyForecastStitcher.stitchBySource",
         "NoHourlyDayClickCoordinator.kt" to "presence and last-hour gates: the newest row per hour, never drawn",
         "ForecastHistoryActivity.kt" to
             "today's settled-low look-ahead; sole call site wrapped in GraphDataLoader.unifyToNearestSite",

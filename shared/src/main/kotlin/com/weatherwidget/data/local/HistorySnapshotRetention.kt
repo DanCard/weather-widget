@@ -5,7 +5,7 @@ import java.time.Instant
 import java.time.ZoneId
 
 /**
- * Which `hourly_forecast_history` snapshots anything reads — the rest can be deleted.
+ * Which `hourly_forecasts` snapshots anything reads — the rest can be deleted.
  *
  * Every fetch writes a full snapshot of every hour it returns, so an hour at a site the phone stayed
  * at holds ~30 copies per source (Kyiv, 2026-09-29), and the table plus its indexes was 50 MB of a

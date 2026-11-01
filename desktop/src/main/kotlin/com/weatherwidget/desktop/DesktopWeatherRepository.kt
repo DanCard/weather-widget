@@ -200,10 +200,9 @@ class DesktopWeatherRepository(
     }
 
     suspend fun loadCached(now: Long = currentTimeMillis()): ForecastSnapshot? = withContext(Dispatchers.IO) {
-        val maxAgeMs = 24 * 60 * 60 * 1000L // 24 hours for cache
         // Cover the widest zoom-out (6 days back) so the continuous-zoom graph never truncates history.
         val stitchedStart = now - (DesktopGraphUtils.MAX_BACK_HOURS * 3600 * 1000L)
-        val hourly = weatherDao.getHourlyWithHistory(latitude, longitude, weatherSource, stitchedStart, now + HourlyOnDemand.REACH_HOURS * 3_600_000L, maxAgeMs, nowMs = now)
+        val hourly = weatherDao.getHourlyWithHistory(latitude, longitude, weatherSource, stitchedStart, now + HourlyOnDemand.REACH_HOURS * 3_600_000L, nowMs = now)
         val daily = weatherDao.getDailyForecasts(latitude, longitude, weatherSource)
         // Same window as the hourly read so the frozen forecast curve reaches as far back as the
         // curve it annotates; empty for every source but Open-Meteo, which is the only one with a
@@ -1064,7 +1063,7 @@ class DesktopWeatherRepository(
      *    exactly what the past-day reader selects today. Past target dates are never re-fetched,
      *    so every stored batch predates the day's end and the freeze-window rule is satisfied by
      *    construction.
-     *  - Noon cloud: the as-predicted hourly_forecast_history archive ([DesktopWeatherDao.getHourlyHistory]
+     *  - Noon cloud: the as-predicted hourly_forecasts archive ([DesktopWeatherDao.getHourlyHistory]
      *    already returns the freshest snapshot per hour), same pipeline as the chance backfill.
      *
      * Best-effort: unfillable days keep nulls (no regression). Gated by a one-time app_logs marker

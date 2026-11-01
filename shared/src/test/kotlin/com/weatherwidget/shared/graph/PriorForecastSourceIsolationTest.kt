@@ -42,10 +42,9 @@ class PriorForecastSourceIsolationTest {
         val live = listOf(row("OPEN_METEO", -2, 50, now))
         val ownSnapshots = listOf(row("OPEN_METEO", -2, 100, now - 26 * hour))
 
-        val without = HourlyForecastStitcher.stitch(live, ownSnapshots, now, lat, lon)
+        val without = HourlyForecastStitcher.stitch(live + ownSnapshots, now, lat, lon)
         val with = HourlyForecastStitcher.stitch(
-            live,
-            ownSnapshots + row(PriorDayCloudForecast.SOURCE_ID, -2, 100, now),
+            live + ownSnapshots + row(PriorDayCloudForecast.SOURCE_ID, -2, 100, now),
             now, lat, lon,
         )
 
@@ -61,9 +60,8 @@ class PriorForecastSourceIsolationTest {
     fun `prior24 rows do not win the history fallback for a past hour with no live row`() {
         val ownSnapshots = listOf(row("OPEN_METEO", -30, 100, now - 26 * hour))
 
-        val without = HourlyForecastStitcher.stitch(emptyList(), ownSnapshots, now, lat, lon)
+        val without = HourlyForecastStitcher.stitch(ownSnapshots, now, lat, lon)
         val with = HourlyForecastStitcher.stitch(
-            emptyList(),
             // Freshest fetchedAt in the set, and it describes a day-ago prediction.
             ownSnapshots + row(PriorDayCloudForecast.SOURCE_ID, -30, 7, now),
             now, lat, lon,

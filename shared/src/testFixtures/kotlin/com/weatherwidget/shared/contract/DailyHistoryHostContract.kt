@@ -82,22 +82,6 @@ abstract class DailyHistoryHostContract {
         )
     }
 
-    @Test
-    fun `hourlyForecasts - every source in the box, both ends inclusive`() = runBlocking {
-        seed.hourly(hr(H0, 60f, "NWS"))
-        seed.hourly(hr(H0 + HOUR, 61f, "NWS"))
-        seed.hourly(hr(H0 + HOUR, 62f, "OPEN_METEO"))
-        seed.hourly(hr(H0 + 2 * HOUR, 63f, "NWS"))
-        seed.hourly(hr(H0 + 3 * HOUR, 64f, "NWS"))
-        seed.hourly(hr(H0 + HOUR, 65f, "NWS", lat = OUTSIDE_LAT))
-        seed.hourly(hr(H0 + HOUR, 66f, "NWS", lat = NEARBY_LAT))
-
-        assertEquals(
-            setOf(60f, 61f, 62f, 63f, 66f),
-            host.hourlyForecasts(H0, H0 + 2 * HOUR, LAT, LON).map { it.temperature }.toSet(),
-        )
-    }
-
     /**
      * Every snapshot of the hour, unmerged — [HourlyForecastStitcher] picks the freshest and fills
      * its missing cloud from older ones, on both platforms. Desktop's Host used to return its
@@ -118,7 +102,7 @@ abstract class DailyHistoryHostContract {
             setOf(Triple(H0, 60f, 40), Triple(H0, 62f, null)),
             rows.map { Triple(it.dateTime, it.temperature, it.cloudCover) }.toSet(),
         )
-        val stitched = HourlyForecastStitcher.stitch(emptyList(), rows, nowMs = H0, centerLat = LAT, centerLon = LON)
+        val stitched = HourlyForecastStitcher.stitch(rows, nowMs = H0, centerLat = LAT, centerLon = LON)
         assertEquals(listOf(Triple(H0, 62f, 40)), stitched.map { Triple(it.dateTime, it.temperature, it.cloudCover) })
     }
 

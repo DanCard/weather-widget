@@ -37,9 +37,6 @@ internal class RoomDailyHistoryHost(
     override suspend fun forecastFetches(startMs: Long, endMs: Long, latitude: Double, longitude: Double) =
         forecastDao.getAllForecastsInRange(startMs, endMs, latitude, longitude).map { it.toMaintenanceRow() }
 
-    override suspend fun hourlyForecasts(startMs: Long, endMs: Long, latitude: Double, longitude: Double) =
-        hourlyForecastDao.getHourlyForecasts(startMs, endMs, latitude, longitude).map { it.toHourlyForecast() }
-
     override suspend fun hourlyHistory(startMs: Long, endMs: Long, latitude: Double, longitude: Double, source: String) =
         hourlyForecastHistoryDao.getHistoryInRangeForBucketWindow(
             startDateTime = startMs,

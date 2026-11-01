@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.ClimateNormalDao
 import com.weatherwidget.data.local.DailyHistoryDao
+import com.weatherwidget.data.local.HourlyForecastHistoryDao
 import com.weatherwidget.data.local.ForecastDao
 import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.ObservationDao
@@ -45,6 +46,7 @@ class DailyInteractionRendererMultiSeriesCacheIntegrationTest : RobolectricTest(
     private lateinit var hourlyDao: HourlyForecastDao
     private lateinit var observationDao: ObservationDao
     private lateinit var dailyHistoryDao: DailyHistoryDao
+    private lateinit var historyDao: HourlyForecastHistoryDao
     private lateinit var climateNormalDao: ClimateNormalDao
     private lateinit var appLogDao: AppLogDao
 
@@ -65,6 +67,7 @@ class DailyInteractionRendererMultiSeriesCacheIntegrationTest : RobolectricTest(
         hourlyDao = mockk(relaxed = true)
         observationDao = mockk(relaxed = true)
         dailyHistoryDao = mockk(relaxed = true)
+        historyDao = mockk(relaxed = true)
         climateNormalDao = mockk(relaxed = true)
         appLogDao = mockk(relaxed = true)
 
@@ -72,6 +75,7 @@ class DailyInteractionRendererMultiSeriesCacheIntegrationTest : RobolectricTest(
         every { database.hourlyForecastDao() } returns hourlyDao
         every { database.observationDao() } returns observationDao
         every { database.dailyHistoryDao() } returns dailyHistoryDao
+        every { database.hourlyForecastHistoryDao() } returns historyDao
         every { database.climateNormalDao() } returns climateNormalDao
         every { database.appLogDao() } returns appLogDao
 
@@ -83,7 +87,7 @@ class DailyInteractionRendererMultiSeriesCacheIntegrationTest : RobolectricTest(
         } returns listOf(TestData.forecast(lat = lat, lon = lon))
 
         coEvery {
-            hourlyDao.getHourlyForecastsForSources(any(), any(), any(), any(), any())
+            historyDao.getHistoryInRangeForBucketWindowForSources(any(), any(), any(), any(), any(), any(), any())
         } returns listOf(TestData.hourly(lat = lat, lon = lon))
 
         coEvery {
@@ -120,7 +124,7 @@ class DailyInteractionRendererMultiSeriesCacheIntegrationTest : RobolectricTest(
         assertEquals(1, firstResult.currentTemps?.size)
 
         coVerify(exactly = 1) { forecastDao.getForecastsInRangeAllSites(any(), any(), lat, lon) }
-        coVerify(exactly = 1) { hourlyDao.getHourlyForecastsForSources(any(), any(), lat, lon, any()) }
+        coVerify(exactly = 1) { historyDao.getHistoryInRangeForBucketWindowForSources(any(), any(), any(), any(), lat, lon, any()) }
         coVerify(exactly = 1) { observationDao.getLatestMainObservations(lat, lon, any()) }
 
         // Second call: cache hit -> reuses cached bundle, 0 additional DAO queries
@@ -143,7 +147,7 @@ class DailyInteractionRendererMultiSeriesCacheIntegrationTest : RobolectricTest(
 
         // Verifying call counts remain 1 ensures no duplicate Room disk queries occurred
         coVerify(exactly = 1) { forecastDao.getForecastsInRangeAllSites(any(), any(), lat, lon) }
-        coVerify(exactly = 1) { hourlyDao.getHourlyForecastsForSources(any(), any(), lat, lon, any()) }
+        coVerify(exactly = 1) { historyDao.getHistoryInRangeForBucketWindowForSources(any(), any(), any(), any(), lat, lon, any()) }
         coVerify(exactly = 1) { observationDao.getLatestMainObservations(lat, lon, any()) }
 
         // Cache clear: forces reload on next interaction
@@ -162,7 +166,7 @@ class DailyInteractionRendererMultiSeriesCacheIntegrationTest : RobolectricTest(
 
         assertNotNull(thirdResult)
         coVerify(exactly = 2) { forecastDao.getForecastsInRangeAllSites(any(), any(), lat, lon) }
-        coVerify(exactly = 2) { hourlyDao.getHourlyForecastsForSources(any(), any(), lat, lon, any()) }
+        coVerify(exactly = 2) { historyDao.getHistoryInRangeForBucketWindowForSources(any(), any(), any(), any(), lat, lon, any()) }
         coVerify(exactly = 2) { observationDao.getLatestMainObservations(lat, lon, any()) }
     }
 

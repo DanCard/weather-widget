@@ -88,11 +88,7 @@ class HourlyStaleFragmentCollapseTest {
     )
 
     private fun stitch(rows: List<HourlyForecast>) =
-        HourlyForecastStitcher.stitch(
-            current = rows,
-            history = emptyList(),
-            nowMs = hour1900,
-            centerLat = centerLat,
+        HourlyForecastStitcher.stitch(rows = rows, nowMs = hour1900, centerLat = centerLat,
             centerLon = centerLon,
         )
 
@@ -165,11 +161,7 @@ class HourlyStaleFragmentCollapseTest {
         val meteo = fragments1900()
         val nws = meteo.map { it.copy(source = "NWS", temperature = it.temperature - 5f) }
 
-        val result = HourlyForecastStitcher.stitchBySource(
-            current = meteo + nws,
-            history = emptyList(),
-            nowMs = hour1900,
-            centerLat = centerLat,
+        val result = HourlyForecastStitcher.stitchBySource(rows = meteo + nws, nowMs = hour1900, centerLat = centerLat,
             centerLon = centerLon,
         )
 
@@ -181,11 +173,7 @@ class HourlyStaleFragmentCollapseTest {
 
     @Test
     fun `single-source input still routes through the plain stitch path`() {
-        val result = HourlyForecastStitcher.stitchBySource(
-            current = fragments1900(),
-            history = emptyList(),
-            nowMs = hour1900,
-            centerLat = centerLat,
+        val result = HourlyForecastStitcher.stitchBySource(rows = fragments1900(), nowMs = hour1900, centerLat = centerLat,
             centerLon = centerLon,
         )
         assertEquals(1, result.size)
@@ -236,8 +224,7 @@ class HourlyStaleFragmentCollapseTest {
     fun `collapse yields the fresh row from either centre form`() {
         val fromRaw = stitch(fragments1900()).single()
         val fromQuantized = HourlyForecastStitcher.stitch(
-            current = fragments1900(),
-            history = emptyList(),
+            rows = fragments1900(),
             nowMs = hour1900,
             centerLat = LocationMatch.quantize(centerLat),
             centerLon = LocationMatch.quantize(centerLon),

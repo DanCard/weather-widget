@@ -178,7 +178,7 @@ internal class HourlyForecastStore(
 }
 
 /**
- * Room side of [ElapsedForecastBackfill.Store]: [sourceId]'s `hourly_forecast_history` at one site,
+ * Room side of [ElapsedForecastBackfill.Store]: [sourceId]'s `hourly_forecasts` at one site,
  * new rows filed under [bucket]. Pinned to desktop's by `ElapsedForecastBackfillStoreContract`
  * (`:shared` testFixtures).
  */

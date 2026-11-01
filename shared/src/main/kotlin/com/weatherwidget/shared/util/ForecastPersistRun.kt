@@ -10,7 +10,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 /**
- * What one source's fetch becomes in `hourly_forecasts`, `hourly_forecast_history` and `forecasts`, in
+ * What one source's fetch becomes in `hourly_forecasts`, `hourly_forecasts` and `forecasts`, in
  * one order on both platforms (user 2026-10-24; `plans/261024-shared-forecast-persist-rules.md`):
  *
  * 1. The live hours ([HourlyForecastWrite]) over this site's stored rows.

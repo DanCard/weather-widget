@@ -4,7 +4,7 @@ import com.weatherwidget.data.local.LocationMatch
 
 /**
  * Which already-elapsed hours of a fetched hourly payload may be filed into
- * `hourly_forecast_history`.
+ * `hourly_forecasts`.
  *
  * The hourly graph's forecast line for past hours is drawn from history rows that an *earlier*
  * fetch wrote while those hours were still in the future ([HourlyForecastStitcher]: the live table
@@ -53,7 +53,7 @@ object ElapsedForecastBackfill {
     /** One backfill's outcome: hours the payload offered in the window, those already covered, rows written. */
     data class Summary(val offered: Int, val covered: Int, val stored: Int)
 
-    /** One source's `hourly_forecast_history` at one site. */
+    /** One source's `hourly_forecasts` at one site. */
     interface Store {
         /** Hours with a history row at the site (same-site match, any bucket) in [startMs, endMs). */
         suspend fun coveredHours(startMs: Long, endMs: Long): Set<Long>

@@ -83,7 +83,7 @@ class GoogleWeatherApi(
         fun historyWindow(nowMs: Long): LongRange = (nowMs - HISTORY_HOURS * 3_600_000L) until (nowMs - 3_600_000L)
 
         /**
-         * True when [coveredHours] (this source's `hourly_forecast_history` hours at the site) holds
+         * True when [coveredHours] (this source's `hourly_forecasts` hours at the site) holds
          * none of [historyWindow]: a site fetched for the first time today. Every later fetch's
          * forecast hours become history as they elapse, so a site seen before never needs it.
          */

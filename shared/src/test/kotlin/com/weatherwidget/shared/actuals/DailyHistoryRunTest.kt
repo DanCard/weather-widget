@@ -42,11 +42,9 @@ class DailyHistoryRunTest {
             history.filter { it.date in startMs..endMs }
         override suspend fun forecastFetches(startMs: Long, endMs: Long, latitude: Double, longitude: Double) =
             forecasts.filter { it.dateMs in startMs..endMs }
-        override suspend fun hourlyForecasts(startMs: Long, endMs: Long, latitude: Double, longitude: Double) =
-            hourly.filter { it.dateTime in startMs..endMs }
         val hourlyHistory = mutableListOf<HourlyForecast>()
         override suspend fun hourlyHistory(startMs: Long, endMs: Long, latitude: Double, longitude: Double, source: String) =
-            hourlyHistory.filter { it.source == source && it.dateTime in startMs..endMs }
+            (hourly + hourlyHistory).filter { it.source == source && it.dateTime in startMs..endMs }
         override suspend fun insertDailyHistory(rows: List<DailyHistory>) { inserted += rows }
         override suspend fun updateForecastOverlay(row: DailyHistory) { overlayUpdates += row }
         override suspend fun updatePriorForecast(row: DailyHistory) { priorUpdates += row }

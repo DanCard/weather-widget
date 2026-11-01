@@ -64,17 +64,6 @@ abstract class NwsStationActualsHostContract {
     }
 
     @Test
-    fun `nwsLiveHourly - NWS rows in the box, start inclusive, end exclusive, uncollapsed`() = runBlocking {
-        seed.hourly(hr(H0, 60f, "NWS"))
-        seed.hourly(hr(H0, 61f, "NWS", lat = NEARBY_LAT))
-        seed.hourly(hr(H0, 62f, "OPEN_METEO"))
-        seed.hourly(hr(H0, 63f, "NWS", lat = OUTSIDE_LAT))
-        seed.hourly(hr(H0 + 2 * HOUR, 64f, "NWS"))
-
-        assertEquals(setOf(60f, 61f), host.nwsLiveHourly(H0, H0 + 2 * HOUR).map { it.temperature }.toSet())
-    }
-
-    @Test
     fun `nwsHourlyHistory - every NWS snapshot in the box, end exclusive`() = runBlocking {
         seed.hourlyHistory(hr(H0, 50f, "NWS", fetchedAt = T1), snapshotBucketMs = T1)
         seed.hourlyHistory(hr(H0, 51f, "NWS", fetchedAt = T2), snapshotBucketMs = T2)

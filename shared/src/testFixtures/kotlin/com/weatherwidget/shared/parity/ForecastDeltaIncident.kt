@@ -43,7 +43,7 @@ class ForecastDeltaIncident(val day: LocalDate = LocalDate.now(), val zone: Zone
 
     /** What both platforms feed the resolver and the graph: each started hour's pre-hour forecast. */
     val stitched: List<HourlyForecast>
-        get() = HourlyForecastStitcher.stitch(lateRun, earlyRun + lateRun, nowMs, LAT, LON)
+        get() = HourlyForecastStitcher.stitch(lateRun + earlyRun + lateRun, nowMs, LAT, LON)
 
     val observations: List<ObservationReading>
         get() = (0..7).map { step ->

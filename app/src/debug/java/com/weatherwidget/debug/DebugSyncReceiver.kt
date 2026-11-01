@@ -1,5 +1,10 @@
 package com.weatherwidget.debug
 
+import com.weatherwidget.data.repository.HistoryPruneWorker
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import android.appwidget.AppWidgetManager
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -23,9 +28,13 @@ import com.weatherwidget.widget.WidgetWorkScheduler
  * # A forced full sync of every source, fresh or not (SYNC_START force=true reason=debug_full_sync).
  * adb shell am broadcast -a com.weatherwidget.debug.FULL_SYNC \
  *   -n com.weatherwidget/com.weatherwidget.debug.DebugSyncReceiver
+ *
+ * # The history prune now, ignoring its charging + idle wait (HISTORY_PRUNE in app_logs).
+ * adb shell am broadcast -a com.weatherwidget.debug.PRUNE \
+ *   -n com.weatherwidget/com.weatherwidget.debug.DebugSyncReceiver
  * ```
  *
- * Neither re-implements a sync. REFRESH forwards to the real, non-exported [WidgetActionReceiver] as
+ * Neither sync action re-implements a sync. REFRESH forwards to the real, non-exported [WidgetActionReceiver] as
  * the Refresh button's [WidgetActions.ACTION_REFRESH]; FULL_SYNC uses the app's own
  * [WidgetWorkScheduler.enqueueForcedSync] with KEEP, which joins a pending sync and never cancels a
  * running worker (AGENTS.md rule 6). FULL_SYNC makes billed requests for every enabled source.
@@ -66,6 +75,22 @@ class DebugSyncReceiver : BroadcastReceiver() {
                 )
                 Log.i(TAG, "forwarded TOGGLE_API to WidgetInteractionReceiver widgetId=$widgetId")
             }
+            ACTION_PRUNE -> {
+                val pending = goAsync()
+                CoroutineScope(Dispatchers.IO).launch {
+                    try {
+                        val startMs = System.currentTimeMillis()
+                        HistoryPruneWorker.runDirectly(appContext)
+                        Log.i(TAG, "prune finished ms=${System.currentTimeMillis() - startMs}")
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Log.e(TAG, "prune failed", e)
+                    } finally {
+                        pending.finish()
+                    }
+                }
+            }
             else -> Log.w(TAG, "unhandled action ${intent.action}")
         }
     }
@@ -76,5 +101,6 @@ class DebugSyncReceiver : BroadcastReceiver() {
         const val ACTION_REFRESH = "com.weatherwidget.debug.REFRESH"
         const val ACTION_FULL_SYNC = "com.weatherwidget.debug.FULL_SYNC"
         const val ACTION_TOGGLE_API = "com.weatherwidget.debug.TOGGLE_API"
+        const val ACTION_PRUNE = "com.weatherwidget.debug.PRUNE"
     }
 }

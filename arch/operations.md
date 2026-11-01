@@ -107,6 +107,9 @@ $ADB -s <serial> shell am broadcast -a com.weatherwidget.debug.REFRESH \
 # Forced full sync of every enabled source (billed): SYNC_START force=true reason=debug_full_sync.
 $ADB -s <serial> shell am broadcast -a com.weatherwidget.debug.FULL_SYNC \
   -n com.weatherwidget/com.weatherwidget.debug.DebugSyncReceiver
+# The history prune now, ignoring its charging + idle wait (HISTORY_PRUNE in app_logs).
+$ADB -s <serial> shell am broadcast -a com.weatherwidget.debug.PRUNE \
+  -n com.weatherwidget/com.weatherwidget.debug.DebugSyncReceiver
 # Forwarded widget API toggle tap for interaction latency tests.
 $ADB -s <serial> shell am broadcast -a com.weatherwidget.debug.TOGGLE_API \
   --ei appWidgetId <id> -n com.weatherwidget/com.weatherwidget.debug.DebugSyncReceiver

@@ -44,8 +44,10 @@ class HourlyForecastStitcherTest {
         locationLon = rowLon,
     )
 
+    private fun stitch(rows: List<HourlyForecast>) = stitch(rows, emptyList())
+
     private fun stitch(current: List<HourlyForecast>, history: List<HourlyForecast>) =
-        HourlyForecastStitcher.stitch(current, history, nowMs = now, centerLat = lat, centerLon = lon)
+        HourlyForecastStitcher.stitch(current + history, nowMs = now, centerLat = lat, centerLon = lon)
 
     @Test
     fun `future hour - live row wins and missing cloud cover is backfilled from history`() {
@@ -189,7 +191,7 @@ class HourlyForecastStitcherTest {
             fc(hour, 55f, "Hindcast", fetchedAt = at(23, 30)),
         )
         fun stitchAt(nowMs: Long) =
-            HourlyForecastStitcher.stitch(emptyList(), history, nowMs, lat, lon).single().condition
+            HourlyForecastStitcher.stitch(history, nowMs, lat, lon).single().condition
 
         assertEquals("PreHour", stitchAt(at(23, 59)))
         assertEquals("PreHour", stitchAt(at(0, 1, day.plusDays(1))))
@@ -269,8 +271,7 @@ class HourlyForecastStitcherTest {
     fun `cloud cover stays null when neither current nor history has it`() {
         val future = now + 5_000L
         val result = stitch(
-            current = listOf(fc(future, 70f, "Clear", fetchedAt = 200L)),
-            history = listOf(fc(future, 69f, "Cloudy", fetchedAt = 100L)),
+            rows = listOf(fc(future, 70f, "Clear", fetchedAt = 200L)) + listOf(fc(future, 69f, "Cloudy", fetchedAt = 100L)),
         )
         assertEquals(1, result.size)
         assertNull(result.first().cloudCover)

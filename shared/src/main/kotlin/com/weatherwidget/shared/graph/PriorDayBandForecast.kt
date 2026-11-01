@@ -12,7 +12,7 @@ import com.weatherwidget.data.local.LocationMatch
  * returns their keys; it simply has no band data to give, and never did — the app's own frozen
  * low-cloud curve produced nothing from the moment `f9a05d26` switched it to the low variable.
  *
- * So the bands' frozen forecast comes from our own snapshots instead: `hourly_forecast_history`
+ * So the bands' frozen forecast comes from our own snapshots instead: `hourly_forecasts`
  * under the real `OPEN_METEO` source id, which captures roughly 76 prediction buckets a day at
  * every lead time and has carried the band columns since 2026-08-26.
  *

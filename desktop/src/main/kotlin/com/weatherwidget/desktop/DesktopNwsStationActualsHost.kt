@@ -24,10 +24,6 @@ internal class DesktopNwsStationActualsHost(
 
     override suspend fun stations() = stations.invoke()
 
-    override suspend fun nwsLiveHourly(startMs: Long, endMs: Long) =
-        weatherDao.getHourlyForecastsAllSources(lat, lon, startMs, endMs)
-            .filter { it.source == WeatherSource.NWS.id && it.dateTime < endMs }
-
     override suspend fun nwsHourlyHistory(startMs: Long, endMs: Long) =
         weatherDao.getHourlyHistorySnapshots(lat, lon, WeatherSource.NWS.id, startMs, endMs)
 

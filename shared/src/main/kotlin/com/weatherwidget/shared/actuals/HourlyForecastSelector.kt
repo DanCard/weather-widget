@@ -34,7 +34,7 @@ object HourlyForecastSelector {
      *    row. Freshest-wins makes every device converge, because they all share the latest fetch.
      *
      * Past-hour "original prediction" semantics are NOT handled here — those come from the
-     * `hourly_forecast_history` snapshots via the stitching layer; this selector governs the live
+     * `hourly_forecasts` snapshots via the stitching layer; this selector governs the live
      * (current/future) forecast line.
      */
     fun selectForecastsByTime(

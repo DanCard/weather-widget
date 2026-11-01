@@ -68,8 +68,7 @@ class HourlyBorrowedFragmentSurvivesUnifyTest {
         history: List<HourlyForecastEntity>,
     ): List<HourlyForecastEntity> {
         val stitched = HourlyForecastStitcher.stitch(
-            current = current.map { it.toHourlyForecast() },
-            history = history.map { it.toHourlyForecast() },
+            rows = current.map { it.toHourlyForecast() } + history.map { it.toHourlyForecast() },
             nowMs = MIDNIGHT + 13 * ONE_HOUR,
             centerLat = CENTER_LAT,
             centerLon = CENTER_LON,

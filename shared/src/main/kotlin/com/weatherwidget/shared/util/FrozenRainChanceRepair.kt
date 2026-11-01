@@ -15,7 +15,7 @@ import java.time.ZoneId
  * rows need this.
  *
  * **Why it can be re-derived at all, when the whole point of the freeze is to avoid hindcast drift:**
- * `hourly_forecast_history` is append-only and stamps every row with the `fetchedAt` of the snapshot
+ * `hourly_forecasts` is append-only and stamps every row with the `fetchedAt` of the snapshot
  * that produced it. Restricting to rows fetched BEFORE the window closed reconstructs exactly what
  * the live table held during the day — the same input the freeze pass saw, minus the fragments it
  * should never have read. It reproduces a past decision rather than making a new one with hindsight;
@@ -32,7 +32,7 @@ object FrozenRainChanceRepair {
         date.plusDays(1).atTime(8, 0).atZone(zoneId).toInstant().toEpochMilli()
 
     /**
-     * [history] is the raw `hourly_forecast_history` rows for the site's proximity box (all sources,
+     * [history] is the raw `hourly_forecasts` rows for the site's proximity box (all sources,
      * all fragments, all snapshots). Returns null day/night entries when history no longer covers the
      * window — callers MUST keep the existing archived value in that case rather than writing null,
      * since retention ages history out long before daily_history.

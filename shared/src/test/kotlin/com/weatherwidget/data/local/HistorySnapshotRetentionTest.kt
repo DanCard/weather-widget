@@ -89,8 +89,8 @@ class HistorySnapshotRetentionTest {
             val kept = pruned(full)
             // Some live rows too: they win per hour, history fills gaps and null fields.
             val live = full.filter { it.bucket % 7 == 0L }.map { it.toHourly() }
-            val expected = HourlyForecastStitcher.stitchBySource(live, daoOrder(full).map { it.toHourly() }, 0L, centre.first, centre.second)
-            val actual = HourlyForecastStitcher.stitchBySource(live, daoOrder(kept).map { it.toHourly() }, 0L, centre.first, centre.second)
+            val expected = HourlyForecastStitcher.stitchBySource(live + daoOrder(full).map { it.toHourly() }, 0L, centre.first, centre.second)
+            val actual = HourlyForecastStitcher.stitchBySource(live + daoOrder(kept).map { it.toHourly() }, 0L, centre.first, centre.second)
             assertEquals("seed=$seed", expected, actual)
         }
     }
@@ -106,8 +106,8 @@ class HistorySnapshotRetentionTest {
             val full = generate(seed, postHour = true)
             val kept = pruned(full)
             val live = full.filter { it.bucket % 7 == 0L }.map { it.toHourly() }
-            val expected = HourlyForecastStitcher.stitchBySource(live, daoOrder(full).map { it.toHourly() }, t0, centre.first, centre.second)
-            val actual = HourlyForecastStitcher.stitchBySource(live, daoOrder(kept).map { it.toHourly() }, t0, centre.first, centre.second)
+            val expected = HourlyForecastStitcher.stitchBySource(live + daoOrder(full).map { it.toHourly() }, t0, centre.first, centre.second)
+            val actual = HourlyForecastStitcher.stitchBySource(live + daoOrder(kept).map { it.toHourly() }, t0, centre.first, centre.second)
             assertEquals("seed=$seed", expected, actual)
         }
     }

@@ -33,10 +33,7 @@ class DailyHistoryRun(
          */
         suspend fun forecastFetches(startMs: Long, endMs: Long, latitude: Double, longitude: Double): List<DailyHistoryMaintenance.ForecastHistoryRow>
 
-        /** Live `hourly_forecasts` rows at the site in [startMs]..[endMs], all sources. */
-        suspend fun hourlyForecasts(startMs: Long, endMs: Long, latitude: Double, longitude: Double): List<HourlyForecast>
-
-        /** As-predicted `hourly_forecast_history` snapshots of [source] in [startMs]..[endMs]. */
+        /** As-predicted `hourly_forecasts` snapshots of [source] in [startMs]..[endMs]. */
         suspend fun hourlyHistory(startMs: Long, endMs: Long, latitude: Double, longitude: Double, source: String): List<HourlyForecast>
 
         /** Full-row insert-or-replace. */
@@ -141,8 +138,7 @@ class DailyHistoryRun(
             host.hourlyHistory(hourlyStartMs, hourlyEndMs, latitude, longitude, source)
         }
         val hourly = HourlyForecastStitcher.stitchBySource(
-            current = host.hourlyForecasts(hourlyStartMs, hourlyEndMs, latitude, longitude),
-            history = history,
+            rows = history,
             nowMs = nowMs,
             centerLat = latitude,
             centerLon = longitude,

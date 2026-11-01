@@ -17,9 +17,6 @@ internal class DesktopDailyHistoryHost(private val weatherDao: DesktopWeatherDao
     override suspend fun forecastFetches(startMs: Long, endMs: Long, latitude: Double, longitude: Double) =
         weatherDao.getForecastFetchesInRange(startMs, endMs, latitude, longitude).map { it.toMaintenanceRow(latitude, longitude) }
 
-    override suspend fun hourlyForecasts(startMs: Long, endMs: Long, latitude: Double, longitude: Double) =
-        weatherDao.getHourlyForecastsAllSources(latitude, longitude, startMs, endMs)
-
     override suspend fun hourlyHistory(startMs: Long, endMs: Long, latitude: Double, longitude: Double, source: String) =
         weatherDao.getHourlyHistorySnapshots(latitude, longitude, source, startMs, endMs)
 

@@ -10,7 +10,7 @@ import java.time.Instant
 import java.time.ZoneId
 
 /**
- * Deletes the `hourly_forecast_history` snapshots no reader uses ([HistorySnapshotRetention] is the
+ * Deletes the `hourly_forecasts` snapshots no reader uses ([HistorySnapshotRetention] is the
  * rule). Runs the Kotlin spec itself, one local day of hours at a time, rather than a second SQL
  * implementation: the rain-accuracy rule is about local calendar days, which SQLite's 'localtime' and
  * a fixed offset both get wrong (process TZ, DST). A day holds at most a few thousand rows.

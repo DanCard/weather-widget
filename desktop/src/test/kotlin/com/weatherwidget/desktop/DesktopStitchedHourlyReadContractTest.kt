@@ -25,7 +25,7 @@ class DesktopStitchedHourlyReadContractTest : StitchedHourlyReadContract() {
         val dao = DesktopWeatherDao(db)
         val reader = object : Reader {
             override suspend fun read(startMs: Long, endMs: Long, nowMs: Long) =
-                dao.getHourlyWithHistory(LAT, LON, SOURCE, startMs, endMs, maxAgeMs = Long.MAX_VALUE / 2, nowMs = nowMs)
+                dao.getHourlyWithHistory(LAT, LON, SOURCE, startMs, endMs, nowMs = nowMs)
 
             override suspend fun readAllSources(startMs: Long, endMs: Long, nowMs: Long) =
                 dao.getHourlySettledAllSources(LAT, LON, startMs, endMs, nowMs)

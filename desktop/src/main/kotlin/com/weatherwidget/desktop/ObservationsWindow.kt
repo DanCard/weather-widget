@@ -138,7 +138,6 @@ private fun loadBlendTables(
         source.id,
         now - backMs,
         now + (168 * 3600 * 1000L),
-        24 * 60 * 60 * 1000L,
     )
 
     val result = ActualTemperatureSeriesBuilder.blendObservationSeries(

@@ -6,7 +6,7 @@ import com.weatherwidget.data.model.ElapsedForecastBackfill
 import com.weatherwidget.data.model.HourlyForecast
 
 /**
- * Desktop SQLite side of [ElapsedForecastBackfill.Store]: [sourceId]'s `hourly_forecast_history` at
+ * Desktop SQLite side of [ElapsedForecastBackfill.Store]: [sourceId]'s `hourly_forecasts` at
  * one site, new rows filed under [bucket]. Pinned to Android's by `ElapsedForecastBackfillStoreContract`
  * (`:shared` testFixtures).
  */

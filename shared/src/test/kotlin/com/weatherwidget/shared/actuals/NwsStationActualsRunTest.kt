@@ -43,8 +43,7 @@ class NwsStationActualsRunTest {
         override suspend fun stations(): List<NwsApi.StationInfo> { stationCalls++; return stationList }
         var live = emptyList<HourlyForecast>()
         var history = emptyList<HourlyForecast>()
-        override suspend fun nwsLiveHourly(startMs: Long, endMs: Long) = live
-        override suspend fun nwsHourlyHistory(startMs: Long, endMs: Long) = history
+        override suspend fun nwsHourlyHistory(startMs: Long, endMs: Long) = live + history
         override suspend fun stationDay(station: NwsApi.StationInfo, startIso: String, endIso: String): List<ObservationReading> =
             if (failRequests) throw java.io.IOException("down") else emptyList()
         override suspend fun storedObservations(startMs: Long, endMs: Long) = emptyList<ObservationReading>()

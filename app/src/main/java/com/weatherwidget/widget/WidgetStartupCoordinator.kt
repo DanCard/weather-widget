@@ -319,13 +319,6 @@ internal class WidgetStartupCoordinator(
                 // source ever fetched, for consumers that filter to the display source anyway.
                 HourlyForecastLoader.withHistory(
                     database = database,
-                    current = hourlyDao.getHourlyForecastsForSources(
-                        hourlyStart,
-                        hourlyEnd,
-                        latestWeather.locationLat,
-                        latestWeather.locationLon,
-                        activeSourceList,
-                    ),
                     startMs = hourlyStart,
                     endMs = hourlyEnd,
                     lat = latestWeather.locationLat,

@@ -18,7 +18,7 @@ import kotlin.math.abs
  * So the cloud graph draws the retro-corrected live row as the **actual**, and this series — served
  * by Open-Meteo's Previous Runs API as `cloud_cover_previous_day1` — as the **forecast**.
  *
- * Rows are stored in `hourly_forecast_history`, whose stated purpose ("what each hour was
+ * Rows are stored in `hourly_forecasts`, whose stated purpose ("what each hour was
  * *predicted* to be, captured at a `timestampToGroupPredictions`") this matches exactly, under
  * [SOURCE_ID] rather than the real source id. That separation is load-bearing:
  * `HourlyForecastStitcher.stitch` picks among an hour's rows by `fetchedAt` (`SettledForecastPick`),

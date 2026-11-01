@@ -117,6 +117,13 @@ Kept, against the Design section above:
 Removed: `HourlyForecastHistoryEntity` and `HourlyRowKey`. `HourlyForecastHistoryDao` remains as the reader of every
 fetch's rows.
 
+## Stitcher takes one list (2026-11-01)
+After the merge, hourly loads read the same table twice and stitched every newest row twice: on the phones they took
+about 2 to 2.5 times as long (Samsung 175 ms to 435 ms, Pixel 173 ms to 367 ms). `HourlyForecastStitcher` now takes
+one list, each settled read does one query, and `DailyHistoryRun.Host.hourlyForecasts` and
+`NwsStationActualsRun.Host.nwsLiveHourly` are gone. This also removes the per-side fallback behind the Samsung
+differences above.
+
 ## Phases
 Each phase is its own commit and leaves both platforms working.
 

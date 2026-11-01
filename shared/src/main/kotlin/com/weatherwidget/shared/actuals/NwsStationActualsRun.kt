@@ -35,10 +35,7 @@ object NwsStationActualsRun {
         /** Observation stations nearest first; empty when NWS can't say. */
         suspend fun stations(): List<NwsApi.StationInfo>
 
-        /** Live `hourly_forecasts` NWS rows in the read box over [startMs, endMs), uncollapsed. */
-        suspend fun nwsLiveHourly(startMs: Long, endMs: Long): List<HourlyForecast>
-
-        /** Every `hourly_forecast_history` NWS snapshot in the read box over [startMs, endMs), uncollapsed. */
+        /** Every `hourly_forecasts` NWS snapshot in the read box over [startMs, endMs), uncollapsed. */
         suspend fun nwsHourlyHistory(startMs: Long, endMs: Long): List<HourlyForecast>
 
         /** One station, one day; throws on a failed request, an empty list when it answered with nothing. */
@@ -63,15 +60,12 @@ object NwsStationActualsRun {
         }.map { it.date }.distinct()
 
     /**
-     * The NWS hourly the day's blend extrapolates across gaps with: this site's live rows, each hour
-     * a live row lacks filled from history snapshots ([HourlyForecastStitcher]). Desktop filled,
-     * Android read live rows only (user, 2026-10-24: fill on both). Live rows cover every past hour
-     * in the lookback in practice; the fill matters at a freshly adopted site.
+     * The NWS hourly the day's blend extrapolates across gaps with: this site's settled hours
+     * ([HourlyForecastStitcher]).
      */
     suspend fun nwsHourlyForDay(host: Host, dayStartMs: Long, dayEndMs: Long, nowMs: Long): List<HourlyForecast> =
         HourlyForecastStitcher.stitch(
-            current = host.nwsLiveHourly(dayStartMs, dayEndMs),
-            history = host.nwsHourlyHistory(dayStartMs, dayEndMs),
+            rows = host.nwsHourlyHistory(dayStartMs, dayEndMs),
             nowMs = nowMs,
             centerLat = host.lat,
             centerLon = host.lon,

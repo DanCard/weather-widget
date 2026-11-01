@@ -24,8 +24,6 @@ internal class RoomNwsStationActualsHost(
 
     override suspend fun stations() = stations.invoke()
 
-    override suspend fun nwsLiveHourly(startMs: Long, endMs: Long) = store.nwsLiveHourly(lat, lon, startMs, endMs)
-
     override suspend fun nwsHourlyHistory(startMs: Long, endMs: Long) = store.nwsHourlyHistory(lat, lon, startMs, endMs)
 
     override suspend fun stationDay(station: NwsApi.StationInfo, startIso: String, endIso: String) =

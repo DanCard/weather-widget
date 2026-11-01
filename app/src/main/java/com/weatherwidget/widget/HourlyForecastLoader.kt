@@ -49,7 +49,6 @@ internal class HourlyForecastLoader(
     ): List<HourlyForecastEntity> {
         return try {
             val database = WeatherDatabase.getDatabase(context)
-            val hourlyDao = database.hourlyForecastDao()
             val historyDao = database.hourlyForecastHistoryDao()
             val now = LocalDateTime.now()
             val zoneId = ZoneId.systemDefault()
@@ -57,9 +56,7 @@ internal class HourlyForecastLoader(
             val endTimeMs = now.plusHours(WidgetQueryWindows.HOURLY_GRAPH_LOOKAHEAD_HOURS).atZone(zoneId).toInstant().toEpochMilli()
             Log.d(TAG, "load: range=${now.minusHours(72)} to ${now.plusHours(WidgetQueryWindows.HOURLY_GRAPH_LOOKAHEAD_HOURS)} (ms=$startTimeMs to $endTimeMs)")
             val sqlStartMs = android.os.SystemClock.elapsedRealtime()
-            val current = hourlyDao.getHourlyForecastsForSources(startTimeMs, endTimeMs, lat, lon, sources)
-            val afterCurrentMs = android.os.SystemClock.elapsedRealtime()
-            val history = historyDao.getHistoryInRangeForBucketWindowForSources(
+            val rows = historyDao.getHistoryInRangeForBucketWindowForSources(
                 startDateTime = startTimeMs,
                 endDateTime = endTimeMs,
                 bucketStart = Long.MIN_VALUE,
@@ -86,8 +83,8 @@ internal class HourlyForecastLoader(
             // rendered last. The stitcher picks `maxByOrNull { fetchedAt }` per hour and same-sites
             // against the raw centre, so neither row order nor centre form can decide the outcome.
             // See plans/260806-today-column-stale-fragment-delta-opus.md.
-            val afterHistoryMs = android.os.SystemClock.elapsedRealtime()
-            val stitched = stitch(current, history, now.atZone(zoneId).toInstant().toEpochMilli(), lat, lon)
+            val afterSqlMs = android.os.SystemClock.elapsedRealtime()
+            val stitched = stitch(rows, now.atZone(zoneId).toInstant().toEpochMilli(), lat, lon)
             val afterStitchMs = android.os.SystemClock.elapsedRealtime()
             // `sources` is the SQL scope, snapshotted from the widgets' CURRENT display sources
             // before the caller's fetch. Log it: a later repaint that filters to a source absent
@@ -100,13 +97,12 @@ internal class HourlyForecastLoader(
             // third coordinate-fragmentation bug in this area and the third time that field was
             // missing. Keep it; see plans/260828-interaction-paint-loads-hourly-at-the-wrong-site.md.
             val summary =
-                "caller=$caller stitched=${stitched.size} from current=${current.size} history=${history.size} " +
+                "caller=$caller stitched=${stitched.size} from rows=${rows.size} " +
                     "center=$lat,$lon outSites=${sitesOf(stitched)} " +
-                    "inSites=${current.map { it.locationLat to it.locationLon }.distinct().size} " +
+                    "inSites=${rows.map { it.locationLat to it.locationLon }.distinct().size} " +
                     "sources=${sources.joinToString("|")} " +
                     // performance/260929-cold-process-location-change-repaint.md: which half is slow.
-                    "currentSqlMs=${afterCurrentMs - sqlStartMs} historySqlMs=${afterHistoryMs - afterCurrentMs} " +
-                    "stitchMs=${afterStitchMs - afterHistoryMs}"
+                    "sqlMs=${afterSqlMs - sqlStartMs} stitchMs=${afterStitchMs - afterSqlMs}"
             Log.i(TAG, "load: $summary")
             WeatherDatabase.getDatabase(context).appLogDao().log("HOURLY_LOAD", summary)
             stitched
@@ -124,33 +120,16 @@ internal class HourlyForecastLoader(
     companion object {
         private const val TAG = "HourlyForecastLoader"
 
-        private fun stitch(
-            current: List<HourlyForecastEntity>,
-            history: List<com.weatherwidget.data.local.HourlyForecastEntity>,
-            nowMs: Long,
-            lat: Double,
-            lon: Double,
-        ): List<HourlyForecastEntity> =
-            HourlyForecastStitcher.stitchBySource(
-                current = current.map { it.toHourlyForecast() },
-                history = history.map { it.toHourlyForecast() },
-                nowMs = nowMs,
-                centerLat = lat,
-                centerLon = lon,
-            ).map { it.toEntity(lat, lon) }
+        private fun stitch(rows: List<HourlyForecastEntity>, nowMs: Long, lat: Double, lon: Double): List<HourlyForecastEntity> =
+            HourlyForecastStitcher.stitchBySource(rows.map { it.toHourlyForecast() }, nowMs, lat, lon)
+                .map { it.toEntity(lat, lon) }
 
         /**
-         * [current] (`hourly_forecasts`, already queried by the caller over [startMs]..[endMs])
-         * stitched with `hourly_forecast_history` over the same window — what [load] returns. For the
-         * startup and tap paints, which query `hourly_forecasts` alone and otherwise lack the hours
-         * only the history table holds (a source first fetched after a day ended has nothing else for
-         * it; that day's forecast bar falls back to them —
-         * plans/261007-past-day-forecast-bar-hourly-hindcast-fallback.md). No HOURLY_LOAD row: these
-         * paths are latency-bound.
+         * What [load] returns, over [startMs]..[endMs]. For the startup and tap paints; no HOURLY_LOAD
+         * row: these paths are latency-bound.
          */
         suspend fun withHistory(
             database: WeatherDatabase,
-            current: List<HourlyForecastEntity>,
             startMs: Long,
             endMs: Long,
             lat: Double,
@@ -158,7 +137,7 @@ internal class HourlyForecastLoader(
             sources: List<String>,
             nowMs: Long = System.currentTimeMillis(),
         ): List<HourlyForecastEntity> {
-            val history = database.hourlyForecastHistoryDao().getHistoryInRangeForBucketWindowForSources(
+            val rows = database.hourlyForecastHistoryDao().getHistoryInRangeForBucketWindowForSources(
                 startDateTime = startMs,
                 endDateTime = endMs,
                 bucketStart = Long.MIN_VALUE,
@@ -167,7 +146,7 @@ internal class HourlyForecastLoader(
                 lon = lon,
                 sources = sources,
             )
-            return if (history.isEmpty()) current else stitch(current, history, nowMs, lat, lon)
+            return stitch(rows, nowMs, lat, lon)
         }
 
         /**

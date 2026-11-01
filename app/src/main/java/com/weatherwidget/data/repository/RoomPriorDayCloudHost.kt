@@ -10,7 +10,7 @@ import com.weatherwidget.shared.graph.PriorDayCloudRun
 
 /**
  * Room side of [PriorDayCloudRun] at one site: stores the day-ago cloud series in
- * `hourly_forecast_history` under [PriorDayCloudForecast.SOURCE_ID]. Store → read-back
+ * `hourly_forecasts` under [PriorDayCloudForecast.SOURCE_ID]. Store → read-back
  * (`HourlyForecastHistoryDao.getPriorDayCloudForecast`) is pinned to desktop's by
  * `PriorDayCloudHostContract` (`:shared` testFixtures).
  */

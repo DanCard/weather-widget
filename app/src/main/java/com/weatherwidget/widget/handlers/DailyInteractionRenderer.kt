@@ -268,17 +268,6 @@ internal object DailyInteractionRenderer {
         val hourlyForecasts = loaded.hourlyForecasts ?: hourlySourceIds(context).let { sources ->
             com.weatherwidget.widget.HourlyForecastLoader.withHistory(
                 database = database,
-                current = GraphDataLoader.unifyToNearestSite(
-                    hourlyDao.getHourlyForecastsForSources(
-                        timeBounds.hourlyStartMs,
-                        timeBounds.hourlyEndMs,
-                        lat,
-                        lon,
-                        sources,
-                    ),
-                    lat,
-                    lon,
-                ),
                 startMs = timeBounds.hourlyStartMs,
                 endMs = timeBounds.hourlyEndMs,
                 lat = lat,
@@ -465,17 +454,6 @@ internal object DailyInteractionRenderer {
                 val hourlyForecasts = if (timeBounds != null) {
                     com.weatherwidget.widget.HourlyForecastLoader.withHistory(
                         database = database,
-                        current = GraphDataLoader.unifyToNearestSite(
-                            hourlyDao.getHourlyForecastsForSources(
-                                timeBounds.hourlyStartMs,
-                                timeBounds.hourlyEndMs,
-                                lat,
-                                lon,
-                                sources,
-                            ),
-                            lat,
-                            lon,
-                        ),
                         startMs = timeBounds.hourlyStartMs,
                         endMs = timeBounds.hourlyEndMs,
                         lat = lat,

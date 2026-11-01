@@ -66,17 +66,8 @@ class NwsStationActualsStore @Inject constructor(
     internal suspend fun storedObservations(latitude: Double, longitude: Double, startMs: Long, endMs: Long) =
         observationDao.getObservationsInRange(startMs, endMs, latitude, longitude, apis = null).map { it.toReading() }
 
-    /**
-     * Live NWS hourly rows in the read box over [startMs, endMs), uncollapsed: the shared
-     * [com.weatherwidget.shared.actuals.NwsStationActualsRun.nwsHourlyForDay] stitches them with
-     * [nwsHourlyHistory] and keeps this site (`HourlyForecastStitcher`).
-     */
-    internal suspend fun nwsLiveHourly(latitude: Double, longitude: Double, startMs: Long, endMs: Long) =
-        hourlyForecastDao.getHourlyForecasts(startMs, endMs, latitude, longitude)
-            .filter { it.source == WeatherSource.NWS.id && it.dateTime < endMs }
-            .map { it.toHourlyForecast() }
 
-    /** Every NWS `hourly_forecast_history` snapshot in the read box over [startMs, endMs). */
+    /** Every NWS `hourly_forecasts` snapshot in the read box over [startMs, endMs). */
     internal suspend fun nwsHourlyHistory(latitude: Double, longitude: Double, startMs: Long, endMs: Long) =
         hourlyForecastHistoryDao.getHistoryInRangeForBucketWindow(
             startDateTime = startMs,

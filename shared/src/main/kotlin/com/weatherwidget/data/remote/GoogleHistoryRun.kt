@@ -11,7 +11,7 @@ package com.weatherwidget.data.remote
  */
 class GoogleHistoryRun(private val host: Host) {
     interface Host {
-        /** Hours with a Google `hourly_forecast_history` row at the site (same-site match) in [startMs, endMs). */
+        /** Hours with a Google `hourly_forecasts` row at the site (same-site match) in [startMs, endMs). */
         suspend fun coveredHistoryHours(startMs: Long, endMs: Long): Collection<Long>
     }
 

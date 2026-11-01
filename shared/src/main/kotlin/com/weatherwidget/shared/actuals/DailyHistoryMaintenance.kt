@@ -367,8 +367,7 @@ object DailyHistoryMaintenance {
             val historyRows = historyFor(date, row.source)
             if (historyRows.isEmpty()) continue
             val stitched = HourlyForecastStitcher.stitch(
-                current = emptyList(),
-                history = historyRows,
+                rows = historyRows,
                 nowMs = nowMs,
                 centerLat = centerLat,
                 centerLon = centerLon,
@@ -425,8 +424,7 @@ object DailyHistoryMaintenance {
             } else {
                 DailyNoonCloudCover.resolveMeasuredNoonCloudCoverPercent(
                     hourly = HourlyForecastStitcher.stitch(
-                        current = emptyList(),
-                        history = historyRows,
+                        rows = historyRows,
                         nowMs = nowMs,
                         centerLat = centerLat,
                         centerLon = centerLon,

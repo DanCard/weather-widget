@@ -30,8 +30,7 @@ class RoomStitchedHourlyReadContractTest : StitchedHourlyReadContract() {
         val reader = object : Reader {
             override suspend fun read(startMs: Long, endMs: Long, nowMs: Long): List<HourlyForecast> {
                 val sources = listOf(SOURCE)
-                val current = db.hourlyForecastDao().getHourlyForecastsForSources(startMs, endMs, LAT, LON, sources)
-                return HourlyForecastLoader.withHistory(db, current, startMs, endMs, LAT, LON, sources, nowMs)
+                return HourlyForecastLoader.withHistory(db, startMs, endMs, LAT, LON, sources, nowMs)
                     .map { it.toHourlyForecast() }
             }
 

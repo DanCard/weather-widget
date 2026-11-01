@@ -48,7 +48,7 @@ class ForecastRepositorySnapshotDisplayedRainChanceTest {
             context = context,
             forecastDao = db.forecastDao(),
             hourlyForecastDao = db.hourlyForecastDao(),
-            hourlyForecastHistoryDao = mockk(relaxed = true),
+            hourlyForecastHistoryDao = db.hourlyForecastHistoryDao(),
             appLogDao = db.appLogDao(),
             nwsApi = mockk(relaxed = true),
             openMeteoApi = mockk(relaxed = true),

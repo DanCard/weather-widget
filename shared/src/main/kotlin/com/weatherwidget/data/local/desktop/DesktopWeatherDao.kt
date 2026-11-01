@@ -1845,28 +1845,14 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
      */
     fun getHourlySettledAllSources(locationLat: Double, locationLon: Double, startMs: Long, endMs: Long, nowMs: Long = System.currentTimeMillis()): List<HourlyForecast> =
         HourlyForecastStitcher.stitchBySource(
-            current = getHourlyForecastsAllSources(locationLat, locationLon, startMs, endMs),
-            history = getHourlyHistorySnapshots(locationLat, locationLon, source = null, startMs, endMs + 1),
+            rows = getHourlyHistorySnapshots(locationLat, locationLon, source = null, startMs, endMs + 1),
             nowMs = nowMs,
             centerLat = locationLat,
             centerLon = locationLon,
         )
 
-    fun getHourlyWithHistory(locationLat: Double, locationLon: Double, source: String, startMs: Long, endMs: Long, maxAgeMs: Long, nowMs: Long = System.currentTimeMillis()): List<HourlyForecast> {
-        val current = getLatestHourly(locationLat, locationLon, source, maxAgeMs).filter { it.dateTime in startMs..endMs }
-        val history = getHourlyHistory(locationLat, locationLon, source, startMs, endMs, nowMs)
-        val stitched = HourlyForecastStitcher.stitch(current, history, nowMs, locationLat, locationLon)
-        val repairedCloudCoverCount = current.count { row ->
-            row.cloudCover == null && stitched.firstOrNull { it.dateTime == row.dateTime }?.cloudCover != null
-        }
-        if (repairedCloudCoverCount > 0) {
-            Log.i(
-                "DesktopWeatherDao",
-                "getHourlyWithHistory: repairedCloudCover=$repairedCloudCoverCount current=${current.size} history=${history.size} stitched=${stitched.size}",
-            )
-        }
-        return stitched
-    }
+    fun getHourlyWithHistory(locationLat: Double, locationLon: Double, source: String, startMs: Long, endMs: Long, nowMs: Long = System.currentTimeMillis()): List<HourlyForecast> =
+        HourlyForecastStitcher.stitch(getHourlyHistory(locationLat, locationLon, source, startMs, endMs, nowMs), nowMs, locationLat, locationLon)
 
     private data class TodayCandidate(val row: DailyForecast, val fetchedAt: Long, val lat: Double, val lon: Double)
 

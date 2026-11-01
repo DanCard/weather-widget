@@ -64,7 +64,7 @@ class PreHourForecastSurvivesTest {
     @Test
     fun `a fetch during the hour cannot erase the last forecast made before it`() {
         val store = Store().apply { replay() }
-        val stitched = HourlyForecastStitcher.stitch(store.rows, store.rows, early(3, 30), lat, lon)
+        val stitched = HourlyForecastStitcher.stitch(store.rows, early(3, 30), lat, lon)
 
         assertEquals(97, DailyRainLabels.resolveLiveDayNightChance(source, null, null, null, stitched, night, zone).nightPrecip)
     }
