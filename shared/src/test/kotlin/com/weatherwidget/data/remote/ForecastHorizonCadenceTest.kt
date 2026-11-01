@@ -99,14 +99,13 @@ class ForecastHorizonCadenceTest {
     }
 
     @Test
-    fun `Google asks 8 days, keeps them live, snapshots 72 h`() {
+    fun `Google asks 8 days and keeps them`() {
         assertEquals(192, ForecastHorizonCadence.askHours(google))
         assertEquals(192, ForecastHorizonCadence.storeHours(google))
-        assertEquals(72, ForecastHorizonCadence.snapshotHours(google))
     }
 
     @Test
-    fun `a fetch keeps each source's download live to 8 days`() {
+    fun `a fetch keeps each source's download to 8 days`() {
         val expected = mapOf(
             WeatherSource.GOOGLE_WEATHER to 192,
             WeatherSource.OPEN_METEO to 192,
@@ -119,7 +118,6 @@ class ForecastHorizonCadenceTest {
         expected.forEach { (source, hours) ->
             assertEquals(source.id, hours, HourlyHorizons.of(source.id).longHours)
             assertEquals(source.id, hours, ForecastHorizonCadence.storeHours(source.id))
-            assertEquals(source.id, 72, ForecastHorizonCadence.snapshotHours(source.id))
         }
         WeatherSource.entries.forEach {
             val h = HourlyHorizons.of(it.id)
@@ -128,30 +126,25 @@ class ForecastHorizonCadenceTest {
     }
 
     @Test
-    fun `keep splits live from snapshot for a judged fetch, not an unjudged one`() {
-        assertEquals(HourlyOnDemand.Keep(192, 72), HourlyOnDemand.keep(google, null, Horizon.LONG))
-        assertEquals(HourlyOnDemand.Keep(72, 72), HourlyOnDemand.keep(google, null, null))
-        assertEquals(HourlyOnDemand.Keep(192, 72), HourlyOnDemand.keep(openMeteo, null, Horizon.LONG))
-        assertEquals(HourlyOnDemand.Keep(156, 72), HourlyOnDemand.keep(WeatherSource.NWS.id, null, Horizon.LONG))
+    fun `a judged fetch keeps its long horizon, an unjudged one the routine`() {
+        assertEquals(HourlyOnDemand.Keep(192), HourlyOnDemand.keep(google, null, Horizon.LONG))
+        assertEquals(HourlyOnDemand.Keep(72), HourlyOnDemand.keep(google, null, null))
+        assertEquals(HourlyOnDemand.Keep(192), HourlyOnDemand.keep(openMeteo, null, Horizon.LONG))
+        assertEquals(HourlyOnDemand.Keep(156), HourlyOnDemand.keep(WeatherSource.NWS.id, null, Horizon.LONG))
     }
 
     @Test
-    fun `an on-demand fetch keeps its depth both live and snapshot, as before`() {
-        assertEquals(HourlyOnDemand.Keep(120, 120), HourlyOnDemand.keep(google, HourlyOnDemand.Request(google, 120), Horizon.LONG))
-        assertEquals(HourlyOnDemand.Keep(216, 216), HourlyOnDemand.keep(google, HourlyOnDemand.Request(google, 216)))
+    fun `an on-demand fetch keeps its depth`() {
+        assertEquals(HourlyOnDemand.Keep(120), HourlyOnDemand.keep(google, HourlyOnDemand.Request(google, 120), Horizon.LONG))
+        assertEquals(HourlyOnDemand.Keep(216), HourlyOnDemand.keep(google, HourlyOnDemand.Request(google, 216)))
         val om = HourlyOnDemand.Request(openMeteo, 96)
-        assertEquals(
-            HourlyOnDemand.Keep(HourlyOnDemand.REACH_HOURS, HourlyOnDemand.REACH_HOURS),
-            HourlyOnDemand.keep(openMeteo, om),
-        )
+        assertEquals(HourlyOnDemand.Keep(HourlyOnDemand.REACH_HOURS), HourlyOnDemand.keep(openMeteo, om))
     }
 
     @Test
     fun `keep until is measured from the current hour`() {
         val now = 1_000L * hour + 25 * 60_000L
-        val until = HourlyOnDemand.Keep(192, 72).untilMs(now)
-        assertEquals(1_192L * hour, until.liveMs)
-        assertEquals(1_072L * hour, until.snapshotMs)
+        assertEquals(1_192L * hour, HourlyOnDemand.Keep(192).untilMs(now).ms)
     }
 
     @Test

@@ -764,7 +764,7 @@ class DesktopWeatherRepository(
     private suspend fun persistForecastResult(
         result: RawFetch,
         now: Long,
-        /** Live and snapshot horizons: a LONG fetch keeps 8 days live, 72 h snapshotted. */
+        /** The fetch's horizon: a LONG fetch keeps 8 days. */
         keep: HourlyOnDemand.Keep = HourlyOnDemand.keep(weatherSource, null, ForecastHorizonCadence.Horizon.LONG),
         /** The user's Refresh: an unchanged daily row is written anyway ([DailyForecastWrite]). */
         userRefresh: Boolean = false,

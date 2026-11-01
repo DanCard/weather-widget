@@ -43,11 +43,10 @@ class HourlyForecastWriteTest {
     }
 
     @Test
-    fun `the horizon bounds live rows and, shorter, the snapshot`() {
-        val keep = HourlyOnDemand.KeepUntil(liveMs = hour0 + 3 * h, snapshotMs = hour0 + 2 * h)
+    fun `the horizon bounds the kept hours`() {
+        val keep = HourlyOnDemand.KeepUntil(hour0 + 3 * h)
         val plan = HourlyForecastWrite.plan((1..4).map { hr(it) }, emptyList(), "OPEN_METEO", now, keep)
         assertEquals(listOf(hour0 + h, hour0 + 2 * h), plan.live.map { it.dateTime })
-        assertEquals(listOf(hour0 + h), plan.snapshot.map { it.dateTime })
     }
 
     @Test

@@ -90,7 +90,7 @@ class ForecastPersistRun<K>(
 
         val history = fetch.hourly + fetch.elapsedHourly
         val label = if (history.isEmpty()) null else host.snapshotLabel(nowMs)
-        val snapshot = hourlyPlan?.snapshot.orEmpty()
+        val snapshot = hourlyPlan?.live.orEmpty()
         if (label != null && snapshot.isNotEmpty()) host.writeSnapshot(label, snapshot)
         val elapsed = label?.let { backfillElapsed(history, it, nowMs) }
 

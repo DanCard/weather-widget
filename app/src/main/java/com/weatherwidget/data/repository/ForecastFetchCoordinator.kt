@@ -201,8 +201,8 @@ internal class ForecastFetchCoordinator(
      * `if` guards did.
      */
     /**
-     * Last instants (exclusive) of hourly a fetch of [source] stores, live and snapshot: a judged
-     * (LONG) fetch's 8 days live and 72 h snapshotted, 72 h when unjudged, deeper for the on-demand day it was asked for
+     * Last instant (exclusive) of hourly a fetch of [source] stores: a judged (LONG) fetch's 8 days,
+     * 72 h when unjudged, deeper for the on-demand day it was asked for
      * ([HourlyOnDemand.keep]). Past them, only the daily row's summaries are kept
      * ([DailyHourlySummaries]).
      */

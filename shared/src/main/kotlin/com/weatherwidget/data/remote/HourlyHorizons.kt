@@ -20,9 +20,8 @@ data class HourlyHorizon(
     val hasOnDemandRange: Boolean get() = routineHours < maxHours
 
     /**
-     * What a LONG fetch keeps in the live table: its whole download, up to [HourlyHorizons.LONG_HOURS]
-     * (`performance/261016-long-fetch-keeps-eight-days-of-live-hourly.md`). Snapshots stay at
-     * [routineHours].
+     * What a LONG fetch keeps: its whole download, up to [HourlyHorizons.LONG_HOURS]
+     * (`performance/261016-long-fetch-keeps-eight-days-of-live-hourly.md`).
      */
     val longHours: Int get() = maxOf(routineHours, minOf(HourlyHorizons.LONG_HOURS, maxHours))
 }
@@ -42,9 +41,8 @@ object HourlyHorizons {
     const val ROUTINE_HOURS = 72
 
     /**
-     * 8 days: how far a LONG fetch reaches and keeps live (2026-10-16). The live table is keyed by
-     * hour, so this costs one row per hour per source per site, overwritten in place; the snapshot
-     * table, which copies every hour on every fetch, stays at [ROUTINE_HOURS].
+     * 8 days: how far a LONG fetch reaches and keeps, live and in its snapshot (2026-11-01). Rows no
+     * reader uses are `HistorySnapshotRetention`'s to prune.
      */
     const val LONG_HOURS = 192
 

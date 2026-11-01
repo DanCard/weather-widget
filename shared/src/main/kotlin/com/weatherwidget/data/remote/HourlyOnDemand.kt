@@ -45,55 +45,40 @@ object HourlyOnDemand {
     /** A fetch's deeper horizon for a tapped day's source; null on every other fetch. */
     data class Request(val sourceId: String, val hours: Int)
 
-    /** How far one fetch keeps hourly: in the live table, and in the history snapshot. */
-    data class Keep(val liveHours: Int, val snapshotHours: Int) {
-        /** The instants (exclusive) a fetch made at [nowMs] keeps hours until. */
-        fun untilMs(nowMs: Long): KeepUntil = KeepUntil(
-            liveMs = currentHourMs(nowMs) + liveHours * HOUR_MS,
-            snapshotMs = currentHourMs(nowMs) + snapshotHours * HOUR_MS,
-        )
+    /** How far one fetch keeps hourly, live and in its snapshot alike. */
+    data class Keep(val hours: Int) {
+        /** The instant (exclusive) a fetch made at [nowMs] keeps hours until. */
+        fun untilMs(nowMs: Long): KeepUntil = KeepUntil(currentHourMs(nowMs) + hours * HOUR_MS)
     }
 
-    /** [Keep] as instants: hours at or past [liveMs] are not stored live, at or past [snapshotMs] not snapshotted. */
-    data class KeepUntil(val liveMs: Long, val snapshotMs: Long)
+    /** [Keep] as an instant: hours at or past [ms] are not stored. */
+    data class KeepUntil(val ms: Long)
 
-    /** A fetch's hours split by [KeepUntil]: kept live, of those snapshotted, and the trim log line (null when nothing was cut). */
-    data class Trim<T>(val live: List<T>, val snapshot: List<T>, val logMessage: String?)
+    /** A fetch's [kept] hours and the trim log line (null when nothing was cut). */
+    data class Trim<T>(val kept: List<T>, val logMessage: String?)
 
     const val TRIM_TAG = "HOURLY_TRIM"
 
     /** One split and one [TRIM_TAG] line for both platforms (VERBOSE: never persisted). */
     fun <T> trim(hours: List<T>, until: KeepUntil, nowMs: Long, sourceId: String?, dateTime: (T) -> Long): Trim<T> {
-        val live = hours.filter { dateTime(it) < until.liveMs }
-        val snapshot = live.filter { dateTime(it) < until.snapshotMs }
-        val message = if (live.size < hours.size || snapshot.size < live.size) {
-            "source=$sourceId kept=${live.size} snapshotKept=${snapshot.size} dropped=${hours.size - live.size} " +
-                "horizonH=${(until.liveMs - nowMs) / HOUR_MS} snapshotH=${(until.snapshotMs - nowMs) / HOUR_MS}"
+        val kept = hours.filter { dateTime(it) < until.ms }
+        val message = if (kept.size < hours.size) {
+            "source=$sourceId kept=${kept.size} dropped=${hours.size - kept.size} horizonH=${(until.ms - nowMs) / HOUR_MS}"
         } else {
             null
         }
-        return Trim(live, snapshot, message)
+        return Trim(kept, message)
     }
 
-    /**
-     * [hoursAhead] for the live table and the history snapshot. They differ only for a LONG routine
-     * fetch, which keeps its 8-day download live but snapshots the routine 72 h — the snapshot table
-     * copies every hour on every fetch, the live one overwrites in place
-     * (`performance/261016-long-fetch-keeps-eight-days-of-live-hourly.md`).
-     */
+    /** [hoursAhead] as a fetch's one horizon (`plans/261101-one-hourly-forecast-table.md`). */
     fun keep(
         sourceId: String,
         request: Request?,
         fetchHorizon: ForecastHorizonCadence.Horizon? = null,
-    ): Keep {
-        val live = hoursAhead(sourceId, request, fetchHorizon)
-        val onDemand = request?.sourceId == sourceId
-        val snapshot = if (onDemand || fetchHorizon == null) live else ForecastHorizonCadence.snapshotHours(sourceId)
-        return Keep(live, snapshot)
-    }
+    ): Keep = Keep(hoursAhead(sourceId, request, fetchHorizon))
 
     /**
-     * The live horizon a fetch of [sourceId] stores: what the source stores routinely (a LONG fetch:
+     * The horizon a fetch of [sourceId] stores: what the source stores routinely (a LONG fetch:
      * [HourlyHorizon.longHours]), or for an on-demand [request] — [request]'s depth where reaching
      * further costs requests (Google), else the source's whole horizon. A free source's one call
      * returns all of it anyway, and keeping it all is what lets [hoursToCover] know a recent on-demand

@@ -52,9 +52,8 @@ internal class HourlyForecastStore(
     )
 
     /**
-     * [keepUntilMs]: hours at or past [HourlyOnDemand.KeepUntil.liveMs] are not stored live, at or past
-     * [HourlyOnDemand.KeepUntil.snapshotMs] not snapshotted — the fetch's horizon (72 h routinely, a
-     * LONG fetch's 8 days live, deeper for an on-demand day). The daily view keeps what it needs from
+     * [keepUntilMs]: hours at or past [HourlyOnDemand.KeepUntil.ms] are not stored — the fetch's horizon
+     * (a LONG fetch's 8 days, deeper for an on-demand day). The daily view keeps what it needs from
      * the rest on the forecast row ([com.weatherwidget.shared.util.DailyHourlySummaries]); the caller
      * computes that from the whole download before calling here.
      * `performance/261010-daily-view-summaries-instead-of-far-hourly.md`,
@@ -91,8 +90,7 @@ internal class HourlyForecastStore(
         hourlyForecastDao.insertAll(plan.live.map { it.copy(locationLat = keyLat, locationLon = keyLon).toEntity(keyLat, keyLon) })
 
         val snapshotAt = decideSnapshot(sourceId, keyLat, keyLon, now) ?: return
-        if (plan.snapshot.isEmpty()) return
-        hourlyForecastHistoryDao.insertAll(plan.snapshot.map { it.toHistoryEntity(keyLat, keyLon, sourceId, snapshotAt) })
+        hourlyForecastHistoryDao.insertAll(plan.live.map { it.toHistoryEntity(keyLat, keyLon, sourceId, snapshotAt) })
     }
 
     /**

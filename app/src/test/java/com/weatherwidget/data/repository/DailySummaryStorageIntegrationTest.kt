@@ -228,14 +228,14 @@ class DailySummaryStorageIntegrationTest : RobolectricTest() {
 
     /** `performance/261016-long-fetch-keeps-eight-days-of-live-hourly.md` */
     @Test
-    fun `a LONG fetch keeps 8 days of live hourly and snapshots 72 h`() = runTest {
+    fun `a LONG fetch keeps 8 days of hourly, live and snapshot`() = runTest {
         fetch(download(seed = 5), routineContext)
 
         val hourMs = (clockMs / hour) * hour
         val live = liveHourly()
         assertTrue("live reaches day 8: ${live.maxOf { it.dateTime }}", live.maxOf { it.dateTime } == hourMs + 191 * hour)
         val history = db.hourlyForecastHistoryDao().getHistoryInRangeAllSnapshots(clockMs, clockMs + 400 * hour, lat, lon)
-        assertTrue(history.isNotEmpty() && history.maxOf { it.dateTime } < hourMs + 72 * hour)
+        assertTrue(history.isNotEmpty() && history.maxOf { it.dateTime } in (hourMs + 72 * hour) until (hourMs + 192 * hour))
     }
 
     @Test

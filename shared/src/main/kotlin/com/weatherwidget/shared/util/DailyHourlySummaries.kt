@@ -10,7 +10,7 @@ import java.time.ZoneId
  * (`performance/261010-daily-view-summaries-instead-of-far-hourly.md`). One rule for Android and
  * desktop.
  *
- * Written from a fetch's whole hourly download before the 72 h trim. A field is taken only when the
+ * Written from a fetch's whole hourly download before the hourly trim. A field is taken only when the
  * rows **cover its whole window**; otherwise the previous row's value is kept ([carryForward]) —
  * a fetch that does not reach a day never blanks what an earlier one saved (user, 2026-10-10).
  */

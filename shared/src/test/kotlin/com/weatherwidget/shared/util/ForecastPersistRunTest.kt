@@ -3,6 +3,7 @@ package com.weatherwidget.shared.util
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.ElapsedForecastBackfill
 import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.data.remote.HourlyOnDemand
 import com.weatherwidget.test.category.ShortDuration
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -83,6 +84,16 @@ class ForecastPersistRunTest {
         // Live and backfill meet at now − ELAPSED_BOUNDARY_MS (09:20): 09:00 is history, 10:00 live.
         assertEquals((-5..-1).map { hour0 + it * h }, host.backfilled.map { it.second.dateTime })
         assertEquals(42L, result.snapshotLabel)
+    }
+
+    /** One horizon: a snapshot holds every hour the fetch keeps (plans/261101-one-hourly-forecast-table.md). */
+    @Test
+    fun `the snapshot holds every kept hour, past the old 72 h limit`() {
+        val keep = HourlyOnDemand.Keep(192).untilMs(now)
+        persist(FakeHost(), ForecastPersistRun.Fetch(hourly = hours(1, 200), daily = null, keep = keep)).let { result ->
+            assertEquals(result.liveHours, result.snapshotHours)
+            assertEquals(191, result.snapshotHours)
+        }
     }
 
     @Test

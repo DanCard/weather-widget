@@ -18,7 +18,7 @@ import java.time.ZoneId
  * | < 70 % | on or off | every 24 h |
  *
  * A fetch downloads the source's whole reach (Google: [LONG_ASK_HOURS]) and stores every daily row and
- * up to 8 days of live hourly ([HourlyHorizon.longHours]). Snapshots keep [HourlyHorizons.ROUTINE_HOURS].
+ * up to 8 days of hourly ([HourlyHorizon.longHours]).
  *
  * No displayed-vs-other split, no view-age bands, no per-provider case. "Due" is measured from one
  * per-source + site marker ([Marker]), never from the rows' `fetchedAt`.
@@ -169,11 +169,8 @@ object ForecastHorizonCadence {
         return if (reach.costsPerExtraDay) minOf(LONG_ASK_HOURS, reach.maxHours) else reach.routineHours
     }
 
-    /** Hours of live hourly a fetch of [sourceId] stores: its whole download up to 8 days ([HourlyHorizon.longHours]). */
+    /** Hours of hourly a fetch of [sourceId] stores: its whole download up to 8 days ([HourlyHorizon.longHours]). */
     fun storeHours(sourceId: String): Int = HourlyHorizons.of(sourceId).longHours
-
-    /** Hours of hourly a fetch of [sourceId] snapshots into history: the routine 72 h. */
-    fun snapshotHours(sourceId: String): Int = HourlyHorizons.of(sourceId).routineHours
 
     /** Whether a day's newest row, fetched at [rowBatchMs], is shown beside the newest fetch at [newestBatchMs]. */
     fun showsCarriedRow(rowBatchMs: Long, newestBatchMs: Long): Boolean =

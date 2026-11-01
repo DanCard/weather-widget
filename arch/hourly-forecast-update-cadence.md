@@ -16,9 +16,9 @@ for the source's full supported horizon; there is no shorter three-day forecast 
 | Charging or battery ≥ 70% | Off | 8 hours |
 | Battery < 70% | On or off | 24 hours |
 
-- A fetch stores every returned daily row and up to eight days of live hourly. History snapshots
-  retain the routine 72-hour horizon. Daily cloud/precipitation summaries are computed from the whole
-  download before live-hourly trimming.
+- A fetch stores every returned daily row and up to eight days of hourly, live and in its history
+  snapshot alike. Daily cloud/precipitation summaries are computed from the whole download before
+  hourly trimming.
 - Freshness uses one per-source, per-site LONG marker, not a forecast row's `fetchedAt`.
 - Manual Refresh, source switches, location changes, and screen-on catch-up also use LONG when their
   own policy requests a forecast.
