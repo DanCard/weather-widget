@@ -1338,6 +1338,12 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         // Redacted at the write point so no caller can leak a `token=`/`appid=`/`key=` URL from
         // exception text into app_logs. See ApiKeyRedaction.
         val safe = com.weatherwidget.data.remote.ApiKeyRedaction.redact(message)
+        // VERBOSE is console-only and never persisted, as in Android's AppLogDao.log. Shared runners
+        // pass it through their Host: DAILY_HISTORY_BLEND alone was 43% of this table's text.
+        if (level == "VERBOSE") {
+            Log.v(tag, safe)
+            return
+        }
         try {
             db.getConnection().use { conn ->
                 conn.prepareStatement(

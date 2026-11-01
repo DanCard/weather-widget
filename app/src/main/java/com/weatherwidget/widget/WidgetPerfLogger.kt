@@ -15,7 +15,9 @@ object WidgetPerfLogger {
     const val TAG_COLD_START_PERF = "COLD_START_PERF"
 
     const val STARTUP_SLOW_MS = 200L
-    const val WIDGET_RENDER_SLOW_MS = 150L
+    // Below this a render reaches logcat only. At 150 ms every render persisted (2026-11-01 medians:
+    // Samsung 524 ms, Pixel 734 ms), so the row no longer marked a slow one.
+    const val WIDGET_RENDER_SLOW_MS = 1000L
     const val PIPELINE_SLOW_MS = 120L
     const val DAILY_INTERACTION_SLOW_MS = 500L
     const val DB_OPEN_SLOW_MS = 75L

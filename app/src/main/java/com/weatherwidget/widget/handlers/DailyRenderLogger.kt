@@ -36,7 +36,9 @@ internal object DailyRenderLogger {
         } else ""
         appLogDao.log(
             tag,
-            "widget=$appWidgetId mode=$mode offset=$dateOffset cols=$numColumns rows=$numRows skipYesterday=$skipYesterday center=$centerDate source=${displaySource.id} days=${visibleDates.size} dates=$datesSummary$cloudSummary"
+            "widget=$appWidgetId mode=$mode offset=$dateOffset cols=$numColumns rows=$numRows skipYesterday=$skipYesterday center=$centerDate source=${displaySource.id} days=${visibleDates.size} dates=$datesSummary$cloudSummary",
+            // Every daily render is a trace; only an empty one is an event worth keeping.
+            if (visibleDates.isEmpty()) "DEBUG" else "VERBOSE",
         )
     }
 

@@ -135,7 +135,7 @@ internal object DailyGraphRenderer {
                     "fallback=${todayDay.isTodayForecastFallback} " +
                     "cloudRatio=${todayDay.cloudCoverRatioOverride} rainChance=${todayDay.rainData.dailyPrecipProbability} " +
                     "sky=[clear=${clearPct}%,grey=${cloudPct}%,rain=${rainPct}%]",
-                "DEBUG"
+                "VERBOSE"
             )
             withContext(Dispatchers.IO) {
                 if (Log.isLoggable(TAG, Log.DEBUG)) {
@@ -527,7 +527,7 @@ internal object DailyGraphRenderer {
                 "dominantNullReason=${content.dominantNullReason} obsRows=${sharedObservations.size} " +
                 "stationId=${dominant?.stationId} dominantWeight=${dominant?.weightShare} " +
                 "rawTemp=${dominant?.rawTemp} resolvedTemp=${dominant?.resolvedTemp}",
-            "DEBUG",
+            "VERBOSE",
         )
         return DailyForecastGraphRenderer.TodayOverlayRenderData(
             deltaValueText = content.deltaValueText,

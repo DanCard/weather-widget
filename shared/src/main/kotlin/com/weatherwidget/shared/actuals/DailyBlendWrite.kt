@@ -113,7 +113,7 @@ object DailyBlendWrite {
                 logs += Line(
                     "DAILY_HISTORY_STABLE",
                     "date=$date src=${new.source} high=${new.computedHighTemp} low=${new.computedLowTemp} fragments=${fragments.size}",
-                    "DEBUG",
+                    "VERBOSE", // Nothing changed; DAILY_HISTORY_OVERWRITE records the rows that do.
                 )
             }
         }

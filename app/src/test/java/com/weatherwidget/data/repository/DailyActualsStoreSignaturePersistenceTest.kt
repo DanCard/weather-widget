@@ -16,6 +16,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
 import org.junit.experimental.categories.Category
+import org.robolectric.shadows.ShadowLog
 import java.time.LocalDate
 import java.time.ZoneId
 
@@ -74,9 +75,10 @@ class DailyActualsStoreSignaturePersistenceTest : RobolectricTest() {
             api = WeatherSource.NWS.id,
         )
 
-    private suspend fun skipCount() = db.appLogDao().getLogsByTag("DAILY_RECOMPUTE_SKIP", 100).size
+    // Both tags are VERBOSE: logcat only, never in app_logs.
+    private fun skipCount() = ShadowLog.getLogsForTag("DAILY_RECOMPUTE_SKIP").size
 
-    private suspend fun recomputeCount() = db.appLogDao().getLogsByTag("DAILY_HISTORY_STABLE", 100).size +
+    private suspend fun recomputeCount() = ShadowLog.getLogsForTag("DAILY_HISTORY_STABLE").size +
         db.dailyHistoryDao().getExtremesInRange(day.toEpochDay() * 86_400_000L, day.toEpochDay() * 86_400_000L, lat, lon).size
 
     @Test

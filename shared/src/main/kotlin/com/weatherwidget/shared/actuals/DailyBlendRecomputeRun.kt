@@ -122,7 +122,7 @@ object DailyBlendRecomputeRun {
         val nightEndMs = date.plusDays(1).atTime(DayNightHours.DAY_START_HOUR, 0).atZone(zone).toInstant().toEpochMilli()
         val signature = if (force) null else host.observationSignature(dayStartMs, nightEndMs)
         if (key != null && signature != null && host.signatures[key] == signature) {
-            host.log("DAILY_RECOMPUTE_SKIP", "date=$date sig=$signature at=${host.lat},${host.lon}", "INFO")
+            host.log("DAILY_RECOMPUTE_SKIP", "date=$date sig=$signature at=${host.lat},${host.lon}", "VERBOSE")
             return 0
         }
 

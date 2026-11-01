@@ -72,7 +72,8 @@ object HourlyUnifyDiagnostic {
                     "borrowed=${borrowedMs.size} borrowedRanges=${ranges(borrowedMs)} " +
                     "lostHours=${lostMs.size} lostRanges=${ranges(lostMs)} " +
                     "site=$siteLat,$siteLon center=$locationLat,$locationLon donorSites=$donorSites",
-                if (lostMs.isNotEmpty()) "WARN" else "INFO",
+                // Borrowing is routine and repeats on every paint; losing hours is the event to keep.
+                if (lostMs.isNotEmpty()) "WARN" else "VERBOSE",
             )
         }
     }

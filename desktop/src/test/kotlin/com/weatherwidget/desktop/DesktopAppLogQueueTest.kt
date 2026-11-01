@@ -86,6 +86,15 @@ class DesktopAppLogQueueTest {
     }
 
     @Test
+    fun `a VERBOSE line is never persisted and DEBUG still is`() {
+        DesktopAppLogQueue.log("DAILY_HISTORY_BLEND", "trace", "VERBOSE")
+        DesktopAppLogQueue.log("DAILY_HISTORY_OVERWRITE", "change", "DEBUG")
+        DesktopAppLogQueue.drain()
+
+        assertEquals(listOf("change"), rows().map { it.third })
+    }
+
+    @Test
     fun `usage counters from a fetch burst do not wait for a held lock, and a failed write spares the rest`() {
         val dao = DesktopWeatherDao(db)
         val release = CountDownLatch(1)

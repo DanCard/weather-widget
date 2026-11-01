@@ -19,6 +19,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowLog
 import com.weatherwidget.test.category.LongDuration
 import org.junit.experimental.categories.Category
 import java.time.LocalDate
@@ -83,16 +84,16 @@ class DailyViewHandlerFallbackTest {
             repository = mockk(relaxed = true),
         )
 
-        val logs = db.appLogDao().getLogsByTag("TODAY_BAR_DEBUG", limit = 100)
-        val todayLog = logs.firstOrNull()
-        
+        // VERBOSE: logcat only, never in app_logs.
+        val todayLog = ShadowLog.getLogsForTag("TODAY_BAR_DEBUG").lastOrNull()?.msg
+
         assert(todayLog != null) { "TODAY_BAR_DEBUG log missing" }
         // tripleValues.forecastHigh should be 76.0 from NWS, not 61.0 from Generic
-        assert(todayLog!!.message.contains("fHigh=76.0")) { "Expected fHigh=76.0 (NWS), but got: ${todayLog.message}" }
-        assert(todayLog.message.contains("fLow=null")) { "Expected fLow=null (NWS), but got: ${todayLog.message}" }
-        assert(todayLog.message.contains("cloudRatio=")) { "Expected cloudRatio in: ${todayLog.message}" }
-        assert(todayLog.message.contains("rainChance=")) { "Expected rainChance in: ${todayLog.message}" }
-        assert(todayLog.message.contains("sky=")) { "Expected sky breakdown in: ${todayLog.message}" }
+        assert(todayLog!!.contains("fHigh=76.0")) { "Expected fHigh=76.0 (NWS), but got: $todayLog" }
+        assert(todayLog.contains("fLow=null")) { "Expected fLow=null (NWS), but got: $todayLog" }
+        assert(todayLog.contains("cloudRatio=")) { "Expected cloudRatio in: $todayLog" }
+        assert(todayLog.contains("rainChance=")) { "Expected rainChance in: $todayLog" }
+        assert(todayLog.contains("sky=")) { "Expected sky breakdown in: $todayLog" }
     }
 
     private fun createWeather(

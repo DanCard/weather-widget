@@ -1,4 +1,13 @@
-Tell me how hourly rows pruning works.
+To save db space, I'm thinking that views older than 10 days are a desktop only feature.  What do you think?
+
+Give me an overview of how hourly rows pruning works.
+I'm concerned about keeping too much unnecessary stuff.
+For example for meteo we fetch 14 days of hourly rows?
+When is that pruned?
+I think aggressive pruning to 3 days for hourly data, 72 hours is a good idea while charging and idle after x hours old.  What do you think?
+
+Tell me how hourly rows pruning works.  And give me your opinion on what pruning strategy is optimal.
+
 
 Fold 4: Silurian api: last night low.  The rain amount kind of doesn't fit.  the .069in overlaps.
 My thoughts:
