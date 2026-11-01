@@ -47,7 +47,7 @@ class DesktopAccuracyTest {
         fun atUtc(hour: Int) = day.atTime(hour, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli()
 
         val obs = listOf(
-            obsAt(atUtc(3), temp = 50f, condition = "Sunny", precip = 0.5f),   // night
+            obsAt(atUtc(3), temp = 50f, condition = "Sunny", precip = 0.5f),   // the night before
             obsAt(atUtc(9), temp = 60f, condition = "Cloudy", precip = 1.0f),  // day
             obsAt(atUtc(15), temp = 70f, condition = "Sunny", precip = 2.0f),  // day (warmest)
         )
@@ -71,7 +71,7 @@ class DesktopAccuracyTest {
         assertEquals("Sunny", e.condition) // condition of the warmest reading
         assertEquals(3.5f, e.precipAmountMm!!, 0.001f)
         assertEquals(3.0f, e.precipDayMm!!, 0.001f)
-        assertEquals(0.5f, e.precipNightMm!!, 0.001f)
+        assertNull(e.precipNightMm)
         assertEquals(123L, e.updatedAt)
     }
 

@@ -318,41 +318,34 @@ class ObservationResolverTest {
     }
 
     /**
-     * Pre-dawn precip (00:00–08:00) must attribute to *that* day's night bucket. Pre-fix, the
-     * night window was 20:00 → next-day 08:00, so observations between midnight and 08:00 fell
-     * into a gap: counted toward total but neither day nor night. Option B closes the gap by
-     * defining night as (00:00–08:00) ∪ (20:00–24:00) within calendar day D.
+     * The night of date D is 8pm D to 8am D+1: the window of the night chance and of the label drawn
+     * between D and D+1. Rain at 3am on D belongs to the night before, and the recompute's context
+     * window is what lets it reach the next morning. Calendar total still counts it, so day + night
+     * is not the total.
      */
     @Test
-    fun `computeDailyExtremes attributes pre-dawn precip to same-day night bucket`() {
+    fun `computeDailyExtremes files after-midnight rain on the night it fell in`() {
         val zone = java.time.ZoneId.systemDefault()
         val date = java.time.LocalDate.of(2026, 5, 25)
         val dayStartMs = date.atStartOfDay(zone).toInstant().toEpochMilli()
         val obs = listOf(
-            // Pre-dawn (00:00–08:00) — should land in this date's night bucket.
-            observationWithPrecip(dayStartMs + 3 * 3600_000, 55f, 2.0f),   // 3 AM
-            observationWithPrecip(dayStartMs + 5 * 3600_000, 56f, 1.5f),   // 5 AM
-            // Daytime (08:00–20:00) — day bucket.
-            observationWithPrecip(dayStartMs + 14 * 3600_000, 70f, 1.0f),  // 2 PM
-            // Late-evening (20:00–24:00) — still night bucket.
-            observationWithPrecip(dayStartMs + 22 * 3600_000, 60f, 0.5f),  // 10 PM
+            observationWithPrecip(dayStartMs + 3 * 3600_000, 55f, 2.0f), // 3 AM: the night before
+            observationWithPrecip(dayStartMs + 14 * 3600_000, 70f, 1.0f), // 2 PM: day
+            observationWithPrecip(dayStartMs + 22 * 3600_000, 60f, 0.5f), // 10 PM: this night
+            observationWithPrecip(dayStartMs + 27 * 3600_000, 54f, 1.5f), // 3 AM next day: this night
         )
 
         val result = ObservationResolver.computeDailyExtremes(obs, emptyList(), 37.42, -122.08)
+            .single { it.date == date.toEpochDay() * 86_400_000L }
 
-        assertEquals(1, result.size)
-        assertEquals(1.0f, result[0].precipDayMm!!, 0.01f)             // 2 PM only
-        assertEquals(4.0f, result[0].precipNightMm!!, 0.01f)           // 2.0 + 1.5 + 0.5
-        assertEquals(5.0f, result[0].precipAmountMm!!, 0.01f)          // 1.0 + 4.0 — total = day + night
+        assertEquals(1.0f, result.precipDayMm!!, 0.01f)
+        assertEquals(2.0f, result.precipNightMm!!, 0.01f) // 0.5 + 1.5
+        assertEquals(3.5f, result.precipAmountMm!!, 0.01f) // calendar day: 2.0 + 1.0 + 0.5
     }
 
-    /**
-     * Same invariant for the forecast-fallback branch: NWS-style observations with null precip,
-     * pre-dawn forecast rain must land in night, and night = pre-dawn ∪ late-evening should sum.
-     * Forecast fallback only applies to the current (incomplete) day, so this uses today's date.
-     */
+    /** Same window for the forecast-fallback branch, which only applies to today. */
     @Test
-    fun `computeDailyExtremes forecast fallback today attributes pre-dawn rain to night bucket`() {
+    fun `computeDailyExtremes forecast fallback today uses tonight's window`() {
         val zone = java.time.ZoneId.systemDefault()
         val date = java.time.LocalDate.now(zone)
         val dayStartMs = date.atStartOfDay(zone).toInstant().toEpochMilli()
@@ -362,17 +355,18 @@ class ObservationResolverTest {
             observationWithPrecip(dayStartMs + 22 * 3600_000, 60f, null),
         )
         val forecasts = listOf(
-            hourly(dayStartMs + 3 * 3600_000, 2.5f),   // 3 AM — pre-dawn night
-            hourly(dayStartMs + 14 * 3600_000, 1.0f),  // 2 PM — day
-            hourly(dayStartMs + 22 * 3600_000, 0.5f),  // 10 PM — late-evening night
+            hourly(dayStartMs + 3 * 3600_000, 2.5f), // 3 AM: the night before
+            hourly(dayStartMs + 14 * 3600_000, 1.0f), // 2 PM: day
+            hourly(dayStartMs + 22 * 3600_000, 0.5f), // 10 PM: tonight
+            hourly(date.plusDays(1).atTime(3, 0).atZone(zone).toInstant().toEpochMilli(), 0.25f), // tonight
         )
 
         val result = ObservationResolver.computeDailyExtremes(obs, forecasts, 37.42, -122.08)
 
         assertEquals(1, result.size)
-        assertEquals(1.0f, result[0].precipDayMm!!, 0.01f)              // 2 PM
-        assertEquals(3.0f, result[0].precipNightMm!!, 0.01f)            // 2.5 (pre-dawn) + 0.5 (late)
-        assertEquals(4.0f, result[0].precipAmountMm!!, 0.01f)           // 1.0 + 3.0 — day + night invariant
+        assertEquals(1.0f, result[0].precipDayMm!!, 0.01f)
+        assertEquals(0.75f, result[0].precipNightMm!!, 0.01f)
+        assertEquals(4.0f, result[0].precipAmountMm!!, 0.01f) // calendar day: 2.5 + 1.0 + 0.5
     }
 
     @Test

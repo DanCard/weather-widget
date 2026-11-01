@@ -129,6 +129,23 @@ class DailyBlendRecomputeRunTest {
     }
 
     @Test
+    fun `an observation before the next 8am reopens the day, one after does not`() = runBlocking {
+        val day = today.minusDays(3)
+        host.obs += hourlyReadings(day) { 60f }
+        val nextDay = hourlyReadings(day.plusDays(1)) { 60f }
+        DailyBlendRecomputeRun.day(host, day, nowMs, zone)
+        val readsAfterFirst = host.observationReads
+
+        host.obs += nextDay[2] // 2am: this day's night
+        DailyBlendRecomputeRun.day(host, day, nowMs, zone)
+        assertEquals("night rain must recompute the day", readsAfterFirst + 1, host.observationReads)
+
+        host.obs += nextDay[9] // 9am: the next day's own
+        DailyBlendRecomputeRun.day(host, day, nowMs, zone)
+        assertEquals(readsAfterFirst + 1, host.observationReads)
+    }
+
+    @Test
     fun `range starts at the cutoff`() = runBlocking {
         val tooOld = today.minusDays(DailyBlendRecomputeRun.MAX_DAYS_BACK + 1)
         host.obs += hourlyReadings(tooOld) { 60f } + hourlyReadings(today.minusDays(1)) { 61f }

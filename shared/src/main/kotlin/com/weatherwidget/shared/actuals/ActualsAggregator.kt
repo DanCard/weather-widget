@@ -421,7 +421,8 @@ object ActualsAggregator {
         allowForecastFallback: Boolean = true,
     ): DailyPrecip {
         val observed = ObservedPrecip.daily(observations, date, zone)
-        if (observed.total != null) {
+        // The night can be known alone: rain measured only after midnight still belongs to [date].
+        if (observed.total != null || observed.night != null) {
             return DailyPrecip(total = observed.total, day = observed.day, night = observed.night)
         }
 
@@ -437,10 +438,10 @@ object ActualsAggregator {
         val day = hourlyForDate.filter { 
             Instant.ofEpochMilli(it.dateTime).atZone(zone).hour in DAY_START_HOUR until DAY_END_HOUR 
         }.mapNotNull { it.precipAmountMm }.takeIf { it.isNotEmpty() }?.sum()
-        val night = hourlyForDate.filter { 
-            val hour = Instant.ofEpochMilli(it.dateTime).atZone(zone).hour
-            hour < DAY_START_HOUR || hour >= DAY_END_HOUR
-        }.mapNotNull { it.precipAmountMm }.takeIf { it.isNotEmpty() }?.sum()
+        val nightStartMs = date.atTime(DAY_END_HOUR, 0).atZone(zone).toInstant().toEpochMilli()
+        val nightEndMs = date.plusDays(1).atTime(DAY_START_HOUR, 0).atZone(zone).toInstant().toEpochMilli()
+        val night = sourceHourly.filter { it.dateTime in nightStartMs until nightEndMs }
+            .mapNotNull { it.precipAmountMm }.takeIf { it.isNotEmpty() }?.sum()
 
         return DailyPrecip(total = total, day = day, night = night)
     }

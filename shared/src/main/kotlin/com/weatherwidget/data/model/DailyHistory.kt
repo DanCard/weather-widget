@@ -22,7 +22,7 @@ data class DailyHistory(
     val updatedAt: Long,        // epoch ms, used for cleanup
     val precipAmountMm: Float? = null, // Daily observed precipitation amount in mm (total)
     val precipDayMm: Float? = null, // Daytime (8AM-8PM) observed precipitation in mm
-    val precipNightMm: Float? = null, // Nighttime (8PM-8AM) observed precipitation in mm
+    val precipNightMm: Float? = null, // Observed mm over the night starting on this date (8PM to next 8AM)
     // Resolved (as-displayed) forecast rain chance %, snapshotted while the day was current so
     // history replays what the widget showed instead of NWS's raw 6am/6pm period fields (see
     // DailyRainLabels.resolveDailyLabelPrecip). Null for rows written before this feature.

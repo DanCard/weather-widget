@@ -171,4 +171,50 @@ class ObservedPrecipTest {
         assertTrue(ObservedPrecip.rowsFor(rows, WeatherSource.SILURIAN).isEmpty())
         assertTrue("only the five-minute product", ObservedPrecip.rowsFor(rows, WeatherSource.TOMORROW_IO).isEmpty())
     }
+
+    // The night of a date runs 8pm to the next 8am, the window of its chance and of its label.
+
+    private fun interval(hour: Int, mm: Float, day: LocalDate = date) =
+        row("OPEN_METEO_MAIN", 0f, at(hour, 0, day), precipMm = mm, api = WeatherSource.OPEN_METEO)
+
+    @Test
+    fun `the night takes the evening and the next morning, not its own early hours`() {
+        val rows = listOf(
+            interval(3, 8f), // the night before
+            interval(14, 4f), // day
+            interval(22, 2f), // this night
+            interval(3, 1f, date.plusDays(1)), // this night
+        )
+        val totals = ObservedPrecip.daily(rows, date, zone)
+        assertEquals(4f, totals.day!!, 0.001f)
+        assertEquals(3f, totals.night!!, 0.001f)
+        assertEquals("calendar day", 14f, totals.total!!, 0.001f)
+    }
+
+    @Test
+    fun `the night ends where the next day begins`() {
+        val rows = listOf(interval(7, 1f, date.plusDays(1)), interval(8, 8f, date.plusDays(1)), interval(20, 2f))
+        assertEquals(3f, ObservedPrecip.daily(rows, date, zone).night!!, 0.001f)
+        assertEquals(8f, ObservedPrecip.daily(rows, date.plusDays(1), zone).day!!, 0.001f)
+    }
+
+    @Test
+    fun `the 8pm hour is night and the 7pm hour is day`() {
+        val totals = ObservedPrecip.daily(listOf(interval(19, 1f), interval(20, 2f)), date, zone)
+        assertEquals(1f, totals.day!!, 0.001f)
+        assertEquals(2f, totals.night!!, 0.001f)
+    }
+
+    @Test
+    fun `no hour of the night known leaves it null`() {
+        assertNull(ObservedPrecip.daily(listOf(interval(3, 1f)), date, zone).night)
+    }
+
+    @Test
+    fun `resolveDailyPrecip keeps a night measured only after midnight`() {
+        val rows = listOf(interval(2, 1f, date.plusDays(1)))
+        val precip = ActualsAggregator.resolveDailyPrecip(rows, emptyList(), date, zone, allowForecastFallback = false)
+        assertNull(precip.total)
+        assertEquals(1f, precip.night!!, 0.001f)
+    }
 }

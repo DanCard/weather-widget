@@ -90,14 +90,22 @@ object ObservedPrecip {
         return nearest.mapValues { it.value.second }
     }
 
-    /** [date]'s total, 8am–8pm and night amounts from [byHour]; each null when no hour in it was known. */
+    /**
+     * [date]'s calendar-day total, 8am–8pm amount and night amount from [byHour]; each null when no
+     * hour in it was known. The night is the one that starts on [date]: 8pm until 8am the next
+     * morning, the window of the night chance and of the label drawn after [date]. So [rows] must
+     * reach that morning, and day + night is not the total.
+     */
     fun daily(rows: List<ObservationReading>, date: LocalDate, zone: ZoneId = ZoneId.systemDefault()): Totals {
-        val hours = byHour(rows, zone).filterKeys { it.toLocalDate() == date }
+        val allHours = byHour(rows, zone)
+        val hours = allHours.filterKeys { it.toLocalDate() == date }
+        val nightStart = date.atTime(DayNightHours.DAY_END_HOUR, 0)
+        val nightEnd = date.plusDays(1).atTime(DayNightHours.DAY_START_HOUR, 0)
         fun sumOrNull(values: Collection<Float>) = values.takeIf { it.isNotEmpty() }?.sum()
         val totals = Totals(
             total = sumOrNull(hours.values),
             day = sumOrNull(hours.filterKeys { DayNightHours.isDayHour(it) }.values),
-            night = sumOrNull(hours.filterKeys { !DayNightHours.isDayHour(it) }.values),
+            night = sumOrNull(allHours.filterKeys { !it.isBefore(nightStart) && it.isBefore(nightEnd) }.values),
         )
         Log.v(TAG) {
             "OBSERVED_PRECIP date=$date stations=${rows.map { it.stationId }.distinct().size} " +

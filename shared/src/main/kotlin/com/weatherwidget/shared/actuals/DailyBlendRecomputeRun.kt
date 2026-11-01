@@ -5,6 +5,7 @@ import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.observations.ActualsProviderResolver
+import com.weatherwidget.shared.graph.DayNightHours
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -117,7 +118,9 @@ object DailyBlendRecomputeRun {
         // A day's extremes cannot move while its observations are unchanged (Samsung 2026-09-06: 91% of
         // per-day recomputes were byte-identical). Content-derived; `MAX(fetchedAt)` never fired.
         val key = if (force) null else signatureKey(date, host.lat, host.lon)
-        val signature = if (force) null else host.observationSignature(dayStartMs, dayEndMs)
+        // Through the next 8am: the day's night rain falls after its midnight (DayNightHours).
+        val nightEndMs = date.plusDays(1).atTime(DayNightHours.DAY_START_HOUR, 0).atZone(zone).toInstant().toEpochMilli()
+        val signature = if (force) null else host.observationSignature(dayStartMs, nightEndMs)
         if (key != null && signature != null && host.signatures[key] == signature) {
             host.log("DAILY_RECOMPUTE_SKIP", "date=$date sig=$signature at=${host.lat},${host.lon}", "INFO")
             return 0
