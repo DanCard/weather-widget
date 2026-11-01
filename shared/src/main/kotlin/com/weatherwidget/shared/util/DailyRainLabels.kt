@@ -618,9 +618,10 @@ object DailyRainLabels {
      * [nightForecastAmountMm]; a null or zero total keeps the %.
      * - Night under way ([nightInProgress]; after midnight its date is already past): the forecast
      *   total at ≥ 95%, ahead of the measured amount, which only holds the hours so far.
-     * - Finished nights: observed night amount when measurable rain fell, else the forecast night
-     *   chance% (so a real forecast doesn't silently vanish once the night turns into history),
-     *   else null. Never a forecast amount: it would read as rain that fell.
+     * - Finished nights: observed night amount when measurable rain fell; with nothing measured, the
+     *   forecast total at ≥ 95%, as while the night was under way; else the forecast night chance% (so
+     *   a real forecast doesn't silently vanish once the night turns into history), else null. A
+     *   measured 0 keeps the %: a gauge saw no rain, so a forecast total would contradict it.
      * - Tonight: forecast total at ≥ 95%, else as a later night.
      * - Later nights: suppressed below the distance-scaled threshold; else forecast total at ≥ 99%,
      *   else night-prob%.
@@ -643,6 +644,11 @@ object DailyRainLabels {
             }
             if (observedNightPrecipMm != null && observedNightPrecipMm > 0f) {
                 return formatObservedPrecipAmount(observedNightPrecipMm)
+            }
+            if (observedNightPrecipMm == null && forecastAmount != null &&
+                nightPrecipProbability != null && nightPrecipProbability >= NIGHT_AMOUNT_MIN_PERCENT_NEAR
+            ) {
+                return formatPrecipAmount(forecastAmount)
             }
             // No measurable rain fell, but keep the forecasted night chance visible in history.
             if (nightPrecipProbability != null && nightPrecipProbability > 0) {

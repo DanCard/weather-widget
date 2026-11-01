@@ -6,6 +6,7 @@ import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.observations.ActualsProviderResolver
 import com.weatherwidget.shared.graph.DayNightHours
+import com.weatherwidget.shared.util.WeatherSourceOrdering
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -120,7 +121,8 @@ object DailyBlendRecomputeRun {
         val key = if (force) null else signatureKey(date, host.lat, host.lon)
         // Through the next 8am: the day's night rain falls after its midnight (DayNightHours).
         val nightEndMs = date.plusDays(1).atTime(DayNightHours.DAY_START_HOUR, 0).atZone(zone).toInstant().toEpochMilli()
-        val signature = if (force) null else host.observationSignature(dayStartMs, nightEndMs)
+        // The providers too: a switched provider builds the day from other rows though none changed.
+        val signature = if (force) null else host.observationSignature(dayStartMs, nightEndMs)?.let { "$it|${providerSignature()}" }
         if (key != null && signature != null && host.signatures[key] == signature) {
             host.log("DAILY_RECOMPUTE_SKIP", "date=$date sig=$signature at=${host.lat},${host.lon}", "VERBOSE")
             return 0
@@ -202,6 +204,14 @@ object DailyBlendRecomputeRun {
         }
         return plan.inserts.size + plan.updates.size
     }
+
+    /** Which sources take their actuals from another feed: `OPEN_METEO=NWS,TOMORROW_IO=NWS`. */
+    private fun providerSignature(): String =
+        WeatherSourceOrdering.ALL_CONFIGURABLE
+            .map { it.id to ActualsProviderResolver.providerIdFor(it) }
+            .filter { (sourceId, providerId) -> providerId != sourceId }
+            .sortedBy { (sourceId, _) -> sourceId }
+            .joinToString(",") { (sourceId, providerId) -> "$sourceId=$providerId" }
 
     /**
      * Quantized to the write grid so GPS jitter cannot mint unbounded keys for one place. Format kept

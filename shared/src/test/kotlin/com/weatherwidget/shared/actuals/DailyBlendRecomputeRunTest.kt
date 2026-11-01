@@ -4,6 +4,7 @@ import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.StationType
+import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.observations.ActualsProviderResolver
 import com.weatherwidget.test.category.ShortDuration
 import kotlinx.coroutines.runBlocking
@@ -53,6 +54,7 @@ class DailyBlendRecomputeRunTest {
                 computedHighTemp = merged.computedHighTemp, computedLowTemp = merged.computedLowTemp,
                 computedHighAt = merged.computedHighAt, computedLowAt = merged.computedLowAt,
                 condition = merged.condition, lastWriter = merged.lastWriter, updatedAt = newUpdatedAt,
+                precipAmountMm = merged.precipAmountMm, precipDayMm = merged.precipDayMm, precipNightMm = merged.precipNightMm,
             )
             return 1
         }
@@ -143,6 +145,44 @@ class DailyBlendRecomputeRunTest {
         host.obs += nextDay[9] // 9am: the next day's own
         DailyBlendRecomputeRun.day(host, day, nowMs, zone)
         assertEquals(readsAfterFirst + 1, host.observationReads)
+    }
+
+    /**
+     * Fold 2026-11-01: OWM was pointed at NWS at 12:22. Today's row rebuilt from NWS, but Oct 31 stayed on
+     * OWM's own rain-less rows, because its observations had not changed and the skip ignored the provider.
+     */
+    @Test
+    fun `switching a source's actuals provider reopens a settled past day`() = runBlocking {
+        val day = today.minusDays(2)
+        val owmRows = (day.minusDays(1).datesUntil(day.plusDays(2)).toList()).flatMap { d ->
+            hourlyReadings(d) { 55f }.map { it.copy(stationId = "OPEN_WEATHER_MAP_MAIN", api = "OPEN_WEATHER_MAP") }
+        }
+        val nwsRows = hourlyReadings(day) { h -> if (h == 6) 48f else if (h == 15) 64f else 60f } +
+            hourlyReadings(day.plusDays(1)) { 60f }.map { reading ->
+                val hour = java.time.Instant.ofEpochMilli(reading.timestamp).atZone(zone).hour
+                if (hour == 2) reading.copy(precipAmountMm = 1.75f) else reading.copy(precipAmountMm = 0f)
+            }
+        host.obs += owmRows + nwsRows
+
+        DailyBlendRecomputeRun.day(host, day, nowMs, zone)
+        val own = host.rows.single { it.date == key(day) && it.source == "OPEN_WEATHER_MAP" }
+        assertEquals(55f, own.computedHighTemp!!, 0.01f)
+        assertEquals(null, own.precipNightMm)
+
+        ActualsProviderResolver.installPreferenceSource { source ->
+            WeatherSource.NWS.takeIf { source == WeatherSource.OPEN_WEATHER_MAP }
+        }
+        val reads = host.observationReads
+        DailyBlendRecomputeRun.day(host, day, nowMs, zone)
+
+        assertEquals("the switch must reopen the day", reads + 1, host.observationReads)
+        val borrowed = host.rows.single { it.date == key(day) && it.source == "OPEN_WEATHER_MAP" }
+        assertTrue("high from NWS, got ${borrowed.computedHighTemp}", borrowed.computedHighTemp!! > 60f)
+        assertEquals(1.75f, borrowed.precipNightMm!!, 0.01f)
+
+        // Settled again: nothing changed since the switch.
+        DailyBlendRecomputeRun.day(host, day, nowMs, zone)
+        assertEquals(reads + 1, host.observationReads)
     }
 
     @Test

@@ -881,12 +881,29 @@ class DailyRainLabelsTest {
     }
 
     @Test
-    fun finishedNightNeverShowsAForecastAmount() {
-        assertEquals("100%", nightLabel(-1, 100))
+    fun finishedNightWithNothingMeasuredShowsTheForecastAmountFrom95Percent() {
+        assertEquals(amountText(), nightLabel(-1, 100))
+        assertEquals(amountText(), nightLabel(-1, 95))
+        assertEquals("94%", nightLabel(-1, 94))
+    }
+
+    @Test
+    fun finishedNightPrefersTheMeasuredAmountOverTheForecast() {
         assertEquals(
             DailyRainLabels.formatObservedPrecipAmount(1f),
             nightLabel(-1, 100, observedMm = 1f),
         )
+    }
+
+    @Test
+    fun finishedNightMeasuredDryKeepsThePercent() {
+        assertEquals("100%", nightLabel(-1, 100, observedMm = 0f))
+    }
+
+    @Test
+    fun finishedNightWithNoForecastTotalKeepsThePercent() {
+        assertEquals("100%", nightLabel(-1, 100, amountMm = null))
+        assertEquals("100%", nightLabel(-1, 100, amountMm = 0f))
     }
 
     @Test
