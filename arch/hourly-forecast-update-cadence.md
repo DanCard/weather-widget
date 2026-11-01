@@ -76,7 +76,8 @@ forecast interval — a backstop for a planner bug, not a poll).
 - **Android:** every full sync enqueues one delayed `due_wake` sync at the planned wake
   (`WidgetWorkScheduler.enqueueDueWakeSync`, logged `FORECAST_DUE_WAKE`; append rather than replace
   while that work is running). With none pending (after an install or upgrade), a current-temp run plans
-  one (`trigger=missing`). The periodic worker is a 24-hour backstop (`periodic_1440m`). A battery
+  one (`trigger=missing`); on a charger with the screen on, each current-temp run also brings a later
+  pending wake forward (`trigger=charging_screen_on`). The periodic worker is a 24-hour backstop (`periodic_1440m`). A battery
   screen-on only brings the due-time sync forward to the 4-hour screen-on due time
   (`SCREEN_ON_FORECAST outcome=replanned`); a charging screen-on fetches when due, else brings it
   forward to the 2-hour due time.

@@ -119,8 +119,14 @@ class WeatherWidgetWorker
             }
             if (input.currentTempOnly) {
                 return handleCurrentTempOnlyWork(input, device).also {
-                    // Bootstraps the due-time sync after an install/upgrade on a charger; a no-op once one is pending.
-                    runCatching { DueWakePlanner.plan(context, weatherRepository, widgetStateManager, appLogDao, onlyIfMissing = true) }
+                    // Bootstraps the due-time sync after an install/upgrade on a charger, and keeps a pending one
+                    // from outliving a shorter interval while the screen is on.
+                    runCatching {
+                        DueWakePlanner.planFromCurrentTempRun(
+                            context, weatherRepository, widgetStateManager, appLogDao,
+                            chargingScreenOn = device.isCharging && device.isScreenInteractive,
+                        )
+                    }
                         .onFailure { e -> if (e is kotlinx.coroutines.CancellationException) throw e else Log.w(TAG, "Due-wake planning failed", e) }
                 }
             }
