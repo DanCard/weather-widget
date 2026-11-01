@@ -40,8 +40,8 @@ internal class HourlyForecastStore(
     private val dailyHistoryDao: com.weatherwidget.data.local.DailyHistoryDao,
     /**
      * The `:shared` [com.weatherwidget.shared.history.HourlySnapshotRun] label for [sourceId]'s fetch at
-     * the site now, or null to save no snapshot ([RoomHourlySnapshotHost] in production). The default —
-     * every fetch, under its own time — is for tests.
+     * the site now ([RoomHourlySnapshotHost] in production; a test may pass null to save no snapshot).
+     * The default — every fetch, under its own time — is for tests.
      */
     private val snapshotLabel: suspend (sourceId: String, latitude: Double, longitude: Double, nowMs: Long) -> Long? =
         { _, _, _, nowMs -> nowMs },

@@ -25,7 +25,7 @@ platform capabilities.
 Examples include:
 
 - `ForecastPersistRun`: ordered live-hourly, snapshot, elapsed-backfill, and daily-row persistence.
-- `HourlySnapshotRun`: which fetches receive history snapshots and their fetch-time labels.
+- `HourlySnapshotRun`: the fetch-time label each fetch's history snapshot is saved under.
 - `CurrentConditionsRun` and `CurrentTempRun`: observation/current-temperature behavior.
 - `ObservationWriteRun`: every `observations` write — own `fetchedAt`, station-type re-tag on every api,
   personal stations thinned to one row per 10 minutes over the stored window (plus each station's
@@ -90,7 +90,7 @@ At a high level:
 
 1. Resolve the active site and determine which sources/products are due or explicitly targeted.
 2. Fetch provider data, preserving partial products where policy allows and recording quota failures.
-3. Persist each source through `ForecastPersistRun`: live hourly first, then eligible history snapshots
+3. Persist each source through `ForecastPersistRun`: live hourly first, then the history snapshot
    and elapsed backfill, then daily rows and whole-download daily summaries.
 4. Refresh observations/current conditions and perform due history maintenance through shared runners.
 5. Repaint from stored state. UI interactions read cached data immediately and request network work

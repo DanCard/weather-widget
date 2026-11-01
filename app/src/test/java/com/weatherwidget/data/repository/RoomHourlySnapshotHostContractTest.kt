@@ -20,10 +20,7 @@ class RoomHourlySnapshotHostContractTest : HourlySnapshotHostContract() {
 
     override fun open(): Pair<HourlySnapshotRun.Host, Seed> {
         val db = TestDatabase.create().also { databases.add(it) }
-        val host = RoomHourlySnapshotHost(
-            SOURCE, LAT, LON, db.hourlyForecastHistoryDao(), db.appLogDao(),
-            isDisplayed = { true }, viewedRecently = { true }, batteryHigh = { true },
-        )
+        val host = RoomHourlySnapshotHost(SOURCE, LAT, LON, db.hourlyForecastHistoryDao(), db.appLogDao())
         return host to Seed { row, label ->
             runBlocking {
                 db.hourlyForecastHistoryDao().insertAll(

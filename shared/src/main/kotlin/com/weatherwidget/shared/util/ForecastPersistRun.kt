@@ -14,7 +14,7 @@ import java.time.ZoneId
  * one order on both platforms (user 2026-10-24; `plans/261024-shared-forecast-persist-rules.md`):
  *
  * 1. The live hours ([HourlyForecastWrite]) over this site's stored rows.
- * 2. The fetch's snapshot, if [Host.snapshotLabel] keeps one, and under the same label the payload's
+ * 2. The fetch's snapshot under [Host.snapshotLabel], and under the same label the payload's
  *    elapsed hours where the site has none ([ElapsedForecastBackfill]).
  * 3. The daily rows ([DailyForecastWrite]): every day from today, each day's summaries from the whole download, else the row as sent, else the hours stored
  *    now (step 1's, plus hours a Google one-page fetch left in place) — [DailyHourlySummaries].
@@ -37,7 +37,7 @@ class ForecastPersistRun<K>(
         /** Writes [rows] live, as given (fetchedAt included). */
         suspend fun writeHourly(rows: List<HourlyForecast>)
 
-        /** The fetch's `com.weatherwidget.shared.history.HourlySnapshotRun` label, or null to keep none. */
+        /** The fetch's `com.weatherwidget.shared.history.HourlySnapshotRun` label; null writes no snapshot (tests). */
         suspend fun snapshotLabel(nowMs: Long): Long?
 
         suspend fun writeSnapshot(label: Long, rows: List<HourlyForecast>)

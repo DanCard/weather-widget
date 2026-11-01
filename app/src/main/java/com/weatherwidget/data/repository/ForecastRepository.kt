@@ -105,7 +105,7 @@ class ForecastRepository
             clock = { clock() },
             appLogDao = appLogDao,
             dailyHistoryDao = dailyHistoryDao,
-            snapshotLabel = RoomHourlySnapshotHost.labeler(context, widgetStateManager, hourlyForecastHistoryDao, appLogDao),
+            snapshotLabel = RoomHourlySnapshotHost.labeler(hourlyForecastHistoryDao, appLogDao),
         )
         private val dailyHistorySnapshotter = DailyHistorySnapshotter(
             context = context,

@@ -6,8 +6,8 @@ import androidx.room.Index
 
 /**
  * Historical snapshots of the hourly forecast — what each hour was *predicted* to be, captured at
- * [timestampToGroupPredictions] — the fetch time, since 2026-10-24; which fetches are saved is
- * `:shared` [com.weatherwidget.shared.history.HourlySnapshotRun]. Rows written before then carry the
+ * [timestampToGroupPredictions] — the fetch time, since 2026-10-24; every fetch since 2026-11-01
+ * (`:shared` [com.weatherwidget.shared.history.HourlySnapshotRun]). Rows written before then carry the
  * start of a 4 h / 12 h window.
  *
  * Unlike [HourlyForecastEntity] (latest-only, REPLACE-overwritten), this preserves prior

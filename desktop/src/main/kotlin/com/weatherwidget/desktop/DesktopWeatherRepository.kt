@@ -95,11 +95,6 @@ class DesktopWeatherRepository(
     },
     /** On a charger (no battery counts as charging): the daily-history upkeep's gate ([DailyHistoryRun.upkeepIfDue]). */
     private val isCharging: () -> Boolean = { PowerDetector.getPowerState().isCharging },
-    /**
-     * The config the hourly snapshot rule ([HourlySnapshotRun]) reads at write time — the displayed
-     * source and the 8-day view gate. Null saves every fetch (tests); production reads the config file.
-     */
-    private val snapshotConfig: () -> DesktopConfig? = { null },
 ) {
     data class RefreshOutcome(
         val snapshot: ForecastSnapshot,
@@ -752,12 +747,9 @@ class DesktopWeatherRepository(
      * is blank for a day while every payload carries the values (`ElapsedForecastBackfill`).
      * Same source only; existing rows are never touched, so in steady state this stores nothing.
      */
-    /** This fetch's snapshot label from the shared rule, or null to save none ([HourlySnapshotRun]). */
-    private suspend fun snapshotLabel(now: Long): Long? =
-        HourlySnapshotRun.run(
-            DesktopHourlySnapshotHost(weatherDao, weatherSource, latitude, longitude, snapshotConfig(), now),
-            now,
-        ).labelMs
+    /** This fetch's snapshot label from the shared rule ([HourlySnapshotRun]). */
+    private suspend fun snapshotLabel(now: Long): Long =
+        HourlySnapshotRun.run(DesktopHourlySnapshotHost(weatherDao, weatherSource, latitude, longitude), now).labelMs
 
     /** The popup's quota banners: the shared [QuotaState.record] rule over the `app_logs` contract rows. */
     private suspend fun recordProductQuotas(result: RawFetch, now: Long) =

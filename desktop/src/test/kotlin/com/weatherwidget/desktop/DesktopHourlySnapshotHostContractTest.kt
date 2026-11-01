@@ -18,7 +18,7 @@ class DesktopHourlySnapshotHostContractTest : HourlySnapshotHostContract() {
     override fun open(): Pair<HourlySnapshotRun.Host, Seed> {
         val path = Files.createTempFile("weather_contract", ".db").also { paths.add(it) }
         val db = DesktopWeatherDatabase(path).apply { initialize() }
-        val host = DesktopHourlySnapshotHost(DesktopWeatherDao(db), SOURCE, LAT, LON, config = null, nowMs = T0)
+        val host = DesktopHourlySnapshotHost(DesktopWeatherDao(db), SOURCE, LAT, LON)
         return host to Seed { row, label ->
             db.getConnection().use { conn ->
                 conn.prepareStatement(

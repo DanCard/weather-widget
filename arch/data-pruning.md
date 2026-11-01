@@ -32,10 +32,8 @@ not weather rows, and are not erased by this schedule.
 `HourlySnapshotRun` labels a snapshot with the fetch's actual time, not the start of a four- or
 twelve-hour bucket.
 
-- The displayed source is snapshotted on every fetch.
-- Another recently viewed source is snapshotted when its previous snapshot is at least 11 hours old
-  on a charger/high battery, or 22 hours old below that threshold.
-- A source outside the recent-view background set is not snapshotted.
+- Every fetch of every source is snapshotted, because a fetch during an hour replaces that hour's live
+  row: the last pre-hour forecast must already be in history for the hour to settle on it.
 - Live-hourly writes and elapsed-hour backfill from the same fetch reuse one label.
 
 `ForecastPersistRun` coordinates the live-hourly, snapshot, elapsed-backfill, and daily writes so both

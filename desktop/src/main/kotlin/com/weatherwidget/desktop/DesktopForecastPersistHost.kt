@@ -10,7 +10,7 @@ import java.time.LocalDate
 /**
  * Desktop SQLite side of [ForecastPersistRun] for one source at one site. Reads are on the site's exact
  * quantized key, as Android's `RoomForecastPersistHost`; pinned to it by `ForecastPersistHostContract`.
- * [snapshotLabel] is the fetch's `HourlySnapshotRun` decision (the repository's, which knows the config).
+ * [snapshotLabel] is the fetch's `HourlySnapshotRun` label.
  */
 internal class DesktopForecastPersistHost(
     private val weatherDao: DesktopWeatherDao,
