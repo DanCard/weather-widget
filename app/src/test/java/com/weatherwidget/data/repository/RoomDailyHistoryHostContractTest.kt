@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
-import com.weatherwidget.data.local.HourlyForecastHistoryEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.shared.actuals.DailyHistoryMaintenance
@@ -64,7 +63,7 @@ class RoomDailyHistoryHostContractTest : DailyHistoryHostContract() {
         override fun hourlyHistory(row: HourlyForecast, snapshotBucketMs: Long) = runBlocking {
             db.hourlyForecastHistoryDao().insertAll(
                 listOf(
-                    HourlyForecastHistoryEntity(
+                    HourlyForecastEntity(
                         dateTime = row.dateTime, locationLat = row.locationLat!!, locationLon = row.locationLon!!,
                         temperature = row.temperature, condition = row.condition, source = row.source!!,
                         timestampToGroupPredictions = snapshotBucketMs,

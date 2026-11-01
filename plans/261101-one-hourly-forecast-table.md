@@ -100,6 +100,23 @@ Android's does.
   Pixel 69,846), merge under 50 ms. About 2,000 older rows per database read newer than the old live row; all
   are before 2026-10-31 under window labels, with identical temperature and rain chance.
 
+## Value comparison and phase 4 decisions (2026-11-01)
+Old tables against the merged table on real copies, through the real stitcher and rain resolver:
+- Desktop and Pixel: 0 hours and 0 of 161 day/night pairs changed.
+- Samsung, at its real site: 150 of 2,651 past hours and 4 day/night pairs changed, up to 4.0 F, 70 over 1 F; no future
+  hour. In all 150 the old stitch borrowed a nearby fragment's row while a same-site row existed, because
+  `groupSameSite` applied its fallback to live and history separately. The merged result follows the documented
+  rule that a same-site row beats a neighbour. Accepted.
+- Prior-day reads see 18 to 57 changed hours per database: fetches the old skip rule never saved now count.
+
+Kept, against the Design section above:
+- `ElapsedForecastBackfill`: appending elapsed hours would make post-hour rows the newest, and retention keeps the
+  newest, so newest-per-hour readers would see revised past hours. Its gate is what prevents that.
+- `HourlyForecastWrite.merge`: newest-row readers, including daily summaries, have no read-time fill.
+
+Removed: `HourlyForecastHistoryEntity` and `HourlyRowKey`. `HourlyForecastHistoryDao` remains as the reader of every
+fetch's rows.
+
 ## Phases
 Each phase is its own commit and leaves both platforms working.
 
@@ -108,8 +125,7 @@ Each phase is its own commit and leaves both platforms working.
 2. **One horizon.** Save snapshots to the full horizon. Remove the snapshot limit.
 3. **One table.** Room migration, desktop schema migration, exported schema, index, entity. The live
    writes stop here.
-4. **Remove the rest.** `HourlySnapshotRun`, `merge`, `ElapsedForecastBackfill`, the live retention delete,
-   and the tests that pin them. The tests that pin behaviour move to the new rule.
+4. **Remove the rest.** `HourlyForecastHistoryEntity` (see the decisions above for what stayed).
 5. **Docs.** `arch/ARCHITECTURE.md`, `arch/data-pruning.md`, `arch/hourly-forecast-update-cadence.md`.
 
 ## Tests

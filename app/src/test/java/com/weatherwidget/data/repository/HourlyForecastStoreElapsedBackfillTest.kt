@@ -2,7 +2,7 @@ package com.weatherwidget.data.repository
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
-import com.weatherwidget.data.local.HourlyForecastHistoryEntity
+import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.ElapsedForecastBackfill
@@ -113,7 +113,7 @@ class HourlyForecastStoreElapsedBackfillTest : RobolectricTest() {
     @Test
     fun `an hour with a genuine snapshot in another bucket is left alone`() = runTest {
         val snapshotted = now - now % h - 3 * h
-        val genuine = HourlyForecastHistoryEntity(
+        val genuine = HourlyForecastEntity(
             dateTime = snapshotted,
             locationLat = LocationMatch.quantize(lat),
             locationLon = LocationMatch.quantize(lon),
@@ -136,7 +136,7 @@ class HourlyForecastStoreElapsedBackfillTest : RobolectricTest() {
     @Test
     fun `a same-site jitter fragment counts as covered - a different site does not`() = runTest {
         val t = now - now % h - 2 * h
-        fun rowAt(rowLat: Double, rowLon: Double) = HourlyForecastHistoryEntity(
+        fun rowAt(rowLat: Double, rowLon: Double) = HourlyForecastEntity(
             dateTime = t, locationLat = rowLat, locationLon = rowLon, temperature = 1f, condition = "x",
             source = source, timestampToGroupPredictions = 0L, fetchedAt = 0L,
         )

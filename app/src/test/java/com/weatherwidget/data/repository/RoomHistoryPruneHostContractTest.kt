@@ -3,7 +3,7 @@ package com.weatherwidget.data.repository
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.data.local.HistoryPruneRun
 import com.weatherwidget.data.local.HistoryPruneSchedule
-import com.weatherwidget.data.local.HourlyForecastHistoryEntity
+import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.shared.contract.HistoryPruneHostContract
 import com.weatherwidget.test.category.LongDuration
@@ -31,7 +31,7 @@ class RoomHistoryPruneHostContractTest : HistoryPruneHostContract() {
     override suspend fun seed(rows: List<Seed>) = rows.chunked(500).forEach { chunk ->
         db.hourlyForecastHistoryDao().insertAll(
             chunk.map {
-                HourlyForecastHistoryEntity(
+                HourlyForecastEntity(
                     dateTime = it.hourMs, locationLat = 37.42, locationLon = -122.08, temperature = 60f,
                     condition = "Clear", source = "OPEN_METEO", timestampToGroupPredictions = it.labelMs,
                     fetchedAt = it.fetchedAtMs,

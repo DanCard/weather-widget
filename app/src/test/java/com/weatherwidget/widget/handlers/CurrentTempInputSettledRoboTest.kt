@@ -1,7 +1,6 @@
 package com.weatherwidget.widget.handlers
 
 import com.weatherwidget.data.local.HourlyForecastEntity
-import com.weatherwidget.data.local.HourlyForecastHistoryEntity
 import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
@@ -50,12 +49,12 @@ class CurrentTempInputSettledRoboTest {
         )
         db.hourlyForecastHistoryDao().insertAll(
             listOf(
-                HourlyForecastHistoryEntity(
+                HourlyForecastEntity(
                     dateTime = ms(12), locationLat = key.first, locationLon = key.second, temperature = 60f,
                     condition = "Clear", source = source.id, timestampToGroupPredictions = ms(11, 40), fetchedAt = ms(11, 40),
                 ),
                 // Another source's row stays that source's: it never stands in for the display source.
-                HourlyForecastHistoryEntity(
+                HourlyForecastEntity(
                     dateTime = ms(12), locationLat = key.first, locationLon = key.second, temperature = 50f,
                     condition = "Clear", source = WeatherSource.NWS.id, timestampToGroupPredictions = ms(11, 40), fetchedAt = ms(11, 40),
                 ),

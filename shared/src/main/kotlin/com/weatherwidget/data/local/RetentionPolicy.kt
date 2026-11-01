@@ -15,12 +15,12 @@ object RetentionPolicy {
     const val DAILY_HISTORY_DAYS = 547L
 
     /**
-     * hourly_forecast_history keeps 1 settled row per hour up to 18 months (matching daily_history),
+     * hourly_forecasts keeps 1 settled row per hour up to 18 months (matching daily_history),
      * while retaining multi-snapshot variants within [DEFAULT_DAYS].
      */
     const val HOURLY_HISTORY_SETTLED_DAYS = DAILY_HISTORY_DAYS
 
-    /** forecasts, hourly_forecasts, current_status, station_cache; hourly_forecast_history active window. */
+    /** forecasts, current_status, station_cache; hourly_forecasts active window. */
     const val DEFAULT_DAYS = 30L
 
     /** Raw station readings; the daily actuals they feed live on in daily_history. */

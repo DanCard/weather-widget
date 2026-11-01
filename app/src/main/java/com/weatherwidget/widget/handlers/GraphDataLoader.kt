@@ -179,23 +179,7 @@ object GraphDataLoader {
             lat = lat,
             lon = lon,
             source = source.id,
-        ).map {
-            HourlyForecastEntity(
-                dateTime = it.dateTime,
-                locationLat = it.locationLat,
-                locationLon = it.locationLon,
-                temperature = it.temperature,
-                condition = it.condition,
-                source = it.source,
-                precipProbability = it.precipProbability,
-                cloudCover = it.cloudCover,
-                cloudCoverLow = it.cloudCoverLow,
-                cloudCoverMid = it.cloudCoverMid,
-                cloudCoverHigh = it.cloudCoverHigh,
-                precipAmountMm = it.precipAmountMm,
-                fetchedAt = it.fetchedAt,
-            )
-        }
+        )
 
         // Same shared merge desktop uses: each hour is the newest forecast fetched at or before it
         // (SettledForecastPick), live and history rows alike, with null fields filled from that same

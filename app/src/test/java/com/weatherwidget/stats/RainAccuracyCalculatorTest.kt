@@ -1,6 +1,6 @@
 package com.weatherwidget.stats
 
-import com.weatherwidget.data.local.HourlyForecastHistoryEntity
+import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.test.category.ShortDuration
@@ -26,7 +26,7 @@ class RainAccuracyCalculatorTest {
         timestampToGroupPredictions: Long,
         precipAmountMm: Float?,
         source: String = WeatherSource.NWS.id,
-    ) = HourlyForecastHistoryEntity(
+    ) = HourlyForecastEntity(
         dateTime = epochOf(dateTime),
         locationLat = 37.0,
         locationLon = -122.0,

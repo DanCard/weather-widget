@@ -5,7 +5,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.data.local.AppLogEntity
 import com.weatherwidget.data.local.HistorySnapshotRetention
-import com.weatherwidget.data.local.HourlyForecastHistoryEntity
+import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.stats.RainAccuracyCalculator
 import com.weatherwidget.test.RobolectricTest
@@ -49,15 +49,15 @@ class HistorySnapshotPrunerTest : RobolectricTest() {
     }
 
     /** Deep stacks at two sites, across several local days (including hours near midnight). */
-    private fun generate(seed: Int): List<HourlyForecastHistoryEntity> {
+    private fun generate(seed: Int): List<HourlyForecastEntity> {
         val rnd = Random(seed)
-        val rows = LinkedHashMap<String, HourlyForecastHistoryEntity>()
+        val rows = LinkedHashMap<String, HourlyForecastEntity>()
         for (source in listOf("OPEN_METEO", "NWS")) for (site in listOf(52.2334 to 20.9703, 52.2346 to 20.9711)) {
             val hours = (0 until 8).map { t0 + (it - 3) * 24 * hourMs + rnd.nextInt(24) * hourMs }.distinct()
             for (hour in hours) repeat(1 + rnd.nextInt(30)) {
                 val b = hour - (1 + rnd.nextInt(96)) * hourMs
                 fun <T> maybe(v: T): T? = if (rnd.nextInt(3) == 0) null else v
-                val e = HourlyForecastHistoryEntity(
+                val e = HourlyForecastEntity(
                     dateTime = hour, locationLat = site.first, locationLon = site.second, temperature = 60f,
                     condition = "Clear", source = source, timestampToGroupPredictions = b,
                     precipProbability = maybe(rnd.nextInt(101)), cloudCover = maybe(rnd.nextInt(101)),
@@ -71,7 +71,7 @@ class HistorySnapshotPrunerTest : RobolectricTest() {
         return rows.values.toList()
     }
 
-    private fun HourlyForecastHistoryEntity.key() = toRetentionRow().key
+    private fun HourlyForecastEntity.key() = toRetentionRow().key
 
     @Test
     fun `the prune leaves exactly the spec's keep set`() = runTest {
@@ -146,7 +146,7 @@ class HistorySnapshotPrunerTest : RobolectricTest() {
                 val dayStart = date.atStartOfDay(zone).toInstant().toEpochMilli()
                 val dayEnd = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
                 val prevStart = date.minusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
-                fun window(rows: List<HourlyForecastHistoryEntity>) = rows.filter {
+                fun window(rows: List<HourlyForecastEntity>) = rows.filter {
                     it.source == source && it.dateTime in dayStart until dayEnd &&
                         it.timestampToGroupPredictions in prevStart until dayStart
                 }.sortedByDescending { it.timestampToGroupPredictions }

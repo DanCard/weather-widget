@@ -5,7 +5,7 @@ import com.weatherwidget.data.local.ForecastDao
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.HourlyForecastHistoryDao
-import com.weatherwidget.data.local.HourlyForecastHistoryEntity
+import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.hourlySummary
 import com.weatherwidget.data.local.log

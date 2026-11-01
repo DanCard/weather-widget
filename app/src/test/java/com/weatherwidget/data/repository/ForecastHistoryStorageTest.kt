@@ -1,7 +1,7 @@
 package com.weatherwidget.data.repository
 
 import com.weatherwidget.data.local.ForecastEntity
-import com.weatherwidget.data.local.HourlyForecastHistoryEntity
+import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.testutil.TestDatabase
@@ -38,7 +38,7 @@ class ForecastHistoryStorageTest {
     }
 
     private fun historyRow(dateTime: Long, bucket: Long, temp: Float, source: String = "NWS") =
-        HourlyForecastHistoryEntity(
+        HourlyForecastEntity(
             dateTime = dateTime,
             locationLat = lat,
             locationLon = lon,

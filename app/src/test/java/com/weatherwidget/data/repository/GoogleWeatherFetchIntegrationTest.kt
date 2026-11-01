@@ -225,7 +225,7 @@ class GoogleWeatherFetchIntegrationTest {
         )
         db.hourlyForecastHistoryDao().insertAll(
             listOf(
-                com.weatherwidget.data.local.HourlyForecastHistoryEntity(
+                com.weatherwidget.data.local.HourlyForecastEntity(
                     dateTime = staleHours.last(), locationLat = key.quantize(lat), locationLon = key.quantize(lon),
                     temperature = 99f, condition = "Clear", source = source,
                     timestampToGroupPredictions = fetchedAt, fetchedAt = fetchedAt,

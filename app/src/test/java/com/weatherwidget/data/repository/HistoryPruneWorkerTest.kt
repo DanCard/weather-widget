@@ -4,7 +4,7 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.work.ListenableWorker
 import androidx.work.testing.TestListenableWorkerBuilder
-import com.weatherwidget.data.local.HourlyForecastHistoryEntity
+import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.test.RobolectricTest
 import com.weatherwidget.test.category.LongDuration
@@ -39,7 +39,7 @@ class HistoryPruneWorkerTest : RobolectricTest() {
         val hour = 1_790_640_000_000L
         dao.insertAll(
             (1..30).map { k ->
-                HourlyForecastHistoryEntity(
+                HourlyForecastEntity(
                     dateTime = hour, locationLat = 52.2334, locationLon = 20.9703, temperature = 60f,
                     condition = "Clear", source = "OPEN_METEO", timestampToGroupPredictions = hour - k * 3_600_000L,
                     fetchedAt = hour - k * 3_600_000L + 60_000L,

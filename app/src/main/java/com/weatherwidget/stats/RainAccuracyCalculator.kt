@@ -1,7 +1,7 @@
 package com.weatherwidget.stats
 
 import com.weatherwidget.data.local.HourlyForecastHistoryDao
-import com.weatherwidget.data.local.HourlyForecastHistoryEntity
+import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
@@ -95,7 +95,7 @@ class RainAccuracyCalculator
         companion object {
             /** Latest-snapshot predicted precip per local hour (rows arrive sorted snapshotBucket DESC). */
             internal fun latestSnapshotPrecipByHour(
-                rows: List<HourlyForecastHistoryEntity>,
+                rows: List<HourlyForecastEntity>,
                 zoneId: ZoneId = ZoneId.systemDefault(),
             ): Map<LocalDateTime, Float> =
                 rows

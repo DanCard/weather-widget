@@ -1,7 +1,7 @@
 package com.weatherwidget.data.repository
 
 import com.weatherwidget.data.local.DailyHistoryEntity
-import com.weatherwidget.data.local.HourlyForecastHistoryEntity
+import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.test.category.LongDuration
@@ -81,7 +81,7 @@ class ForecastRepositoryBackfillChanceSnapshotTest {
         )
         db.hourlyForecastHistoryDao().insertAll(
             listOf(
-                HourlyForecastHistoryEntity(
+                HourlyForecastEntity(
                     dateTime = yesterday.plusDays(1).atTime(7, 0).atZone(zone).toInstant().toEpochMilli(),
                     locationLat = lat, locationLon = lon, temperature = 52f, condition = "Rain",
                     source = WeatherSource.NWS.id, timestampToGroupPredictions = 0L, precipProbability = 14,
@@ -146,7 +146,7 @@ class ForecastRepositoryBackfillChanceSnapshotTest {
         // incidental idempotency from the null-column filter).
         db.hourlyForecastHistoryDao().insertAll(
             listOf(
-                HourlyForecastHistoryEntity(
+                HourlyForecastEntity(
                     dateTime = yesterday.plusDays(1).atTime(7, 0).atZone(zone).toInstant().toEpochMilli(),
                     locationLat = lat, locationLon = lon, temperature = 52f, condition = "Rain",
                     source = WeatherSource.NWS.id, timestampToGroupPredictions = 0L, precipProbability = 14,

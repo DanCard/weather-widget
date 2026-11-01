@@ -151,7 +151,7 @@ class GraphDataLoaderCloudCoverStitchTest {
         )
         db.hourlyForecastHistoryDao().insertAll(
             listOf(
-                com.weatherwidget.data.local.HourlyForecastHistoryEntity(
+                com.weatherwidget.data.local.HourlyForecastEntity(
                     dateTime = epochMs(currentHour),
                     locationLat = lat,
                     locationLon = lon,
@@ -215,7 +215,7 @@ class GraphDataLoaderCloudCoverStitchTest {
         )
         db.hourlyForecastHistoryDao().insertAll(
             listOf(
-                com.weatherwidget.data.local.HourlyForecastHistoryEntity(
+                com.weatherwidget.data.local.HourlyForecastEntity(
                     dateTime = epochMs(currentHour),
                     locationLat = lat,
                     locationLon = lon,

@@ -15,8 +15,8 @@ The authoritative durations are in
 | Data | Retention |
 |---|---|
 | `daily_history` | 18 months |
-| `hourly_forecast_history` | 30-day active window, then one settled row per source/site/hour for 18 months |
-| `forecasts`, `hourly_forecasts`, `current_status`, `station_cache` | 30 days |
+| `hourly_forecasts` | 30-day active window, then one settled row per source/site/hour for 18 months |
+| `forecasts`, `current_status`, `station_cache` | 30 days |
 | `observations` | 10 days |
 | `api_usage_stats`, desktop `network_usage` | 90 days |
 | `source_view_days` | 30 days |
@@ -29,14 +29,14 @@ not weather rows, and are not erased by this schedule.
 
 ## Which hourly snapshots are written
 
-`HourlySnapshotRun` labels a snapshot with the fetch's actual time, not the start of a four- or
-twelve-hour bucket.
+`hourly_forecasts` is append-only: every fetch of every source adds its hours under its own fetch time, and no
+fetch changes a row an earlier fetch wrote. A "snapshot" below means one fetch's rows.
 
-- Every fetch of every source is snapshotted, because a fetch during an hour replaces that hour's live
-  row: the last pre-hour forecast must already be in history for the hour to settle on it.
-- Live-hourly writes and elapsed-hour backfill from the same fetch reuse one label.
+- Hours older than the elapsed boundary are not appended, unless the site has no row for that hour
+  (`ElapsedForecastBackfill`). Otherwise a fetch's revised past hours would become the newest rows.
+- The hour in progress is appended; the settled pick still reads the last forecast made before it.
 
-`ForecastPersistRun` coordinates the live-hourly, snapshot, elapsed-backfill, and daily writes so both
+`ForecastPersistRun` coordinates the hourly, elapsed-backfill, and daily writes so both
 platforms use the same order.
 
 ## Active-window prune rule
@@ -91,7 +91,7 @@ at most once a day, `skipped=waiting_for_idle` or `overdue=true`, so a stall is 
 
 - Ages: `shared/.../data/local/RetentionPolicy.kt`
 - Keep/settle specification: `shared/.../data/local/HistorySnapshotRetention.kt`
-- Snapshot creation: `shared/.../history/HourlySnapshotRun.kt`
+- Hourly writes: `shared/.../util/ForecastPersistRun.kt`, `shared/.../util/HourlyForecastWrite.kt`
 - Persistence order: `shared/.../util/ForecastPersistRun.kt`
 - One pass and its schedule: `shared/.../data/local/HistoryPruneRun.kt`, `HistoryPruneSchedule.kt`
 - Android execution: `HistoryPruneWorker.kt`, `HistorySnapshotPruner`

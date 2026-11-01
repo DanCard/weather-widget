@@ -16,8 +16,7 @@ for the source's full supported horizon; there is no shorter three-day forecast 
 | Charging or battery ≥ 70% | Off | 8 hours |
 | Battery < 70% | On or off | 24 hours |
 
-- A fetch stores every returned daily row and up to eight days of hourly, live and in its history
-  snapshot alike. Daily cloud/precipitation summaries are computed from the whole download before
+- A fetch stores every returned daily row and appends up to eight days of hourly. Daily cloud/precipitation summaries are computed from the whole download before
   hourly trimming.
 - Freshness uses one per-source, per-site LONG marker, not a forecast row's `fetchedAt`.
 - Manual Refresh, source switches, location changes, and screen-on catch-up also use LONG when their
@@ -219,5 +218,5 @@ a substitute for the runtime receiver.
 - Observation cadence: `CurrentTempCadence.kt` and `NonPrimaryObservationPolicy.kt`
 - Targeted hourly coverage: `HourlyOnDemand.kt` and `HourlyOnDemandRun.kt`
 - User-initiated refresh throttle: `UserRefreshThrottle.kt`
-- Snapshot timing: `HourlySnapshotRun.kt`
+- Hourly writes: `ForecastPersistRun.kt`
 - Desktop planning: `ForecastSchedule.kt` and `DesktopForecastPlanner.kt`

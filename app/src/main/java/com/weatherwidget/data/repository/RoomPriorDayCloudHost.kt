@@ -2,7 +2,7 @@ package com.weatherwidget.data.repository
 
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.HourlyForecastHistoryDao
-import com.weatherwidget.data.local.HourlyForecastHistoryEntity
+import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.log
 import com.weatherwidget.shared.graph.PriorDayCloudForecast
@@ -28,7 +28,7 @@ internal class RoomPriorDayCloudHost(
 
     override suspend fun store(coverByHour: Map<Long, Int>, nowMs: Long) = dao.insertAll(
         coverByHour.map { (hourMs, cover) ->
-            HourlyForecastHistoryEntity(
+            HourlyForecastEntity(
                 dateTime = hourMs,
                 // Quantized so GPS jitter overwrites instead of fragmenting the site.
                 locationLat = LocationMatch.quantize(latitude),

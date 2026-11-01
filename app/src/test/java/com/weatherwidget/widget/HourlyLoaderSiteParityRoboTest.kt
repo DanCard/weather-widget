@@ -2,7 +2,6 @@ package com.weatherwidget.widget
 
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.data.local.HourlyForecastEntity
-import com.weatherwidget.data.local.HourlyForecastHistoryEntity
 import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
@@ -102,7 +101,7 @@ class HourlyLoaderSiteParityRoboTest : RobolectricTest() {
         )
 
     private fun history(lat: Double, lon: Double, offset: Long, temp: Float, fetchedAt: Long) =
-        HourlyForecastHistoryEntity(
+        HourlyForecastEntity(
             dateTime = hourMs(offset),
             locationLat = lat,
             locationLon = lon,

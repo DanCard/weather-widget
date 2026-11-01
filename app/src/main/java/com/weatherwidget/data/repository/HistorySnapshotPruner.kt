@@ -4,7 +4,7 @@ import android.os.SystemClock
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.HistorySnapshotRetention
 import com.weatherwidget.data.local.HourlyForecastHistoryDao
-import com.weatherwidget.data.local.HourlyForecastHistoryEntity
+import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.log
 import java.time.Instant
 import java.time.ZoneId
@@ -80,7 +80,7 @@ internal class HistorySnapshotPruner(
     }
 }
 
-internal fun HourlyForecastHistoryEntity.toRetentionRow() = HistorySnapshotRetention.Row(
+internal fun HourlyForecastEntity.toRetentionRow() = HistorySnapshotRetention.Row(
     source = source,
     dateTime = dateTime,
     lat = locationLat,

@@ -26,7 +26,7 @@ interface HourlyForecastHistoryDao {
         lon: Double,
         source: String,
         timestampToGroupPredictions: Long,
-    ): List<HourlyForecastHistoryEntity>
+    ): List<HourlyForecastEntity>
 
     /**
      * Hourly forecasts for hours in [[startDateTime], [endDateTime]) captured within the snapshot
@@ -51,7 +51,7 @@ interface HourlyForecastHistoryDao {
         lat: Double,
         lon: Double,
         source: String,
-    ): List<HourlyForecastHistoryEntity>
+    ): List<HourlyForecastEntity>
 
     @Query(
         """
@@ -69,7 +69,7 @@ interface HourlyForecastHistoryDao {
         bucketEnd: Long,
         lat: Double,
         lon: Double,
-    ): List<HourlyForecastHistoryEntity>
+    ): List<HourlyForecastEntity>
 
     /**
      * Bucket-window history restricted to [sources]. Multi-source (not the single-source
@@ -98,7 +98,7 @@ interface HourlyForecastHistoryDao {
         lat: Double,
         lon: Double,
         sources: List<String>,
-    ): List<HourlyForecastHistoryEntity>
+    ): List<HourlyForecastEntity>
 
     /**
      * Every snapshot of every source in the range — no bucket window. Used by the frozen-rain-chance
@@ -118,7 +118,7 @@ interface HourlyForecastHistoryDao {
         endDateTime: Long,
         lat: Double,
         lon: Double,
-    ): List<HourlyForecastHistoryEntity>
+    ): List<HourlyForecastEntity>
 
     /**
      * Day-ago cloud predictions for the window, as top-of-hour epoch ms -> percent. Backs the cloud
@@ -143,7 +143,7 @@ interface HourlyForecastHistoryDao {
         lat: Double,
         lon: Double,
         priorSource: String = com.weatherwidget.shared.graph.PriorDayCloudForecast.SOURCE_ID,
-    ): List<HourlyForecastHistoryEntity>
+    ): List<HourlyForecastEntity>
 
     /**
      * Same-site collapse before the map is built: the coarse box can gather a jitter fragment or a
@@ -204,7 +204,7 @@ interface HourlyForecastHistoryDao {
         lat: Double,
         lon: Double,
         source: String,
-    ): List<HourlyForecastHistoryEntity>
+    ): List<HourlyForecastEntity>
 
     /**
      * This site's snapshots only ([com.weatherwidget.shared.graph.PriorDayBandForecast.selectAtSite],
@@ -243,15 +243,15 @@ interface HourlyForecastHistoryDao {
         )
 
 
-    @Insert(entity = HourlyForecastEntity::class, onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAll(history: List<HourlyForecastHistoryEntity>)
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(history: List<HourlyForecastEntity>)
 
     @Query("DELETE FROM hourly_forecasts WHERE dateTime < :cutoffTime OR fetchedAt < :cutoffTime")
     suspend fun deleteOldHistory(cutoffTime: Long)
 
     /** Every snapshot of every hour in [startDateTime, endDateTime), all sites and sources: the prune's day chunk. */
     @Query("SELECT * FROM hourly_forecasts WHERE dateTime >= :startDateTime AND dateTime < :endDateTime")
-    suspend fun getAllInDateTimeRange(startDateTime: Long, endDateTime: Long): List<HourlyForecastHistoryEntity>
+    suspend fun getAllInDateTimeRange(startDateTime: Long, endDateTime: Long): List<HourlyForecastEntity>
 
     /** Hour range of snapshots fetched at or after [sinceFetchedAt] (0 = every row). */
     @Query("SELECT MIN(dateTime) FROM hourly_forecasts WHERE fetchedAt >= :sinceFetchedAt")
@@ -260,13 +260,7 @@ interface HourlyForecastHistoryDao {
     @Query("SELECT MAX(dateTime) FROM hourly_forecasts WHERE fetchedAt >= :sinceFetchedAt")
     suspend fun maxDateTime(sinceFetchedAt: Long = 0L): Long?
 
-    /**
-     * Deletes by primary key. Through [HourlyRowKey], never the row itself: Room would match a
-     * key-less class on every column, and `= NULL` matches nothing, so no row with an empty field
-     * could ever be pruned.
-     */
-    @androidx.room.Delete(entity = HourlyForecastEntity::class)
-    suspend fun deleteKeys(keys: List<HourlyRowKey>)
-
-    suspend fun deleteRows(rows: List<HourlyForecastHistoryEntity>) = deleteKeys(rows.map { it.key() })
+    /** Deletes by primary key. */
+    @androidx.room.Delete
+    suspend fun deleteRows(rows: List<HourlyForecastEntity>)
 }

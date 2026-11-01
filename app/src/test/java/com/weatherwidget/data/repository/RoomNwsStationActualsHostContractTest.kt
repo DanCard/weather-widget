@@ -1,7 +1,6 @@
 package com.weatherwidget.data.repository
 
 import com.weatherwidget.data.local.HourlyForecastEntity
-import com.weatherwidget.data.local.HourlyForecastHistoryEntity
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.HourlyForecast
@@ -52,7 +51,7 @@ class RoomNwsStationActualsHostContractTest : NwsStationActualsHostContract() {
         override fun hourlyHistory(row: HourlyForecast, snapshotBucketMs: Long) = runBlocking {
             db.hourlyForecastHistoryDao().insertAll(
                 listOf(
-                    HourlyForecastHistoryEntity(
+                    HourlyForecastEntity(
                         dateTime = row.dateTime, locationLat = row.locationLat!!, locationLon = row.locationLon!!,
                         temperature = row.temperature, condition = row.condition, source = row.source!!,
                         timestampToGroupPredictions = snapshotBucketMs, fetchedAt = row.fetchedAt,

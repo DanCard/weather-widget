@@ -8,7 +8,6 @@ import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.remote.HourlyOnDemand
 import com.weatherwidget.data.local.HourlyForecastHistoryDao
-import com.weatherwidget.data.local.HourlyForecastHistoryEntity
 import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.model.ElapsedForecastBackfill
@@ -211,7 +210,7 @@ internal class RoomElapsedHistoryStore(
     override suspend fun insert(rows: List<HourlyForecast>) {
         dao.insertAll(
             rows.map {
-                HourlyForecastHistoryEntity(
+                HourlyForecastEntity(
                     dateTime = it.dateTime,
                     locationLat = keyLat,
                     locationLon = keyLon,

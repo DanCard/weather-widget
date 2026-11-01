@@ -24,8 +24,7 @@ platform capabilities.
 
 Examples include:
 
-- `ForecastPersistRun`: ordered live-hourly, snapshot, elapsed-backfill, and daily-row persistence.
-- `HourlySnapshotRun`: the fetch-time label each fetch's history snapshot is saved under.
+- `ForecastPersistRun`: ordered hourly, elapsed-backfill, and daily-row persistence.
 - `CurrentConditionsRun` and `CurrentTempRun`: observation/current-temperature behavior.
 - `ObservationWriteRun`: every `observations` write — own `fetchedAt`, station-type re-tag on every api,
   personal stations thinned to one row per 10 minutes over the stored window (plus each station's
@@ -59,8 +58,8 @@ Important persisted concepts are:
 
 - `forecasts`: daily forecasts from every retained fetch, including far-day summaries and confirmation
   timestamps used to distinguish stable forecasts from newly observed rows.
-- `hourly_forecasts`: current live hourly series used by graphs and interpolation.
-- `hourly_forecast_history`: forecast snapshots for evolution, prior-day comparisons, and accuracy.
+- `hourly_forecasts`: the one hourly table. Every fetch appends its hours under its fetch time and never
+  changes an earlier fetch's row. `SettledForecastPick` decides which row stands for an hour.
 - `observations`: station/provider observations with provenance and quality metadata.
 - `daily_history`: settled daily actuals, frozen forecast comparisons, and source/writer provenance.
   Keyed on the rounded site (`DailyHistoryKey`, `LocationMatch.quantize`) on both platforms.
@@ -90,8 +89,8 @@ At a high level:
 
 1. Resolve the active site and determine which sources/products are due or explicitly targeted.
 2. Fetch provider data, preserving partial products where policy allows and recording quota failures.
-3. Persist each source through `ForecastPersistRun`: live hourly first, then the history snapshot
-   and elapsed backfill, then daily rows and whole-download daily summaries.
+3. Persist each source through `ForecastPersistRun`: hourly rows first, then
+   elapsed backfill, then daily rows and whole-download daily summaries.
 4. Refresh observations/current conditions and perform due history maintenance through shared runners.
 5. Repaint from stored state. UI interactions read cached data immediately and request network work
    only when the relevant policy says it is due.

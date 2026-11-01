@@ -126,7 +126,7 @@ internal class HourlyForecastLoader(
 
         private fun stitch(
             current: List<HourlyForecastEntity>,
-            history: List<com.weatherwidget.data.local.HourlyForecastHistoryEntity>,
+            history: List<com.weatherwidget.data.local.HourlyForecastEntity>,
             nowMs: Long,
             lat: Double,
             lon: Double,
