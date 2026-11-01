@@ -95,14 +95,29 @@ class DailyHeaderRainLabelTapIntegrationTest : IsolatedIntegrationTest("daily_he
     fun tappingRainLabel_onPhoneWidgetWithDelta_opensRainGraph() =
         assertRainLabelOpensRainGraph(widthDp = PHONE_WIDTH_DP, heightDp = PHONE_HEIGHT_DP, deltaFromYesterday = 2.2f)
 
+    /**
+     * No current temperature, but the icon is still painted before the %. Hiding the zone that holds
+     * the icon shifted the rain zone left of its label (painted x=145-225, zone x=10-121), so the
+     * tap fell through to widget_root. plans/261101-migrations-sqlite-compat-below-api-34.md found
+     * this as a flake: the provider's render has no temperature in this test's empty database.
+     */
+    @Test
+    fun tappingRainLabel_onWideWidgetWithoutCurrentTemp_opensRainGraph() =
+        assertRainLabelOpensRainGraph(FOLD_WIDTH_DP, FOLD_HEIGHT_DP, deltaFromYesterday = null, withCurrentTemp = false)
+
+    @Test
+    fun tappingRainLabel_onPhoneWidgetWithoutCurrentTemp_opensRainGraph() =
+        assertRainLabelOpensRainGraph(PHONE_WIDTH_DP, PHONE_HEIGHT_DP, deltaFromYesterday = null, withCurrentTemp = false)
+
     private fun assertRainLabelOpensRainGraph(
         widthDp: Int,
         heightDp: Int,
         deltaFromYesterday: Float?,
+        withCurrentTemp: Boolean = true,
     ) = runBlocking {
         val hostView = bindWidget(widthDp, heightDp)
         val instrumentation = InstrumentationRegistry.getInstrumentation()
-        val tap = awaitPaintedRainLabel(hostView, widthDp, heightDp, deltaFromYesterday)
+        val tap = awaitPaintedRainLabel(hostView, widthDp, heightDp, deltaFromYesterday, withCurrentTemp)
         Log.d(TAG, "widthDp=$widthDp delta=$deltaFromYesterday $tap")
 
         tap.hits.forEach { (x, hit) ->
@@ -163,19 +178,28 @@ class DailyHeaderRainLabelTapIntegrationTest : IsolatedIntegrationTest("daily_he
         return hostView
     }
 
-    /** Pushes the daily render and returns the first complete layout showing the rain label. */
+    /**
+     * Returns the first complete layout showing the rain label in the requested render.
+     *
+     * With [withCurrentTemp], pushes the test's own render, which always has a temperature, until it
+     * is on screen: the provider's first paint also shows the label and a push can take longer than
+     * [PUSH_SETTLE_MS] to arrive, so the label alone does not say which render this is. Without it,
+     * inspects the provider's own render, which has no temperature because the test database has no
+     * observations.
+     */
     private suspend fun awaitPaintedRainLabel(
         hostView: AppWidgetHostView,
         widthDp: Int,
         heightDp: Int,
         deltaFromYesterday: Float?,
+        withCurrentTemp: Boolean,
     ): LabelTaps {
         val density = context.resources.displayMetrics.density
         val widthPx = (widthDp * density).roundToInt()
         val heightPx = (heightDp * density).roundToInt()
         val deadline = System.currentTimeMillis() + PAINT_TIMEOUT_MS
         while (System.currentTimeMillis() < deadline) {
-            pushDailyRender(deltaFromYesterday)
+            if (withCurrentTemp) pushDailyRender(deltaFromYesterday)
             delay(PUSH_SETTLE_MS)
             var taps: LabelTaps? = null
             InstrumentationRegistry.getInstrumentation().runOnMainSync {
@@ -184,7 +208,12 @@ class DailyHeaderRainLabelTapIntegrationTest : IsolatedIntegrationTest("daily_he
                     View.MeasureSpec.makeMeasureSpec(heightPx, View.MeasureSpec.EXACTLY),
                 )
                 hostView.layout(0, 0, widthPx, heightPx)
-                taps = hostView.findViewById<View>(R.id.widget_root)?.let(::labelTaps)
+                taps = hostView.findViewById<View>(R.id.widget_root)
+                    ?.takeIf { root ->
+                        // The painted header leaves its text views INVISIBLE; GONE means no temperature.
+                        (root.findViewById<View>(R.id.current_temp).visibility != View.GONE) == withCurrentTemp
+                    }
+                    ?.let(::labelTaps)
             }
             taps?.let { return it }
         }

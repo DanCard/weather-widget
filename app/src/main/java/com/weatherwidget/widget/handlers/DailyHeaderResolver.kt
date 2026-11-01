@@ -370,6 +370,9 @@ internal object DailyHeaderResolver {
                 isDeltaVisible = state.deltaVisible,
                 isPrecipVisible = state.isPrecipVisible,
             )
+            // The icon is painted with or without a temperature and its touch view lives in this
+            // zone. Left GONE, the row collapses and the rain zone sits left of its painted label.
+            if (state.fit.showIcon) views.setViewVisibility(R.id.current_temp_zone, View.VISIBLE)
         }
     }
 }
