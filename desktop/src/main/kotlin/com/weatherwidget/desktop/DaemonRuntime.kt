@@ -370,7 +370,7 @@ internal class DaemonRuntime(
                         if (isScreenWakeSignalLine(line)) {
                             onPresenceTransition(presence.markPresent("unblank"))
                             kickObservationCatchUp("screensaver:wake")
-                            // Screen on shortens the forecast cadence (8 h → 4 h).
+                            // Screen on shortens the forecast cadence (8 h → 4 h, 2 h charging).
                             wakeForecastLoop("screen")
                         }
                     }

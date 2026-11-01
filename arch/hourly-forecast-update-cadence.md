@@ -12,7 +12,8 @@ for the source's full supported horizon; there is no shorter three-day forecast 
 
 | Power | Screen | Fetch interval |
 |---|---|---|
-| Charging or battery ≥ 70% | On | 4 hours |
+| Charging | On | 2 hours |
+| Battery ≥ 70%, not charging | On | 4 hours |
 | Charging or battery ≥ 70% | Off | 8 hours |
 | Battery < 70% | On or off | 24 hours |
 
@@ -24,10 +25,10 @@ for the source's full supported horizon; there is no shorter three-day forecast 
 - On a charger, a forecast also comes due 45 minutes before the device is predicted to leave the
   charger (see [pre-unplug fetch](#pre-unplug-fetch)), and the overnight fetch that would be overwritten
   first is skipped.
-- On a charger, the screen coming on fetches a displayed source's forecast when the 4-hour screen-on
+- On a charger, the screen coming on fetches a displayed source's forecast when the 2-hour screen-on
   interval makes it due (`ForecastHorizonCadence.screenOnCatchUp`; Android `ScreenOnReceiver`,
-  `SCREEN_ON_FORECAST`). The desktop forecast loop re-plans on every screen wake, which has the same
-  effect.
+  `SCREEN_ON_FORECAST`), and otherwise moves the next wake to that due time. The desktop forecast loop
+  re-plans on every screen wake, which has the same effect.
 - `SourceFetchGate` excludes sources not viewed recently from routine background work. Targeted user
   actions and on-demand hourly requests are separate from this background gate.
 
@@ -77,7 +78,8 @@ forecast interval — a backstop for a planner bug, not a poll).
   while that work is running). With none pending (after an install or upgrade), a current-temp run plans
   one (`trigger=missing`). The periodic worker is a 24-hour backstop (`periodic_1440m`). A battery
   screen-on only brings the due-time sync forward to the 4-hour screen-on due time
-  (`SCREEN_ON_FORECAST outcome=replanned`); a charging screen-on fetches when due.
+  (`SCREEN_ON_FORECAST outcome=replanned`); a charging screen-on fetches when due, else brings it
+  forward to the 2-hour due time.
 - Duties that ride a full sync (NWS gap fill, daily-history upkeep, snapshot prune) are once-a-day or
   idempotent and run on the next fetch; the battery location floor stays in the 45-minute
   opportunistic job, which still runs when it no longer fetches.

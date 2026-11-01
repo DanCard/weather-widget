@@ -83,6 +83,19 @@ class DueWakeSchedulingTest {
     }
 
     @Test
+    fun `charging screen-on with nothing due moves the due time to the 2 h interval`() {
+        val manager = WidgetStateManager(context)
+        manager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO))
+        val displayed = manager.getActiveDisplaySourceIds().single()
+        val lat = 37.42
+        val lon = -122.08
+        val now = 1_800_000_000_000L
+        manager.markLongFetch(displayed, lat, lon, now - hour)
+        val dueAt = ScreenOnReceiver.screenOnForecastDueAtMs(manager, lat, lon, now, batteryLevel = 40, isCharging = true)!!
+        assertTrue("≈ 1 h out (2 h after the fetch), not 7 h", dueAt in now + hour - 3 * minute..now + hour)
+    }
+
+    @Test
     fun `the current-temp loop plans a due-time sync only when none is pending`() = kotlinx.coroutines.runBlocking {
         ActiveLocationResolver.persist(context, 37.42, -122.08)
         val repo = io.mockk.mockk<com.weatherwidget.data.repository.WeatherRepository>(relaxed = true)

@@ -32,10 +32,10 @@ class ForecastHorizonCadenceTest {
     }
 
     @Test
-    fun `charging screen-on fetches a forecast past the 4 h screen-on interval, battery never`() {
-        assertTrue(ForecastHorizonCadence.screenOnCatchUp(isCharging = true, lastFetchMs = now - 5 * hour, nowMs = now))
+    fun `charging screen-on fetches a forecast past the 2 h screen-on interval, battery never`() {
+        assertTrue(ForecastHorizonCadence.screenOnCatchUp(isCharging = true, lastFetchMs = now - 2 * hour, nowMs = now))
         assertTrue(ForecastHorizonCadence.screenOnCatchUp(isCharging = true, lastFetchMs = null, nowMs = now))
-        assertFalse(ForecastHorizonCadence.screenOnCatchUp(isCharging = true, lastFetchMs = now - 3 * hour, nowMs = now))
+        assertFalse(ForecastHorizonCadence.screenOnCatchUp(isCharging = true, lastFetchMs = now - hour, nowMs = now))
         assertFalse(ForecastHorizonCadence.screenOnCatchUp(isCharging = false, lastFetchMs = now - 9 * hour, nowMs = now))
     }
 
@@ -58,7 +58,20 @@ class ForecastHorizonCadenceTest {
     @Test
     fun `charging counts as high whatever the level`() {
         assertTrue(ForecastHorizonCadence.isHighBattery(true, 15))
-        assertEquals(4, ForecastHorizonCadence.intervalHours(true, 15, true))
+        assertEquals(2, ForecastHorizonCadence.intervalHours(true, 15, true))
+    }
+
+    @Test
+    fun `2 h takes both charging and the screen on, not either alone`() {
+        assertEquals(2, ForecastHorizonCadence.intervalHours(true, 100, isScreenOn = true))
+        assertEquals("charging, screen off", 8, ForecastHorizonCadence.intervalHours(true, 100, isScreenOn = false))
+        assertEquals("full battery, unplugged", 4, ForecastHorizonCadence.intervalHours(false, 100, isScreenOn = true))
+    }
+
+    @Test
+    fun `charging screen-on due time is the 2 h interval`() {
+        assertEquals(now - hour + 2 * hour - ForecastHorizonCadence.DUE_GRACE_MS,
+            ForecastHorizonCadence.screenOnDueAtMs(isCharging = true, batteryLevel = 85, lastFetchMs = now - hour, nowMs = now))
     }
 
     @Test

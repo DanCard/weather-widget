@@ -218,7 +218,7 @@ class DailySummaryStorageIntegrationTest : RobolectricTest() {
         )
     }
 
-    /** A routine fetch on a charger with the screen on: LONG, due every 4 h. */
+    /** A routine fetch on a charger with the screen on: LONG, due every 2 h. */
     private val routineContext = ForecastFetchContext(
         isCharging = true,
         isScreenInteractive = true,

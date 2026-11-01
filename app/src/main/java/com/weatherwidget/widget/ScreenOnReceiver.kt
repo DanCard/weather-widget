@@ -310,13 +310,13 @@ class ScreenOnReceiver : BroadcastReceiver() {
     }
 
     /**
-     * The screen came on: the forecast interval is the screen-on one now (4 h). On a charger a displayed
-     * source past it fetches now ([ForecastHorizonCadence.screenOnCatchUp]) — free power and a user
-     * looking; this replaced the bare-alarm pre-wake guess (plans/261028-learned-unplug-prediction.md).
-     * On battery it only moves the due-time sync to when the shorter interval comes due
-     * ([ForecastHorizonCadence.screenOnDueAtMs]), as the hourly tick used to notice
-     * (plans/261028-screen-off-cadence-and-due-time-wakes.md). KEEP / the due-wake policy: a running sync
-     * is never cancelled, and it decides each source the same way.
+     * The screen came on: the forecast interval is the screen-on one now (2 h charging, 4 h on battery).
+     * On a charger a displayed source past it fetches now ([ForecastHorizonCadence.screenOnCatchUp]) — free
+     * power and a user looking; this replaced the bare-alarm pre-wake guess
+     * (plans/261028-learned-unplug-prediction.md). Otherwise it only moves the due-time sync to when the
+     * shorter interval comes due ([ForecastHorizonCadence.screenOnDueAtMs]), as the hourly tick used to
+     * notice (plans/261028-screen-off-cadence-and-due-time-wakes.md). KEEP / the due-wake policy: a running
+     * sync is never cancelled, and it decides each source the same way.
      */
     private fun startForecastCatchUp(context: Context) {
         val battery = getBatteryState(context)
@@ -327,17 +327,20 @@ class ScreenOnReceiver : BroadcastReceiver() {
             try {
                 val location = ActiveLocationResolver.current(context) ?: return@launch
                 val stateManager = WidgetStateManager(context.applicationContext)
-                val line = if (battery.isCharging) {
-                    val due = chargingForecastCatchUpSources(stateManager, location.first, location.second, nowMs)
-                    if (due.isEmpty()) return@launch
+                val due = if (battery.isCharging) {
+                    chargingForecastCatchUpSources(stateManager, location.first, location.second, nowMs)
+                } else {
+                    emptyList()
+                }
+                val line = if (due.isNotEmpty()) {
                     WidgetWorkScheduler.enqueueRedundantImmediateSync(context, forceRefresh = false, reason = "charging_screen_on_forecast")
                     "outcome=sync_enqueued due=${due.joinToString(",")}"
                 } else {
-                    val dueAt = screenOnForecastDueAtMs(stateManager, location.first, location.second, nowMs, battery.batteryLevel)
+                    val dueAt = screenOnForecastDueAtMs(stateManager, location.first, location.second, nowMs, battery.batteryLevel, battery.isCharging)
                         ?: return@launch
                     val delayMs = (dueAt - nowMs).coerceAtLeast(0L)
                     WidgetWorkScheduler.enqueueDueWakeSync(context, delayMs, onlyIfEarlier = true) ?: return@launch
-                    "outcome=replanned battery=${battery.batteryLevel} delayMin=${delayMs / 60_000L}"
+                    "outcome=replanned battery=${battery.batteryLevel} charging=${battery.isCharging} delayMin=${delayMs / 60_000L}"
                 }
                 WeatherDatabase.getDatabase(context).appLogDao().log("SCREEN_ON_FORECAST", line, "INFO")
             } catch (e: Exception) {
@@ -468,11 +471,18 @@ class ScreenOnReceiver : BroadcastReceiver() {
             displayedSourceIds(stateManager, nowMs)
                 .filter { ForecastHorizonCadence.screenOnCatchUp(true, stateManager.getLastLongFetch(it, lat, lon), nowMs) }
 
-        /** The earliest screen-on due time across displayed sources on battery; null when none is displayed. */
+        /** The earliest screen-on due time across displayed sources; null when none is displayed. */
         @VisibleForTesting
-        internal fun screenOnForecastDueAtMs(stateManager: WidgetStateManager, lat: Double, lon: Double, nowMs: Long, batteryLevel: Int): Long? =
+        internal fun screenOnForecastDueAtMs(
+            stateManager: WidgetStateManager,
+            lat: Double,
+            lon: Double,
+            nowMs: Long,
+            batteryLevel: Int,
+            isCharging: Boolean = false,
+        ): Long? =
             displayedSourceIds(stateManager, nowMs)
-                .minOfOrNull { ForecastHorizonCadence.screenOnDueAtMs(false, batteryLevel, stateManager.getLastLongFetch(it, lat, lon), nowMs) }
+                .minOfOrNull { ForecastHorizonCadence.screenOnDueAtMs(isCharging, batteryLevel, stateManager.getLastLongFetch(it, lat, lon), nowMs) }
 
 
         /**
