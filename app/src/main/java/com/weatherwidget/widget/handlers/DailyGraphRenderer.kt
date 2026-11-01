@@ -311,11 +311,17 @@ internal object DailyGraphRenderer {
         val renderMs = SystemClock.elapsedRealtime() - renderStartMs
         ctx.views.setImageViewBitmap(R.id.graph_view, bitmap)
 
-        ctx.views.setViewVisibility(R.id.current_temp, View.INVISIBLE)
-        ctx.views.setViewVisibility(R.id.current_temp_delta, View.INVISIBLE)
-        ctx.views.setViewVisibility(R.id.current_temp_delta_label, View.INVISIBLE)
-        ctx.views.setViewVisibility(R.id.precip_probability, View.INVISIBLE)
-        ctx.views.setViewVisibility(R.id.weather_icon, View.INVISIBLE)
+        // The bitmap draws the header; these views only size the tap zones laid over it. INVISIBLE
+        // keeps a view's width, so one the bitmap did not paint must be GONE: an empty delta slot
+        // pushed the rain zone off the painted % and tapping it opened the temperature graph.
+        val painted = renderResult.paintedHeader
+        fun holdSlotIf(viewId: Int, isPainted: Boolean?) =
+            ctx.views.setViewVisibility(viewId, if (isPainted == true) View.INVISIBLE else View.GONE)
+        holdSlotIf(R.id.current_temp, painted?.temp)
+        holdSlotIf(R.id.current_temp_delta, painted?.delta)
+        holdSlotIf(R.id.current_temp_delta_label, painted?.deltaLabel)
+        holdSlotIf(R.id.precip_probability, painted?.rain)
+        holdSlotIf(R.id.weather_icon, painted?.icon)
         ctx.views.setViewVisibility(R.id.api_source, View.INVISIBLE)
         ctx.views.setViewVisibility(R.id.settings_icon, View.INVISIBLE)
         ctx.views.setViewVisibility(R.id.header_date_center, View.GONE)

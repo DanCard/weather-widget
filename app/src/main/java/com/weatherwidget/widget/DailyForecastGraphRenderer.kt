@@ -71,6 +71,20 @@ object DailyForecastGraphRenderer {
         val bitmap: Bitmap,
         val rainLabelPlacements: List<DailyRainLabelPlacement>,
         val todayOverlayPlacements: List<TodayOverlayPlacementDebug> = emptyList(),
+        /** Null when no header was painted (no header data, or no days to draw). */
+        val paintedHeader: PaintedHeaderCluster? = null,
+    )
+
+    /**
+     * The left-cluster pieces the bitmap header actually painted. The RemoteViews row under it must
+     * reserve width for exactly these, or its tap zones drift off the painted text.
+     */
+    data class PaintedHeaderCluster(
+        val icon: Boolean,
+        val temp: Boolean,
+        val delta: Boolean,
+        val deltaLabel: Boolean,
+        val rain: Boolean,
     )
 
     data class TodayOverlayRenderData(
@@ -444,6 +458,7 @@ object DailyForecastGraphRenderer {
             bitmap,
             rainLabelPlacements.toList(),
             todayOverlayPlacements,
+            finalHeaderData?.let { DailyForecastHeaderRenderer.resolvePaintedCluster(it, widthPx, layout) },
         )
     }
 

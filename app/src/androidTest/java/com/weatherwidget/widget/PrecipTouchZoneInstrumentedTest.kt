@@ -1,149 +1,76 @@
 package com.weatherwidget.widget
 
-import android.app.PendingIntent
-import android.appwidget.AppWidgetManager
 import android.content.Context
-import android.content.Intent
+import android.view.View
+import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.RemoteViews
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.weatherwidget.R
-import com.weatherwidget.widget.WidgetActions
+import com.weatherwidget.widget.handlers.HeaderTapTargetHelper
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Instrumented tests for precipitation probability touch zone.
- *
- * These tests verify that the expanded touch area for the % rain chance
- * is properly configured in RemoteViews with the correct PendingIntent.
+ * The rain % tap target on real RemoteViews. Which graph a tap on the painted daily label opens is
+ * DailyHeaderRainLabelTapIntegrationTest.
  */
 @RunWith(AndroidJUnit4::class)
 class PrecipTouchZoneInstrumentedTest {
 
     private lateinit var context: Context
-    private lateinit var appWidgetManager: AppWidgetManager
 
     @Before
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
-        appWidgetManager = AppWidgetManager.getInstance(context)
     }
 
-    @Test
-    fun precipProbability_andPrecipTouchZone_haveSamePendingIntent() {
-        // This test verifies that both R.id.precip_probability and R.id.precip_touch_zone
-        // are wired with the same PendingIntent action
+    private fun applied(views: RemoteViews): View = views.apply(context, FrameLayout(context))
 
-        // Create a RemoteViews instance for the widget
+    @Test
+    fun bindPrecipitationHeader_wiresBothTheLabelAndItsTouchZone() {
         val views = RemoteViews(context.packageName, R.layout.widget_weather)
 
-        // Create the precip toggle intent (same as used in handlers)
-        val precipIntent = Intent(context, WidgetActionReceiver::class.java).apply {
-            action = WidgetActions.ACTION_TOGGLE_PRECIP
-            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, TEST_WIDGET_ID)
-        }
+        HeaderTapTargetHelper.bindPrecipitationHeader(context, views, TEST_WIDGET_ID)
 
-        val precipPendingIntent = PendingIntent.getBroadcast(
-            context,
-            TEST_WIDGET_ID * 2 + 300,
-            precipIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        // Apply the PendingIntent to both views (as done in handlers)
-        views.setOnClickPendingIntent(R.id.precip_probability, precipPendingIntent)
-        views.setOnClickPendingIntent(R.id.precip_touch_zone, precipPendingIntent)
-
-        // Verify the views exist (if this doesn't throw, the IDs are valid)
-        assertNotNull("precip_probability view ID should exist", R.id.precip_probability)
-        assertNotNull("precip_touch_zone view ID should exist", R.id.precip_touch_zone)
-
-        // Verify the intent action is correct
-        assertEquals(
-            "Intent action should be WidgetActions.ACTION_TOGGLE_PRECIP",
-            WidgetActions.ACTION_TOGGLE_PRECIP,
-            precipIntent.action
-        )
+        val root = applied(views)
+        assertTrue(root.findViewById<View>(R.id.precip_probability).hasOnClickListeners())
+        assertTrue(root.findViewById<View>(R.id.precip_touch_zone).hasOnClickListeners())
     }
 
     @Test
-    fun precipTouchZone_layoutParams_areCorrect() {
-        // Verify the layout resource contains the expected touch zone configuration
-        // by checking that the ID exists and is different from other view IDs
+    fun unboundLayout_hasNoRainTapTarget() {
+        val root = applied(RemoteViews(context.packageName, R.layout.widget_weather))
 
-        val precipTouchZoneId = R.id.precip_touch_zone
-        val precipProbabilityId = R.id.precip_probability
-        val currentTempZoneId = R.id.current_temp_zone
-        val topRightHeaderContainerId = R.id.top_right_header_container
-
-        // All these IDs should exist and be unique
-        assertNotNull("precip_touch_zone ID should exist", precipTouchZoneId)
-        assertNotNull("precip_probability ID should exist", precipProbabilityId)
-        assertNotNull("current_temp_zone ID should exist", currentTempZoneId)
-        assertNotNull("top_right_header_container ID should exist", topRightHeaderContainerId)
-
-        // They should all be different IDs
-        assertEquals(
-            "precip_touch_zone and precip_probability should be different IDs",
-            false,
-            precipTouchZoneId == precipProbabilityId
-        )
-
-        assertEquals(
-            "precip_touch_zone and current_temp_zone should be different IDs",
-            false,
-            precipTouchZoneId == currentTempZoneId
-        )
-
-        assertEquals(
-            "precip_touch_zone and top_right_header_container should be different IDs",
-            false,
-            precipTouchZoneId == topRightHeaderContainerId
-        )
+        assertFalse(root.findViewById<View>(R.id.precip_touch_zone).hasOnClickListeners())
     }
 
     @Test
-    fun allViewHandlers_wirePrecipTouchZone() {
-        // Verify that DailyViewHandler, TemperatureViewHandler, and PrecipViewHandler
-        // all have access to the required IDs to wire up the touch zone
+    fun setPrecipitationTouchZoneVisible_followsTheRequest() {
+        val views = RemoteViews(context.packageName, R.layout.widget_weather)
 
-        // This is a compile-time check - if the IDs exist, the handlers can use them
-        val requiredIds = listOf(
-            R.id.precip_probability,
-            R.id.precip_touch_zone,
-            R.id.current_temp,
-            R.id.current_temp_zone
-        )
+        HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, true)
+        assertEquals(View.VISIBLE, applied(views).findViewById<View>(R.id.precip_touch_zone).visibility)
 
-        requiredIds.forEach { id ->
-            assertNotNull("Required view ID should exist", id)
-            assertEquals("ID should be non-zero", true, id != 0)
-        }
+        HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, false)
+        assertEquals(View.GONE, applied(views).findViewById<View>(R.id.precip_touch_zone).visibility)
     }
 
     @Test
-    fun navigationIntent_hasCorrectExtras() {
-        // Verify the intent structure used for precipitation navigation
-        val intent = Intent(context, WidgetActionReceiver::class.java).apply {
-            action = WidgetActions.ACTION_TOGGLE_PRECIP
-            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, TEST_WIDGET_ID)
-        }
+    fun rainZone_followsTheTemperatureZoneInTheHeaderRow() {
+        val root = applied(RemoteViews(context.packageName, R.layout.widget_weather))
+        val row = root.findViewById<ViewGroup>(R.id.current_weather_container)
 
-        assertEquals(
-            "Intent should have WidgetActions.ACTION_TOGGLE_PRECIP action",
-            WidgetActions.ACTION_TOGGLE_PRECIP,
-            intent.action
-        )
+        val tempZone = row.indexOfChild(root.findViewById(R.id.current_temp_zone))
+        val rainZone = row.indexOfChild(root.findViewById(R.id.precip_touch_zone))
 
-        assertEquals(
-            "Intent should have widget ID extra",
-            TEST_WIDGET_ID,
-            intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1)
-        )
+        assertTrue("both zones must be children of the header row", tempZone >= 0 && rainZone >= 0)
+        assertTrue("rain zone ($rainZone) must follow temp zone ($tempZone)", rainZone > tempZone)
     }
 
     companion object {

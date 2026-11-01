@@ -190,6 +190,25 @@ internal object DailyForecastHeaderRenderer {
         }
     }
 
+    /** What [drawHeader] paints in the left cluster, by the same conditions and contention. */
+    internal fun resolvePaintedCluster(
+        header: DailyForecastGraphRenderer.HeaderRenderData,
+        widthPx: Int,
+        layout: DailyGraphLayoutInfo,
+    ): DailyForecastGraphRenderer.PaintedHeaderCluster {
+        val labelScale = layout.bitmapScale.coerceAtMost(1f) * header.headerScale
+        val paints = getHeaderPaintSet(header, labelScale, layout.density)
+        val contention = computeHeaderLayout(header, widthPx, layout, paints).contention
+        val delta = header.showDelta && !header.deltaText.isNullOrBlank()
+        return DailyForecastGraphRenderer.PaintedHeaderCluster(
+            icon = header.showIcon && header.iconRes != null && header.iconRes != 0,
+            temp = !header.currentTempText.isNullOrBlank(),
+            delta = delta,
+            deltaLabel = delta && !header.deltaLabelText.isNullOrBlank() && contention.showDeltaLabel,
+            rain = header.showPrecip && !header.precipText.isNullOrBlank(),
+        )
+    }
+
     internal fun resolveHeaderDateBounds(
         header: DailyForecastGraphRenderer.HeaderRenderData,
         widthPx: Int,
