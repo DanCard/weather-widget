@@ -200,6 +200,12 @@ class DesktopWeatherRepository(
         )
     }
 
+    /** The source this repository serves, as [ForecastSnapshot.sourceId] states it. */
+    val sourceId: String get() = displaySource.id
+
+    /** This source with nothing stored ([loadCached] returned null): the popup says so, see [DesktopSourceWait]. */
+    fun emptySnapshot() = ForecastSnapshot(sourceId = displaySource.id, raw = RawFetch(), resolved = ResolvedView())
+
     suspend fun loadCached(now: Long = currentTimeMillis()): ForecastSnapshot? = withContext(Dispatchers.IO) {
         // Cover the widest zoom-out (6 days back) so the continuous-zoom graph never truncates history.
         val stitchedStart = now - (DesktopGraphUtils.MAX_BACK_HOURS * 3600 * 1000L)

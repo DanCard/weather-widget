@@ -216,6 +216,7 @@ internal fun runDesktopUiApplication() = application {
         // "Getting weather for {place}…" over the cached graph while a picker save's fetch runs;
         // takes precedence over historyFetchToast in the popup's single banner slot.
         var locationBanner by remember { mutableStateOf<LocationBanner?>(null) }
+        var noDataSourceId by remember { mutableStateOf<String?>(null) }
         // While a picker save's fetch runs, a cache reload for the new site that can't draw today
         // (nothing cached, or two-week-old rows) must not replace the previous site's graph under
         // the banner with an empty one. Every reload path goes through this.
@@ -260,12 +261,29 @@ internal fun runDesktopUiApplication() = application {
         // live DB, so this is always current. rememberUpdatedState keeps the repository reference fresh
         // so a lambda captured once (e.g. in a LaunchedEffect(Unit) watcher) still sees the latest repo.
         val currentRepository = rememberUpdatedState(repository)
+        // The selected source has no rows here (loadCached returned null). Keeping the old snapshot
+        // would leave one source's forecast under another's name, for good if the fetch fails. Startup
+        // and location changes have their own screens. [fetchEnded]: without a cache the daemon always
+        // fetches and only notifies when that ends, so a notification with still no rows means it
+        // found none.
+        fun adoptEmptySource(repo: DesktopWeatherRepository, fetchEnded: Boolean) {
+            val current = forecast ?: return
+            if (pendingLocationLabel != null || locationBanner != null) return
+            val currentIsEmpty = current.raw.hourly.isEmpty() && current.raw.daily.isEmpty()
+            if (current.sourceId == repo.sourceId && !currentIsEmpty) return
+            if (current.sourceId != repo.sourceId) forecast = repo.emptySnapshot()
+            if (fetchEnded) noDataSourceId = repo.sourceId
+        }
         val reloadCachedForecast: (String) -> Unit = remember {
             fn@{ reason: String ->
                 val repo = currentRepository.value ?: return@fn
                 uiScope.launch {
                     try {
-                        repo.loadCached()?.takeUnless { holdForLocationChange(it) }?.let {
+                        val cached = repo.loadCached()
+                        if (cached == null) {
+                            adoptEmptySource(repo, fetchEnded = reason == "socket:push" || reason == "watch")
+                        }
+                        cached?.takeUnless { holdForLocationChange(it) }?.let {
                             forecast = it
                             // The daemon's own fetch for a just-picked site can land before the
                             // UI-side one: rows are here, so the interstitial (or the error it
@@ -474,7 +492,9 @@ internal fun runDesktopUiApplication() = application {
             val repo = repository ?: return@LaunchedEffect
             try {
                 Log.i(TAG, "Loading cached data...")
+                noDataSourceId = null
                 val cached = repo.loadCached()
+                if (cached == null) adoptEmptySource(repo, fetchEnded = false)
                 if (cached != null && !holdForLocationChange(cached)) {
                     forecast = cached
                     DesktopSourceSwitch.onDataShown(cached.sourceId)
@@ -1135,6 +1155,7 @@ internal fun runDesktopUiApplication() = application {
                 dataStatus = dataStatus,
                 resolvedCurrentTemp = resolvedCurrentTemp,
                 resolvedDeltaFromYesterday = resolvedDeltaFromYesterday,
+                noDataSourceId = noDataSourceId,
                 showRequestId = showRequestId,
                 icon = appIcon,
                 onClose = { popupVisible = false },

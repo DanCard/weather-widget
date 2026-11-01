@@ -73,6 +73,8 @@ internal fun WidgetPopup(
     dataStatus: DataStatus,
     resolvedCurrentTemp: Float? = null,
     resolvedDeltaFromYesterday: Float? = null,
+    /** The source whose fetch has ended with no rows here; see [DesktopSourceWait.NO_DATA]. */
+    noDataSourceId: String? = null,
     onUpdateLocation: () -> Unit,
     onUpdateConfig: (DesktopConfig) -> Unit,
     onOpenSettings: () -> Unit,
@@ -110,11 +112,38 @@ internal fun WidgetPopup(
                 // later. Anything drawn from the snapshot therefore uses snapshot.sourceId, never
                 // config's source: the mix found no forecast, which redrew the hourly graph without
                 // one and named a different station (the 2026-11-01 "aw020 66°" flash).
-                val snapshotIsSelectedSource =
-                    snapshot.sourceId == com.weatherwidget.data.model.WeatherSource.fromDisplaySource(config.displaySource).id
+                val selectedSource = com.weatherwidget.data.model.WeatherSource.fromDisplaySource(config.displaySource)
+                val snapshotIsSelectedSource = snapshot.sourceId == selectedSource.id
+                var loadIsSlow by remember(selectedSource, snapshot.sourceId) { mutableStateOf(false) }
+                LaunchedEffect(selectedSource, snapshot.sourceId) {
+                    if (!snapshotIsSelectedSource) {
+                        kotlinx.coroutines.delay(DesktopSourceWait.SLOW_LOAD_MS)
+                        loadIsSlow = true
+                    }
+                }
+                val sourceWait = DesktopSourceWait.resolve(
+                    snapshotIsSelectedSource = snapshotIsSelectedSource,
+                    loadIsSlow = loadIsSlow,
+                    snapshotIsEmpty = snapshot.raw.hourly.isEmpty() && snapshot.raw.daily.isEmpty(),
+                    fetchEndedEmpty = noDataSourceId == selectedSource.id,
+                )
+                LaunchedEffect(sourceWait, selectedSource) {
+                    if (sourceWait != null) {
+                        val line = "state=$sourceWait source=${selectedSource.id} snapshot=${snapshot.sourceId}"
+                        Log.i(TAG, "${DesktopSourceWait.LOG_TAG} $line")
+                        DesktopAppLogQueue.log(DesktopSourceWait.LOG_TAG, line, "INFO")
+                    }
+                }
+                // Once the graph is blanked the header must not keep the old source's rain and icon
+                // either, or its forecast would still sit under the new label.
+                val headerSnapshot = if (sourceWait != null) {
+                    ForecastSnapshot(selectedSource.id, com.weatherwidget.data.model.RawFetch(), com.weatherwidget.data.model.ResolvedView())
+                } else {
+                    snapshot
+                }
                 // One current temperature for the header and today's column: the published value,
                 // else the snapshot's own (startup / preview).
-                val displayCurrentTemp = resolvedCurrentTemp ?: snapshot.resolved.currentTemp
+                val displayCurrentTemp = resolvedCurrentTemp ?: headerSnapshot.resolved.currentTemp
                 // Published by the daily branch below from the days it actually renders. The header
                 // is composed before the daily surface measures itself, so this is reported upward
                 // rather than recomputed here: the daily column count depends on the graph area's
@@ -131,7 +160,7 @@ internal fun WidgetPopup(
                     Box(modifier = Modifier.fillMaxWidth().onSizeChanged { headerHeightPx = it.height.toFloat() }) {
                         WidgetHeader(
                             config = config,
-                            forecast = snapshot,
+                            forecast = headerSnapshot,
                             resolvedCurrentTemp = displayCurrentTemp,
                             resolvedDeltaFromYesterday = resolvedDeltaFromYesterday,
                             onUpdateConfig = onUpdateConfig,
@@ -204,7 +233,11 @@ internal fun WidgetPopup(
                     }
 
                     val isHourly = config.viewMode.isHourly
-                    if (isHourly) {
+                    if (sourceWait != null) {
+                        Box(modifier = Modifier.fillMaxWidth().weight(1f).testTag("source_wait_surface")) {
+                            CenteredMessage(sourceWait.message(selectedSource.displayName), fontSize = (12f * uiScale).sp)
+                        }
+                    } else if (isHourly) {
                         Box(modifier = Modifier.fillMaxWidth().weight(1f).testTag("hourly_temperature_surface")) {
                             // Shared scroll-zoom + drag-pan handlers for all three hourly graphs.
                             val handleZoomScroll: (Float, Int) -> Unit = { deltaZoom, cursorOffset ->
@@ -983,12 +1016,12 @@ private fun DailyForecastTextMode(
 
 
 @Composable
-private fun CenteredMessage(text: String) {
+private fun CenteredMessage(text: String, fontSize: androidx.compose.ui.unit.TextUnit = androidx.compose.ui.unit.TextUnit.Unspecified) {
     Column(
         modifier = Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(text, style = MaterialTheme.typography.bodyMedium)
+        Text(text, style = MaterialTheme.typography.bodyMedium, fontSize = fontSize)
     }
 }

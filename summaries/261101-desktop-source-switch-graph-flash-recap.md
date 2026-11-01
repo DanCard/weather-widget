@@ -66,25 +66,31 @@ expected output is unchanged.
 - The precipitation and cloud views were not switched live.
 - Android was not checked for the same gap.
 
-## Open: a new source with no saved data
+## Follow-up: a new source with no saved data
 
-Not built, and not reproduced: this comes from reading the code. `loadCached` returns null when a source
-has no rows, and the UI then keeps the old snapshot. If the fetch also fails, one source's forecast could
-stay under another's name, with nothing showing it is wrong.
+`loadCached` returns null when a source has no rows, and the UI used to keep the old snapshot. If the fetch
+also failed, one source's forecast stayed under another's name, with nothing showing it was wrong.
 
-Proposal, awaiting approval:
+The first proposal was a 3 s banner and a 15 s blank. Measuring 844 switches (median 472 ms, 95th percentile
+700 ms, slowest 2871 ms, none over 3 s) showed 15 s was too cautious, so there is one 3 s threshold:
 
-| Case | What to do | When |
+| Case | What shows | When |
 |---|---|---|
-| Load is slow | Banner, "Loading Silurian…" | About 3 s (slowest switch measured: 1.36 s) |
-| No saved data, and the fetch failed or returned nothing | Blank the graph, "No Silurian data for this location" | Right away |
-| Load is stuck with no answer | Same blank, as a backstop | About 15 s (a real 5.6 s SQLite lock wait still succeeded) |
+| Normal switch | Old graph, no message | Under 3 s |
+| Load is slow | Blank, "Loading Silurian…" | At 3 s |
+| No saved rows, fetch running | Blank, "Loading Silurian…" | Right away |
+| No saved rows, fetch ended | Blank, "No Silurian data for this location" | Right away |
 
-- **Keep the header visible:** `forecast = null` removes the source button, leaving no way to switch away.
-  This needs an empty snapshot for the new source instead.
-- **Cover every view:** the daily view has the same problem.
-- **Normal switches stay silent:** source changes must not show notices, and the banner only appears when
-  something is wrong.
+- **Knowing the fetch ended:** with no cache the daemon always fetches and only notifies at the end, so a
+  daemon notification followed by another empty read means it found nothing. An unrelated notification during
+  the fetch could show `NO_DATA` early; the arriving data corrects it.
+- **Header:** gets an empty snapshot while blank, so the old source's rain and icon do not stay under the new
+  label, and the source button stays available. The temperature is the published value, which remains.
+- **Tests:** `DesktopSourceWaitTest`; its three behavior tests failed before the change.
+- **Live:** in an isolated offline copy with Silurian's rows removed, in the daily view: `LOADING` 0.5 s after
+  the click, `NO_DATA` about 21 s later after the retries, and the source button switched away with
+  `data_ready` at 502 ms. The hourly view's blank is covered by the Compose test.
+- **Not exercised live:** the 3 s slow-load path, which needs a stalled load. The Compose test covers it.
 
 ## Related
 

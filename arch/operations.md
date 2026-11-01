@@ -71,6 +71,12 @@ platform, as `source=` (the data) and `label=`. The graphs and daily columns als
 the hourly pan check waits for it too. `NAN_TEMP_INDICES` right after `CONFIG_SAVE` means something is
 reading the new source's rows from the old snapshot.
 
+Desktop blanks the graph, and the header's rain and icon, rather than keep the old source's view too
+long (`DesktopSourceWait`, logged as `SOURCE_SWITCH_WAIT state=`). `LOADING` appears after 3 s, or at once
+when the new source has no saved rows and its fetch is running. `NO_DATA` appears when that fetch has ended
+and there are still no rows. Offline, the daemon's retries put `NO_DATA` about 20 s after the click. The
+header and source button stay available throughout.
+
 Desktop breadcrumbs written from code that must not wait on the database (`CURR_TEMP_RESULT`,
 `CURRENT_STATUS_PUBLISH`, `CONFIG_SAVE`, refresh notices, `data_ready`) go through
 `DesktopAppLogQueue`: one `app-log-writer` thread per process, rows stamped when logged. Written inline,
