@@ -5,6 +5,7 @@ import com.weatherwidget.shared.util.HeaderContent.View
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.experimental.categories.Category
 import java.time.LocalDateTime
@@ -87,19 +88,24 @@ class HeaderContentTest {
         )
     }
 
+    /** 2026-10-31: NWS 8% fell after sunset, Silurian 5% before it, so the 5% drew bigger. */
     @Test
-    fun dailyHeaderAppliesNightScale() {
-        val now = LocalDateTime.of(2026, 6, 1, 22, 0)
-        val c = build(View.DAILY, listOf(row(now, 90), row(now.plusHours(1), 90)), now)
-        assertEquals(90, c.precipProbability)
-        assertEquals(DailyRainLabels.NIGHT_SCALE, c.precipFontScale!!, 1e-6f)
+    fun higherChanceDrawsLargerWhicheverSideOfSunsetItFalls() {
+        val now = LocalDateTime.of(2026, 10, 31, 17, 13)
+        fun evening(vararg precip: Int) = precip.mapIndexed { i, p -> row(now.withMinute(0).plusHours(i.toLong()), p) }
+        val mostlyAfterSunset = build(View.DAILY, evening(7, 6, 8, 7, 7, 7, 2), now)
+        val mostlyBeforeSunset = build(View.DAILY, evening(0, 5, 0, 0, 0, 0, 0), now)
+
+        assertEquals("8%", mostlyAfterSunset.precipText)
+        assertEquals("5%", mostlyBeforeSunset.precipText)
+        assertTrue(mostlyAfterSunset.precipFontScale!! > mostlyBeforeSunset.precipFontScale!!)
     }
 
     @Test
-    fun hourlyHeaderHasNoNightScale() {
+    fun rainScaleIsTheSameInEveryView() {
         val now = LocalDateTime.of(2026, 6, 1, 22, 0)
-        val c = build(View.TEMPERATURE, listOf(row(now, 90), row(now.plusHours(1), 90)), now)
-        assertEquals(1f, c.precipFontScale!!, 1e-6f)
+        val hourly = listOf(row(now, 90), row(now.plusHours(1), 90))
+        assertEquals(build(View.TEMPERATURE, hourly, now).precipFontScale, build(View.DAILY, hourly, now).precipFontScale)
     }
 
     @Test
@@ -162,7 +168,7 @@ class HeaderContentTest {
             listOf(row(t, 5, source = "NWS"), row(t, 70, source = "OPEN_METEO"), row(t, 0, condition = "Clear", source = "SILURIAN"))
         }
         for (view in listOf(View.DAILY, View.TEMPERATURE)) {
-            val labels = HeaderContent.precipLabels(view, hourly, listOf("NWS", "OPEN_METEO", "SILURIAN"), now, now, lat, lon)
+            val labels = HeaderContent.precipLabels(view, hourly, listOf("NWS", "OPEN_METEO", "SILURIAN"), now, now)
             for (source in listOf("NWS", "OPEN_METEO")) {
                 val shown = HeaderContent.build(
                     view = view, hourly = hourly, displaySourceId = source, dailyFallback = null,

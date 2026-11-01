@@ -158,8 +158,6 @@ internal fun WidgetHeader(
             sourceIds = config.effectiveSources.map { WeatherSource.fromDisplaySource(it).id },
             now = nowLocal,
             centerTime = targetHour,
-            lat = config.lat,
-            lon = config.lon,
             widthDp = headerWidthDp,
         )
     }

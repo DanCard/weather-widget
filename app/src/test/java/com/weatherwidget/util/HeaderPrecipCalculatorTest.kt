@@ -2,7 +2,6 @@ package com.weatherwidget.util
 
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.shared.util.DailyRainLabels
 import com.weatherwidget.test.category.ShortDuration
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -42,41 +41,6 @@ class HeaderPrecipCalculatorTest {
         )
 
         assertEquals(17, result)
-    }
-
-    @Test
-    fun `combined resolver returns probability and night verdict from one adapter call`() {
-        val now = LocalDateTime.of(2026, 2, 22, 20, 0)
-        val result = HeaderPrecipCalculator.resolve(
-            hourlyForecasts = listOf(
-                hourly(now, WeatherSource.NWS.id, 70),
-                hourly(now.plusHours(1), WeatherSource.NWS.id, 80),
-            ),
-            displaySource = WeatherSource.NWS,
-            fallbackDailyProbability = null,
-            referenceTime = now,
-            sunriseHour = 6.0,
-            sunsetHour = 20.0,
-        )
-
-        assertEquals(80, result.probability)
-        assertEquals(true, result.isPredominantlyNight)
-    }
-
-    @Test
-    fun `daily text size applies the shared night scale`() {
-        val expected = 18f * DailyRainLabels.precipProbabilityScaleFactor(90) * DailyRainLabels.NIGHT_SCALE
-
-        assertEquals(
-            expected,
-            HeaderPrecipCalculator.getPrecipTextSize(90, isDailyView = true, isNightPrecip = true),
-            1e-6f,
-        )
-        assertEquals(
-            18f,
-            HeaderPrecipCalculator.getPrecipTextSize(90, isDailyView = false, isNightPrecip = true),
-            1e-6f,
-        )
     }
 
     private fun hourly(

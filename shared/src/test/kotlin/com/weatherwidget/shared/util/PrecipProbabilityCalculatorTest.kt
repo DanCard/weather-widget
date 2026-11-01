@@ -59,6 +59,29 @@ class PrecipProbabilityCalculatorTest {
     }
 
     @Test
+    fun `six hour window excludes its exact endpoint`() {
+        val ref = LocalDateTime.of(2026, 2, 22, 14, 0)
+        fun at(hour: Int, precip: Int) = HourlyForecast(
+            dateTime = ref.withHour(hour).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+            temperature = 60f,
+            condition = "Rain",
+            precipProbability = precip,
+            source = WeatherSource.NWS.id,
+            fetchedAt = 0L,
+            locationLat = 37.422,
+            locationLon = -122.084,
+        )
+        val result = PrecipProbabilityCalculator.getNext6HourPrecipProbability(
+            listOf(at(14, 30), at(15, 30), at(20, 100)),
+            WeatherSource.NWS.id,
+            WeatherSource.GENERIC_GAP.id,
+            null,
+            ref,
+        )
+        assertEquals(30, result)
+    }
+
+    @Test
     fun `getNext6HourPrecipProbability delegates to 6-hour window`() {
         val ref = LocalDateTime.of(2026, 5, 1, 6, 0)
         // Rain spike at +7 hours (13:00)

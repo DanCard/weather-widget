@@ -2,7 +2,6 @@ package com.weatherwidget.shared.util
 
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.util.SunPositionUtils
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -52,7 +51,6 @@ object HeaderContent {
         val precipText: String?,
         /** Multiplier on the platform's base rain-text size; null when hidden. */
         val precipFontScale: Float?,
-        val isNightPrecip: Boolean,
         /** "Meteo"; an hourly view panned off today names the day ("Thursday • Meteo"). */
         val sourceLabel: String,
     )
@@ -84,7 +82,7 @@ object HeaderContent {
         labelSourceId: String = displaySourceId,
         zone: ZoneId = ZoneId.systemDefault(),
     ): Content {
-        val precip = precipitation(view, hourly, displaySourceId, fallbackDailyPrecip, now, centerTime, lat, lon)
+        val precip = precipitation(view, hourly, displaySourceId, fallbackDailyPrecip, now, centerTime)
         val precipText = precip.probability?.let { "$it%" }
         return Content(
             iconName = iconName(view, iconHourly, displaySourceId, dailyFallback, now, lat, lon, zone),
@@ -95,10 +93,7 @@ object HeaderContent {
             precipProbability = precip.probability,
             computedPrecipProbability = precip.computed,
             precipText = precipText,
-            precipFontScale = precip.probability?.let {
-                DailyRainLabels.headerPrecipFontScale(it, isDailyView = view == View.DAILY, isNightPrecip = precip.isNight)
-            },
-            isNightPrecip = precip.isNight,
+            precipFontScale = precip.probability?.let(DailyRainLabels::headerPrecipFontScale),
             sourceLabel = sourceLabel(view, labelSourceId, now, centerTime, widthDp),
         )
     }
@@ -125,12 +120,10 @@ object HeaderContent {
         sourceIds: List<String>,
         now: LocalDateTime,
         centerTime: LocalDateTime,
-        lat: Double,
-        lon: Double,
         widthDp: Int,
     ): HeaderLine.Inputs = HeaderLine.Inputs(
         sourceLabels = sourceIds.map { sourceLabel(view, it, now, centerTime, widthDp) },
-        rainLabels = precipLabels(view, hourly, sourceIds, now, centerTime, lat, lon).values.filterNotNull(),
+        rainLabels = precipLabels(view, hourly, sourceIds, now, centerTime).values.filterNotNull(),
     )
 
     /** A rain % as [build] would show it: its text and font-size multiplier. */
@@ -147,15 +140,9 @@ object HeaderContent {
         sourceIds: List<String>,
         now: LocalDateTime,
         centerTime: LocalDateTime,
-        lat: Double,
-        lon: Double,
     ): Map<String, PrecipLabel?> = sourceIds.associateWith { sourceId ->
-        val precip = precipitation(view, hourly, sourceId, null, now, centerTime, lat, lon)
-        precip.probability?.let {
-            PrecipLabel(
-                text = "$it%",
-                fontScale = DailyRainLabels.headerPrecipFontScale(it, isDailyView = view == View.DAILY, isNightPrecip = precip.isNight),
-            )
+        precipitation(view, hourly, sourceId, null, now, centerTime).probability?.let {
+            PrecipLabel(text = "$it%", fontScale = DailyRainLabels.headerPrecipFontScale(it))
         }
     }
 
@@ -197,11 +184,11 @@ object HeaderContent {
         return String.format("%+.1f", if (useCelsius) deltaFromYesterday / 1.8f else deltaFromYesterday)
     }
 
-    private data class Precip(val probability: Int?, val computed: Int?, val isNight: Boolean)
+    private data class Precip(val probability: Int?, val computed: Int?)
 
     /**
-     * Daily: the next 6 h from now, with the day/night split that sizes it. Hourly views: the next
-     * 6 h from the panned hour. Hidden at 0 % except in the precip view, where 0 % confirms "dry".
+     * Daily: the next 6 h from now. Hourly views: the next 6 h from the panned hour. Hidden at 0 %
+     * except in the precip view, where 0 % confirms "dry".
      */
     private fun precipitation(
         view: View,
@@ -210,22 +197,15 @@ object HeaderContent {
         fallbackDailyPrecip: Int?,
         now: LocalDateTime,
         centerTime: LocalDateTime,
-        lat: Double,
-        lon: Double,
     ): Precip {
-        val gapId = WeatherSource.GENERIC_GAP.id
-        val (probability, isNight) = if (view == View.DAILY) {
-            val sun = SunPositionUtils.getSunInfoOrUnknown(now, lat, lon).sunTimes
-            val p = PrecipProbabilityCalculator.resolveHeaderPrecipitation(
-                hourly, displaySourceId, gapId, fallbackDailyPrecip, now, sun.sunriseHour, sun.sunsetHour,
-            )
-            p.probability to p.isPredominantlyNight
-        } else {
-            PrecipProbabilityCalculator.getNext6HourPrecipProbability(
-                hourly, displaySourceId, gapId, fallbackDailyPrecip, centerTime,
-            ) to false
-        }
+        val probability = PrecipProbabilityCalculator.getNext6HourPrecipProbability(
+            hourly,
+            displaySourceId,
+            WeatherSource.GENERIC_GAP.id,
+            fallbackDailyPrecip,
+            if (view == View.DAILY) now else centerTime,
+        )
         val shown = if (view == View.PRECIPITATION) probability else probability?.takeIf { it > 0 }
-        return Precip(shown, probability, isNight && shown != null)
+        return Precip(shown, probability)
     }
 }

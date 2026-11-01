@@ -8,6 +8,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import java.util.Locale
+import kotlin.math.log2
 
 /**
  * Pure logic for the rain labels shown on the daily-forecast graph (both the Android widget and the
@@ -116,13 +117,15 @@ object DailyRainLabels {
     const val RAIN_FONT_SCALE_K = 0.6f
     /** Distance normalizer (days); the distance term saturates around this horizon. */
     const val RAIN_FONT_SCALE_MAX_DAYS = 7f
+
+    /** [headerPrecipFontScale] follows a log curve up to this chance, then a line to 100%. */
+    private const val HEADER_SCALE_LOG_MAX_PROBABILITY = 64f
     /** Floor on the day count fed to the distance term so today/tomorrow aren't over-shrunk. */
     const val RAIN_FONT_DISTANCE_MIN_DAYS = 1.5f
 
     /**
-     * Probability→font-scale step table for a rain label (0.3 at a trace chance up to 1.0 above ~64%).
-     * Higher chance ⇒ larger label. Shared by the daily rain labels and the header precip text so the
-     * two never drift.
+     * Probability→font-scale step table for a daily rain label (0.3 at a trace chance up to 1.0 above
+     * ~64%). Higher chance ⇒ larger label. The header uses the smooth [headerPrecipFontScale].
      */
     fun precipProbabilityScaleFactor(precipProbability: Int): Float = when {
         precipProbability <= 1  -> 0.3f
@@ -135,14 +138,19 @@ object DailyRainLabels {
         else                    -> 1.0f
     }
 
-    /** Platform-neutral header scale; renderers apply their own base text size and UI scale. */
-    fun headerPrecipFontScale(
-        precipProbability: Int,
-        isDailyView: Boolean,
-        isNightPrecip: Boolean,
-    ): Float {
-        val nightScale = if (isDailyView && isNightPrecip) NIGHT_SCALE else 1f
-        return precipProbabilityScaleFactor(precipProbability) * nightScale
+    /**
+     * Platform-neutral header scale; renderers apply their own base text size and UI scale. It is
+     * probability only and strictly rising, so toggling sources can never draw a higher chance
+     * smaller (user, 2026-10-31: 5% beside 8%). Passes through the step table's bucket tops up to 64%,
+     * then rises to 1.0 at 100%.
+     */
+    fun headerPrecipFontScale(precipProbability: Int): Float {
+        val probability = precipProbability.coerceIn(1, 100).toFloat()
+        return if (probability <= HEADER_SCALE_LOG_MAX_PROBABILITY) {
+            0.3f + 0.1f * log2(probability)
+        } else {
+            0.9f + 0.1f * (probability - HEADER_SCALE_LOG_MAX_PROBABILITY) / (100f - HEADER_SCALE_LOG_MAX_PROBABILITY)
+        }
     }
 
     /**

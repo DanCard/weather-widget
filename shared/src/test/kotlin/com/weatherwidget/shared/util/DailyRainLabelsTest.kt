@@ -6,6 +6,7 @@ import com.weatherwidget.test.category.ShortDuration
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
 import java.time.ZoneId
@@ -16,19 +17,27 @@ import org.junit.experimental.categories.Category
 class DailyRainLabelsTest {
 
     @Test
-    fun `header scale applies night shrink only in daily view`() {
-        val probabilityScale = DailyRainLabels.precipProbabilityScaleFactor(90)
+    fun `header scale always rises with probability`() {
+        (1 until 100).forEach { p ->
+            assertTrue(
+                "$p% must draw smaller than ${p + 1}%",
+                DailyRainLabels.headerPrecipFontScale(p) < DailyRainLabels.headerPrecipFontScale(p + 1),
+            )
+        }
+    }
 
-        assertEquals(
-            probabilityScale * DailyRainLabels.NIGHT_SCALE,
-            DailyRainLabels.headerPrecipFontScale(90, isDailyView = true, isNightPrecip = true),
-            1e-6f,
-        )
-        assertEquals(
-            probabilityScale,
-            DailyRainLabels.headerPrecipFontScale(90, isDailyView = false, isNightPrecip = true),
-            1e-6f,
-        )
+    @Test
+    fun `header scale meets the step table at each bucket top`() {
+        listOf(1, 2, 4, 8, 16, 32, 64).forEach { p ->
+            assertEquals(
+                "$p%",
+                DailyRainLabels.precipProbabilityScaleFactor(p),
+                DailyRainLabels.headerPrecipFontScale(p),
+                1e-5f,
+            )
+        }
+        assertEquals(1f, DailyRainLabels.headerPrecipFontScale(100), 1e-6f)
+        assertEquals(0.3f, DailyRainLabels.headerPrecipFontScale(0), 1e-6f)
     }
 
     private val originalLocale = Locale.getDefault()

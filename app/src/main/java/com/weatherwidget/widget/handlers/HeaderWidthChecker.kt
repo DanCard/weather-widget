@@ -230,8 +230,6 @@ object HeaderWidthChecker {
             sourceIds = sourceIds,
             now = now,
             centerTime = centerTime,
-            lat = lat,
-            lon = lon,
             widthDp = widthDp,
         )
     }
