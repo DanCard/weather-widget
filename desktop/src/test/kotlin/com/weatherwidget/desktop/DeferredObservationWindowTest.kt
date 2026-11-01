@@ -123,7 +123,9 @@ class DeferredObservationWindowTest {
         val stored = repo().refreshObservationWindow(listOf(com.weatherwidget.data.model.WeatherSource.NWS), "test", now)
 
         assertEquals(72, stored)
-        val start = java.time.Instant.ofEpochMilli(now).minus(java.time.Duration.ofDays(3)).toString()
+        // Three calendar days of wall clock, as the run computes it: 73 h across a fall-back change.
+        val start = java.time.Instant.ofEpochMilli(now).atZone(java.time.ZoneId.systemDefault())
+            .minusDays(3).toInstant().toString()
         coVerify(exactly = 1) { weatherService.fetchNwsStationWindow(knuq, 0, start, any(), "NWS_DAILY_WEB_FALLBACK") }
         coVerify(exactly = 0) { weatherService.fetchObservationHistory(any()) }
         val inDb = dao.getObservationsInRange(now - 73 * 3600_000L, now, lat, lon).count { it.stationId == "KNUQ" }

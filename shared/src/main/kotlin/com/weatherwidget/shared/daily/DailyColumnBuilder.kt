@@ -338,6 +338,14 @@ object DailyColumnBuilder {
             isPastDate = isPast,
             nightPrecipProbability = resolvedPrecip.nightPrecip,
             observedNightPrecipMm = actual?.precipNightMm,
+            forecastNightAmountMm = com.weatherwidget.shared.util.DailyRainLabels.nightForecastAmountMm(
+                hourly = hourly,
+                displaySourceId = displaySourceId,
+                centerLat = centerLat,
+                centerLon = centerLon,
+                targetDate = date,
+            ),
+            nightInProgress = com.weatherwidget.shared.util.DailyRainLabels.isNightInProgress(date, now),
         )
 
         // Source-filtered noon cloud cover (shared with Android) drives both the bar split ratio and

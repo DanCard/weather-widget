@@ -5,6 +5,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -750,5 +751,148 @@ class DailyRainLabelsTest {
     fun `a tiny forecast amount is never called a trace`() {
         Locale.setDefault(Locale.US)
         assertEquals("<.001in", DailyRainLabels.formatPrecipAmount(PrecipTrace.MM))
+    }
+
+    // ---- night forecast amount ----
+
+    private val nightZone = java.time.ZoneId.of("America/Los_Angeles")
+
+    private fun nightRows(
+        date: LocalDate,
+        hours: Int = 12,
+        stepHours: Int = 1,
+        amount: (Int) -> Float? = { 0.5f },
+    ): List<HourlyForecast> {
+        val start = date.atTime(20, 0).atZone(nightZone).toInstant().toEpochMilli()
+        return (0 until hours step stepHours).map { h ->
+            HourlyForecast(
+                dateTime = start + h * 3_600_000L,
+                temperature = 50f,
+                condition = "Rain",
+                precipProbability = 100,
+                precipAmountMm = amount(h),
+                source = "OPEN_WEATHER_MAP",
+                locationLat = 37.42,
+                locationLon = -122.09,
+            )
+        }
+    }
+
+    private fun nightAmount(rows: List<HourlyForecast>, date: LocalDate) =
+        DailyRainLabels.nightForecastAmountMm(rows, "OPEN_WEATHER_MAP", 37.42, -122.09, date, nightZone)
+
+    @Test
+    fun nightAmountSumsTheWholeWindow() {
+        val date = LocalDate.of(2026, 11, 10)
+        assertEquals(6f, nightAmount(nightRows(date), date)!!, 0.001f)
+    }
+
+    @Test
+    fun nightAmountCountsTheExtraHourWhenClocksFallBack() {
+        val date = LocalDate.of(2026, 10, 31)
+        assertEquals(6.5f, nightAmount(nightRows(date, hours = 13), date)!!, 0.001f)
+    }
+
+    @Test
+    fun nightAmountSumsAThreeHourlySeries() {
+        val date = LocalDate.of(2026, 11, 10)
+        val rows = nightRows(date, stepHours = 3, amount = { 1.5f })
+        assertEquals(6f, nightAmount(rows, date)!!, 0.001f)
+    }
+
+    @Test
+    fun nightAmountIsNullWhenTheWindowIsNotFullyCovered() {
+        val date = LocalDate.of(2026, 11, 10)
+        assertNull(nightAmount(nightRows(date, hours = 8), date))
+        assertNull(nightAmount(nightRows(date).drop(3), date))
+    }
+
+    @Test
+    fun nightAmountIsNullForAHoleInsideTheWindow() {
+        val date = LocalDate.of(2026, 11, 10)
+        assertNull(nightAmount(nightRows(date).filterIndexed { i, _ -> i != 5 }, date))
+    }
+
+    @Test
+    fun nightAmountIsNullWhenAnHourHasNoAmount() {
+        val date = LocalDate.of(2026, 11, 10)
+        assertNull(nightAmount(nightRows(date, amount = { if (it == 4) null else 0.5f }), date))
+    }
+
+    @Test
+    fun nightAmountIgnoresOtherSourcesAndClimateFiller() {
+        val date = LocalDate.of(2026, 11, 10)
+        val rows = nightRows(date).map { it.copy(source = WeatherSource.GENERIC_GAP.id) }
+        assertNull(nightAmount(rows, date))
+    }
+
+    @Test
+    fun nightInProgressRunsFromEightPmUntilEightAm() {
+        val date = LocalDate.of(2026, 10, 31)
+        assertFalse(DailyRainLabels.isNightInProgress(date, date.atTime(19, 59)))
+        assertTrue(DailyRainLabels.isNightInProgress(date, date.atTime(20, 0)))
+        assertTrue(DailyRainLabels.isNightInProgress(date, date.plusDays(1).atTime(7, 59)))
+        assertFalse(DailyRainLabels.isNightInProgress(date, date.plusDays(1).atTime(8, 0)))
+    }
+
+    private fun nightLabel(
+        daysFromToday: Long,
+        percent: Int,
+        amountMm: Float? = 3.52f,
+        observedMm: Float? = null,
+        inProgress: Boolean = false,
+    ): String? {
+        val today = LocalDate.of(2026, 11, 1)
+        val date = today.plusDays(daysFromToday)
+        return DailyRainLabels.buildNightRainLabel(
+            date = date,
+            today = today,
+            isPastDate = date.isBefore(today),
+            nightPrecipProbability = percent,
+            observedNightPrecipMm = observedMm,
+            forecastNightAmountMm = amountMm,
+            nightInProgress = inProgress,
+        )
+    }
+
+    private fun amountText(mm: Float = 3.52f) = DailyRainLabels.formatPrecipAmount(mm)
+
+    @Test
+    fun tonightShowsAmountFrom95Percent() {
+        assertEquals(amountText(), nightLabel(0, 95))
+        assertEquals("94%", nightLabel(0, 94))
+    }
+
+    @Test
+    fun laterNightsShowAmountFrom99Percent() {
+        assertEquals(amountText(), nightLabel(1, 99))
+        assertEquals("98%", nightLabel(1, 98))
+    }
+
+    @Test
+    fun nightUnderWayShowsForecastAmountEvenThoughItsDateIsPast() {
+        assertEquals(amountText(), nightLabel(-1, 100, inProgress = true))
+        assertEquals("80%", nightLabel(-1, 80, inProgress = true))
+    }
+
+    @Test
+    fun nightUnderWayPrefersForecastTotalOverRainMeasuredSoFar() {
+        assertEquals(amountText(), nightLabel(-1, 100, observedMm = 0.2f, inProgress = true))
+    }
+
+    @Test
+    fun finishedNightNeverShowsAForecastAmount() {
+        assertEquals("100%", nightLabel(-1, 100))
+        assertEquals(
+            DailyRainLabels.formatObservedPrecipAmount(1f),
+            nightLabel(-1, 100, observedMm = 1f),
+        )
+    }
+
+    @Test
+    fun missingOrZeroAmountKeepsThePercent() {
+        assertEquals("100%", nightLabel(0, 100, amountMm = null))
+        assertEquals("100%", nightLabel(0, 100, amountMm = 0f))
+        assertEquals("100%", nightLabel(-1, 100, amountMm = 0f, inProgress = true))
     }
 }

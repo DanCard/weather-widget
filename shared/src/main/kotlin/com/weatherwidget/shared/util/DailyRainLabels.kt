@@ -301,6 +301,38 @@ object DailyRainLabels {
     }
 
     /**
+     * Total forecast rain over the 8pm–8am night of [targetDate] for [displaySourceId] at the site
+     * centred on ([centerLat], [centerLon]): the same window as the night chance, one row per hour.
+     * A max can stand on any one hour but a sum cannot, so this is null unless the rows cover the
+     * whole night with no hole and every hour has an amount — a partial total never passes as the
+     * night's. GENERIC_GAP is deliberately not a fallback: climate-normal filler is not a forecast.
+     */
+    fun nightForecastAmountMm(
+        hourly: List<HourlyForecast>,
+        displaySourceId: String,
+        centerLat: Double,
+        centerLon: Double,
+        targetDate: LocalDate,
+        zoneId: ZoneId = ZoneId.systemDefault(),
+    ): Float? {
+        val startMs = targetDate.atTime(20, 0).atZone(zoneId).toInstant().toEpochMilli()
+        val endMs = targetDate.plusDays(1).atTime(8, 0).atZone(zoneId).toInstant().toEpochMilli()
+        val sited = HourlyForecastSelector
+            .selectForecastsByTime(hourly, displaySourceId, centerLat, centerLon)
+            .values.toList()
+        if (!DailyHourlySummaries.windowCovered(sited, startMs, endMs)) return null
+        val night = sited.filter { it.dateTime in startMs until endMs }.sortedBy { it.dateTime }
+        val steps = night.zipWithNext { a, b -> b.dateTime - a.dateTime }
+        if (steps.isNotEmpty() && steps.any { it != steps.min() }) return null
+        val amounts = night.map { it.precipAmountMm ?: return null }
+        return amounts.sum().takeIf { night.isNotEmpty() }
+    }
+
+    /** True while [date]'s 8pm–8am night is under way: from 8pm until 8am the next morning. */
+    fun isNightInProgress(date: LocalDate, now: java.time.LocalDateTime): Boolean =
+        !now.isBefore(date.atTime(20, 0)) && now.isBefore(date.plusDays(1).atTime(8, 0))
+
+    /**
      * The day/night precip % chosen for the daily label + icon (see [resolveDailyLabelPrecip]).
      * [dayPeakAt] is when [dayPrecip] peaks — set only when [dayPrecip] came from hourly data (the
      * row's stored max or the stored hours), never for a provider period value or a past day.
@@ -575,11 +607,23 @@ object DailyRainLabels {
         }
     }
 
+    /** Night chance from which tonight (or the night under way) reads as an amount, as today's day label. */
+    const val NIGHT_AMOUNT_MIN_PERCENT_NEAR = 95
+
+    /** Night chance from which a later night reads as an amount, as a future day's label. */
+    const val NIGHT_AMOUNT_MIN_PERCENT_LATER = 99
+
     /**
-     * Nighttime rain label tucked between columns.
-     * - Past days: observed night amount when measurable rain fell, else the forecast night chance%
-     *   (so a real forecast doesn't silently vanish once the night turns into history), else null.
-     * - Future: night-prob% when above the distance-scaled threshold, else null.
+     * Nighttime rain label tucked between columns. [forecastNightAmountMm] is
+     * [nightForecastAmountMm]; a null or zero total keeps the %.
+     * - Night under way ([nightInProgress]; after midnight its date is already past): the forecast
+     *   total at ≥ 95%, ahead of the measured amount, which only holds the hours so far.
+     * - Finished nights: observed night amount when measurable rain fell, else the forecast night
+     *   chance% (so a real forecast doesn't silently vanish once the night turns into history),
+     *   else null. Never a forecast amount: it would read as rain that fell.
+     * - Tonight: forecast total at ≥ 95%, else as a later night.
+     * - Later nights: suppressed below the distance-scaled threshold; else forecast total at ≥ 99%,
+     *   else night-prob%.
      */
     fun buildNightRainLabel(
         date: LocalDate,
@@ -587,8 +631,16 @@ object DailyRainLabels {
         isPastDate: Boolean,
         nightPrecipProbability: Int?,
         observedNightPrecipMm: Float?,
+        forecastNightAmountMm: Float? = null,
+        nightInProgress: Boolean = false,
     ): String? {
+        val forecastAmount = forecastNightAmountMm?.takeIf { it > 0f }
         if (isPastDate) {
+            if (nightInProgress && forecastAmount != null &&
+                nightPrecipProbability != null && nightPrecipProbability >= NIGHT_AMOUNT_MIN_PERCENT_NEAR
+            ) {
+                return formatPrecipAmount(forecastAmount)
+            }
             if (observedNightPrecipMm != null && observedNightPrecipMm > 0f) {
                 return formatObservedPrecipAmount(observedNightPrecipMm)
             }
@@ -604,6 +656,9 @@ object DailyRainLabels {
 
         val threshold = getMinimumPrecipProbabilityNight(daysFromToday)
         if (probability < threshold) return null
+
+        val amountFrom = if (daysFromToday == 0) NIGHT_AMOUNT_MIN_PERCENT_NEAR else NIGHT_AMOUNT_MIN_PERCENT_LATER
+        if (forecastAmount != null && probability >= amountFrom) return formatPrecipAmount(forecastAmount)
 
         return "$probability%"
     }
