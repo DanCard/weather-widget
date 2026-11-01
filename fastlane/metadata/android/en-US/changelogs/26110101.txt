@@ -1,0 +1,1 @@
+Release 26110101: Show rainfall amounts on finished nights; display rain graph from header rain label; draw today's high actuals line in Forecast History; optimize forecast refreshes while charging; streamline hourly history storage; and general responsiveness improvements.
