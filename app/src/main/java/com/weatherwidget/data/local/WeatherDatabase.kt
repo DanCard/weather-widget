@@ -201,10 +201,44 @@ abstract class WeatherDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Recreates the table: `RENAME COLUMN` needs SQLite 3.25 and API 28 has 3.22.
+         * plans/261101-migrations-sqlite-compat-below-api-34.md
+         */
         val MIGRATION_52_53 = object : Migration(52, 53) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("DROP INDEX IF EXISTS `index_hourly_forecast_history_locationLat_locationLon_source_snapshotBucket`")
-                db.execSQL("ALTER TABLE `hourly_forecast_history` RENAME COLUMN `snapshotBucket` TO `timestampToGroupPredictions`")
+                db.execSQL(
+                    """
+                    CREATE TABLE `hourly_forecast_history_new` (
+                        `dateTime` INTEGER NOT NULL,
+                        `locationLat` REAL NOT NULL,
+                        `locationLon` REAL NOT NULL,
+                        `temperature` REAL NOT NULL,
+                        `condition` TEXT NOT NULL,
+                        `source` TEXT NOT NULL,
+                        `timestampToGroupPredictions` INTEGER NOT NULL,
+                        `precipProbability` INTEGER,
+                        `cloudCover` INTEGER,
+                        `precipAmountMm` REAL,
+                        `fetchedAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`dateTime`, `source`, `locationLat`, `locationLon`, `timestampToGroupPredictions`)
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    INSERT INTO `hourly_forecast_history_new` (
+                        `dateTime`, `locationLat`, `locationLon`, `temperature`, `condition`, `source`,
+                        `timestampToGroupPredictions`, `precipProbability`, `cloudCover`, `precipAmountMm`, `fetchedAt`
+                    )
+                    SELECT
+                        `dateTime`, `locationLat`, `locationLon`, `temperature`, `condition`, `source`,
+                        `snapshotBucket`, `precipProbability`, `cloudCover`, `precipAmountMm`, `fetchedAt`
+                    FROM `hourly_forecast_history`
+                    """.trimIndent(),
+                )
+                db.execSQL("DROP TABLE `hourly_forecast_history`")
+                db.execSQL("ALTER TABLE `hourly_forecast_history_new` RENAME TO `hourly_forecast_history`")
                 db.execSQL(
                     "CREATE INDEX IF NOT EXISTS `index_hourly_forecast_history_locationLat_locationLon_source_timestampToGroupPredictions` " +
                         "ON `hourly_forecast_history` (`locationLat`, `locationLon`, `source`, `timestampToGroupPredictions`)",
@@ -212,10 +246,57 @@ abstract class WeatherDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Recreates the table: `RENAME COLUMN` needs SQLite 3.25 and API 28 has 3.22.
+         * plans/261101-migrations-sqlite-compat-below-api-34.md
+         */
         val MIGRATION_53_54 = object : Migration(53, 54) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("DROP INDEX IF EXISTS `index_forecasts_targetDate_source_locationLat_locationLon_batchFetchedAt`")
-                db.execSQL("ALTER TABLE `forecasts` RENAME COLUMN `forecastDate` TO `dateOfPrediction`")
+                db.execSQL(
+                    """
+                    CREATE TABLE `forecasts_new` (
+                        `targetDate` INTEGER NOT NULL,
+                        `dateOfPrediction` INTEGER NOT NULL,
+                        `locationLat` REAL NOT NULL,
+                        `locationLon` REAL NOT NULL,
+                        `locationName` TEXT NOT NULL,
+                        `highTemp` REAL,
+                        `lowTemp` REAL,
+                        `condition` TEXT NOT NULL,
+                        `nativeDailyIconToken` TEXT,
+                        `isClimateNormal` INTEGER NOT NULL,
+                        `source` TEXT NOT NULL,
+                        `precipProbability` INTEGER,
+                        `daytimePrecipProbability` INTEGER,
+                        `nighttimePrecipProbability` INTEGER,
+                        `periodStartTime` INTEGER,
+                        `periodEndTime` INTEGER,
+                        `precipAmountMm` REAL,
+                        `batchFetchedAt` INTEGER NOT NULL,
+                        `fetchedAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`targetDate`, `dateOfPrediction`, `locationLat`, `locationLon`, `source`, `fetchedAt`)
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    INSERT INTO `forecasts_new` (
+                        `targetDate`, `dateOfPrediction`, `locationLat`, `locationLon`, `locationName`, `highTemp`, `lowTemp`,
+                        `condition`, `nativeDailyIconToken`, `isClimateNormal`, `source`, `precipProbability`,
+                        `daytimePrecipProbability`, `nighttimePrecipProbability`, `periodStartTime`, `periodEndTime`,
+                        `precipAmountMm`, `batchFetchedAt`, `fetchedAt`
+                    )
+                    SELECT
+                        `targetDate`, `forecastDate`, `locationLat`, `locationLon`, `locationName`, `highTemp`, `lowTemp`,
+                        `condition`, `nativeDailyIconToken`, `isClimateNormal`, `source`, `precipProbability`,
+                        `daytimePrecipProbability`, `nighttimePrecipProbability`, `periodStartTime`, `periodEndTime`,
+                        `precipAmountMm`, `batchFetchedAt`, `fetchedAt`
+                    FROM `forecasts`
+                    """.trimIndent(),
+                )
+                db.execSQL("DROP TABLE `forecasts`")
+                db.execSQL("ALTER TABLE `forecasts_new` RENAME TO `forecasts`")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_forecasts_locationLat_locationLon` ON `forecasts` (`locationLat`, `locationLon`)")
                 db.execSQL(
                     "CREATE INDEX IF NOT EXISTS `index_forecasts_targetDate_source_locationLat_locationLon_batchFetchedAt` " +
                         "ON `forecasts` (`targetDate`, `source`, `locationLat`, `locationLon`, `batchFetchedAt`)",
@@ -223,9 +304,60 @@ abstract class WeatherDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Recreates the table: `DROP COLUMN` needs SQLite 3.35, which Android only has from API 34.
+         * plans/261101-migrations-sqlite-compat-below-api-34.md
+         */
         val MIGRATION_54_55 = object : Migration(54, 55) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE `forecasts` DROP COLUMN `locationName`")
+                db.execSQL(
+                    """
+                    CREATE TABLE `forecasts_new` (
+                        `targetDate` INTEGER NOT NULL,
+                        `dateOfPrediction` INTEGER NOT NULL,
+                        `locationLat` REAL NOT NULL,
+                        `locationLon` REAL NOT NULL,
+                        `highTemp` REAL,
+                        `lowTemp` REAL,
+                        `condition` TEXT NOT NULL,
+                        `nativeDailyIconToken` TEXT,
+                        `isClimateNormal` INTEGER NOT NULL,
+                        `source` TEXT NOT NULL,
+                        `precipProbability` INTEGER,
+                        `daytimePrecipProbability` INTEGER,
+                        `nighttimePrecipProbability` INTEGER,
+                        `periodStartTime` INTEGER,
+                        `periodEndTime` INTEGER,
+                        `precipAmountMm` REAL,
+                        `batchFetchedAt` INTEGER NOT NULL,
+                        `fetchedAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`targetDate`, `dateOfPrediction`, `locationLat`, `locationLon`, `source`, `fetchedAt`)
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    INSERT INTO `forecasts_new` (
+                        `targetDate`, `dateOfPrediction`, `locationLat`, `locationLon`, `highTemp`, `lowTemp`,
+                        `condition`, `nativeDailyIconToken`, `isClimateNormal`, `source`, `precipProbability`,
+                        `daytimePrecipProbability`, `nighttimePrecipProbability`, `periodStartTime`, `periodEndTime`,
+                        `precipAmountMm`, `batchFetchedAt`, `fetchedAt`
+                    )
+                    SELECT
+                        `targetDate`, `dateOfPrediction`, `locationLat`, `locationLon`, `highTemp`, `lowTemp`,
+                        `condition`, `nativeDailyIconToken`, `isClimateNormal`, `source`, `precipProbability`,
+                        `daytimePrecipProbability`, `nighttimePrecipProbability`, `periodStartTime`, `periodEndTime`,
+                        `precipAmountMm`, `batchFetchedAt`, `fetchedAt`
+                    FROM `forecasts`
+                    """.trimIndent(),
+                )
+                db.execSQL("DROP TABLE `forecasts`")
+                db.execSQL("ALTER TABLE `forecasts_new` RENAME TO `forecasts`")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_forecasts_locationLat_locationLon` ON `forecasts` (`locationLat`, `locationLon`)")
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_forecasts_targetDate_source_locationLat_locationLon_batchFetchedAt` " +
+                        "ON `forecasts` (`targetDate`, `source`, `locationLat`, `locationLon`, `batchFetchedAt`)",
+                )
             }
         }
 
@@ -893,11 +1025,64 @@ abstract class WeatherDatabase : RoomDatabase() {
         /**
          * Rename `forecasts.batchFetchedAt` to `lastConfirmedAt`. Same column rename as desktop v35.
          * plans/261025-rename-batchfetchedat-to-lastconfirmedat.md
+         *
+         * Recreates the table: `RENAME COLUMN` needs SQLite 3.25 and API 28 has 3.22.
+         * plans/261101-migrations-sqlite-compat-below-api-34.md
          */
         val MIGRATION_81_82 = object : Migration(81, 82) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("DROP INDEX IF EXISTS `index_forecasts_targetDate_source_locationLat_locationLon_batchFetchedAt`")
-                db.execSQL("ALTER TABLE `forecasts` RENAME COLUMN `batchFetchedAt` TO `lastConfirmedAt`")
+                db.execSQL(
+                    """
+                    CREATE TABLE `forecasts_new` (
+                        `targetDate` INTEGER NOT NULL,
+                        `dateOfPrediction` INTEGER NOT NULL,
+                        `locationLat` REAL NOT NULL,
+                        `locationLon` REAL NOT NULL,
+                        `highTemp` REAL,
+                        `lowTemp` REAL,
+                        `condition` TEXT NOT NULL,
+                        `nativeDailyIconToken` TEXT,
+                        `isClimateNormal` INTEGER NOT NULL,
+                        `source` TEXT NOT NULL,
+                        `precipProbability` INTEGER,
+                        `daytimePrecipProbability` INTEGER,
+                        `nighttimePrecipProbability` INTEGER,
+                        `periodStartTime` INTEGER,
+                        `periodEndTime` INTEGER,
+                        `precipAmountMm` REAL,
+                        `lastConfirmedAt` INTEGER NOT NULL,
+                        `fetchedAt` INTEGER NOT NULL,
+                        `hindcastHighTemp` REAL,
+                        `hindcastLowTemp` REAL,
+                        `noonCloudPercent` INTEGER,
+                        `hourlyDayPrecipMax` INTEGER,
+                        `hourlyNightPrecipMax` INTEGER,
+                        `hourlyDayPrecipPeakAt` INTEGER,
+                        PRIMARY KEY(`targetDate`, `dateOfPrediction`, `locationLat`, `locationLon`, `source`, `fetchedAt`)
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    INSERT INTO `forecasts_new` (
+                        `targetDate`, `dateOfPrediction`, `locationLat`, `locationLon`, `highTemp`, `lowTemp`,
+                        `condition`, `nativeDailyIconToken`, `isClimateNormal`, `source`, `precipProbability`,
+                        `daytimePrecipProbability`, `nighttimePrecipProbability`, `periodStartTime`, `periodEndTime`,
+                        `precipAmountMm`, `lastConfirmedAt`, `fetchedAt`, `hindcastHighTemp`, `hindcastLowTemp`,
+                        `noonCloudPercent`, `hourlyDayPrecipMax`, `hourlyNightPrecipMax`, `hourlyDayPrecipPeakAt`
+                    )
+                    SELECT
+                        `targetDate`, `dateOfPrediction`, `locationLat`, `locationLon`, `highTemp`, `lowTemp`,
+                        `condition`, `nativeDailyIconToken`, `isClimateNormal`, `source`, `precipProbability`,
+                        `daytimePrecipProbability`, `nighttimePrecipProbability`, `periodStartTime`, `periodEndTime`,
+                        `precipAmountMm`, `batchFetchedAt`, `fetchedAt`, `hindcastHighTemp`, `hindcastLowTemp`,
+                        `noonCloudPercent`, `hourlyDayPrecipMax`, `hourlyNightPrecipMax`, `hourlyDayPrecipPeakAt`
+                    FROM `forecasts`
+                    """.trimIndent(),
+                )
+                db.execSQL("DROP TABLE `forecasts`")
+                db.execSQL("ALTER TABLE `forecasts_new` RENAME TO `forecasts`")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_forecasts_locationLat_locationLon` ON `forecasts` (`locationLat`, `locationLon`)")
                 db.execSQL(
                     "CREATE INDEX IF NOT EXISTS `index_forecasts_targetDate_source_locationLat_locationLon_lastConfirmedAt` " +
                         "ON `forecasts` (`targetDate`, `source`, `locationLat`, `locationLon`, `lastConfirmedAt`)",

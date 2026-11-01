@@ -243,7 +243,7 @@ class WeatherDatabaseMigrationTest {
                     "locationName, highTemp, lowTemp, condition, nativeDailyIconToken, isClimateNormal, " +
                     "source, precipProbability, daytimePrecipProbability, nighttimePrecipProbability, " +
                     "periodStartTime, periodEndTime, precipAmountMm, batchFetchedAt, fetchedAt) " +
-                    "VALUES (100, 99, 37.42, -122.08, 'HQ', 70.0, 50.0, 'Sunny', NULL, 0, 'NWS', " +
+                    "VALUES (100, 99, 37.42, -122.08, 'HQ', 70.5, 50.5, 'Sunny', NULL, 0, 'NWS', " +
                     "NULL, NULL, NULL, NULL, NULL, NULL, 123, 123)",
             )
             close()
@@ -251,10 +251,20 @@ class WeatherDatabaseMigrationTest {
 
         val db = helper.runMigrationsAndValidate(testDb, 54, true, WeatherDatabase.MIGRATION_53_54)
 
-        db.query("SELECT targetDate, dateOfPrediction FROM forecasts WHERE targetDate = 100").use { c ->
+        db.query(
+            "SELECT targetDate, dateOfPrediction, locationLat, locationLon, locationName, highTemp, lowTemp, condition, " +
+                "nativeDailyIconToken, isClimateNormal, source, precipProbability, daytimePrecipProbability, " +
+                "nighttimePrecipProbability, periodStartTime, periodEndTime, precipAmountMm, batchFetchedAt, fetchedAt " +
+                "FROM forecasts WHERE targetDate = 100",
+        ).use { c ->
             assertTrue(c.moveToFirst())
-            assertEquals(100L, c.getLong(0))
-            assertEquals(99L, c.getLong(1))
+            assertEquals(
+                listOf<String?>(
+                    "100", "99", "37.42", "-122.08", "HQ", "70.5", "50.5", "Sunny", null, "0", "NWS",
+                    null, null, null, null, null, null, "123", "123",
+                ),
+                (0 until c.columnCount).map { c.getString(it) },
+            )
         }
         db.close()
     }
@@ -267,18 +277,54 @@ class WeatherDatabaseMigrationTest {
                     "locationName, highTemp, lowTemp, condition, nativeDailyIconToken, isClimateNormal, " +
                     "source, precipProbability, daytimePrecipProbability, nighttimePrecipProbability, " +
                     "periodStartTime, periodEndTime, precipAmountMm, batchFetchedAt, fetchedAt) " +
-                    "VALUES (100, 99, 37.42, -122.08, 'HQ', 70.0, 50.0, 'Sunny', NULL, 0, 'NWS', " +
-                    "NULL, NULL, NULL, NULL, NULL, NULL, 123, 123)",
+                    "VALUES (100, 99, 37.42, -122.08, 'HQ', 70.5, 50.5, 'Sunny', 'icon', 1, 'NWS', " +
+                    "1, 2, 3, 4, 5, 6.5, 123, 456)",
             )
             close()
         }
 
         val db = helper.runMigrationsAndValidate(testDb, 55, true, WeatherDatabase.MIGRATION_54_55)
 
-        db.query("SELECT targetDate, dateOfPrediction FROM forecasts WHERE targetDate = 100").use { c ->
+        db.query(
+            "SELECT targetDate, dateOfPrediction, locationLat, locationLon, highTemp, lowTemp, condition, " +
+                "nativeDailyIconToken, isClimateNormal, source, precipProbability, daytimePrecipProbability, " +
+                "nighttimePrecipProbability, periodStartTime, periodEndTime, precipAmountMm, batchFetchedAt, fetchedAt " +
+                "FROM forecasts WHERE targetDate = 100",
+        ).use { c ->
             assertTrue(c.moveToFirst())
-            assertEquals(100L, c.getLong(0))
-            assertEquals(99L, c.getLong(1))
+            assertEquals(
+                listOf(
+                    "100", "99", "37.42", "-122.08", "70.5", "50.5", "Sunny", "icon", "1", "NWS",
+                    "1", "2", "3", "4", "5", "6.5", "123", "456",
+                ),
+                (0 until c.columnCount).map { c.getString(it) },
+            )
+        }
+        db.close()
+    }
+
+    @Test
+    fun migrate52To53_renamesSnapshotBucketAndKeepsEveryColumn() {
+        helper.createDatabase(testDb, 52).apply {
+            execSQL(
+                "INSERT INTO hourly_forecast_history (dateTime, locationLat, locationLon, temperature, condition, source, " +
+                    "snapshotBucket, precipProbability, cloudCover, precipAmountMm, fetchedAt) VALUES " +
+                    "(1, 2.5, 3.5, 4.5, 'cond', 'SRC', 5, 6, 7, 8.5, 9)",
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 53, true, WeatherDatabase.MIGRATION_52_53)
+
+        db.query(
+            "SELECT dateTime, locationLat, locationLon, temperature, condition, source, timestampToGroupPredictions, " +
+                "precipProbability, cloudCover, precipAmountMm, fetchedAt FROM hourly_forecast_history",
+        ).use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(
+                listOf("1", "2.5", "3.5", "4.5", "cond", "SRC", "5", "6", "7", "8.5", "9"),
+                (0 until c.columnCount).map { c.getString(it) },
+            )
         }
         db.close()
     }
@@ -945,6 +991,76 @@ class WeatherDatabaseMigrationTest {
             assertEquals(12345L, c.getLong(0))
             assertEquals(10000L, c.getLong(1))
         }
+    }
+
+    /** The rewrite recreates the table, so a misaligned column list would pass schema validation. */
+    @Test
+    fun migrate81To82_keepsEveryColumnsValue() {
+        helper.createDatabase(testDb, 81).apply {
+            execSQL(
+                "INSERT INTO forecasts (targetDate, dateOfPrediction, locationLat, locationLon, highTemp, lowTemp, " +
+                    "condition, nativeDailyIconToken, isClimateNormal, source, precipProbability, " +
+                    "daytimePrecipProbability, nighttimePrecipProbability, periodStartTime, periodEndTime, " +
+                    "precipAmountMm, batchFetchedAt, fetchedAt, hindcastHighTemp, hindcastLowTemp, noonCloudPercent, " +
+                    "hourlyDayPrecipMax, hourlyNightPrecipMax, hourlyDayPrecipPeakAt) VALUES " +
+                    "(1, 2, 3.5, 4.5, 5.5, 6.5, 'cond', 'icon', 1, 'SRC', 7, 8, 9, 10, 11, 12.5, 13, 14, 15.5, 16.5, 17, 18, 19, 20)",
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 82, true, WeatherDatabase.MIGRATION_81_82)
+
+        db.query(
+            "SELECT targetDate, dateOfPrediction, locationLat, locationLon, highTemp, lowTemp, condition, " +
+                "nativeDailyIconToken, isClimateNormal, source, precipProbability, daytimePrecipProbability, " +
+                "nighttimePrecipProbability, periodStartTime, periodEndTime, precipAmountMm, lastConfirmedAt, fetchedAt, " +
+                "hindcastHighTemp, hindcastLowTemp, noonCloudPercent, hourlyDayPrecipMax, hourlyNightPrecipMax, " +
+                "hourlyDayPrecipPeakAt FROM forecasts",
+        ).use { c ->
+            assertTrue(c.moveToFirst())
+            val actual = (0 until c.columnCount).map { c.getString(it) }
+            assertEquals(
+                listOf(
+                    "1", "2", "3.5", "4.5", "5.5", "6.5", "cond", "icon", "1", "SRC", "7", "8", "9", "10", "11",
+                    "12.5", "13", "14", "15.5", "16.5", "17", "18", "19", "20",
+                ),
+                actual,
+            )
+            assertFalse(c.moveToNext())
+        }
+        db.close()
+    }
+
+    /** NULLs in nullable columns survive the table recreation. */
+    @Test
+    fun migrate81To82_keepsNullsAndBothIndices() {
+        helper.createDatabase(testDb, 81).apply {
+            execSQL(
+                "INSERT INTO forecasts (targetDate, dateOfPrediction, locationLat, locationLon, condition, " +
+                    "isClimateNormal, source, batchFetchedAt, fetchedAt) VALUES (1, 2, 3.5, 4.5, 'cond', 0, 'SRC', 13, 14)",
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 82, true, WeatherDatabase.MIGRATION_81_82)
+
+        db.query("SELECT highTemp, nativeDailyIconToken, hourlyDayPrecipPeakAt FROM forecasts").use { c ->
+            assertTrue(c.moveToFirst())
+            assertTrue(c.isNull(0))
+            assertTrue(c.isNull(1))
+            assertTrue(c.isNull(2))
+        }
+        db.query("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'forecasts' AND sql IS NOT NULL ORDER BY name").use { c ->
+            val names = generateSequence { if (c.moveToNext()) c.getString(0) else null }.toList()
+            assertEquals(
+                listOf(
+                    "index_forecasts_locationLat_locationLon",
+                    "index_forecasts_targetDate_source_locationLat_locationLon_lastConfirmedAt",
+                ),
+                names,
+            )
+        }
+        db.close()
     }
 
     /** Two fragments of one day merge onto the rounded key: the newest blend, the older frozen forecast and api actual. */

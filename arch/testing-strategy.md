@@ -93,4 +93,10 @@ An emulator pass is cached only if the source fingerprint at the end of the run 
 
 Always use `emulator-tests.sh` for instrumentation. **Never run `./gradlew connectedDebugAndroidTest` directly**: it targets **all** connected devices, including physical phones, and can remove their widgets.
 
+### Old-Android compatibility targets
+
+`Medium_Phone_API_28` (SQLite 3.22) and `Medium_Phone_API_30` (SQLite 3.28) catch failures that the API 36 targets cannot, because Android's SQLite ships with the OS and `minSdk` is 26. They are not in the `staggered-tests.sh` boot rotation; start them before a run that touches migrations or SQL. Connected emulators all run in parallel. To target one, set `EMULATOR_TESTS_TARGET_SERIAL=<serial>`: `-e` is ignored while any emulator is already running.
+
+`MigrationSqliteCompatGuardTest` rejects `ALTER TABLE ... RENAME COLUMN` (needs SQLite 3.25) and `DROP COLUMN` (needs 3.35) on every unit run. Recreate the table instead, as `MIGRATION_81_82` does. Tests that read REAL columns with `getString()` should use non-whole values, because API 28 returns `"70"` where newer Android returns `"70.0"`.
+
 `gradle.properties` sets `android.injected.androidTest.leaveApksInstalledAfterRun=true`, and `emulator-tests.sh` preserves APKs by default. Keep that protection: uninstalling the app removes launcher widget instances. See [operations.md](operations.md) for runtime inspection and device-safety procedures.

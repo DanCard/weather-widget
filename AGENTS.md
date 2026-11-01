@@ -63,6 +63,8 @@ See [architecture](arch/ARCHITECTURE.md) for the current structural map.
   The authoritative definitions are `WeatherDatabase.kt` and `DesktopWeatherDatabase.kt`; do not copy
   their version numbers into documentation.
 - Add migrations rather than relying on destructive fallback for normal upgrades.
+- Migrations must run on `minSdk`'s SQLite, which ships with the OS. Recreate the table instead of using
+  `ALTER TABLE ... RENAME COLUMN` or `DROP COLUMN`. `MigrationSqliteCompatGuardTest` enforces this.
 
 ## Build and test
 
