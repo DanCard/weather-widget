@@ -21,7 +21,8 @@ import com.weatherwidget.data.local.WeatherDatabase
  * Deliberately stamped rather than suppressed at enqueue time: instrumented tests legitimately
  * assert that scheduling happened (e.g. `WidgetWorkSchedulerApi30IntegrationTest` drives a UI
  * repaint to `SUCCEEDED`), so the request must still exist and still succeed — it just must not do
- * any real work if it outlives its test.
+ * any real work if it outlives its test. [testScopedWorkName] keeps it from also holding a real
+ * request's place in the queue.
  */
 internal fun Data.Builder.tagTestModeEnqueue(): Data.Builder =
     apply {
@@ -29,3 +30,12 @@ internal fun Data.Builder.tagTestModeEnqueue(): Data.Builder =
             putBoolean(WeatherWidgetWorker.KEY_ENQUEUED_IN_TESTING, true)
         }
     }
+
+/**
+ * The unique-work name for [uniqueName] in this process: test mode gets its own, as it does for the
+ * database and preference files. Under one shared name, a marked request left by a test made the real
+ * app's `KEEP` enqueue discard its own request; the marked one then ran and did nothing, so a stale
+ * emulator never fetched after a test run (plans/261101-test-work-must-not-block-real-sync.md).
+ */
+internal fun testScopedWorkName(uniqueName: String): String =
+    if (WeatherDatabase.isTestingMode()) "${uniqueName}_test" else uniqueName

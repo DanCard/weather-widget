@@ -180,7 +180,7 @@ class RefreshToastRoboTest {
     @Test
     fun `refreshIfStale - a sync waiting for another source does not absorb this one's forecast`() = runBlocking {
         WorkManager.getInstance(context).enqueueUniqueWork(
-            WidgetWorkScheduler.WORK_NAME_ONE_TIME,
+            testScopedWorkName(WidgetWorkScheduler.WORK_NAME_ONE_TIME),
             ExistingWorkPolicy.KEEP,
             OneTimeWorkRequestBuilder<WeatherWidgetWorker>().setInitialDelay(1, java.util.concurrent.TimeUnit.HOURS).build(),
         ).result.get()
@@ -193,7 +193,7 @@ class RefreshToastRoboTest {
     @Test
     fun `enqueueForcedRefresh reports a waiting sync and never toasts by itself`() {
         WorkManager.getInstance(context).enqueueUniqueWork(
-            WidgetWorkScheduler.WORK_NAME_ONE_TIME,
+            testScopedWorkName(WidgetWorkScheduler.WORK_NAME_ONE_TIME),
             ExistingWorkPolicy.KEEP,
             OneTimeWorkRequestBuilder<WeatherWidgetWorker>().setInitialDelay(1, java.util.concurrent.TimeUnit.HOURS).build(),
         ).result.get()

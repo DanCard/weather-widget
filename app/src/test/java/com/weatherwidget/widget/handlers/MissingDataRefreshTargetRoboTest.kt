@@ -64,7 +64,7 @@ class MissingDataRefreshTargetRoboTest {
     }
 
     private fun pendingTags() = WorkManager.getInstance(context)
-        .getWorkInfosForUniqueWork(WidgetWorkScheduler.WORK_NAME_ONE_TIME).get(5, TimeUnit.SECONDS)
+        .getWorkInfosForUniqueWork(com.weatherwidget.widget.testScopedWorkName(WidgetWorkScheduler.WORK_NAME_ONE_TIME)).get(5, TimeUnit.SECONDS)
         .flatMap { it.tags }
         .filter { it.startsWith("forced_target:") }
 

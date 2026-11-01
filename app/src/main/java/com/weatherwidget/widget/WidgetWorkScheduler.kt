@@ -144,7 +144,7 @@ object WidgetWorkScheduler {
      */
     private fun delayedPolicy(context: Context, uniqueName: String): ExistingWorkPolicy {
         val running = try {
-            WorkManager.getInstance(context).getWorkInfosForUniqueWork(uniqueName).get(2, TimeUnit.SECONDS)
+            WorkManager.getInstance(context).getWorkInfosForUniqueWork(testScopedWorkName(uniqueName)).get(2, TimeUnit.SECONDS)
                 .any { it.state == androidx.work.WorkInfo.State.RUNNING }
         } catch (e: Exception) {
             Log.w(TAG, "Work state read failed for $uniqueName; appending", e)
@@ -188,7 +188,7 @@ object WidgetWorkScheduler {
         )
 
     fun cancelPreUnplugSync(context: Context) {
-        WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME_PRE_UNPLUG)
+        WorkManager.getInstance(context).cancelUniqueWork(testScopedWorkName(WORK_NAME_PRE_UNPLUG))
     }
 
     fun enqueueRequiredImmediateSync(
@@ -266,7 +266,7 @@ object WidgetWorkScheduler {
     private fun unfinishedOneTimeSyncTags(context: Context): List<Set<String>>? =
         runCatching {
             WorkManager.getInstance(context)
-                .getWorkInfosForUniqueWork(WORK_NAME_ONE_TIME).get(1, TimeUnit.SECONDS)
+                .getWorkInfosForUniqueWork(testScopedWorkName(WORK_NAME_ONE_TIME)).get(1, TimeUnit.SECONDS)
                 .filterNot { it.state.isFinished }
                 .map { it.tags }
         }.getOrElse {
@@ -370,7 +370,7 @@ object WidgetWorkScheduler {
     internal fun pendingOneTimeSync(context: Context): com.weatherwidget.shared.util.RefreshNotice.Reason? =
         runCatching {
             val infos = WorkManager.getInstance(context)
-                .getWorkInfosForUniqueWork(WORK_NAME_ONE_TIME).get(1, TimeUnit.SECONDS)
+                .getWorkInfosForUniqueWork(testScopedWorkName(WORK_NAME_ONE_TIME)).get(1, TimeUnit.SECONDS)
             when {
                 infos.any { it.state == androidx.work.WorkInfo.State.RUNNING } ->
                     com.weatherwidget.shared.util.RefreshNotice.Reason.IN_PROGRESS
@@ -672,10 +672,11 @@ object WidgetWorkScheduler {
                     }
                 }
                 .build()
-        WorkManager.getInstance(context).enqueueUniqueWork(uniqueName, policy, request)
+        val scopedName = testScopedWorkName(uniqueName)
+        WorkManager.getInstance(context).enqueueUniqueWork(scopedName, policy, request)
         Log.d(
             TAG,
-            "Full sync enqueued name=$uniqueName policy=$policy reason=$reason " +
+            "Full sync enqueued name=$scopedName policy=$policy reason=$reason " +
                 "force=$forceRefresh delayMs=$initialDelayMs id=${request.id}",
         )
         return request

@@ -118,7 +118,7 @@ class WidgetRefreshToastIntegrationRoboTest {
 
     private fun oneTimeSyncTags(): List<Set<String>> =
         androidx.work.WorkManager.getInstance(context)
-            .getWorkInfosForUniqueWork(com.weatherwidget.widget.WidgetWorkScheduler.WORK_NAME_ONE_TIME)
+            .getWorkInfosForUniqueWork(com.weatherwidget.widget.testScopedWorkName(com.weatherwidget.widget.WidgetWorkScheduler.WORK_NAME_ONE_TIME))
             .get(5, java.util.concurrent.TimeUnit.SECONDS)
             .filterNot { it.state.isFinished }
             .map { it.tags }

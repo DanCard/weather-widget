@@ -81,6 +81,9 @@ forecast interval — a backstop for a planner bug, not a poll).
   screen-on only brings the due-time sync forward to the 4-hour screen-on due time
   (`SCREEN_ON_FORECAST outcome=replanned`); a charging screen-on fetches when due, else brings it
   forward to the 2-hour due time.
+- **Android start:** a widget update that finds the forecast stale queues one delayed sync
+  (`WidgetStartupCoordinator`, `reason=on_update_stale`), so an install or emulator start fetches
+  without waiting for the planned wake.
 - Duties that ride a full sync (NWS gap fill, daily-history upkeep, snapshot prune) are once-a-day or
   idempotent and run on the next fetch; the battery location floor stays in the 45-minute
   opportunistic job, which still runs when it no longer fetches.

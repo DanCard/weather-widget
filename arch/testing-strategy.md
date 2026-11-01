@@ -11,6 +11,8 @@ Use the lightest framework that can exercise the behavior. An integration test i
 
 A single-component Robolectric test can be a unit test; a multi-component plain-JVM test can be an integration test. Prefer descriptive backtick test names and cover both happy paths and edge cases.
 
+Test mode redirects the database and preference files, and WorkManager's queue outlives the test process. `WidgetWorkScheduler.enqueueFullSync` therefore queues under `testScopedWorkName` (`<name>_test`), so a leftover test job cannot take a real sync's place. A test that reads one of those names in test mode must use the helper too.
+
 ## Shared Host contract tests
 
 Shared runners own cross-platform rules; Android and desktop implement their `Host`/`Store` ports. Test both sides of that boundary:
