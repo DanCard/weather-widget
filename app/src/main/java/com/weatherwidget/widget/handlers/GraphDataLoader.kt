@@ -201,7 +201,7 @@ object GraphDataLoader {
         // (SettledForecastPick), live and history rows alike, with null fields filled from that same
         // window; same-site fragments are collapsed. All raw buckets/fragments are passed in — the
         // stitcher does the selection.
-        val nowMs = now.atZone(zoneId).toInstant().toEpochMilli()
+        val nowMs = com.weatherwidget.shared.util.WeatherTimeUtils.liveEpochMs(now, zoneId)
         val stitched = HourlyForecastStitcher.stitch(
             current = currentRows.map { it.toHourlyForecast() },
             history = historyRows.map { it.toHourlyForecast() },
@@ -280,7 +280,7 @@ object GraphDataLoader {
             lon = lon,
             sources = listOf(displaySource.id, WeatherSource.GENERIC_GAP.id),
         )
-        val nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val nowMs = com.weatherwidget.shared.util.WeatherTimeUtils.liveEpochMs(now)
         return HourlyForecastStitcher.stitchBySource(
             current = live.map { it.toHourlyForecast() },
             history = history.map { it.toHourlyForecast() },
@@ -295,10 +295,9 @@ object GraphDataLoader {
      * resolved around NOW, never around a scrolled graph window.
      */
     fun nowCentred(rows: List<HourlyForecastEntity>, now: LocalDateTime): List<HourlyForecastEntity> {
-        val window = com.weatherwidget.widget.CurrentTemperatureResolver.buildCurrentTempResolutionWindow(now)
-        val zoneId = ZoneId.systemDefault()
-        val minMs = window.start.atZone(zoneId).toInstant().toEpochMilli()
-        val maxMs = window.end.atZone(zoneId).toInstant().toEpochMilli()
-        return rows.filter { it.dateTime in minMs..maxMs }
+        val window = com.weatherwidget.widget.CurrentTemperatureResolver.resolutionWindowMs(
+            com.weatherwidget.shared.util.WeatherTimeUtils.liveEpochMs(now),
+        )
+        return rows.filter { it.dateTime in window }
     }
 }

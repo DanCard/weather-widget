@@ -11,7 +11,6 @@ import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.widget.CurrentTempRun
 import com.weatherwidget.widget.ObservationResolver
 import java.time.LocalDateTime
-import java.time.ZoneId
 
 /**
  * Android's Host for the observation half of `:shared` [CurrentTempRun]: it reads the rows, the run
@@ -78,7 +77,7 @@ object CurrentTempResolver {
             displaySource = displaySource,
             latitude = lat,
             longitude = lon,
-            nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+            nowMs = com.weatherwidget.shared.util.WeatherTimeUtils.liveEpochMs(now),
             personalStationWeight = personalStationWeight,
         )
 

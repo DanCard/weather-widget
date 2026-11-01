@@ -7,9 +7,9 @@ import com.weatherwidget.shared.util.TemperatureInterpolator
 import com.weatherwidget.shared.graph.SeriesSmoothing
 import com.weatherwidget.shared.util.Log
 import com.weatherwidget.shared.util.TempUtils
+import com.weatherwidget.shared.util.WeatherTimeUtils
 import java.time.LocalDateTime
 import java.time.ZoneId
-import java.time.temporal.ChronoUnit
 
 data class CurrentTemperatureResolution(
     val displayTemp: Float?,
@@ -61,11 +61,23 @@ object CurrentTemperatureResolver {
     const val RESOLUTION_LOOKAHEAD_HOURS = 3L
 
     fun buildCurrentTempResolutionWindow(now: LocalDateTime): CurrentTempResolutionWindow {
-        val roundedNow = com.weatherwidget.shared.util.WeatherTimeUtils.alignToNearestHourHalfUp(now)
+        val roundedNow = WeatherTimeUtils.alignToNearestHourHalfUp(now)
         return CurrentTempResolutionWindow(
             start = roundedNow.minusHours(RESOLUTION_LOOKBACK_HOURS),
             end = roundedNow.plusHours(RESOLUTION_LOOKAHEAD_HOURS),
         )
+    }
+
+    /**
+     * The resolution window as instants: [nowMs] rounded to the nearest hour (half up), then
+     * [RESOLUTION_LOOKBACK_HOURS] back and [RESOLUTION_LOOKAHEAD_HOURS] ahead in real hours. Wall-clock
+     * arithmetic ([buildCurrentTempResolutionWindow]) comes out an hour short or long across a clock
+     * change. The one window for the resolver, the observation blend and every caller's reads.
+     */
+    fun resolutionWindowMs(nowMs: Long, zoneId: ZoneId = ZoneId.systemDefault()): LongRange {
+        val hourStart = WeatherTimeUtils.hourStartMs(nowMs, zoneId)
+        val rounded = if (nowMs - hourStart >= HOUR_MS / 2) hourStart + HOUR_MS else hourStart
+        return (rounded - RESOLUTION_LOOKBACK_HOURS * HOUR_MS)..(rounded + RESOLUTION_LOOKAHEAD_HOURS * HOUR_MS)
     }
 
     fun computeSmoothedForecasts(
@@ -153,15 +165,16 @@ object CurrentTemperatureResolver {
         // (desktop per-panel-poll / per-minute-ticker resolution) pass VERBOSE, which the
         // dbLogger boundary drops, so they can't swamp app_logs with a write per poll.
         resultLogLevel: String = "DEBUG",
+        // The exact instant of [now], which a wall clock cannot name in the repeated hour of a
+        // fall-back change: callers holding epoch time pass it so 1:30 PST is not read as 1:30 PDT.
+        nowMs: Long = WeatherTimeUtils.liveEpochMs(now),
     ): CurrentTemperatureResolution {
         val window = buildCurrentTempResolutionWindow(now)
-        val zoneId = ZoneId.systemDefault()
-        val minMs = window.start.atZone(zoneId).toInstant().toEpochMilli()
-        val maxMs = window.end.atZone(zoneId).toInstant().toEpochMilli()
+        val windowMs = resolutionWindowMs(nowMs)
 
         // Consistency: Even if the caller passed a 7-day list (fallback), we MUST resolve and smooth
         // against a fixed-size window to ensure the delta doesn't jump between view modes.
-        val strictHourlyForecasts = hourlyForecasts.filter { it.dateTime in minMs..maxMs }
+        val strictHourlyForecasts = hourlyForecasts.filter { it.dateTime in windowMs }
 
         appLog(
             "CURR_TEMP_RESOLVE",
@@ -172,11 +185,10 @@ object CurrentTemperatureResolver {
             // outcome below stays DEBUG (persisted) — that's the one summary worth querying.
             level = "VERBOSE",
         )
-        val nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         var estimatedTemp =
             resolveStrictForecastTemperature(
                 hourlyForecasts = strictHourlyForecasts,
-                targetTime = now,
+                targetMs = nowMs,
                 source = displaySource,
                 smoothedForecasts = smoothedForecasts,
                 nowMs = nowMs,
@@ -193,14 +205,10 @@ object CurrentTemperatureResolver {
 
         if (lastObservedTemp != null && observedAt != null) {
             verboseLog("resolve:observed available observedAt=$observedAt")
-            val obsTime = LocalDateTime.ofInstant(
-                java.time.Instant.ofEpochMilli(observedAt),
-                ZoneId.systemDefault()
-            )
             var estimatedAtObsTime =
                 resolveStrictForecastTemperature(
                     hourlyForecasts = strictHourlyForecasts,
-                    targetTime = obsTime,
+                    targetMs = observedAt,
                     source = displaySource,
                     smoothedForecasts = smoothedForecasts,
                     nowMs = nowMs,
@@ -226,12 +234,12 @@ object CurrentTemperatureResolver {
                         "observedTemp=$lastObservedTemp estimatedAtObs=$estimatedAtObsTime nowForecast=$estimatedTemp",
                 )
             } else {
-                verboseLog("resolve:anchorDelta FAILED - no forecast for observation time=$obsTime")
+                verboseLog("resolve:anchorDelta FAILED - no forecast for observation time=$observedAt")
                 appliedDelta = null
             }
         }
 
-        val isStaleEstimate = isStaleHourlyData(now, displaySource, strictHourlyForecasts)
+        val isStaleEstimate = isStaleHourlyData(nowMs, displaySource, strictHourlyForecasts)
         val displayTemp =
             if (estimatedTemp != null && appliedDelta != null) {
                 estimatedTemp + appliedDelta
@@ -263,16 +271,17 @@ object CurrentTemperatureResolver {
         hourlyForecasts: List<HourlyForecast>,
         lastObservedTemp: Float?,
         smoothedForecasts: Map<Long, Float>? = null,
+        nowMs: Long = WeatherTimeUtils.liveEpochMs(now),
     ): QuickCurrentTemperature {
         val estimatedTemp =
             resolveStrictForecastTemperature(
                 hourlyForecasts = hourlyForecasts,
-                targetTime = now,
+                targetMs = nowMs,
                 source = displaySource,
                 smoothedForecasts = smoothedForecasts,
-                nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                nowMs = nowMs,
             )
-        val isStaleEstimate = isStaleHourlyData(now, displaySource, hourlyForecasts)
+        val isStaleEstimate = isStaleHourlyData(nowMs, displaySource, hourlyForecasts)
         val displayTemp = estimatedTemp ?: lastObservedTemp
 
         return QuickCurrentTemperature(
@@ -307,7 +316,7 @@ object CurrentTemperatureResolver {
     }
 
     private fun isStaleHourlyData(
-        now: LocalDateTime,
+        nowMs: Long,
         displaySource: WeatherSource,
         hourlyForecasts: List<HourlyForecast>,
     ): Boolean {
@@ -320,7 +329,6 @@ object CurrentTemperatureResolver {
         if (sourceScopedForecasts.isEmpty()) return false
 
         val latestFetchMs = sourceScopedForecasts.map { it.fetchedAt }.maxOrNull() ?: return false
-        val nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val stale = (nowMs - latestFetchMs) > STALE_HOURLY_FETCH_THRESHOLD_MS
         verboseLog(
             "isStaleHourlyData: source=${displaySource.id} scopedCount=${sourceScopedForecasts.size} " +
@@ -351,9 +359,7 @@ object CurrentTemperatureResolver {
         val own = hourlyForecasts.filter { it.source == sourceId }
         if (own.isEmpty()) return null
         val runStartMs = own.maxOf { it.fetchedAt } - RUN_TOLERANCE_MS
-        val zoneId = ZoneId.systemDefault()
-        val obsHourMs = LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(observedAt), zoneId)
-            .truncatedTo(ChronoUnit.HOURS).atZone(zoneId).toInstant().toEpochMilli()
+        val obsHourMs = WeatherTimeUtils.hourStartMs(observedAt)
         val bracket = own.filter { it.dateTime == obsHourMs || it.dateTime == obsHourMs + HOUR_MS }
             .groupBy { it.dateTime }
             .values.map { rows -> rows.maxBy { it.fetchedAt } }
@@ -386,19 +392,16 @@ object CurrentTemperatureResolver {
 
     private fun resolveStrictForecastTemperature(
         hourlyForecasts: List<HourlyForecast>,
-        targetTime: LocalDateTime,
+        targetMs: Long,
         source: WeatherSource,
         smoothedForecasts: Map<Long, Float>?,
-        /** Real now, not [targetTime]: whether an hour has started decides which fetch stands for it. */
+        /** Real now, not [targetMs]: whether an hour has started decides which fetch stands for it. */
         nowMs: Long,
     ): Float? {
         if (hourlyForecasts.isEmpty()) return null
 
-        val zoneId = ZoneId.systemDefault()
-        val targetHour = targetTime.truncatedTo(ChronoUnit.HOURS)
-        val nextHour = targetHour.plusHours(1)
-        val targetHourMs = targetHour.atZone(zoneId).toInstant().toEpochMilli()
-        val nextHourMs = nextHour.atZone(zoneId).toInstant().toEpochMilli()
+        val targetHourMs = WeatherTimeUtils.hourStartMs(targetMs)
+        val nextHourMs = targetHourMs + HOUR_MS
 
         val sourceScopedForecasts =
             hourlyForecasts.groupBy { it.dateTime }
@@ -409,19 +412,19 @@ object CurrentTemperatureResolver {
 
         if (currentHourForecast == null) {
             verboseLog(
-                "resolve:strictForecast unavailable target=$targetTime reason=missing_current_hour " +
+                "resolve:strictForecast unavailable target=$targetMs reason=missing_current_hour " +
                     "targetHourMs=$targetHourMs nextHourMs=$nextHourMs",
             )
             return null
         }
 
-        if (targetTime.minute == 0 && targetTime.second == 0 && targetTime.nano == 0) {
+        if (targetMs == targetHourMs) {
             return smoothedForecasts?.get(currentHourForecast.dateTime) ?: currentHourForecast.temperature
         }
 
         if (nextHourForecast == null) {
             verboseLog(
-                "resolve:strictForecast unavailable target=$targetTime reason=missing_next_hour " +
+                "resolve:strictForecast unavailable target=$targetMs reason=missing_next_hour " +
                     "targetHourMs=$targetHourMs nextHourMs=$nextHourMs",
             )
             return null
@@ -429,7 +432,7 @@ object CurrentTemperatureResolver {
 
         return TemperatureInterpolator.getInterpolatedTemperature(
             hourlyForecasts = applySmoothing(listOf(currentHourForecast, nextHourForecast), smoothedForecasts),
-            targetEpochMs = targetTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            targetEpochMs = targetMs,
         )
     }
 }

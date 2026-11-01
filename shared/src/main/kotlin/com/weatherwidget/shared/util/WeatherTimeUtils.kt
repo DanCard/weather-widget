@@ -1,9 +1,31 @@
 package com.weatherwidget.shared.util
 
+import java.time.Instant
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.temporal.ChronoUnit
+import kotlin.math.abs
 
 object WeatherTimeUtils {
+    /**
+     * The instant of a wall-clock "now". In the repeated hour of a fall-back change [now] names two
+     * instants and `atZone` always takes the first, an hour early through the whole second one, so
+     * the one nearer the real clock wins. Only for a [now] read from the clock: any other time in
+     * that hour has no way to say which one it means. A time in a spring-forward gap moves forward.
+     */
+    fun liveEpochMs(
+        now: LocalDateTime,
+        zoneId: ZoneId = ZoneId.systemDefault(),
+        clockMs: Long = System.currentTimeMillis(),
+    ): Long {
+        val candidates = zoneId.rules.getValidOffsets(now).map { now.toInstant(it).toEpochMilli() }
+        return candidates.minByOrNull { abs(it - clockMs) } ?: now.atZone(zoneId).toInstant().toEpochMilli()
+    }
+
+    /** Start of the local hour holding [epochMs], keeping its offset across a clock change. */
+    fun hourStartMs(epochMs: Long, zoneId: ZoneId = ZoneId.systemDefault()): Long =
+        Instant.ofEpochMilli(epochMs).atZone(zoneId).truncatedTo(ChronoUnit.HOURS).toInstant().toEpochMilli()
+
     fun alignToNearestHourHalfUp(dateTime: LocalDateTime): LocalDateTime {
         val truncatedHour = dateTime.truncatedTo(ChronoUnit.HOURS)
         return if (dateTime.minute >= 30) truncatedHour.plusHours(1) else truncatedHour

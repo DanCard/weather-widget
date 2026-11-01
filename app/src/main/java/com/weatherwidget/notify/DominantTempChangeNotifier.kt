@@ -68,9 +68,11 @@ object DominantTempChangeNotifier {
         val displaySource = primarySource(stateManager)
         val now = LocalDateTime.now()
         val zoneId = ZoneId.systemDefault()
-        val window = CurrentTemperatureResolver.buildCurrentTempResolutionWindow(now)
-        val minEpoch = window.start.atZone(zoneId).toInstant().toEpochMilli()
-        val maxEpoch = window.end.atZone(zoneId).toInstant().toEpochMilli()
+        val window = CurrentTemperatureResolver.resolutionWindowMs(
+            com.weatherwidget.shared.util.WeatherTimeUtils.liveEpochMs(now),
+        )
+        val minEpoch = window.first
+        val maxEpoch = window.last
 
         // Scoped: resolveCurrentObservationDetails filters by this same rule, so the other apis
         // were read only to be dropped.
@@ -87,7 +89,7 @@ object DominantTempChangeNotifier {
             displaySourceId = displaySource.id,
             userLat = lat,
             userLon = lon,
-            nowMs = now.atZone(zoneId).toInstant().toEpochMilli(),
+            nowMs = com.weatherwidget.shared.util.WeatherTimeUtils.liveEpochMs(now, zoneId),
             lookbackHours = CurrentTemperatureResolver.RESOLUTION_LOOKBACK_HOURS,
             lookaheadHours = CurrentTemperatureResolver.RESOLUTION_LOOKAHEAD_HOURS,
             personalStationWeight = stateManager.getPersonalStationWeight(),

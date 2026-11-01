@@ -126,11 +126,9 @@ class DesktopWeatherRepository(
      */
     private fun currentTempWindowFor(now: Long): CurrentTempWindow {
         val nowLocal = LocalDateTime.ofInstant(Instant.ofEpochMilli(now), ZoneId.systemDefault())
-        val window = CurrentTemperatureResolver.buildCurrentTempResolutionWindow(nowLocal)
         val zoneId = ZoneId.systemDefault()
-        val minEpoch = window.start.atZone(zoneId).toInstant().toEpochMilli()
-        val maxEpoch = window.end.atZone(zoneId).toInstant().toEpochMilli()
-        return CurrentTempWindow(minEpoch, maxEpoch, zoneId, nowLocal)
+        val window = CurrentTemperatureResolver.resolutionWindowMs(now, zoneId)
+        return CurrentTempWindow(window.first, window.last, zoneId, nowLocal)
     }
 
     private fun resolveForForecastResult(

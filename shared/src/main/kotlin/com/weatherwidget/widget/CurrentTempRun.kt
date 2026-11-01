@@ -5,6 +5,7 @@ import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.actuals.ActualsAggregator
 import com.weatherwidget.shared.actuals.YesterdayDeltaCalculator
+import com.weatherwidget.shared.util.WeatherTimeUtils
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -29,9 +30,8 @@ object CurrentTempRun {
 
     /** [INPUT_LOOKBACK_BEFORE_WINDOW_MS] before the resolution window's start … its end, as epoch ms. */
     fun inputWindow(nowLocal: LocalDateTime, zoneId: ZoneId = ZoneId.systemDefault()): LongRange {
-        val window = CurrentTemperatureResolver.buildCurrentTempResolutionWindow(nowLocal)
-        return window.start.atZone(zoneId).toInstant().toEpochMilli() - INPUT_LOOKBACK_BEFORE_WINDOW_MS..
-            window.end.atZone(zoneId).toInstant().toEpochMilli()
+        val window = resolutionWindowMs(nowLocal, zoneId)
+        return window.first - INPUT_LOOKBACK_BEFORE_WINDOW_MS..window.last
     }
 
     /** The observation side: the blend at now and the "from yesterday" delta it anchors. */
@@ -74,6 +74,7 @@ object CurrentTempRun {
             hourly = hourly,
             displaySource = displaySource,
             nowLocal = LocalDateTime.ofInstant(Instant.ofEpochMilli(nowMs), zoneId),
+            nowMs = nowMs,
             observedTemp = observed.temperature,
             observedAt = observed.observedAt,
             zoneId = zoneId,
@@ -105,7 +106,7 @@ object CurrentTempRun {
         personalStationWeight: Double,
         zoneId: ZoneId = ZoneId.systemDefault(),
     ): Observed {
-        val window = resolutionWindowMs(LocalDateTime.ofInstant(Instant.ofEpochMilli(nowMs), zoneId), zoneId)
+        val window = CurrentTemperatureResolver.resolutionWindowMs(nowMs, zoneId)
         val windowObs = observations.filter { it.timestamp in window }
         val windowHourly = hourly.filter { it.dateTime in window }
 
@@ -156,8 +157,9 @@ object CurrentTempRun {
         observedAt: Long?,
         zoneId: ZoneId = ZoneId.systemDefault(),
         resultLogLevel: String = "DEBUG",
+        nowMs: Long = WeatherTimeUtils.liveEpochMs(nowLocal, zoneId),
     ): CurrentTemperatureResolution {
-        val window = resolutionWindowMs(nowLocal, zoneId)
+        val window = CurrentTemperatureResolver.resolutionWindowMs(nowMs, zoneId)
         val windowHourly = hourly.filter { it.dateTime in window }
         return CurrentTemperatureResolver.resolve(
             now = nowLocal,
@@ -168,14 +170,13 @@ object CurrentTempRun {
             smoothedForecasts = CurrentTemperatureResolver.computeSmoothedForecasts(
                 windowHourly,
                 displaySource.id,
-                now = nowLocal.atZone(zoneId).toInstant().toEpochMilli(),
+                now = nowMs,
             ),
             resultLogLevel = resultLogLevel,
+            nowMs = nowMs,
         )
     }
 
-    private fun resolutionWindowMs(nowLocal: LocalDateTime, zoneId: ZoneId): LongRange {
-        val window = CurrentTemperatureResolver.buildCurrentTempResolutionWindow(nowLocal)
-        return window.start.atZone(zoneId).toInstant().toEpochMilli()..window.end.atZone(zoneId).toInstant().toEpochMilli()
-    }
+    private fun resolutionWindowMs(nowLocal: LocalDateTime, zoneId: ZoneId): LongRange =
+        CurrentTemperatureResolver.resolutionWindowMs(WeatherTimeUtils.liveEpochMs(nowLocal, zoneId), zoneId)
 }

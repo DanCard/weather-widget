@@ -331,7 +331,7 @@ internal object TemperatureStateResolver {
             // Those two fields could not tell either case apart from a THIRD: the read was centred on
             // a coordinate the device had left, so both ages were large while fresh rows sat in the
             // database, unreachable behind the merge box (2026-08-28). locSource/obsCentre name it.
-            val nowEpochMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            val nowEpochMs = com.weatherwidget.shared.util.WeatherTimeUtils.liveEpochMs(now)
             fun ageMin(ms: Long?): String =
                 ms?.let { ((nowEpochMs - it).coerceAtLeast(0L) / 60_000L).toString() } ?: "na"
             effectiveAppLogDao.log(

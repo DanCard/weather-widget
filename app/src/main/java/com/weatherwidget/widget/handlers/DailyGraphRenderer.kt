@@ -480,15 +480,14 @@ internal object DailyGraphRenderer {
         // the blend emitted — the lone-station rule depends on the whole input set — so the two
         // landed on readings up to an hour apart and the station rows vanished. Narrowing here
         // reuses the single query instead of issuing a second one.
-        val resolutionWindow = CurrentTemperatureResolver.buildCurrentTempResolutionWindow(ctx.now)
-        val zone = ZoneId.systemDefault()
-        val windowStartMs = resolutionWindow.start.atZone(zone).toInstant().toEpochMilli()
-        val windowEndMs = resolutionWindow.end.atZone(zone).toInstant().toEpochMilli()
+        val resolutionWindow = CurrentTemperatureResolver.resolutionWindowMs(
+            com.weatherwidget.shared.util.WeatherTimeUtils.liveEpochMs(ctx.now),
+        )
         val sharedObservations =
-            observations.filter { it.timestamp in windowStartMs..windowEndMs }.map { it.toReading() }
+            observations.filter { it.timestamp in resolutionWindow }.map { it.toReading() }
         val sharedHourlyForecasts =
             ctx.hourlyForecasts
-                .filter { it.dateTime in windowStartMs..windowEndMs }
+                .filter { it.dateTime in resolutionWindow }
                 .map { it.toHourlyForecast() }
         val personalStationWeight = ctx.stateManager.getPersonalStationWeight()
 
