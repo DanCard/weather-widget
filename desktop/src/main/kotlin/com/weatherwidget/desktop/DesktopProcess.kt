@@ -171,14 +171,14 @@ const val STARTUP_REASON = "startup"
  * - [STARTUP_REASON]: the normal cadence ([cadenceMs]; null = suspended → never). A launch is not a request for a forecast: it used to refetch anything 15 min old, ~3
  *   Google requests per restart (plans/261008-desktop-startup-respects-forecast-cadence.md). A launch
  *   with no cache still fetches (`cachePresent`), and observations still catch up;
- * - cycling the displayed source ([SOURCE_CYCLE_REASON]): [SourceToggleRefreshPolicy.STALE_MS], 4 h,
- *   in the daily and hourly views alike (a source with no cache still fetches: `cachePresent`);
+ * - cycling the displayed source ([SOURCE_CYCLE_REASON]): [SourceToggleRefreshPolicy.staleMs], 2 h on
+ *   a charger ([isCharging]) and 4 h off it, in the daily and hourly views alike (a source with no cache still fetches: `cachePresent`);
  * - otherwise the user-present [FORECAST_FRESHNESS_THRESHOLD_MS].
  */
-fun launchForecastStaleAfterMs(reason: String, cadenceMs: () -> Long?): Long = when {
+fun launchForecastStaleAfterMs(reason: String, isCharging: () -> Boolean, cadenceMs: () -> Long?): Long = when {
     isAutomaticCatchUp(reason) -> minOf(cadenceMs() ?: Long.MAX_VALUE, CATCH_UP_FORECAST_MAX_AGE_MS)
     reason == STARTUP_REASON -> cadenceMs() ?: Long.MAX_VALUE
-    reason == SOURCE_CYCLE_REASON -> com.weatherwidget.shared.util.SourceToggleRefreshPolicy.STALE_MS
+    reason == SOURCE_CYCLE_REASON -> com.weatherwidget.shared.util.SourceToggleRefreshPolicy.staleMs(isCharging())
     else -> FORECAST_FRESHNESS_THRESHOLD_MS
 }
 

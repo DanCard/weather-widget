@@ -624,7 +624,7 @@ internal class DaemonRuntime(
                 locationLon = config.lon,
                 providerId = actualsProvider,
             )
-            val forecastStaleAfterMs = launchForecastStaleAfterMs(reason) { activeForecastCadenceMs() }
+            val forecastStaleAfterMs = launchForecastStaleAfterMs(reason, isCharging = { PowerDetector.getPowerState().isCharging }) { activeForecastCadenceMs() }
             val launchRefreshAction = if (launchRefreshSkippedWhileAway(reason, presence.isAway)) {
                 LaunchRefreshAction.NONE
             } else {

@@ -10,6 +10,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.FetchMetadata
 import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.util.WeatherTimeUtils
+import com.weatherwidget.widget.BatterySnapshotProvider
 import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WidgetPushDispatcher
@@ -104,7 +105,7 @@ internal object GraphInteractionRenderer {
                         location.lon,
                     ).takeIf { it > 0L },
             )
-        return SourceStalenessProbe.sourceNeedsRefresh(state, nowMs)
+        return SourceStalenessProbe.sourceNeedsRefresh(state, nowMs, BatterySnapshotProvider.snapshot(context).isCharging)
     }
 
     suspend fun render(request: GraphRenderRequest) {

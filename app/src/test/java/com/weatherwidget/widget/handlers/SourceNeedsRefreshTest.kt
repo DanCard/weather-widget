@@ -1,5 +1,6 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.shared.util.SourceToggleRefreshPolicy
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -15,6 +16,7 @@ import org.junit.experimental.categories.Category
 @Category(ShortDuration::class)
 class SourceNeedsRefreshTest {
     private val now = 1_800_000_000_000L
+    private val batteryStaleMs = SourceToggleRefreshPolicy.staleMs(isCharging = false)
 
     private fun complete(fetchedAtMs: Long?) =
         SourceStalenessProbe.SourceWindowState(
@@ -27,31 +29,39 @@ class SourceNeedsRefreshTest {
     @Test
     fun freshAndComplete_doesNotRefresh() {
         val oneMinuteAgo = now - 60_000L
-        assertFalse(SourceStalenessProbe.sourceNeedsRefresh(complete(oneMinuteAgo), now))
+        assertFalse(SourceStalenessProbe.sourceNeedsRefresh(complete(oneMinuteAgo), now, isCharging = false))
     }
 
     @Test
     fun justUnderStaleThreshold_doesNotRefresh() {
-        val justUnder = now - SourceStalenessProbe.TOGGLE_REFRESH_STALE_MS + 60_000L
-        assertFalse(SourceStalenessProbe.sourceNeedsRefresh(complete(justUnder), now))
+        val justUnder = now - batteryStaleMs + 60_000L
+        assertFalse(SourceStalenessProbe.sourceNeedsRefresh(complete(justUnder), now, isCharging = false))
     }
 
     @Test
     fun atStaleThreshold_refreshes() {
-        val exactlyAtThreshold = now - SourceStalenessProbe.TOGGLE_REFRESH_STALE_MS
-        assertTrue(SourceStalenessProbe.sourceNeedsRefresh(complete(exactlyAtThreshold), now))
+        val exactlyAtThreshold = now - batteryStaleMs
+        assertTrue(SourceStalenessProbe.sourceNeedsRefresh(complete(exactlyAtThreshold), now, isCharging = false))
+    }
+
+    /** 2026-11-01: on a charger the forecast is due every 2 h, so a toggle at 3 h must fetch. */
+    @Test
+    fun threeHoursOld_refreshesOnChargerButNotOnBattery() {
+        val threeHoursAgo = complete(now - 3 * 60 * 60 * 1000L)
+        assertTrue(SourceStalenessProbe.sourceNeedsRefresh(threeHoursAgo, now, isCharging = true))
+        assertFalse(SourceStalenessProbe.sourceNeedsRefresh(threeHoursAgo, now, isCharging = false))
     }
 
     /** 2026-10-08: toggling back to a source fetched 40 minutes ago refetched Google (3 pages). */
     @Test
     fun fortyMinutesOld_doesNotRefreshOnToggle() {
-        assertFalse(SourceStalenessProbe.sourceNeedsRefresh(complete(now - 40 * 60_000L), now))
+        assertFalse(SourceStalenessProbe.sourceNeedsRefresh(complete(now - 40 * 60_000L), now, isCharging = false))
     }
 
     @Test
     fun pastStaleThreshold_refreshes() {
         val nineHoursAgo = now - 9 * 60 * 60 * 1000L
-        assertTrue(SourceStalenessProbe.sourceNeedsRefresh(complete(nineHoursAgo), now))
+        assertTrue(SourceStalenessProbe.sourceNeedsRefresh(complete(nineHoursAgo), now, isCharging = false))
     }
 
     @Test
@@ -60,34 +70,34 @@ class SourceNeedsRefreshTest {
         val recentSuccessfulFetch = now - 60_000L
         val state = complete(oldContentTimestamp).copy(lastSuccessfulFetchAtMs = recentSuccessfulFetch)
 
-        assertFalse(SourceStalenessProbe.sourceNeedsRefresh(state, now))
+        assertFalse(SourceStalenessProbe.sourceNeedsRefresh(state, now, isCharging = false))
     }
 
     @Test
     fun staleSuccessfulFetch_doesNotHideOldRows() {
         val oldContentTimestamp = now - 9 * 60 * 60 * 1000L
-        val oldSuccessfulFetch = now - 2 * SourceStalenessProbe.TOGGLE_REFRESH_STALE_MS
+        val oldSuccessfulFetch = now - 2 * batteryStaleMs
         val state = complete(oldContentTimestamp).copy(lastSuccessfulFetchAtMs = oldSuccessfulFetch)
 
-        assertTrue(SourceStalenessProbe.sourceNeedsRefresh(state, now))
+        assertTrue(SourceStalenessProbe.sourceNeedsRefresh(state, now, isCharging = false))
     }
 
     @Test
     fun missingDaily_refreshesEvenWhenFresh() {
         val state = complete(now).copy(hasDaily = false)
-        assertTrue(SourceStalenessProbe.sourceNeedsRefresh(state, now))
+        assertTrue(SourceStalenessProbe.sourceNeedsRefresh(state, now, isCharging = false))
     }
 
     @Test
     fun missingHourly_refreshesEvenWhenFresh() {
         val state = complete(now).copy(hasHourly = false)
-        assertTrue(SourceStalenessProbe.sourceNeedsRefresh(state, now))
+        assertTrue(SourceStalenessProbe.sourceNeedsRefresh(state, now, isCharging = false))
     }
 
     @Test
     fun insufficientFutureCoverage_refreshesEvenWhenFresh() {
         val state = complete(now).copy(hasRequiredFutureCoverage = false)
-        assertTrue(SourceStalenessProbe.sourceNeedsRefresh(state, now))
+        assertTrue(SourceStalenessProbe.sourceNeedsRefresh(state, now, isCharging = false))
     }
 
     @Test
@@ -99,7 +109,7 @@ class SourceNeedsRefreshTest {
                 hasRequiredFutureCoverage = false,
                 newestFetchedAtMs = null,
             )
-        assertTrue(SourceStalenessProbe.sourceNeedsRefresh(state, now))
+        assertTrue(SourceStalenessProbe.sourceNeedsRefresh(state, now, isCharging = false))
     }
 
     /**
@@ -108,6 +118,6 @@ class SourceNeedsRefreshTest {
      */
     @Test
     fun futureFetchedAt_doesNotRefresh() {
-        assertFalse(SourceStalenessProbe.sourceNeedsRefresh(complete(now + 60_000L), now))
+        assertFalse(SourceStalenessProbe.sourceNeedsRefresh(complete(now + 60_000L), now, isCharging = false))
     }
 }

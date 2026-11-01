@@ -29,6 +29,9 @@ for the source's full supported horizon; there is no shorter three-day forecast 
   interval makes it due (`ForecastHorizonCadence.screenOnCatchUp`; Android `ScreenOnReceiver`,
   `SCREEN_ON_FORECAST`), and otherwise moves the next wake to that due time. The desktop forecast loop
   re-plans on every screen wake, which has the same effect.
+- Switching to a source fetches its forecast when it is at least the screen-on interval old: 2 hours on
+  a charger, otherwise 4 hours, whatever the battery level (`SourceToggleRefreshPolicy`; desktop
+  `LAUNCH_REFRESH_CHECK reason=source_change`).
 - `SourceFetchGate` excludes sources not viewed recently from routine background work. Targeted user
   actions and on-demand hourly requests are separate from this background gate.
 

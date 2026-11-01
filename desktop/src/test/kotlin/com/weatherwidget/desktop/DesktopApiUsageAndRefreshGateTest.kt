@@ -77,9 +77,9 @@ class DesktopApiUsageAndRefreshGateTest {
     @Test
     fun `startup refetches the forecast only when due by the cadence`() {
         val cadence = 4 * 3_600_000L
-        val staleAfter = launchForecastStaleAfterMs(STARTUP_REASON) { cadence }
+        val staleAfter = launchForecastStaleAfterMs(STARTUP_REASON, isCharging = { false }) { cadence }
         assertEquals(cadence, staleAfter)
-        assertEquals(Long.MAX_VALUE, launchForecastStaleAfterMs(STARTUP_REASON) { null })
+        assertEquals(Long.MAX_VALUE, launchForecastStaleAfterMs(STARTUP_REASON, isCharging = { false }) { null })
 
         fun atStartup(forecastAgeMin: Long?, cachePresent: Boolean = true) = determineLaunchRefreshAction(
             cachePresent = cachePresent,
@@ -98,7 +98,7 @@ class DesktopApiUsageAndRefreshGateTest {
     @Test
     fun `wake and network restore refetch the forecast only when due by the cadence`() {
         val cadence = 4 * 3_600_000L
-        val staleAfter = launchForecastStaleAfterMs("network:restored") { cadence }
+        val staleAfter = launchForecastStaleAfterMs("network:restored", isCharging = { false }) { cadence }
         assertEquals(cadence, staleAfter)
         // 01:51 on 2026-10-08: a 100-minute-old forecast was refetched on network restore. Now only
         // the observations catch up.
@@ -111,14 +111,14 @@ class DesktopApiUsageAndRefreshGateTest {
         )
         assertEquals(LaunchRefreshAction.OBSERVATIONS, action)
         // A catch-up never leaves a forecast older than 8 h, even with the cadence off.
-        assertEquals(CATCH_UP_FORECAST_MAX_AGE_MS, launchForecastStaleAfterMs("resume:logind") { null })
+        assertEquals(CATCH_UP_FORECAST_MAX_AGE_MS, launchForecastStaleAfterMs("resume:logind", isCharging = { false }) { null })
         // A source or location the user just picked still refetches past the user-present 15 min.
-        assertEquals(FORECAST_FRESHNESS_THRESHOLD_MS, launchForecastStaleAfterMs("source_or_location_change") { cadence })
+        assertEquals(FORECAST_FRESHNESS_THRESHOLD_MS, launchForecastStaleAfterMs("source_or_location_change", isCharging = { false }) { cadence })
     }
 
     @Test
-    fun `cycling the source refetches only past four hours`() {
-        val staleAfter = launchForecastStaleAfterMs(SOURCE_CYCLE_REASON) { 1L }
+    fun `cycling the source off a charger refetches only past four hours`() {
+        val staleAfter = launchForecastStaleAfterMs(SOURCE_CYCLE_REASON, isCharging = { false }) { 1L }
         assertEquals(4 * 3_600_000L, staleAfter)
         fun actionAt(ageMs: Long) = determineLaunchRefreshAction(
             cachePresent = true,
@@ -136,6 +136,22 @@ class DesktopApiUsageAndRefreshGateTest {
         )
     }
 
+    /** 2026-11-01: a switch to Google at 3.09 h logged action=NONE with the forecast due every 2 h. */
+    @Test
+    fun `cycling the source on a charger refetches past two hours`() {
+        val nowMs = 1_000_000_000L
+        val staleAfter = launchForecastStaleAfterMs(SOURCE_CYCLE_REASON, isCharging = { true }) { 1L }
+        fun actionAt(ageMs: Long) = determineLaunchRefreshAction(
+            cachePresent = true,
+            lastObservationFetchMs = nowMs,
+            lastForecastFetchMs = nowMs - ageMs,
+            nowMs = nowMs,
+            forecastStaleAfterMs = staleAfter,
+        )
+        assertEquals(LaunchRefreshAction.NONE, actionAt(119 * 60_000L))
+        assertEquals(LaunchRefreshAction.FULL_FORECAST, actionAt(11_114_571L))
+    }
+
     @Test
     fun `a source switch alone is a source cycle, a location change is not`() {
         val before = DesktopConfig(lat = 37.4, lon = -122.0, label = "Mountain View")
@@ -149,7 +165,7 @@ class DesktopApiUsageAndRefreshGateTest {
         val hour = 3_600_000L
         val lowBatteryCadence = 24 * hour
         for (reason in listOf("resume:logind", "network:restored")) {
-            val staleAfter = launchForecastStaleAfterMs(reason) { lowBatteryCadence }
+            val staleAfter = launchForecastStaleAfterMs(reason, isCharging = { false }) { lowBatteryCadence }
             assertEquals(8 * hour, staleAfter)
             val action = determineLaunchRefreshAction(
                 cachePresent = true,
@@ -161,8 +177,8 @@ class DesktopApiUsageAndRefreshGateTest {
             assertEquals(LaunchRefreshAction.FULL_FORECAST, action)
         }
         // A shorter cadence still wins (high battery: 4 h).
-        assertEquals(4 * hour, launchForecastStaleAfterMs("resume:logind") { 4 * hour })
+        assertEquals(4 * hour, launchForecastStaleAfterMs("resume:logind", isCharging = { false }) { 4 * hour })
         // The daemon's own launch keeps the cadence: a restart is not the user arriving.
-        assertEquals(lowBatteryCadence, launchForecastStaleAfterMs(STARTUP_REASON) { lowBatteryCadence })
+        assertEquals(lowBatteryCadence, launchForecastStaleAfterMs(STARTUP_REASON, isCharging = { false }) { lowBatteryCadence })
     }
 }

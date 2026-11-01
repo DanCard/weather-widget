@@ -5,6 +5,7 @@ import com.weatherwidget.data.local.ForecastDao
 import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.HourlyForecastHistoryDao
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.util.SourceToggleRefreshPolicy
 import com.weatherwidget.util.WeatherTimeUtils
 import com.weatherwidget.widget.WidgetQueryWindows
 import com.weatherwidget.widget.ZoomWindow
@@ -48,14 +49,6 @@ object SourceStalenessProbe {
     private const val SOURCE_CHECK_MIN_FUTURE_COVERAGE_DAYS = 2L
 
     /**
-     * Switching to a source whose cached data is older than this forces a targeted network fetch.
-     * Also acts as the per-source cooldown for repeated toggling. [SourceToggleRefreshPolicy]: 4 h,
-     * daily and hourly views alike (was 15 min).
-     */
-    @VisibleForTesting
-    internal const val TOGGLE_REFRESH_STALE_MS = com.weatherwidget.shared.util.SourceToggleRefreshPolicy.STALE_MS
-
-    /**
      * Snapshot of what one source has cached for the currently-displayed window. Split from the
      * [sourceNeedsRefresh] decision so the policy is unit-testable without a database.
      */
@@ -73,7 +66,7 @@ object SourceStalenessProbe {
 
     /**
      * True when switching to this source should trigger a forced network fetch: its data is either
-     * absent/incomplete, or older than [TOGGLE_REFRESH_STALE_MS].
+     * absent/incomplete, or older than [SourceToggleRefreshPolicy.staleMs] (2 h on a charger, else 4 h).
      *
      * The age check doubles as the per-source cooldown — once a toggle-triggered fetch lands,
      * fetchedAt is young, so toggling away and back is a no-op.
@@ -82,12 +75,13 @@ object SourceStalenessProbe {
     internal fun sourceNeedsRefresh(
         state: SourceWindowState,
         nowMs: Long,
+        isCharging: Boolean,
     ): Boolean {
         if (!state.hasDaily || !state.hasHourly || !state.hasRequiredFutureCoverage) return true
         val fetchedAt =
             listOfNotNull(state.newestFetchedAtMs, state.lastSuccessfulFetchAtMs).maxOrNull()
                 ?: return true
-        return nowMs - fetchedAt >= TOGGLE_REFRESH_STALE_MS
+        return nowMs - fetchedAt >= SourceToggleRefreshPolicy.staleMs(isCharging)
     }
 
     /**
