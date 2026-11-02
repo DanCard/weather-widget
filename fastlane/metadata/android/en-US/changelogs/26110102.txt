@@ -1,0 +1,1 @@
+Release 26110102: Refresh viewed weather source at 2 hours on charger or high battery; keep daily rain label tappable without current temperature; fix 2x2 widget placement sizing on older Android versions; improve database upgrade compatibility across Android releases; smooth source switching in desktop graphs; and general stability improvements.
