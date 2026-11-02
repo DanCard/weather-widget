@@ -262,6 +262,19 @@ internal fun runDesktopUiApplication() = application {
         // live DB, so this is always current. rememberUpdatedState keeps the repository reference fresh
         // so a lambda captured once (e.g. in a LaunchedEffect(Unit) watcher) still sees the latest repo.
         val currentRepository = rememberUpdatedState(repository)
+        // The one way a finished load reaches the popup: only from the repository still selected.
+        // false = dropped, see [DesktopSnapshotPublish].
+        fun publishIfCurrent(repo: DesktopWeatherRepository, snapshot: ForecastSnapshot, origin: String): Boolean {
+            val current = currentRepository.value
+            if (DesktopSnapshotPublish.isCurrent(repo, current)) {
+                forecast = snapshot
+                return true
+            }
+            val line = DesktopSnapshotPublish.dropLine(repo.sourceId, current?.sourceId, origin)
+            Log.i(TAG, "${DesktopSnapshotPublish.DROP_TAG} $line")
+            DesktopAppLogQueue.log(DesktopSnapshotPublish.DROP_TAG, line, "INFO")
+            return false
+        }
         // The selected source has no rows here (loadCached returned null). Keeping the old snapshot
         // would leave one source's forecast under another's name, for good if the fetch fails. Startup
         // and location changes have their own screens. [fetchEnded]: without a cache the daemon always
@@ -272,7 +285,7 @@ internal fun runDesktopUiApplication() = application {
             if (pendingLocationLabel != null || locationBanner != null) return
             val currentIsEmpty = current.raw.hourly.isEmpty() && current.raw.daily.isEmpty()
             if (current.sourceId == repo.sourceId && !currentIsEmpty) return
-            if (current.sourceId != repo.sourceId) forecast = repo.emptySnapshot()
+            if (current.sourceId != repo.sourceId && !publishIfCurrent(repo, repo.emptySnapshot(), "empty_source")) return
             if (fetchEnded) noDataSourceId = repo.sourceId
         }
         val reloadCachedForecast: (String) -> Unit = remember {
@@ -285,12 +298,15 @@ internal fun runDesktopUiApplication() = application {
                             adoptEmptySource(repo, fetchEnded = reason == "socket:push" || reason == "watch")
                         }
                         cached?.takeUnless { holdForLocationChange(it) }?.let {
-                            forecast = it
-                            // The daemon's own fetch for a just-picked site can land before the
-                            // UI-side one: rows are here, so the interstitial (or the error it
-                            // became) is over.
-                            if (dataStatus is DataStatus.FetchingLocation || dataStatus is DataStatus.Error) {
-                                dataStatus = DataStatus.Live(System.currentTimeMillis())
+                            // Dropped when a switch landed during this load: the new repository's own
+                            // load is already running, so no reload here.
+                            if (publishIfCurrent(repo, it, "reload:$reason")) {
+                                // The daemon's own fetch for a just-picked site can land before the
+                                // UI-side one: rows are here, so the interstitial (or the error it
+                                // became) is over.
+                                if (dataStatus is DataStatus.FetchingLocation || dataStatus is DataStatus.Error) {
+                                    dataStatus = DataStatus.Live(System.currentTimeMillis())
+                                }
                             }
                         }
                         dataUpdateCount++
@@ -301,6 +317,12 @@ internal fun runDesktopUiApplication() = application {
                     }
                 }
             }
+        }
+
+        // A fetch finished for a repository no longer selected: nothing else will repaint, because the
+        // new repository's load already ran, so read its rows now.
+        fun publishOrReload(repo: DesktopWeatherRepository, snapshot: ForecastSnapshot, origin: String) {
+            if (!publishIfCurrent(repo, snapshot, origin)) reloadCachedForecast("stale_publish:$origin")
         }
 
         /** The daemon's refresh after a source switch, on the popup: the click is the UI's, the fetch is not. */
@@ -425,7 +447,7 @@ internal fun runDesktopUiApplication() = application {
                 uiScope.launch {
                     try {
                         val fetched = repo.ensureHistory(neededBackHours)
-                        if (fetched) repo.loadCached()?.let { forecast = it }
+                        if (fetched) repo.loadCached()?.let { publishOrReload(repo, it, "history") }
                         // The DB already holds all retained history (loadCached reads the full window),
                         // and an on-demand fetch can only add RECENT obs (NWS serves ~7 days), never
                         // older. So if the oldest loaded point didn't move further back, there is
@@ -461,7 +483,7 @@ internal fun runDesktopUiApplication() = application {
                 } else {
                     uiScope.launch {
                         try {
-                            if (repo.extendHourlyFor(date)) repo.loadCached()?.let { forecast = it }
+                            if (repo.extendHourlyFor(date)) repo.loadCached()?.let { publishOrReload(repo, it, "day_hourly") }
                         } catch (e: kotlinx.coroutines.CancellationException) {
                             throw e
                         } catch (e: Exception) {
@@ -604,7 +626,7 @@ internal fun runDesktopUiApplication() = application {
                 refreshInFlight = true
                 try {
                     // A Synoptic backoff earned at the previous site must not blank this one's actuals.
-                    forecast = repo.refresh(userLocationChange = true, reason = "location_change")
+                    publishIfCurrent(repo, repo.refresh(userLocationChange = true, reason = "location_change"), "location_change")
                     dataStatus = DataStatus.Live(System.currentTimeMillis())
                     dataUpdateCount++
                     LocationChangePaintPolicy.log(LocationChangePaintPolicy.Action.CLEARED, label, write = weatherDao::log)
@@ -767,7 +789,7 @@ internal fun runDesktopUiApplication() = application {
                     val startedAtMs = System.currentTimeMillis()
                     refreshNotice.show(RefreshNotice.Queued(RefreshNotice.Kind.FORECAST, source.shortDisplayName), surface, origin)
                     try {
-                        forecast = refreshRunner.start("viewing_refresh") { repo.refresh(reason = "viewing_forecast_stale") }.await()
+                        publishOrReload(repo, refreshRunner.start("viewing_refresh") { repo.refresh(reason = "viewing_forecast_stale") }.await(), origin)
                         dataUpdateCount++
                         notifyRefreshRequested()
                         announceRefreshDone(origin, source.id, ok = true, startedAtMs, surface)
@@ -854,7 +876,7 @@ internal fun runDesktopUiApplication() = application {
             }
             uiScope.launch {
                 try {
-                    forecast = refresh.await()
+                    publishOrReload(repo, refresh.await(), origin)
                     // A Refresh is the way out the location-change error message points at.
                     if (dataStatus is DataStatus.FetchingLocation || dataStatus is DataStatus.Error) {
                         dataStatus = DataStatus.Live(System.currentTimeMillis())
@@ -898,7 +920,7 @@ internal fun runDesktopUiApplication() = application {
                             )
                             repo.loadCached()
                         }
-                        others.await()?.let { forecast = it }
+                        others.await()?.let { publishOrReload(repo, it, "settings_all_sources") }
                         dataUpdateCount++
                         notifyRefreshRequested()
                     }
@@ -984,7 +1006,7 @@ internal fun runDesktopUiApplication() = application {
             }
             uiScope.launch {
                 try {
-                    forecast = refresh.await()
+                    publishOrReload(repo, refresh.await(), origin)
                     dataUpdateCount++
                     notifyRefreshRequested()
                     weatherDao.log("REFRESH_CLICK", "origin=$origin completed", "INFO")

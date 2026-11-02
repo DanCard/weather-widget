@@ -77,6 +77,12 @@ when the new source has no saved rows and its fetch is running. `NO_DATA` appear
 and there are still no rows. Offline, the daemon's retries put `NO_DATA` about 20 s after the click. The
 header and source button stay available throughout.
 
+A fetch can outlive the repository it started on, so a late result reaches the popup only from the
+repository still selected (`DesktopSnapshotPublish`, logged as `STALE_PUBLISH_DROPPED owner= current=
+origin=`). A dropped result's rows are stored; a refresh then reloads through the selected repository. A
+`SOURCE_SWITCH_WAIT state=LOADING` with `snapshot=` naming an older source and rows present means a load
+bypassed this check. Compare `HEADER_CONTENT source=` with `label=`.
+
 Desktop breadcrumbs written from code that must not wait on the database (`CURR_TEMP_RESULT`,
 `CURRENT_STATUS_PUBLISH`, `CONFIG_SAVE`, refresh notices, `data_ready`) go through
 `DesktopAppLogQueue`: one `app-log-writer` thread per process, rows stamped when logged. Written inline,
