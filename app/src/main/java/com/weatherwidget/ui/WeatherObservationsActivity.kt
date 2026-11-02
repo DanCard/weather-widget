@@ -211,6 +211,47 @@ class WeatherObservationsActivity : AppCompatActivity() {
         loadObservations()
         loadFetchLogs()
         observeCurrentObservationUpdates()
+        if (savedInstanceState == null) checkForecastOnOpen()
+    }
+
+    /**
+     * Opening this screen is a known look at its source, so its forecast is held to the 2-hour limit
+     * (user, 2026-11-01; [com.weatherwidget.shared.util.ViewingForecastRefresh]). Separate from
+     * Refresh, which fetches observations only, and from the stale-observations auto refresh.
+     */
+    private fun checkForecastOnOpen() {
+        val source = currentSource
+        val origin = "observations_open"
+        lifecycleScope.launch {
+            val (lat, lon) = withContext(ioDispatcher) { resolveLocation() } ?: return@launch
+            com.weatherwidget.widget.ViewingForecastRefresher.onScreenOpen(this@WeatherObservationsActivity, source, lat, lon, origin) {
+                com.weatherwidget.widget.RefreshToast.show(
+                    this@WeatherObservationsActivity,
+                    origin,
+                    com.weatherwidget.shared.util.RefreshNotice.Queued(com.weatherwidget.shared.util.RefreshNotice.Kind.FORECAST, source.shortDisplayName),
+                )
+                val startedAtMs = System.currentTimeMillis()
+                val repository = weatherRepository
+                val ok = try {
+                    userRefreshRunner.start(origin, afterDetached = repaintWidgetAfterDetach()) {
+                        repository.fetchSourceOnDemand(lat, lon, source, request = null, userRefresh = false)
+                    }.await()
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e(TAG, "Forecast check failed for ${source.id}", e)
+                    false
+                }
+                if (ok) widgetContentChanged = true
+                val outcome = com.weatherwidget.widget.SyncDoneNotice.outcome(widgetStateManager, source, ok, startedAtMs)
+                com.weatherwidget.widget.RefreshToast.showOutcome(
+                    this@WeatherObservationsActivity,
+                    origin,
+                    outcome,
+                    ForecastHistoryActivity.refreshOutcomeText(this@WeatherObservationsActivity, outcome, source.shortDisplayName),
+                )
+            }
+        }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {

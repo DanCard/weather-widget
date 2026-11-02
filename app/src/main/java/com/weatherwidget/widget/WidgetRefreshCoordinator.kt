@@ -1,7 +1,5 @@
 package com.weatherwidget.widget
 
-import android.appwidget.AppWidgetManager
-import android.content.ComponentName
 import android.content.Context
 import android.os.PowerManager
 import android.util.Log
@@ -36,11 +34,6 @@ internal object WidgetRefreshCoordinator {
                 "isDataStale=$isDataStale targetWidget=${requestedWidgetId ?: "all"} $freshnessSummary",
             "INFO",
         )
-        val cacheNotice = repaintFromCache(context, repository, requestedWidgetId)
-        Log.d(
-            TAG,
-            "Direct cache repaint target=${requestedWidgetId ?: "all"} uiOnly=$uiOnly userInitiated=$userInitiated stale=$isDataStale",
-        )
         val syncNotice = if (userInitiated) {
             val nowMs = System.currentTimeMillis()
             val stateManager = WidgetStateManager(context)
@@ -68,6 +61,9 @@ internal object WidgetRefreshCoordinator {
                         context = context,
                         forceRefresh = true,
                         reason = SyncDoneNotice.WIDGET_TAP_REASON,
+                        // One source (user, 2026-11-01): only Settings' Refresh data covers them all. So
+                        // "completed" names the source "queued" did. Others still fetch when due.
+                        targetSourceId = sourceId,
                         userRefresh = true,
                     )
                     pending?.let { RefreshNotice.NotQueued(it) } ?: RefreshNotice.Queued(RefreshNotice.Kind.FORECAST, displaySource.shortDisplayName)
@@ -86,22 +82,32 @@ internal object WidgetRefreshCoordinator {
         } else {
             null
         }
+        // "Tap to refresh" is the user asking for data, so it says what happened either way, and at
+        // once: the repaint below took 4.5 s for one widget on the Fold 4 (2026-11-01). The ui-only
+        // repaints app screens send on close stay silent.
+        val noticeIds = if (userInitiated) {
+            requestedWidgetId?.let { intArrayOf(it) } ?: SyncDoneNotice.widgetIds(context)
+        } else {
+            null
+        }
+        if (noticeIds != null && syncNotice != null) {
+            RefreshToast.show(context, "widget_tap_to_refresh", syncNotice, noticeIds)
+        }
+        val cacheNotice = repaintFromCache(context, repository, requestedWidgetId)
+        Log.d(
+            TAG,
+            "Direct cache repaint target=${requestedWidgetId ?: "all"} uiOnly=$uiOnly userInitiated=$userInitiated stale=$isDataStale",
+        )
+        // A rate-limited tap can still queue from the repaint's own stale check: that is what happened.
+        if (noticeIds != null && cacheNotice is RefreshNotice.Queued && syncNotice !is RefreshNotice.Queued) {
+            RefreshToast.show(context, "widget_tap_to_refresh", cacheNotice, noticeIds)
+        }
         if (userInitiated) {
             if (syncNotice !is RefreshNotice.NotQueued) {
                 enqueueHistoryGapFill(context)
             }
         } else if (WidgetRefreshPolicy.shouldRunHistoryGapFillAfterRefresh(uiOnly, isDataStale)) {
             enqueueHistoryGapFill(context)
-        }
-        // "Tap to refresh" is the user asking for data, so it says what happened either way. The
-        // ui-only repaints app screens send on close stay silent.
-        if (userInitiated) {
-            RefreshNotice.merge(cacheNotice, syncNotice)?.let { notice ->
-                val ids = requestedWidgetId?.let { intArrayOf(it) }
-                    ?: AppWidgetManager.getInstance(context)
-                        .getAppWidgetIds(ComponentName(context, WeatherWidgetProvider::class.java))
-                RefreshToast.show(context, "widget_tap_to_refresh", notice, ids)
-            }
         }
     }
 

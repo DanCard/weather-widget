@@ -309,6 +309,113 @@ class WidgetRefreshToastIntegrationRoboTest {
         assertEquals("NWS · Forecast refresh queued", banner())
     }
 
+    private fun viewingRows() = runBlocking {
+        db.appLogDao().getLogsByTag(com.weatherwidget.shared.util.ViewingForecastRefresh.LOG_TAG, 5).map { it.message }
+    }
+
+    /** A bound widget, so the paint runs, showing NWS, 3 h old at 85 %: past the limit a tap holds it to. */
+    private fun boundWidgetOnStaleSource(): Int {
+        val id = shadowOf(android.appwidget.AppWidgetManager.getInstance(context))
+            .createWidget(com.weatherwidget.widget.WeatherWidgetProvider::class.java, com.weatherwidget.R.layout.widget_weather)
+        stateManager.setViewMode(id, ViewMode.DAILY)
+        stateManager.setCurrentDisplaySource(id, WeatherSource.NWS)
+        seedFresh(WeatherSource.NWS)
+        stateManager.markLongFetch(WeatherSource.NWS.id, lat, lon, System.currentTimeMillis() - 3 * 60 * 60_000L)
+        mockkObject(com.weatherwidget.widget.BatterySnapshotProvider)
+        every { com.weatherwidget.widget.BatterySnapshotProvider.snapshot(any()) } returns
+            com.weatherwidget.widget.BatterySnapshot(isCharging = false, batteryLevel = 85)
+        return id
+    }
+
+    @Test
+    fun `a repaint nobody tapped for checks nothing, however stale the source`() = runBlocking {
+        // Emulator, 2026-11-01: a ui-only ACTION_REFRESH logged trigger=widget_tap, forced a fetch and
+        // showed the banner. A screen-on paint-debt repaint takes this path.
+        val id = boundWidgetOnStaleSource()
+
+        WidgetIntentRouter.renderWidgetFromCache(context, id)
+
+        assertEquals(emptyList<String>(), viewingRows())
+    }
+
+    @Test
+    fun `a tap's render checks the displayed source`() = runBlocking {
+        val id = boundWidgetOnStaleSource()
+
+        WidgetIntentRouter.handleRecenterToday(context, id)
+
+        assertEquals(viewingRows().toString(), true, viewingRows().single().startsWith("source=NWS trigger=widget_tap"))
+    }
+
+    @Test
+    fun `tap to refresh shows its notice before the repaint starts`() = runBlocking {
+        mockkObject(WidgetIntentRouter, DataFreshness)
+        coEvery { DataFreshness.isDataStale(any()) } returns false
+        var bannerAtRepaint: String? = null
+        coEvery { WidgetIntentRouter.renderWidgetFromCache(any(), any(), any()) } answers {
+            bannerAtRepaint = stateManager.getActiveTransientMessage(widgetId)
+            null
+        }
+
+        WidgetRefreshCoordinator.refresh(context, uiOnly = false, mockk(relaxed = true), widgetId)
+
+        assertEquals("NWS · Forecast refresh queued", bannerAtRepaint)
+    }
+
+    @Test
+    fun `a rate-limited tap whose repaint queues a refresh says so`() = runBlocking {
+        val repository = mockk<WeatherRepository>(relaxed = true)
+        mockkObject(WidgetIntentRouter, DataFreshness)
+        coEvery { DataFreshness.isDataStale(any()) } returns false
+        coEvery { WidgetIntentRouter.renderWidgetFromCache(any(), any(), any()) } returns null
+        WidgetRefreshCoordinator.refresh(context, uiOnly = false, repository, widgetId)
+
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(RefreshNotice.DURATION_MS))
+        RefreshToast.resetForTesting()
+        val queued = RefreshNotice.Queued(RefreshNotice.Kind.BOTH, "NWS")
+        coEvery { WidgetIntentRouter.renderWidgetFromCache(any(), any(), any()) } answers {
+            // The repaint outlasted the rate-limit notice's window, as it does on a slow device.
+            shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(RefreshNotice.DURATION_MS))
+            RefreshToast.resetForTesting()
+            queued
+        }
+        WidgetRefreshCoordinator.refresh(context, uiOnly = false, repository, widgetId)
+
+        assertEquals("NWS · Forecast and observations refresh queued", banner())
+    }
+
+    @Test
+    fun `tap to refresh on a widget forces that widget's source, so both messages name it`() = runBlocking {
+        mockStaleTapToRefresh()
+        stateManager.setCurrentDisplaySource(widgetId, WeatherSource.OPEN_METEO)
+
+        WidgetRefreshCoordinator.refresh(context, uiOnly = false, mockk(relaxed = true), widgetId)
+
+        assertEquals("Meteo · Forecast refresh queued", banner())
+        // Undelayed work runs at once here, so finished work counts.
+        val tags = androidx.work.WorkManager.getInstance(context)
+            .getWorkInfosForUniqueWork(com.weatherwidget.widget.testScopedWorkName(com.weatherwidget.widget.WidgetWorkScheduler.WORK_NAME_ONE_TIME))
+            .get(5, java.util.concurrent.TimeUnit.SECONDS)
+            .flatMap { it.tags }
+        assertTrue(tags.toString(), com.weatherwidget.widget.WidgetWorkScheduler.forcedTargetTag(WeatherSource.OPEN_METEO.id) in tags)
+    }
+
+    @Test
+    fun `tap to refresh with no widget id forces the primary source alone`() = runBlocking {
+        mockStaleTapToRefresh()
+        coEvery { WidgetIntentRouter.renderAllWidgetsFromCache(any(), any()) } returns null
+
+        WidgetRefreshCoordinator.refresh(context, uiOnly = false, mockk(relaxed = true), requestedWidgetId = null)
+
+        val tags = androidx.work.WorkManager.getInstance(context)
+            .getWorkInfosForUniqueWork(com.weatherwidget.widget.testScopedWorkName(com.weatherwidget.widget.WidgetWorkScheduler.WORK_NAME_ONE_TIME))
+            .get(5, java.util.concurrent.TimeUnit.SECONDS)
+            .flatMap { it.tags }
+        val primary = stateManager.getPrimarySource().id
+        assertTrue(tags.toString(), com.weatherwidget.widget.WidgetWorkScheduler.forcedTargetTag(primary) in tags)
+        assertTrue(tags.toString(), com.weatherwidget.widget.WidgetWorkScheduler.forcedTargetTag(null) !in tags)
+    }
+
     @Test
     fun `the notice never covers another message already on the widget`() = runBlocking {
         mockStaleTapToRefresh()

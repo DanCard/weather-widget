@@ -43,6 +43,8 @@
     <string name="refresh_up_to_date_observations">%1$s 观测已是最新 · %2$s前</string>
     <string name="refresh_already_queued">刷新已在队列中</string>
     <string name="refresh_in_progress">刷新正在进行</string>
+    <string name="refresh_all_done">刷新完成</string>
+    <string name="refresh_all_failed">刷新失败</string>
     <string name="refresh_quota_blocked">已达到 %1$s 限额 · 下次刷新在 %2$s 之后</string>
     <string name="refresh_rate_limited">未执行刷新，因为上次刷新在 %1$s 前，请再等待 %2$s 后再请求刷新</string>
     <string name="nav_previous">前几天</string>

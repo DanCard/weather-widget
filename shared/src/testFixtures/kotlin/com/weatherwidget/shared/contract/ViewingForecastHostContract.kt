@@ -16,6 +16,8 @@ abstract class ViewingForecastHostContract {
         val fetches = mutableListOf<String>()
         /** Records a successful forecast fetch of [sourceId] as the platform's fetch path does. */
         abstract fun recordFetch(sourceId: String, atMs: Long)
+        /** Records a successful provider check that wrote no new forecast, where the platform keeps that apart. */
+        abstract fun recordCheck(sourceId: String, atMs: Long)
     }
 
     /** A Host on fresh storage at battery 85 %, unplugged, showing one source. */
@@ -48,6 +50,17 @@ abstract class ViewingForecastHostContract {
 
         ViewingForecastRefresh.run(fixture.host, "contract", fetchedAt + 2 * HOUR + MINUTE)
         assertEquals(listOf(fixture.source), fixture.fetches)
+    }
+
+    @Test
+    fun `a newer successful check holds the source fresh, however old its last fetch record`() = runBlocking {
+        val fixture = open()
+        val checkedAt = System.currentTimeMillis()
+        fixture.recordFetch(fixture.source, checkedAt - 3 * HOUR)
+        fixture.recordCheck(fixture.source, checkedAt)
+
+        assertEquals(emptyList<String>(), ViewingForecastRefresh.run(fixture.host, "contract", checkedAt + HOUR))
+        assertEquals(emptyList<String>(), fixture.fetches)
     }
 
     companion object {

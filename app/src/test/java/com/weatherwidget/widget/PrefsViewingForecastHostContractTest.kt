@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.repository.FetchMetadata
 import com.weatherwidget.shared.contract.ViewingForecastHostContract
 import com.weatherwidget.test.category.LongDuration
 import io.mockk.mockk
@@ -25,11 +26,15 @@ class PrefsViewingForecastHostContractTest : ViewingForecastHostContract() {
         lateinit var fixture: Fixture
         val host = ViewingForecastRefresher.AndroidHost(
             manager, WeatherSource.NWS, isCharging = false, batteryLevel = 85, lat = LAT, lon = LON, nowMs = System.currentTimeMillis(),
+            lastSuccessMs = { FetchMetadata.getLastForecastSourceSuccessTime(context, it, LAT, LON) },
             appLogDao = mockk<AppLogDao>(relaxed = true),
             fetchSource = { fixture.fetches += it },
         )
         fixture = object : Fixture(host) {
             override fun recordFetch(sourceId: String, atMs: Long) = manager.markLongFetch(sourceId, LAT, LON, atMs)
+
+            override fun recordCheck(sourceId: String, atMs: Long) =
+                FetchMetadata.setLastForecastSourceSuccessTime(context, sourceId, LAT, LON, atMs)
         }
         return fixture
     }

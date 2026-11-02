@@ -611,14 +611,14 @@ class SettingsActivity : AppCompatActivity() {
             if (forecastFinished && currentFinished) {
                 handled = true
                 refreshButton.isEnabled = true
-                val source = widgetStateManager.getPrimarySource()
                 val outcome = if (refreshSucceeded) RefreshOutcome.Refreshed else RefreshOutcome.Failed
                 lifecycleScope.launch {
                     RefreshToast.showOutcome(
                         this@SettingsActivity,
                         "settings_refresh",
                         outcome,
-                        com.weatherwidget.ui.ForecastHistoryActivity.refreshOutcomeText(this@SettingsActivity, outcome, source.shortDisplayName),
+                        // It covers every source, so its ending names none.
+                        getString(if (refreshSucceeded) R.string.refresh_all_done else R.string.refresh_all_failed),
                     )
                 }
             }

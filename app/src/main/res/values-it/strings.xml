@@ -43,6 +43,8 @@
     <string name="refresh_up_to_date_observations">Osservazioni %1$s aggiornate · %2$s fa</string>
     <string name="refresh_already_queued">Aggiornamento già in coda</string>
     <string name="refresh_in_progress">Aggiornamento già in corso</string>
+    <string name="refresh_all_done">Aggiornamento completato</string>
+    <string name="refresh_all_failed">Aggiornamento non riuscito</string>
     <string name="refresh_quota_blocked">Limite %1$s raggiunto · prossimo aggiornamento dopo le %2$s</string>
     <string name="refresh_rate_limited">Non eseguito perché l\'ultimo aggiornamento è stato %1$s fa, attendi altri %2$s prima di richiedere un aggiornamento</string>
     <string name="nav_previous">Giorni precedenti</string>

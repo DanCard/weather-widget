@@ -24,6 +24,9 @@ class DesktopViewingForecastHostContractTest : ViewingForecastHostContract() {
         fixture = object : Fixture(host) {
             // As DesktopWeatherRepository's success row; the DAO stamps the clock.
             override fun recordFetch(sourceId: String, atMs: Long) = dao.log("REFRESH", "source=$sourceId hourly=1 daily=1", "INFO")
+
+            // Desktop keeps one record: every successful check writes the same row.
+            override fun recordCheck(sourceId: String, atMs: Long) = recordFetch(sourceId, atMs)
         }
         return fixture
     }

@@ -43,6 +43,8 @@
     <string name="refresh_up_to_date_observations">ملاحظات %1$s محدّثة · قبل %2$s</string>
     <string name="refresh_already_queued">التحديث مجدول بالفعل</string>
     <string name="refresh_in_progress">التحديث قيد التنفيذ بالفعل</string>
+    <string name="refresh_all_done">اكتمل التحديث</string>
+    <string name="refresh_all_failed">فشل التحديث</string>
     <string name="refresh_quota_blocked">تم بلوغ حد %1$s · التحديث التالي بعد %2$s</string>
     <string name="refresh_rate_limited">لن يتم التحديث لأن آخر تحديث كان منذ %1$s، انتظر %2$s أخرى قبل طلب التحديث</string>
     <string name="nav_previous">الأيام السابقة</string>

@@ -148,7 +148,7 @@ internal object GraphInteractionRenderer {
             centerTime,
             displaySource,
         )
-        com.weatherwidget.widget.ViewingForecastRefresher.onTap(context, request.appWidgetId)
+        com.weatherwidget.widget.ViewingForecastRefresher.onRender(context, request.appWidgetId, request.origin)
         InteractionTimingLogger.log(
             database,
             request.appWidgetId,

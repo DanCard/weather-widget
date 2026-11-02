@@ -57,7 +57,8 @@ class WidgetScreenLaunchFlagsRoboTest {
     @After
     fun tearDown() {
         db.close()
-        WeatherDatabase.resetInstanceForTesting()
+        // Also clears the process-wide isTesting flag setDatabaseForTesting turned on.
+        WeatherDatabase.setIsTesting(false)
     }
 
     @Test

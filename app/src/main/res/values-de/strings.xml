@@ -43,6 +43,8 @@
     <string name="refresh_up_to_date_observations">%1$s-Beobachtungen aktuell · vor %2$s</string>
     <string name="refresh_already_queued">Aktualisierung bereits eingereiht</string>
     <string name="refresh_in_progress">Aktualisierung läuft bereits</string>
+    <string name="refresh_all_done">Aktualisierung abgeschlossen</string>
+    <string name="refresh_all_failed">Aktualisierung fehlgeschlagen</string>
     <string name="refresh_quota_blocked">%1$s-Limit erreicht · nächste Aktualisierung nach %2$s</string>
     <string name="refresh_rate_limited">Wird nicht ausgeführt, da die letzte Aktualisierung vor %1$s war. Warten Sie noch %2$s vor einer erneuten Anfrage</string>
     <string name="nav_previous">Vorherige Tage</string>

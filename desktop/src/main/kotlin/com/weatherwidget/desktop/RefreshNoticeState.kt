@@ -59,9 +59,16 @@ class RefreshNoticeState(
      * than being suppressed, and restarts the three seconds
      * (plans/261016-history-refresh-outcome-shared-desktop-parity.md).
      */
-    fun showOutcome(outcome: RefreshOutcome, sourceName: String, surface: RefreshNoticeSurface, origin: String) {
+    fun showOutcome(outcome: RefreshOutcome, sourceName: String, surface: RefreshNoticeSurface, origin: String) =
+        showEnding(outcome, RefreshOutcome.text(outcome, sourceName, formatTime), surface, origin)
+
+    /** Settings' Refresh data covers every source, so its ending names none (Android: `refresh_all_*`). */
+    fun showAllSourcesOutcome(outcome: RefreshOutcome, surface: RefreshNoticeSurface, origin: String) =
+        showEnding(outcome, if (outcome == RefreshOutcome.Failed) "Refresh failed" else "Refresh complete", surface, origin)
+
+    private fun showEnding(outcome: RefreshOutcome, text: String, surface: RefreshNoticeSurface, origin: String) {
         gate.restart()
-        current = Shown(RefreshOutcome.text(outcome, sourceName, formatTime), surface, ++serial)
+        current = Shown(text, surface, ++serial)
         log(RefreshNotice.outcomeLine(origin, outcome))
     }
 

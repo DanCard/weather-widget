@@ -3,7 +3,7 @@ package com.weatherwidget.shared.util
 /**
  * Keeps a source the user just reached for within [ViewingRefreshPolicy.FORECAST_STALE_WHILE_VIEWING_MS]
  * at ≥ 70 % or on a charger. Each platform calls [run] only on a known look (Android: a widget tap;
- * desktop: opening the popup): a screen coming on does not count, because neither says what is being
+ * desktop: opening the popup; both: opening Forecast History or Observations): a screen coming on does not count, because neither says what is being
  * looked at. A refresh it starts shows its messages. The rule, its cooldown and its log line live here; the
  * [Host] supplies state and starts a fetch that is forced for that one source, because a normal sync
  * judges it by the longer background cadence and would fetch nothing.
@@ -16,7 +16,7 @@ object ViewingForecastRefresh {
         val batteryLevel: Int
         /** Sources on screen that may fetch now. */
         fun viewedSourceIds(): List<String>
-        /** The source's last forecast fetch at this site; null = never, which counts as stale. */
+        /** The source's last forecast fetch or successful check at this site; null = never, which counts as stale. */
         fun lastFetchMs(sourceId: String): Long?
         fun lastRequestMs(sourceId: String): Long?
         fun markRequested(sourceId: String, atMs: Long)

@@ -24,12 +24,14 @@ for the source's full supported horizon; there is no shorter three-day forecast 
 - On a charger, a forecast also comes due 45 minutes before the device is predicted to leave the
   charger (see [pre-unplug fetch](#pre-unplug-fetch)), and the overnight fetch that would be overwritten
   first is skipped.
-- **A tapped source stays within 2 hours** at battery ≥ 70% or on a charger: neither platform can tell
-  what is on screen, so a screen coming on never fetches. Tapping a widget (Android) or opening the
-  popup (desktop) checks that one source, and past the limit forces a fetch of it alone
-  (`ViewingForecastRefresh`; log `VIEWING_FORECAST`). Any refresh a tap or click starts, a source switch
-  or arrow included, shows the queued and completed messages; a tap that starts none shows nothing. A request blocks another for that source for 15
-  minutes, so a failing provider is not retried on every tap.
+- **A source the user reaches for stays within 2 hours** at battery ≥ 70% or on a charger: neither
+  platform can tell what is on screen, so a screen coming on never fetches. Tapping a widget (Android),
+  opening the popup (desktop), or opening Forecast History or Observations (both) checks that one source,
+  and past the limit forces a fetch of it alone (`ViewingForecastRefresh`; log `VIEWING_FORECAST`). "Last
+  fetched" is the newest of the fetch marker and the source's last successful check. A refresh repaint or
+  resize is not a tap, so it checks nothing. Any refresh a tap or click starts, a source switch or arrow
+  included, shows the queued and completed messages; a tap that starts none shows nothing. A request
+  blocks another for that source for 15 minutes, so a failing provider is not retried on every tap.
 - A screen-on moves the next wake to the 4-hour due time (Android
   `SCREEN_ON_FORECAST`). The desktop forecast loop re-plans on every screen wake, which has the same
   effect.
@@ -200,8 +202,9 @@ refreshes are limited across both platforms to at most once every 10 minutes per
   - Last user refresh timestamp for that source is recorded (`FetchMetadata` per source on Android, `lastUserRefreshMsBySource` on Desktop).
   - Immediate forced forecast sync and history gap fill are enqueued.
   - A three-second notice names the source and says the refresh is queued; another says how it ended
-    ("Refreshed NWS", "Couldn't refresh NWS"). Settings' Refresh data covers every source, so its queued
-    notice names none and its ending names the primary source.
+    ("Refreshed NWS", "Couldn't refresh NWS"). The queued notice shows before the cache repaint, which
+    can take seconds. Only Settings' Refresh data covers every source, so its messages name none
+    ("Refresh complete", "Refresh failed"); every other refresh request forces one source.
 - **Passive events are exempt**:
   - Background periodic worker ticks, power connect/disconnect events, screen unlock repaints
     (`EXTRA_PASSIVE = true`), and UI-only ticks do not check, update, or get blocked by this throttle.

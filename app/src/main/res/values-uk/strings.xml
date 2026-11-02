@@ -43,6 +43,8 @@
     <string name="refresh_up_to_date_observations">Спостереження %1$s актуальні · %2$s тому</string>
     <string name="refresh_already_queued">Оновлення вже в черзі</string>
     <string name="refresh_in_progress">Оновлення вже триває</string>
+    <string name="refresh_all_done">Оновлення завершено</string>
+    <string name="refresh_all_failed">Не вдалося оновити</string>
     <string name="refresh_quota_blocked">Ліміт %1$s вичерпано · наступне оновлення після %2$s</string>
     <string name="refresh_rate_limited">Не виконується, оскільки останнє оновлення було %1$s тому, зачекайте ще %2$s перед новим оновленням</string>
     <string name="nav_previous">Попередні дні</string>

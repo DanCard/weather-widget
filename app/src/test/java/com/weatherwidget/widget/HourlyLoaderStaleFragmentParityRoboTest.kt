@@ -73,7 +73,8 @@ class HourlyLoaderStaleFragmentParityRoboTest {
 
     @After
     fun tearDown() {
-        WeatherDatabase.resetInstanceForTesting()
+        // Also clears the process-wide isTesting flag setDatabaseForTesting turned on.
+        WeatherDatabase.setIsTesting(false)
     }
 
     private fun epochMs(time: LocalDateTime): Long =

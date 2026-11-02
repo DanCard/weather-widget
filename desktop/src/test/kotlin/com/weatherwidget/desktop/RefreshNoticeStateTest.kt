@@ -151,6 +151,25 @@ class RefreshNoticeStateTest {
     }
 
     @Test
+    fun `every surface a notice can target has a pill that draws it`() {
+        // The popup's notices logged "shown" with nothing on screen until 2026-11-01.
+        val sources = java.io.File("src/main/kotlin").walkTopDown().filter { it.extension == "kt" }.map { it.readText() }.joinToString("\n")
+        RefreshNoticeSurface.entries.forEach { surface ->
+            assertEquals(surface.name, true, sources.contains("RefreshNoticePill(RefreshNoticeSurface.${surface.name}"))
+        }
+    }
+
+    @Test
+    fun `settings refresh data ends without naming a source, since it covers them all`() {
+        state.showAllSourcesOutcome(RefreshOutcome.Refreshed, RefreshNoticeSurface.SETTINGS, "settings")
+        assertEquals("Refresh complete", state.textFor(RefreshNoticeSurface.SETTINGS))
+        assertEquals("origin=settings done=Refreshed shown", logged.last())
+
+        state.showAllSourcesOutcome(RefreshOutcome.Failed, RefreshNoticeSurface.SETTINGS, "settings")
+        assertEquals("Refresh failed", state.textFor(RefreshNoticeSurface.SETTINGS))
+    }
+
+    @Test
     fun `a refresh outcome replaces the queued notice inside the window and restarts it`() {
         state.show(Queued(Kind.FORECAST), RefreshNoticeSurface.HISTORY, "history")
         nowMs += 500

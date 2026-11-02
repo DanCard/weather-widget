@@ -306,7 +306,8 @@ internal fun runDesktopUiApplication() = application {
         /** The daemon's refresh after a source switch, on the popup: the click is the UI's, the fetch is not. */
         fun announceSwitchRefresh(signal: SwitchRefreshSignal) {
             val origin = "source_switch"
-            val source = WeatherSource.fromDisplaySource(currentConfig?.displaySource ?: "")
+            // The state, not currentConfig: the socket client keeps this closure across source switches.
+            val source = WeatherSource.fromDisplaySource(config?.displaySource ?: "")
             when (signal) {
                 SwitchRefreshSignal.QUEUED ->
                     refreshNotice.show(RefreshNotice.Queued(RefreshNotice.Kind.FORECAST, source.shortDisplayName), RefreshNoticeSurface.POPUP, origin)
@@ -747,36 +748,43 @@ internal fun runDesktopUiApplication() = application {
                 RefreshOutcome.doneLine(ok, "source=$sourceId", System.currentTimeMillis() - startedAtMs, outcome),
                 RefreshOutcome.doneLevel(ok),
             )
-            refreshNotice.showOutcome(outcome, WeatherSource.fromId(sourceId).shortDisplayName, surface, origin)
+            if (origin == "settings") {
+                refreshNotice.showAllSourcesOutcome(outcome, surface, origin)
+            } else {
+                refreshNotice.showOutcome(outcome, WeatherSource.fromId(sourceId).shortDisplayName, surface, origin)
+            }
         }
 
-        // Opening the popup is the one desktop moment the user is known to be looking: its source
-        // refreshes past the limit and says so (ViewingForecastRefresh; user, 2026-11-01).
+        // Opening the popup, Forecast History or Observations are the desktop moments the user is known
+        // to be looking: the source refreshes past the limit and says so (ViewingForecastRefresh; user, 2026-11-01).
         val viewingForecastRequests = remember { java.util.concurrent.ConcurrentHashMap<String, Long>() }
-        LaunchedEffect(showRequestId) {
+        suspend fun checkViewedSource(origin: String, surface: RefreshNoticeSurface) {
             val repo = repository
             val cfg = currentConfig
-            if (showRequestId > 0 && repo != null && cfg != null && !refreshInFlight) {
+            if (repo != null && cfg != null && !refreshInFlight) {
                 val host = DesktopViewingForecastHost(weatherDao, cfg.displaySource, PowerDetector.getPowerState(), viewingForecastRequests) {
-                    val origin = "popup_open"
                     val source = WeatherSource.fromDisplaySource(cfg.displaySource)
                     val startedAtMs = System.currentTimeMillis()
-                    refreshNotice.show(RefreshNotice.Queued(RefreshNotice.Kind.FORECAST, source.shortDisplayName), RefreshNoticeSurface.POPUP, origin)
+                    refreshNotice.show(RefreshNotice.Queued(RefreshNotice.Kind.FORECAST, source.shortDisplayName), surface, origin)
                     try {
                         forecast = refreshRunner.start("viewing_refresh") { repo.refresh(reason = "viewing_forecast_stale") }.await()
                         dataUpdateCount++
                         notifyRefreshRequested()
-                        announceRefreshDone(origin, source.id, ok = true, startedAtMs, RefreshNoticeSurface.POPUP)
+                        announceRefreshDone(origin, source.id, ok = true, startedAtMs, surface)
                     } catch (e: kotlinx.coroutines.CancellationException) {
                         throw e
                     } catch (e: Exception) {
                         weatherDao.log("VIEWING_FORECAST", "failed ${e::class.simpleName}: ${e.message}", "WARN")
-                        announceRefreshDone(origin, source.id, ok = false, startedAtMs, RefreshNoticeSurface.POPUP)
+                        announceRefreshDone(origin, source.id, ok = false, startedAtMs, surface)
                     }
                 }
-                ViewingForecastRefresh.run(host, "popup_open", System.currentTimeMillis())
+                ViewingForecastRefresh.run(host, origin, System.currentTimeMillis())
             }
         }
+        // Keyed on visibility too: a new UI process opens its popup with showRequestId still 0.
+        LaunchedEffect(showRequestId, popupVisible) { if (popupVisible) checkViewedSource("popup_open", RefreshNoticeSurface.POPUP) }
+        LaunchedEffect(historyShowRequestId) { if (historyShowRequestId > 0) checkViewedSource("history_open", RefreshNoticeSurface.HISTORY) }
+        LaunchedEffect(obsShowRequestId) { if (obsShowRequestId > 0) checkViewedSource("observations_open", RefreshNoticeSurface.OBSERVATIONS) }
 
         fun requestFullRefresh(origin: String) {
             val repo = repository
@@ -1198,7 +1206,7 @@ internal fun runDesktopUiApplication() = application {
         }
 
         if (popupVisible && currentConfig != null) {
-            PopupWindowHost(
+            CompositionLocalProvider(LocalRefreshNotice provides refreshNotice) { PopupWindowHost(
                 config = currentConfig,
                 forecast = forecast,
                 dataStatus = dataStatus,
@@ -1250,7 +1258,7 @@ internal fun runDesktopUiApplication() = application {
                 currentTempFetchPill = currentTempFetchPill,
                 currentTempFetchIsWarmup = currentTempFetchIsWarmup,
                 currentTempFetchDetails = currentTempFetchDetails,
-            )
+            ) }
         }
 
         if (radarVisible && currentConfig != null) {

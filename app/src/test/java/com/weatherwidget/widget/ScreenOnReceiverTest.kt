@@ -251,6 +251,31 @@ class ScreenOnReceiverTest {
     }
 
     @Test
+    fun `SCREEN_ON with a displayed source past the 2 hour limit fetches nothing, only re-plans the due wake`() = runTest {
+        stubScreenOnLoop(level = 85, charging = false, lastFetchMs = System.currentTimeMillis())
+        val lat = 37.42
+        val lon = -122.08
+        ActiveLocationResolver.persist(context, lat, lon)
+        val manager = WidgetStateManager(context)
+        manager.setVisibleSourcesOrder(listOf(com.weatherwidget.data.model.WeatherSource.NWS, com.weatherwidget.data.model.WeatherSource.OPEN_METEO))
+        val displayed = manager.getActiveDisplaySourceIds().single()
+        manager.markLongFetch(displayed, lat, lon, System.currentTimeMillis() - 3 * 60 * 60_000L)
+        mockkObject(com.weatherwidget.widget.handlers.RefreshScheduler, WidgetWorkScheduler)
+        every { com.weatherwidget.widget.handlers.RefreshScheduler.enqueueForcedRefresh(any(), any(), any(), any(), any()) } returns
+            com.weatherwidget.shared.util.RefreshNotice.Queued(com.weatherwidget.shared.util.RefreshNotice.Kind.FORECAST)
+        val delays = mutableListOf<Long>()
+        every { WidgetWorkScheduler.enqueueDueWakeSync(any(), capture(delays), any()) } returns null
+
+        receiver.onReceive(context, Intent(Intent.ACTION_SCREEN_ON))
+
+        verify(exactly = 0) { com.weatherwidget.widget.handlers.RefreshScheduler.enqueueForcedRefresh(any(), any(), any(), any(), any()) }
+        val db = WeatherDatabase.getDatabase(context)
+        assertEquals(emptyList<String>(), db.appLogDao().getLogsByTag(com.weatherwidget.shared.util.ViewingForecastRefresh.LOG_TAG, 10).map { it.message })
+        val hour = 60 * 60_000L
+        assertTrue("the wake stays at the 4 h due time, about 1 h out: $delays", delays.single() in hour - 5 * 60_000L..hour)
+    }
+
+    @Test
     fun `SCREEN_ON on battery at 70 percent with a stale fetch fetches the primary source now`() {
         stubScreenOnLoop(level = 70, charging = false, lastFetchMs = System.currentTimeMillis() - 25 * 60_000L)
 

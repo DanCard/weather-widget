@@ -112,7 +112,8 @@ class WeatherWidgetProviderDayTapSourceGapRoboTest {
     fun tearDown() {
         WidgetActionJobRegistry.clearForTesting()
         db.close()
-        WeatherDatabase.resetInstanceForTesting()
+        // Also clears the process-wide isTesting flag setDatabaseForTesting turned on.
+        WeatherDatabase.setIsTesting(false)
         unmockkAll()
     }
 

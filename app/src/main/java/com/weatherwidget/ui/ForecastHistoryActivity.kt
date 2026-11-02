@@ -30,7 +30,6 @@ import com.weatherwidget.data.local.DailyHistoryDao
 import com.weatherwidget.data.local.DailyHistoryEntity
 import com.weatherwidget.data.local.ForecastDao
 import com.weatherwidget.data.local.ForecastEntity
-import com.weatherwidget.data.model.ForecastProduct
 import com.weatherwidget.data.remote.QuotaScope
 import com.weatherwidget.shared.util.RefreshOutcome
 import com.weatherwidget.data.model.WeatherSource
@@ -238,6 +237,14 @@ class ForecastHistoryActivity : AppCompatActivity() {
             requestedSource = checkNotNull(cachedRequestedSource),
         )
         loadAccuracySummary(targetLat, targetLon)
+        if (savedInstanceState == null) {
+            val source = checkNotNull(cachedRequestedSource)
+            lifecycleScope.launch {
+                com.weatherwidget.widget.ViewingForecastRefresher.onScreenOpen(this@ForecastHistoryActivity, source, targetLat, targetLon, "history_open") {
+                    fetchViewedSource(source, "history_open", userRefresh = false)
+                }
+            }
+        }
     }
 
     private fun navigateToDay(newDate: LocalDate) {
@@ -760,66 +767,65 @@ class ForecastHistoryActivity : AppCompatActivity() {
                 FetchMetadata.setLastUserRefreshTime(this, nowMs, source.id)
             }
         }
+        lifecycleScope.launch {
+            appLogDao.log("HISTORY_REFRESH_TAP", "outcome=fetch_started $tapContext", "INFO")
+            fetchViewedSource(source, "history_refresh", userRefresh = true)
+        }
+    }
+
+    /** The viewed source's fetch, from the Refresh button or the check on open; says how it went and reloads. */
+    private suspend fun fetchViewedSource(source: WeatherSource, origin: String, userRefresh: Boolean) {
+        val tapContext = "source=${source.id} date=$targetLocalDate lat=$targetLat lon=$targetLon"
         refreshInFlight = true
         val refreshButton = findViewById<View>(R.id.refresh_button)
         // Stays enabled (dimmed) so a second tap reaches the listener and is logged as ignored.
         refreshButton.alpha = 0.5f
-        lifecycleScope.launch {
-            appLogDao.log("HISTORY_REFRESH_TAP", "outcome=fetch_started $tapContext", "INFO")
-            com.weatherwidget.widget.RefreshToast.show(this@ForecastHistoryActivity, "history_refresh", com.weatherwidget.shared.util.RefreshNotice.Queued(com.weatherwidget.shared.util.RefreshNotice.Kind.FORECAST, source.shortDisplayName))
-            val startMs = android.os.SystemClock.elapsedRealtime()
-            val startedAtMs = System.currentTimeMillis()
-            val lat = targetLat
-            val lon = targetLon
-            val repository = weatherRepository
-            val appContext = applicationContext
-            val widgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
-            val ok = try {
-                // App scope, not lifecycleScope: leaving History mid-fetch must not discard it (the
-                // fetch is billed whether or not the result is kept).
-                userRefreshRunner.start(
-                    "history_refresh",
-                    afterDetached = { fetched -> if (fetched) sendUiOnlyWidgetRefresh(appContext, widgetId) },
-                ) {
-                    repository.fetchSourceOnDemand(
-                        lat,
-                        lon,
-                        source,
-                        request = null,
-                        userRefresh = true,
-                    )
-                }.await()
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e(TAG, "History refresh failed for ${source.id}", e)
-                false
-            }
-            refreshInFlight = false
-            refreshButton.alpha = 1.0f
-            val nowMs = System.currentTimeMillis()
-            val outcome = RefreshOutcome.of(
-                ok = ok,
-                hourlyBlockedUntilMs = widgetStateManager.getProductQuota(source, ForecastProduct.HOURLY, nowMs)?.untilMs,
-                dailyBlockedUntilMs = widgetStateManager.getProductQuota(source, ForecastProduct.DAILY, nowMs)?.untilMs,
-                partialRateLimitAtMs = widgetStateManager.getRateLimit(source, nowMs)?.takeIf { it.partial }?.atMs,
-                startedAtMs = startedAtMs,
-            )
-            appLogDao.log(
-                RefreshOutcome.DONE_TAG,
-                RefreshOutcome.doneLine(ok, tapContext, android.os.SystemClock.elapsedRealtime() - startMs, outcome),
-                RefreshOutcome.doneLevel(ok),
-            )
-            com.weatherwidget.widget.RefreshToast.showOutcome(
-                this@ForecastHistoryActivity,
-                "history_refresh",
-                outcome,
-                refreshOutcomeText(this@ForecastHistoryActivity, outcome, source.shortDisplayName),
-            )
-            if (!ok) return@launch
-            loadData(targetDate, targetLat, targetLon, targetLocalDate, source)
-            sendUiOnlyWidgetRefresh(appContext, widgetId)
+        com.weatherwidget.widget.RefreshToast.show(this@ForecastHistoryActivity, origin, com.weatherwidget.shared.util.RefreshNotice.Queued(com.weatherwidget.shared.util.RefreshNotice.Kind.FORECAST, source.shortDisplayName))
+        val startMs = android.os.SystemClock.elapsedRealtime()
+        val startedAtMs = System.currentTimeMillis()
+        val lat = targetLat
+        val lon = targetLon
+        val repository = weatherRepository
+        val appContext = applicationContext
+        val widgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
+        val ok = try {
+            // App scope, not lifecycleScope: leaving History mid-fetch must not discard it (the
+            // fetch is billed whether or not the result is kept).
+            userRefreshRunner.start(
+                origin,
+                afterDetached = { fetched -> if (fetched) sendUiOnlyWidgetRefresh(appContext, widgetId) },
+            ) {
+                repository.fetchSourceOnDemand(
+                    lat,
+                    lon,
+                    source,
+                    request = null,
+                    userRefresh = userRefresh,
+                )
+            }.await()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "History refresh failed for ${source.id}", e)
+            false
         }
+        refreshInFlight = false
+        refreshButton.alpha = 1.0f
+        val outcome = com.weatherwidget.widget.SyncDoneNotice.outcome(widgetStateManager, source, ok, startedAtMs)
+        appLogDao.log(
+            RefreshOutcome.DONE_TAG,
+            RefreshOutcome.doneLine(ok, tapContext, android.os.SystemClock.elapsedRealtime() - startMs, outcome),
+            RefreshOutcome.doneLevel(ok),
+        )
+        com.weatherwidget.widget.RefreshToast.showOutcome(
+            this@ForecastHistoryActivity,
+            origin,
+            outcome,
+            refreshOutcomeText(this@ForecastHistoryActivity, outcome, source.shortDisplayName),
+        )
+        if (!ok) return
+        loadData(targetDate, targetLat, targetLon, targetLocalDate, source)
+        sendUiOnlyWidgetRefresh(appContext, widgetId)
     }
 
     private fun cycleApiSource() {

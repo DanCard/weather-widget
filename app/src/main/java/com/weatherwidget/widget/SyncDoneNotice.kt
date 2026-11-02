@@ -29,21 +29,26 @@ internal object SyncDoneNotice {
     fun widgetIds(context: Context): IntArray =
         AppWidgetManager.getInstance(context).getAppWidgetIds(ComponentName(context, WeatherWidgetProvider::class.java))
 
+    /** How a fetch of [source] started at [startedAtMs] ended, from its recorded quota and rate-limit state. */
+    fun outcome(stateManager: WidgetStateManager, source: WeatherSource, ok: Boolean, startedAtMs: Long): RefreshOutcome {
+        val nowMs = System.currentTimeMillis()
+        return RefreshOutcome.of(
+            ok = ok,
+            hourlyBlockedUntilMs = stateManager.getProductQuota(source, ForecastProduct.HOURLY, nowMs)?.untilMs,
+            dailyBlockedUntilMs = stateManager.getProductQuota(source, ForecastProduct.DAILY, nowMs)?.untilMs,
+            partialRateLimitAtMs = stateManager.getRateLimit(source, nowMs)?.takeIf { it.partial }?.atMs,
+            startedAtMs = startedAtMs,
+        )
+    }
+
     suspend fun announce(context: Context, stateManager: WidgetStateManager, input: WorkInput, syncOk: Boolean) {
         if (!owed(input.currentTempReason)) return
         try {
             val source = input.targetSourceId?.let(WeatherSource::fromId) ?: stateManager.getPrimarySource()
-            val nowMs = System.currentTimeMillis()
             val answered = syncOk && ActiveLocationResolver.current(context)?.let { (lat, lon) ->
                 FetchMetadata.getLastForecastSourceSuccessTime(context, source.id, lat, lon) >= input.requestedAtMs
             } == true
-            val outcome = RefreshOutcome.of(
-                ok = answered,
-                hourlyBlockedUntilMs = stateManager.getProductQuota(source, ForecastProduct.HOURLY, nowMs)?.untilMs,
-                dailyBlockedUntilMs = stateManager.getProductQuota(source, ForecastProduct.DAILY, nowMs)?.untilMs,
-                partialRateLimitAtMs = stateManager.getRateLimit(source, nowMs)?.takeIf { it.partial }?.atMs,
-                startedAtMs = input.requestedAtMs,
-            )
+            val outcome = outcome(stateManager, source, answered, input.requestedAtMs)
             RefreshToast.showOutcome(
                 context,
                 input.currentTempReason,

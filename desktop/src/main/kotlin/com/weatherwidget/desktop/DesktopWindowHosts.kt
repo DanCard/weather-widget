@@ -340,6 +340,7 @@ internal fun PopupWindowHost(
                 currentTempFetchIsWarmup = currentTempFetchIsWarmup,
                 currentTempFetchDetails = currentTempFetchDetails,
             )
+            RefreshNoticePill(RefreshNoticeSurface.POPUP, Modifier.align(Alignment.BottomCenter))
         }
     }
 }
