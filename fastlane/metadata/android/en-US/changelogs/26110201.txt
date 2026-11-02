@@ -1,0 +1,1 @@
+Hold wake lock during worker sync to prevent cached app freezer socket termination; update refresh banner phrasing; refine Fold 4 inner screen daily layout; and prevent late desktop refreshes from overwriting selected weather source.
