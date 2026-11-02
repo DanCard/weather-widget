@@ -1,6 +1,6 @@
 # Prevent Cached Apps Freezer from suspending background sync
 
-Date: 2026-11-01. Status: proposed.
+Date: 2026-11-01. Status: implemented.
 
 ## Goal
 
@@ -63,6 +63,16 @@ In `WidgetWorkScheduler.kt`:
 * In `enqueueStartupDeferred`: add `setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())`.
 * In `enqueueForcedSync`: pass `NetworkType.CONNECTED` constraints to `enqueueFullSync`.
 * This ensures that JobScheduler recognizes these requests as network-requiring jobs rather than unconstrained background work.
+
+### 3. Lower Startup Cooldown from 16s to 6s
+In `StartupCooldown.kt`:
+* Reduce `COOLDOWN_MS` to `6_000L` and `INTERACTION_QUIET_MS` to `6_000L`.
+* Initial cold-start cache paints finish in < 2 seconds (`total=1723ms` measured on emulator).
+* This eliminates unnecessary 10–20 second deferrals when users tap or navigate widgets shortly after process launch.
+
+### 4. Clarify Enqueue and Worker Start Logs
+* In `WidgetWorkScheduler.kt`, distinguish targeted syncs from all-source syncs: log `"Targeted sync (target=$targetSourceId)"` when `targetSourceId != null` instead of generic `"Full sync"`.
+* In `WeatherWidgetWorker.kt`, include `target=${input.targetSourceId ?: "all"}` in the `SYNC_START` log row.
 
 ## Testing & Verification
 

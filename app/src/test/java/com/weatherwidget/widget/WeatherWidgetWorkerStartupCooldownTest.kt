@@ -7,6 +7,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.work.Configuration
 import androidx.work.Data
 import androidx.work.ListenableWorker
+import androidx.work.NetworkType
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.WorkerFactory
@@ -119,6 +120,7 @@ class WeatherWidgetWorkerStartupCooldownTest {
         val deferred = deferredInfos()
         assertEquals("exactly one deferred run", 1, deferred.size)
         assertEquals(WorkInfo.State.ENQUEUED, deferred.single().state)
+        assertEquals(NetworkType.CONNECTED, deferred.single().constraints.requiredNetworkType)
         assertTrue(
             "deferred run carries the signature tag: ${deferred.single().tags}",
             deferred.single().tags.any { it.startsWith("startup_deferred:") },

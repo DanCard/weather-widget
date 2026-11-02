@@ -244,6 +244,7 @@ object WidgetWorkScheduler {
             reason = reason,
             initialDelayMs = initialDelayMs,
             targetSourceId = targetSourceId,
+            constraints = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build(),
         )
         return ForcedSyncEnqueue(request, followUp)
     }
@@ -674,9 +675,10 @@ object WidgetWorkScheduler {
                 .build()
         val scopedName = testScopedWorkName(uniqueName)
         WorkManager.getInstance(context).enqueueUniqueWork(scopedName, policy, request)
+        val syncKind = if (targetSourceId != null) "Targeted sync (target=$targetSourceId)" else "Full sync"
         Log.d(
             TAG,
-            "Full sync enqueued name=$scopedName policy=$policy reason=$reason " +
+            "$syncKind enqueued name=$scopedName policy=$policy reason=$reason " +
                 "force=$forceRefresh delayMs=$initialDelayMs id=${request.id}",
         )
         return request
@@ -742,6 +744,11 @@ object WidgetWorkScheduler {
             OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
                 .setInputData(data)
                 .setInitialDelay(delayMs, TimeUnit.MILLISECONDS)
+                .setConstraints(
+                    Constraints.Builder()
+                        .setRequiredNetworkType(NetworkType.CONNECTED)
+                        .build(),
+                )
                 .addTag(signatureTag)
                 .apply {
                     // The recent pass only: a parked daily gap fill must not read as a pending repair.

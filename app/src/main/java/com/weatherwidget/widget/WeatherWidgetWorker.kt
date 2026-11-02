@@ -3,6 +3,7 @@ package com.weatherwidget.widget
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
+import android.os.PowerManager
 import android.os.SystemClock
 import android.util.Log
 import androidx.hilt.work.HiltWorker
@@ -95,11 +96,11 @@ class WeatherWidgetWorker
             PreUnplugFetchScheduler.runner(context).observePower(device.isCharging)
             appLogDao.log(
                 "SYNC_START",
-                "uiOnly=${input.uiOnlyRefresh}, force=${input.forceRefresh}, currentOnly=${input.currentTempOnly}, " +
-                    "opportunistic=${input.opportunisticCurrentTemp}, battery=${device.batteryLevel}%, " +
-                    "plugged=${device.isCharging}, interactive=${device.isScreenInteractive}, " +
-                    "reason=${input.currentTempReason}, obsBackfillOnly=${input.observationBackfillMode}, " +
-                    "lastFullFetch=${device.lastFullFetchAgeSeconds}s ago",
+                "uiOnly=${input.uiOnlyRefresh}, force=${input.forceRefresh}, target=${input.targetSourceId ?: "all"}, " +
+                    "currentOnly=${input.currentTempOnly}, opportunistic=${input.opportunisticCurrentTemp}, " +
+                    "battery=${device.batteryLevel}%, plugged=${device.isCharging}, " +
+                    "interactive=${device.isScreenInteractive}, reason=${input.currentTempReason}, " +
+                    "obsBackfillOnly=${input.observationBackfillMode}, lastFullFetch=${device.lastFullFetchAgeSeconds}s ago",
             )
 
             // No global "just fetched, skip" gate here. Per-source freshness is enforced one layer
@@ -114,21 +115,44 @@ class WeatherWidgetWorker
             // above every ActiveLocationResolver.resolve() call in this file on purpose.
             completeLegacyDefaultMigration()
 
-            if (input.observationBackfillMode) {
-                return handleObservationBackfillWork(input)
-            }
-            if (input.currentTempOnly) {
-                return handleCurrentTempOnlyWork(input, device).also {
-                    // Bootstraps the due-time sync after an install/upgrade on a charger; a no-op once one is pending.
-                    runCatching { DueWakePlanner.plan(context, weatherRepository, widgetStateManager, appLogDao, onlyIfMissing = true) }
-                        .onFailure { e -> if (e is kotlinx.coroutines.CancellationException) throw e else Log.w(TAG, "Due-wake planning failed", e) }
-                }
-            }
-            if (input.nonPrimaryCurrentTempOnly) {
-                return handleNonPrimaryCurrentTempOnlyWork(input, device)
+            if (input.uiOnlyRefresh) {
+                return fullSyncPipeline.run(input, device, stopReason)
             }
 
-            return fullSyncPipeline.run(input, device, stopReason)
+            return withSyncWakeLock {
+                if (input.observationBackfillMode) {
+                    handleObservationBackfillWork(input)
+                } else if (input.currentTempOnly) {
+                    handleCurrentTempOnlyWork(input, device).also {
+                        // Bootstraps the due-time sync after an install/upgrade on a charger; a no-op once one is pending.
+                        runCatching { DueWakePlanner.plan(context, weatherRepository, widgetStateManager, appLogDao, onlyIfMissing = true) }
+                            .onFailure { e -> if (e is kotlinx.coroutines.CancellationException) throw e else Log.w(TAG, "Due-wake planning failed", e) }
+                    }
+                } else if (input.nonPrimaryCurrentTempOnly) {
+                    handleNonPrimaryCurrentTempOnlyWork(input, device)
+                } else {
+                    fullSyncPipeline.run(input, device, stopReason)
+                }
+            }
+        }
+
+        private suspend fun withSyncWakeLock(block: suspend () -> Result): Result {
+            val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+            val wakeLock = powerManager?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "WeatherWidget:Sync")?.apply {
+                setReferenceCounted(false)
+            }
+            wakeLock?.acquire(WAKELOCK_TIMEOUT_MS)
+            return try {
+                block()
+            } finally {
+                try {
+                    if (wakeLock?.isHeld == true) {
+                        wakeLock.release()
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "WakeLock release failed", e)
+                }
+            }
         }
 
         /**
@@ -739,5 +763,6 @@ class WeatherWidgetWorker
             const val KEY_ALL_SOURCES = "all_sources"
             const val DEFAULT_OBSERVATION_BACKFILL_HOURS = 72L
             const val WORK_NAME_LOCATION_CANDIDATE = "weather_widget_location_candidate"
+            const val WAKELOCK_TIMEOUT_MS = 60_000L
         }
     }

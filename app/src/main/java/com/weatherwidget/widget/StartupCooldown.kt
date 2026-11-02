@@ -60,12 +60,12 @@ internal class StartupCooldown(
 
     companion object {
         /** Fixed cooldown from process start. Chosen by the user 2026-09-10 (30 over 45/60). */
-        // 30 s until 2026-10-06; lowered to 16 s (user's call) so a source that becomes primary at
-        // install time (the debug Google migration) fetches sooner. Its banner covers the wait.
-        const val COOLDOWN_MS = 16_000L
+        // 30 s until 2026-10-06; lowered to 16 s so a source that becomes primary at install time fetches sooner.
+        // Lowered to 6 s (user's call 2026-11-01) so interaction taps on warm widgets fetch immediately.
+        const val COOLDOWN_MS = 6_000L
 
         /** Once the fixed part has elapsed, this much quiet after the last interaction. */
-        const val INTERACTION_QUIET_MS = 10_000L
+        const val INTERACTION_QUIET_MS = 6_000L
 
         /** A deferral shorter than this is churn; re-enqueue at least this far out. */
         const val MIN_DEFERRAL_MS = 1_000L

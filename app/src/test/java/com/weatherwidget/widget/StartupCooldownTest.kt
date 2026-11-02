@@ -67,4 +67,10 @@ class StartupCooldownTest {
         c.onUserFacingTrigger(start + 2_000)
         assertEquals(28_000L, c.remainingMs(start + 2_000))
     }
+
+    @Test
+    fun `default constants are six seconds`() {
+        assertEquals(6_000L, StartupCooldown.COOLDOWN_MS)
+        assertEquals(6_000L, StartupCooldown.INTERACTION_QUIET_MS)
+    }
 }
