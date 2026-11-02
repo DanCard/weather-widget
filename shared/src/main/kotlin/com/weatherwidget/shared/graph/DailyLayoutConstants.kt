@@ -18,7 +18,7 @@ object DailyLayoutConstants {
      * Per-column width assumption (dp) from [WIDE_LAYOUT_MIN_WIDTH_DP] up. 55dp everywhere made the
      * Fold 4 inner widget (~662dp) 13 slots, too dense (plans/261017-daily-density-narrow-only.md).
      */
-    const val WIDE_CELL_WIDTH_DP = 60
+    const val WIDE_CELL_WIDTH_DP = 61
 
     /**
      * Width (dp) at which [cellWidthDp] switches to [WIDE_CELL_WIDTH_DP]. Above any phone's width.
@@ -39,12 +39,13 @@ object DailyLayoutConstants {
      * Bias added to the width before dividing by [cellWidthDp] (55dp below 436dp, 60dp from there).
      *
      * Combined with round-to-nearest (not floor), this rounds UP a layout that is within ~(this
-     * many) dp of the next column, fitting one more forecast day. The 5→6 boundary lands at width
-     * >= 273dp, 6→7 at >= 328dp, 7→8 at >= 383dp, 9→10 at >= 540dp and 11→12 at >= 660dp.
+     * many) dp of the next column, fitting one more forecast day. Under 61dp wide cells, 9→10
+     * lands at width >= 550dp, 10→11 at >= 611dp, and 11→12 at >= 672dp. Under 55dp narrow cells,
+     * 5→6 lands at >= 273dp, 6→7 at >= 328dp, and 7→8 at >= 383dp.
      *
      * Density is governed mainly by the cell width; this bias just nudges borderline widths up.
      * Representative results: Samsung Fold 4 cover (~337dp) → 7 columns, Pixel 7 Pro (~373dp) → 7,
-     * Samsung Fold 4 full-width (~574dp) → 10, the Fold 4 inner widget at ~662dp → 12 (12 days).
+     * Samsung Fold 4 full-width (~574dp) → 10, the Fold 4 inner widget at ~662dp → 11 (11 days).
      * Days shown == columns (see NavigationUtils.getDayOffsets).
      *
      * Data backing the rightmost columns: at >8 columns the narrow skip-yesterday rule is off

@@ -21,11 +21,11 @@ class DailyLayoutConstantsTest {
     }
 
     @Test
-    fun `narrow layouts use 55dp cells, 436dp and wider use 60dp`() {
+    fun `narrow layouts use 55dp cells, 436dp and wider use 61dp`() {
         assertEquals(55, DailyLayoutConstants.cellWidthDp(337))
         assertEquals(55, DailyLayoutConstants.cellWidthDp(435))
-        assertEquals(60, DailyLayoutConstants.cellWidthDp(436))
-        assertEquals(60, DailyLayoutConstants.cellWidthDp(662))
+        assertEquals(61, DailyLayoutConstants.cellWidthDp(436))
+        assertEquals(61, DailyLayoutConstants.cellWidthDp(662))
         assertTrue(DailyLayoutConstants.NARROW_CELL_WIDTH_DP < DailyLayoutConstants.WIDE_CELL_WIDTH_DP)
     }
 
@@ -61,13 +61,13 @@ class DailyLayoutConstantsTest {
     }
 
     @Test
-    fun columns_foldInnerWidgetFitsTwelveSlotsForElevenDays() {
-        // Fold 4 inner widget 345 reports 662dp. 55dp cells made it 13 slots (12 days), too dense;
-        // 60dp cells give 12 slots = 11 days with the Today overlay. Verified on RFCT70G352Y.
-        assertEquals(12, DailyLayoutConstants.columnsForWidthDp(662))
-        // 11->12 boundary under the wide cell.
-        assertEquals(11, DailyLayoutConstants.columnsForWidthDp(659))
-        assertEquals(12, DailyLayoutConstants.columnsForWidthDp(660))
+    fun columns_foldInnerWidgetFitsElevenSlots() {
+        // Fold 4 inner widget reports 662dp. 60dp cells gave 12 columns; 61dp cells give 11 columns.
+        // Verified on RFCT70G352Y.
+        assertEquals(11, DailyLayoutConstants.columnsForWidthDp(662))
+        // 11->12 boundary under the wide cell (61dp): (671+30)/61 = 11.49 -> 11, (672+30)/61 = 11.51 -> 12.
+        assertEquals(11, DailyLayoutConstants.columnsForWidthDp(671))
+        assertEquals(12, DailyLayoutConstants.columnsForWidthDp(672))
     }
 
     @Test
@@ -119,7 +119,7 @@ class DailyLayoutConstantsTest {
     @Test
     fun `a cap limits the columns and never goes below one`() {
         assertEquals(9, DailyLayoutConstants.columnsForWidthDp(600, maxColumns = 9))
-        assertEquals(11, DailyLayoutConstants.columnsForWidthDp(600)) // (600+30)/60 = 10.5
+        assertEquals(10, DailyLayoutConstants.columnsForWidthDp(600)) // (600+30)/61 = 10.33
         assertEquals(1, DailyLayoutConstants.columnsForWidthDp(600, maxColumns = 0))
     }
 }
