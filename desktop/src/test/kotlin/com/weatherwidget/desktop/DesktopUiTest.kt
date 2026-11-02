@@ -907,6 +907,22 @@ currentCondition = "Sunny"),
         composeTestRule.onNodeWithTag("graph_selector").performClick()
         assertEquals(ViewMode.CLOUD_COVER, viewMode)
 
+        // Reset and check TEMPERATURE -> right-click selector -> PRECIPITATION (cycles backward)
+        viewMode = null
+        composeTestRule.setContent {
+            WidgetPopup(
+                config = stubConfig.copy(viewMode = ViewMode.TEMPERATURE),
+                forecast = stubForecast,
+                dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
+                onUpdateLocation = {},
+                onUpdateConfig = { viewMode = it.viewMode },
+                onOpenSettings = {},
+                onOpenObservations = {},
+            )
+        }
+        composeTestRule.onNodeWithTag("graph_selector").performMouseInput { rightClick() }
+        assertEquals(ViewMode.PRECIPITATION, viewMode)
+
         // Reset and check CLOUD_COVER -> PRECIPITATION
         viewMode = null
         composeTestRule.setContent {
@@ -923,6 +939,22 @@ currentCondition = "Sunny"),
         composeTestRule.onNodeWithTag("graph_selector").performClick()
         assertEquals(ViewMode.PRECIPITATION, viewMode)
 
+        // Reset and check CLOUD_COVER -> right-click selector -> TEMPERATURE (cycles backward)
+        viewMode = null
+        composeTestRule.setContent {
+            WidgetPopup(
+                config = stubConfig.copy(viewMode = ViewMode.CLOUD_COVER),
+                forecast = stubForecast,
+                dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
+                onUpdateLocation = {},
+                onUpdateConfig = { viewMode = it.viewMode },
+                onOpenSettings = {},
+                onOpenObservations = {},
+            )
+        }
+        composeTestRule.onNodeWithTag("graph_selector").performMouseInput { rightClick() }
+        assertEquals(ViewMode.TEMPERATURE, viewMode)
+
         // Reset and check PRECIPITATION -> HOURLY
         viewMode = null
         composeTestRule.setContent {
@@ -938,6 +970,22 @@ currentCondition = "Sunny"),
         }
         composeTestRule.onNodeWithTag("graph_selector").performClick()
         assertEquals(ViewMode.TEMPERATURE, viewMode)
+
+        // Reset and check PRECIPITATION -> right-click selector -> CLOUD_COVER (cycles backward)
+        viewMode = null
+        composeTestRule.setContent {
+            WidgetPopup(
+                config = stubConfig.copy(viewMode = ViewMode.PRECIPITATION),
+                forecast = stubForecast,
+                dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
+                onUpdateLocation = {},
+                onUpdateConfig = { viewMode = it.viewMode },
+                onOpenSettings = {},
+                onOpenObservations = {},
+            )
+        }
+        composeTestRule.onNodeWithTag("graph_selector").performMouseInput { rightClick() }
+        assertEquals(ViewMode.CLOUD_COVER, viewMode)
     }
 
     @Test

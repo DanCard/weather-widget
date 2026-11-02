@@ -388,29 +388,53 @@ internal fun WidgetHeader(
                         { onOpenHistory(if (!isHourly && todayInView) LocalDate.now() else targetHour.toLocalDate()) }
                     }
                 }
+                fun onSecondaryClick(button: HeaderButton): (() -> Unit)? = when (button) {
+                    HeaderButton.GRAPH_SELECTOR -> {
+                        { onUpdateConfig(config.copy(viewMode = GraphSelector.previous(config.viewMode))) }
+                    }
+                    else -> null
+                }
                 Row(
                     modifier = Modifier.align(Alignment.CenterStart).offset(x = slotLeft.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    for (button in shownButtons) Box(
-                        modifier = Modifier
-                            .size(width = zoneDp.dp, height = buttonHeightDp.dp)
-                            .clickable(onClick = onClick(button))
-                            .testTag(headerButtonTag(button, isHourly)),
-                        contentAlignment = Alignment.Center,
-                    ) { HeaderButtonGlyph(button, isHourly, homeAction, iconSizeDp, graphSelectorEmoji, graphSelectorStyle) }
+                    for (button in shownButtons) {
+                        val secondary = onSecondaryClick(button)
+                        Box(
+                            modifier = Modifier
+                                .size(width = zoneDp.dp, height = buttonHeightDp.dp)
+                                .clickable(onClick = onClick(button))
+                                .then(
+                                    if (secondary != null) {
+                                        @OptIn(ExperimentalFoundationApi::class)
+                                        Modifier.onClick(matcher = PointerMatcher.mouse(PointerButton.Secondary), onClick = secondary)
+                                    } else Modifier
+                                )
+                                .testTag(headerButtonTag(button, isHourly)),
+                            contentAlignment = Alignment.Center,
+                        ) { HeaderButtonGlyph(button, isHourly, homeAction, iconSizeDp, graphSelectorEmoji, graphSelectorStyle) }
+                    }
                 }
                 for (ext in listOf(
                     TouchExtension(shownButtons.first(), touchLeft, slotLeft, "header_touch_extension_start"),
                     TouchExtension(shownButtons.last(), slotRight, touchRight, "header_touch_extension_end"),
-                )) if (ext.toDp > ext.fromDp) Box(
-                    modifier = Modifier
-                        .align(Alignment.CenterStart)
-                        .offset(x = ext.fromDp.dp)
-                        .size(width = (ext.toDp - ext.fromDp).dp, height = buttonHeightDp.dp)
-                        .clickable(onClick = onClick(ext.button))
-                        .testTag(ext.tag),
-                )
+                )) if (ext.toDp > ext.fromDp) {
+                    val secondary = onSecondaryClick(ext.button)
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.CenterStart)
+                            .offset(x = ext.fromDp.dp)
+                            .size(width = (ext.toDp - ext.fromDp).dp, height = buttonHeightDp.dp)
+                            .clickable(onClick = onClick(ext.button))
+                            .then(
+                                if (secondary != null) {
+                                    @OptIn(ExperimentalFoundationApi::class)
+                                    Modifier.onClick(matcher = PointerMatcher.mouse(PointerButton.Secondary), onClick = secondary)
+                                } else Modifier
+                            )
+                            .testTag(ext.tag),
+                    )
+                }
             }
             dateLeft?.let { x ->
                 Text(

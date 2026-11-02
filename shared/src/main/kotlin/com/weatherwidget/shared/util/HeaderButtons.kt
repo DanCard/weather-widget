@@ -83,6 +83,12 @@ object GraphSelector {
         ViewMode.TEMPERATURE, ViewMode.DAILY -> ViewMode.CLOUD_COVER
     }
 
+    fun previous(current: ViewMode): ViewMode = when (current) {
+        ViewMode.CLOUD_COVER -> ViewMode.TEMPERATURE
+        ViewMode.PRECIPITATION -> ViewMode.CLOUD_COVER
+        ViewMode.TEMPERATURE, ViewMode.DAILY -> ViewMode.PRECIPITATION
+    }
+
     /** The emoji naming [next]'s view. */
     fun emoji(current: ViewMode): String = when (next(current)) {
         ViewMode.CLOUD_COVER -> "☁️" // ☁️
