@@ -213,10 +213,10 @@ class RefreshToastRoboTest {
         show(Queued(Kind.FORECAST), origin = "history_refresh")
         clockMs += 500L
         runBlocking {
-            RefreshToast.showOutcome(context, "history_refresh", com.weatherwidget.shared.util.RefreshOutcome.Refreshed, "Refreshed NWS")
+            RefreshToast.showOutcome(context, "history_refresh", com.weatherwidget.shared.util.RefreshOutcome.Refreshed, "NWS refreshed")
         }
         shadowOf(Looper.getMainLooper()).idle()
-        assertEquals("Refreshed NWS", ShadowToast.getTextOfLatestToast())
+        assertEquals("NWS refreshed", ShadowToast.getTextOfLatestToast())
         assertTrue(toastRows().any { it.message == "origin=history_refresh done=Refreshed shown" })
 
         // The ending restarted the window: a notice right after it is suppressed.

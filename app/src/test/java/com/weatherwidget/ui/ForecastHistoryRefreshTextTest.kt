@@ -41,6 +41,6 @@ class ForecastHistoryRefreshTextTest : RobolectricTest() {
     @Test
     fun `hourly quota names the hourly forecast and its reset`() {
         val text = ForecastHistoryActivity.refreshOutcomeText(context, outcomes[2], "Google")
-        assertEquals(true, text.startsWith("Refreshed Google · Hourly forecast quota used · resets "))
+        assertEquals(true, text.startsWith("Google refreshed · Hourly forecast quota used · resets "))
     }
 }

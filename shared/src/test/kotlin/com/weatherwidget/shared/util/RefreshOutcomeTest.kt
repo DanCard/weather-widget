@@ -65,21 +65,21 @@ class RefreshOutcomeTest {
     @Test
     fun `text - every outcome's English line`() {
         val time = { _: Long -> "12 AM" }
-        assertEquals("Refreshed Google", RefreshOutcome.text(Refreshed, "Google", time))
+        assertEquals("Google refreshed", RefreshOutcome.text(Refreshed, "Google", time))
         assertEquals("Couldn't refresh Google", RefreshOutcome.text(Failed, "Google", time))
         assertEquals(
-            "Refreshed Google · Hourly forecast quota used · resets 12 AM",
+            "Google refreshed · Hourly forecast quota used · resets 12 AM",
             RefreshOutcome.text(Refused(QuotaScope.HOURLY_FORECAST, 0L), "Google", time),
         )
         assertEquals(
-            "Refreshed Google · Daily forecast quota used · resets 12 AM",
+            "Google refreshed · Daily forecast quota used · resets 12 AM",
             RefreshOutcome.text(Refused(QuotaScope.DAILY_FORECAST, 0L), "Google", time),
         )
         assertEquals(
-            "Refreshed Google · Daily quota used · resets 12 AM",
+            "Google refreshed · Daily quota used · resets 12 AM",
             RefreshOutcome.text(Refused(QuotaScope.SOURCE, 0L), "Google", time),
         )
-        assertEquals("Refreshed Google · Hourly forecast incomplete", RefreshOutcome.text(HourlyIncomplete, "Google", time))
+        assertEquals("Google refreshed · Hourly forecast incomplete", RefreshOutcome.text(HourlyIncomplete, "Google", time))
     }
 
     @Test

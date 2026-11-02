@@ -445,11 +445,11 @@ class WidgetRefreshToastIntegrationRoboTest {
         assertEquals("NWS · Forecast refresh queued", banner())
 
         val ids = intArrayOf(widgetId)
-        RefreshToast.showOutcome(context, "widget_tap_to_refresh", com.weatherwidget.shared.util.RefreshOutcome.Refreshed, "Refreshed NWS", ids)
-        assertEquals("Refreshed NWS", banner())
+        RefreshToast.showOutcome(context, "widget_tap_to_refresh", com.weatherwidget.shared.util.RefreshOutcome.Refreshed, "NWS refreshed", ids)
+        assertEquals("NWS refreshed", banner())
 
         stateManager.setTransientMessage(widgetId, "Getting weather for Mountain View…", System.currentTimeMillis() + 60_000L)
-        RefreshToast.showOutcome(context, "widget_tap_to_refresh", com.weatherwidget.shared.util.RefreshOutcome.Refreshed, "Refreshed NWS", ids)
+        RefreshToast.showOutcome(context, "widget_tap_to_refresh", com.weatherwidget.shared.util.RefreshOutcome.Refreshed, "NWS refreshed", ids)
         assertEquals("Getting weather for Mountain View…", banner())
     }
 }

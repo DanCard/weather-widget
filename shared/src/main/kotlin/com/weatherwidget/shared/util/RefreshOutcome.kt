@@ -6,7 +6,7 @@ import com.weatherwidget.data.remote.RateLimitNoticeText
 
 /**
  * What a refresh did, for the message when it finishes — both platforms. A fetch
- * with one product refused still "answered" (the other was saved), so "Refreshed Google" alone was
+ * with one product refused still "answered" (the other was saved), so "Google refreshed" alone was
  * shown over a 429'd hourly forecast (Fold 4, 2026-10-16). Android maps it to localized strings;
  * desktop uses [text]. See plans/261016-history-refresh-outcome-shared-desktop-parity.md.
  */
@@ -62,7 +62,7 @@ sealed interface RefreshOutcome {
         /** Desktop text (English); Android's strings are the same sentences, translated. */
         fun text(outcome: RefreshOutcome, sourceName: String, formatTime: (Long) -> String): String {
             if (outcome == Failed) return "Couldn't refresh $sourceName"
-            val refreshed = "Refreshed $sourceName"
+            val refreshed = "$sourceName refreshed"
             return when (outcome) {
                 is Refused -> "$refreshed · ${QuotaNoticeText.summary(outcome.scope, formatTime(outcome.untilMs))}"
                 HourlyIncomplete -> "$refreshed · ${RateLimitNoticeText.short(partial = true)}"

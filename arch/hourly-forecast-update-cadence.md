@@ -202,7 +202,7 @@ refreshes are limited across both platforms to at most once every 10 minutes per
   - Last user refresh timestamp for that source is recorded (`FetchMetadata` per source on Android, `lastUserRefreshMsBySource` on Desktop).
   - Immediate forced forecast sync and history gap fill are enqueued.
   - A three-second notice names the source and says the refresh is queued; another says how it ended
-    ("Refreshed NWS", "Couldn't refresh NWS"). The queued notice shows before the cache repaint, which
+    ("NWS refreshed", "Couldn't refresh NWS"). The queued notice shows before the cache repaint, which
     can take seconds. Only Settings' Refresh data covers every source, so its messages name none
     ("Refresh complete", "Refresh failed"); every other refresh request forces one source.
 - **Passive events are exempt**:

@@ -101,7 +101,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
         private const val TAG = "ForecastHistoryActivity"
 
         /**
-         * The localized [RefreshOutcome.text]: "Refreshed Google · Hourly forecast quota used · resets
+         * The localized [RefreshOutcome.text]: "Google refreshed · Hourly forecast quota used · resets
          * 12 AM", from existing strings only (plans/261016-history-refresh-outcome-shared-desktop-parity.md).
          */
         fun refreshOutcomeText(context: android.content.Context, outcome: RefreshOutcome, sourceName: String): String {

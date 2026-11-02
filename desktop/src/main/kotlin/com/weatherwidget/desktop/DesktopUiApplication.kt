@@ -737,7 +737,7 @@ internal fun runDesktopUiApplication() = application {
         }
 
         /**
-         * A refresh's ending, on the surface that asked: "Refreshed Google · Hourly forecast quota used ·
+         * A refresh's ending, on the surface that asked: "Google refreshed · Hourly forecast quota used ·
          * resets 12 AM" — the shared rule Android uses
          * (plans/261016-history-refresh-outcome-shared-desktop-parity.md).
          */

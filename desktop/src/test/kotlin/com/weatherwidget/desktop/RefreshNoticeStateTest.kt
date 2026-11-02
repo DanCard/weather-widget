@@ -181,7 +181,7 @@ class RefreshNoticeStateTest {
         )
 
         assertEquals(
-            "Refreshed Google · Hourly forecast quota used · resets T42",
+            "Google refreshed · Hourly forecast quota used · resets T42",
             state.textFor(RefreshNoticeSurface.HISTORY),
         )
         assertEquals("origin=history done=Refused refused=HOURLY_FORECAST until=42 shown", logged.last())
