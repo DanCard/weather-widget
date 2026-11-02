@@ -48,6 +48,8 @@ class WeatherWidgetProviderEnqueuePolicyTest {
 
     @Before
     fun setUp() {
+        // Process-wide: a test sharing this JVM can leave it on, and it renames the work this suite pins.
+        com.weatherwidget.data.local.WeatherDatabase.setIsTesting(false)
         context = ApplicationProvider.getApplicationContext()
         mockWorkManager = mockk(relaxed = true)
         mockkStatic(WorkManager::class)

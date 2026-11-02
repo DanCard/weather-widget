@@ -66,7 +66,7 @@ object SourceStalenessProbe {
 
     /**
      * True when switching to this source should trigger a forced network fetch: its data is either
-     * absent/incomplete, or older than [SourceToggleRefreshPolicy.staleMs] (2 h on a charger, else 4 h).
+     * absent/incomplete, or older than [SourceToggleRefreshPolicy.staleMs] (2 h at ≥ 70 % or on a charger, else 4 h).
      *
      * The age check doubles as the per-source cooldown — once a toggle-triggered fetch lands,
      * fetchedAt is young, so toggling away and back is a no-op.
@@ -75,13 +75,13 @@ object SourceStalenessProbe {
     internal fun sourceNeedsRefresh(
         state: SourceWindowState,
         nowMs: Long,
-        isCharging: Boolean,
+        isHighBattery: Boolean,
     ): Boolean {
         if (!state.hasDaily || !state.hasHourly || !state.hasRequiredFutureCoverage) return true
         val fetchedAt =
             listOfNotNull(state.newestFetchedAtMs, state.lastSuccessfulFetchAtMs).maxOrNull()
                 ?: return true
-        return nowMs - fetchedAt >= SourceToggleRefreshPolicy.staleMs(isCharging)
+        return nowMs - fetchedAt >= SourceToggleRefreshPolicy.staleMs(isHighBattery)
     }
 
     /**

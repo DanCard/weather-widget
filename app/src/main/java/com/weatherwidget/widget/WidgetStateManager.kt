@@ -417,6 +417,14 @@ class WidgetStateManager internal constructor(
 
     fun markLongFetch(sourceId: String, lat: Double, lon: Double, atMs: Long) = writeMarker(KEY_LONG_FETCH_PREFIX + sourceId, lat, lon, atMs)
 
+    /** When a viewing fetch of [sourceId] was last asked for ([com.weatherwidget.shared.util.ViewingForecastRefresh]); null = never. */
+    fun getViewingForecastRequest(sourceId: String): Long? =
+        prefs.getLong(KEY_VIEWING_FORECAST_REQUEST_PREFIX + sourceId, 0L).takeIf { it > 0L }
+
+    fun markViewingForecastRequest(sourceId: String, atMs: Long) {
+        prefs.edit().putLong(KEY_VIEWING_FORECAST_REQUEST_PREFIX + sourceId, atMs).apply()
+    }
+
     private fun readMarker(key: String, lat: Double, lon: Double): Long? =
         com.weatherwidget.data.remote.ForecastHorizonCadence.Marker.decode(prefs.getString(key, null))?.forSite(lat, lon)
 
@@ -593,6 +601,7 @@ class WidgetStateManager internal constructor(
         /** Global: place name of a setup-screen location change whose first fetch has not landed. */
         const val KEY_PENDING_LOCATION_FETCH = "widget_pending_location_fetch"
         private const val KEY_LONG_FETCH_PREFIX = "forecast_long_fetch_"
+        private const val KEY_VIEWING_FORECAST_REQUEST_PREFIX = "viewing_forecast_request_"
 
         /** Global: JSON array of recent locations. */
         const val KEY_RECENT_LOCATIONS = "recent_locations"

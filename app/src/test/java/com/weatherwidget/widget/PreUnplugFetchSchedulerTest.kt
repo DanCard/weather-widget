@@ -132,20 +132,6 @@ class PreUnplugFetchSchedulerTest {
     }
 
     @Test
-    fun `charging screen-on catch-up asks for the displayed source only when its forecast is past 2 h`() {
-        val manager = WidgetStateManager(context)
-        manager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO))
-        val displayed = manager.getActiveDisplaySourceIds().single()
-        val lat = 37.42
-        val lon = -122.08
-        val now = at(monday, 9, 0)
-        manager.markLongFetch(displayed, lat, lon, now - 2 * hour)
-        assertEquals(listOf(displayed), ScreenOnReceiver.chargingForecastCatchUpSources(manager, lat, lon, now))
-        manager.markLongFetch(displayed, lat, lon, now - hour)
-        assertTrue(ScreenOnReceiver.chargingForecastCatchUpSources(manager, lat, lon, now).isEmpty())
-    }
-
-    @Test
     @Suppress("DEPRECATION")
     fun `a screen-on on the charger records a sighting`() {
         context.sendStickyBroadcast(

@@ -36,11 +36,11 @@ class DataFreshnessTest {
     }
 
     @Test
-    fun `a non-displayed source follows the same 2-h rule as the displayed one`() {
+    fun `a non-displayed source follows the same 4-h rule as the displayed one`() {
         val now = System.currentTimeMillis()
-        val fresh = mapOf(WeatherSource.NWS.id to now - 10 * 60_000L, WeatherSource.OPEN_METEO.id to now - 1 * 3_600_000L)
+        val fresh = mapOf(WeatherSource.NWS.id to now - 10 * 60_000L, WeatherSource.OPEN_METEO.id to now - 3 * 3_600_000L)
         assertFalse(DataFreshness.isStaleForSources(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO), fresh, now, chargingScreenOn))
-        val stale = fresh + (WeatherSource.OPEN_METEO.id to now - 3 * 3_600_000L)
+        val stale = fresh + (WeatherSource.OPEN_METEO.id to now - 5 * 3_600_000L)
         org.junit.Assert.assertTrue(DataFreshness.isStaleForSources(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO), stale, now, chargingScreenOn))
     }
 

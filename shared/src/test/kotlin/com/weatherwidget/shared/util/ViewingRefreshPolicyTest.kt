@@ -40,4 +40,13 @@ class ViewingRefreshPolicyTest {
     fun `never-fetched actuals refresh`() {
         assertTrue(ViewingRefreshPolicy.decide(null, now, cadence, now).refreshActuals)
     }
+
+    @Test
+    fun `viewing limit is 2 h at 70 percent or on a charger, the cadence otherwise`() {
+        val hour = 3_600_000L
+        assertEquals(2 * hour, ViewingRefreshPolicy.forecastIntervalMs(false, 70, isScreenOn = true))
+        assertEquals(2 * hour, ViewingRefreshPolicy.forecastIntervalMs(true, 40, isScreenOn = true))
+        assertEquals(24 * hour, ViewingRefreshPolicy.forecastIntervalMs(false, 69, isScreenOn = true))
+        assertEquals("nobody is looking", 8 * hour, ViewingRefreshPolicy.forecastIntervalMs(true, 100, isScreenOn = false))
+    }
 }

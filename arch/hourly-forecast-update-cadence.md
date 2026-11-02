@@ -12,8 +12,7 @@ for the source's full supported horizon; there is no shorter three-day forecast 
 
 | Power | Screen | Fetch interval |
 |---|---|---|
-| Charging | On | 2 hours |
-| Battery ≥ 70%, not charging | On | 4 hours |
+| Charging or battery ≥ 70% | On | 4 hours |
 | Charging or battery ≥ 70% | Off | 8 hours |
 | Battery < 70% | On or off | 24 hours |
 
@@ -25,12 +24,19 @@ for the source's full supported horizon; there is no shorter three-day forecast 
 - On a charger, a forecast also comes due 45 minutes before the device is predicted to leave the
   charger (see [pre-unplug fetch](#pre-unplug-fetch)), and the overnight fetch that would be overwritten
   first is skipped.
-- On a charger, the screen coming on fetches a displayed source's forecast when the 2-hour screen-on
-  interval makes it due (`ForecastHorizonCadence.screenOnCatchUp`; Android `ScreenOnReceiver`,
-  `SCREEN_ON_FORECAST`), and otherwise moves the next wake to that due time. The desktop forecast loop
-  re-plans on every screen wake, which has the same effect.
-- Switching to a source fetches its forecast when it is at least the screen-on interval old: 2 hours on
-  a charger, otherwise 4 hours, whatever the battery level (`SourceToggleRefreshPolicy`; desktop
+- **The source being viewed stays within 2 hours** at battery ≥ 70% or on a charger: past that it gets
+  a fetch forced for that source alone, because a normal sync would judge it by the table above and
+  fetch nothing (`ViewingForecastRefresh`, `ViewingRefreshPolicy`; log `VIEWING_FORECAST`). A request
+  blocks another for that source for 15 minutes, so a failing provider is not retried on every look.
+  Below 70% on battery, the table applies.
+  - Android cannot see whether a widget is on screen, so "viewed" means displayed on a widget with the
+    screen on: checked at screen-on, after a graph paint, and on each current-temp run with the screen on.
+  - Desktop checks on screen wake and on each screen-on observation-loop tick.
+- With nothing to fetch, a screen-on moves the next wake to the 4-hour due time (Android
+  `SCREEN_ON_FORECAST`). The desktop forecast loop re-plans on every screen wake, which has the same
+  effect.
+- Switching to a source fetches its forecast when it is at least 2 hours old at battery ≥ 70% or on a
+  charger, otherwise 4 hours (`SourceToggleRefreshPolicy`; desktop
   `LAUNCH_REFRESH_CHECK reason=source_change`).
 - `SourceFetchGate` excludes sources not viewed recently from routine background work. Targeted user
   actions and on-demand hourly requests are separate from this background gate.
@@ -79,11 +85,9 @@ forecast interval — a backstop for a planner bug, not a poll).
 - **Android:** every full sync enqueues one delayed `due_wake` sync at the planned wake
   (`WidgetWorkScheduler.enqueueDueWakeSync`, logged `FORECAST_DUE_WAKE`; append rather than replace
   while that work is running). With none pending (after an install or upgrade), a current-temp run plans
-  one (`trigger=missing`); on a charger with the screen on, each current-temp run also brings a later
-  pending wake forward (`trigger=charging_screen_on`). The periodic worker is a 24-hour backstop (`periodic_1440m`). A battery
-  screen-on only brings the due-time sync forward to the 4-hour screen-on due time
-  (`SCREEN_ON_FORECAST outcome=replanned`); a charging screen-on fetches when due, else brings it
-  forward to the 2-hour due time.
+  one (`trigger=missing`). The periodic worker is a 24-hour backstop (`periodic_1440m`). A screen-on
+  with no viewed source past its limit brings the due-time sync forward to the 4-hour screen-on due
+  time (`SCREEN_ON_FORECAST outcome=replanned`).
 - **Android start:** a widget update that finds the forecast stale queues one delayed sync
   (`WidgetStartupCoordinator`, `reason=on_update_stale`), so an install or emulator start fetches
   without waiting for the planned wake.

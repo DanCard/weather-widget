@@ -83,16 +83,16 @@ class DueWakeSchedulingTest {
     }
 
     @Test
-    fun `charging screen-on with nothing due moves the due time to the 2 h interval`() {
+    fun `charging screen-on with nothing due moves the due time to the 4 h interval`() {
         val manager = WidgetStateManager(context)
         manager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO))
         val displayed = manager.getActiveDisplaySourceIds().single()
         val lat = 37.42
         val lon = -122.08
         val now = 1_800_000_000_000L
-        manager.markLongFetch(displayed, lat, lon, now - hour)
+        manager.markLongFetch(displayed, lat, lon, now - 3 * hour)
         val dueAt = ScreenOnReceiver.screenOnForecastDueAtMs(manager, lat, lon, now, batteryLevel = 40, isCharging = true)!!
-        assertTrue("≈ 1 h out (2 h after the fetch), not 7 h", dueAt in now + hour - 3 * minute..now + hour)
+        assertTrue("≈ 1 h out (4 h after the fetch), not 5 h", dueAt in now + hour - 3 * minute..now + hour)
     }
 
     @Test
@@ -115,38 +115,4 @@ class DueWakeSchedulingTest {
         io.mockk.coVerify(exactly = 1) { repo.nextForecastDue(any(), any(), any()) }
     }
 
-    /** Emulator 2026-11-01: a wake planned under the old 4 h rule outlived the new 2 h one with the screen on. */
-    @Test
-    fun `a charging screen-on tick brings a later wake forward and never pushes one back`() = kotlinx.coroutines.runBlocking {
-        ActiveLocationResolver.persist(context, 37.42, -122.08)
-        val repo = io.mockk.mockk<com.weatherwidget.data.repository.WeatherRepository>(relaxed = true)
-        var dueIn = hour
-        io.mockk.coEvery { repo.nextForecastDue(any(), any(), any()) } answers {
-            com.weatherwidget.data.remote.ForecastSchedule.Due(WeatherSource.NWS.id, System.currentTimeMillis() + dueIn)
-        }
-        val dao = io.mockk.mockk<com.weatherwidget.data.local.AppLogDao>(relaxed = true)
-        val manager = WidgetStateManager(context)
-        WidgetWorkScheduler.enqueueDueWakeSync(context, 3 * hour)
-
-        DueWakePlanner.planFromCurrentTempRun(context, repo, manager, dao, chargingScreenOn = true)
-        val moved = pending()!!.initialDelayMillis
-        assertTrue("≈ 1 h: $moved", moved in hour - minute..hour + minute)
-
-        dueIn = 5 * hour
-        DueWakePlanner.planFromCurrentTempRun(context, repo, manager, dao, chargingScreenOn = true)
-        assertEquals("later: kept", moved, pending()!!.initialDelayMillis)
-    }
-
-    @Test
-    fun `off the charger or with the screen off a tick leaves a pending wake alone`() = kotlinx.coroutines.runBlocking {
-        ActiveLocationResolver.persist(context, 37.42, -122.08)
-        val repo = io.mockk.mockk<com.weatherwidget.data.repository.WeatherRepository>(relaxed = true)
-        val dao = io.mockk.mockk<com.weatherwidget.data.local.AppLogDao>(relaxed = true)
-        WidgetWorkScheduler.enqueueDueWakeSync(context, 3 * hour)
-
-        DueWakePlanner.planFromCurrentTempRun(context, repo, WidgetStateManager(context), dao, chargingScreenOn = false)
-
-        assertEquals(3 * hour, pending()!!.initialDelayMillis)
-        io.mockk.coVerify(exactly = 0) { repo.nextForecastDue(any(), any(), any()) }
-    }
 }

@@ -63,13 +63,13 @@ class ForecastFetchPlanTest {
     }
 
     @Test
-    fun aRoutineTwoHourFetchIsLong() {
+    fun aRoutineFourHourFetchIsLong() {
         // Was SHORT (3 days) before 2026-10-25 (performance/261025-every-forecast-fetch-long.md).
-        val plan = ForecastFetchPlan.plan(listOf("NWS", "OPEN_METEO"), now, decide = { decision(2) })
+        val plan = ForecastFetchPlan.plan(listOf("NWS", "OPEN_METEO"), now, decide = { decision(4) })
         assertEquals(setOf("NWS", "OPEN_METEO"), plan.due.keys)
         assertEquals(ForecastHorizonCadence.Horizon.LONG, plan["NWS"]!!.horizon)
         assertEquals(ForecastHorizonCadence.Horizon.LONG, plan["OPEN_METEO"]!!.horizon)
-        assertTrue(plan.line, plan.line.contains("NWS:LONG(every=2h/2h)"))
+        assertTrue(plan.line, plan.line.contains("NWS:LONG(every=4h/4h)"))
     }
 
     @Test

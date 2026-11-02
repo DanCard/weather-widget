@@ -105,7 +105,12 @@ internal object GraphInteractionRenderer {
                         location.lon,
                     ).takeIf { it > 0L },
             )
-        return SourceStalenessProbe.sourceNeedsRefresh(state, nowMs, BatterySnapshotProvider.snapshot(context).isCharging)
+        val battery = BatterySnapshotProvider.snapshot(context)
+        return SourceStalenessProbe.sourceNeedsRefresh(
+            state,
+            nowMs,
+            com.weatherwidget.data.remote.ForecastHorizonCadence.isHighBattery(battery.isCharging, battery.batteryLevel),
+        )
     }
 
     suspend fun render(request: GraphRenderRequest) {
@@ -143,6 +148,17 @@ internal object GraphInteractionRenderer {
             centerTime,
             displaySource,
         )
+        // After the paint, so a stale source never delays the tap's feedback.
+        try {
+            val battery = BatterySnapshotProvider.snapshot(context)
+            com.weatherwidget.widget.ViewingForecastRefresher.run(
+                context, stateManager, battery.isCharging, battery.batteryLevel, "graph_view",
+            )
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "Viewing forecast check failed", e)
+        }
         InteractionTimingLogger.log(
             database,
             request.appWidgetId,

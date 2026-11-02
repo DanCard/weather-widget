@@ -13,15 +13,15 @@ import java.time.ZoneId
  *
  * | Battery | Screen | Every fetch (LONG) |
  * |---|---|---|
- * | charging | on | every 2 h |
- * | ≥ 70 %, not charging | on | every 4 h |
+ * | ≥ 70 % or charging | on | every 4 h |
  * | ≥ 70 % or charging | off | every 8 h |
  * | < 70 % | on or off | every 24 h |
  *
  * A fetch downloads the source's whole reach (Google: [LONG_ASK_HOURS]) and stores every daily row and
  * up to 8 days of hourly ([HourlyHorizon.longHours]).
  *
- * No displayed-vs-other split, no view-age bands, no per-provider case. "Due" is measured from one
+ * The source being viewed has its own tighter limit ([com.weatherwidget.shared.util.ViewingRefreshPolicy]).
+ * This table has no displayed-vs-other split, no view-age bands, no per-provider case. "Due" is measured from one
  * per-source + site marker ([Marker]), never from the rows' `fetchedAt`.
  *
  * **Pre-unplug** (2026-10-28; plans/261028-learned-unplug-prediction.md): on a charger, the fetch
@@ -29,7 +29,7 @@ import java.time.ZoneId
  * ([decide]'s `wakeAtMs`, from the shared [com.weatherwidget.shared.util.UnplugPredictor]: learned
  * weekly/daily unplug habits and alarms that unplugs have followed), so the first glance off the charger
  * sees a forecast fetched minutes ago. A bare clock alarm no longer counts: a phone still charging when
- * the screen comes on fetches then for free ([screenOnCatchUp]). The overnight fetch a predicted unplug
+ * the screen comes on fetches then ([com.weatherwidget.shared.util.ViewingRefreshPolicy]). The overnight fetch a predicted unplug
  * would overwrite is skipped: on a charger with the screen off, a site fetched in the last 24 h waits
  * for the pre-unplug fetch when it comes within the interval
  * (performance/261019-learned-unplug-time-and-overnight-short-skip.md). "Wake" below means that
@@ -44,7 +44,6 @@ object ForecastHorizonCadence {
     /** At or above this level (or on a charger) the battery is "high". */
     const val HIGH_BATTERY_PERCENT = 70
 
-    const val SCREEN_ON_CHARGING_HOURS = 2
     const val SCREEN_ON_HOURS = 4
     const val SCREEN_OFF_HOURS = 8
     const val LOW_BATTERY_HOURS = 24
@@ -79,7 +78,6 @@ object ForecastHorizonCadence {
 
     fun intervalHours(isCharging: Boolean, batteryLevel: Int, isScreenOn: Boolean): Int = when {
         !isHighBattery(isCharging, batteryLevel) -> LOW_BATTERY_HOURS
-        isScreenOn && isCharging -> SCREEN_ON_CHARGING_HOURS
         isScreenOn -> SCREEN_ON_HOURS
         else -> SCREEN_OFF_HOURS
     }
@@ -151,16 +149,8 @@ object ForecastHorizonCadence {
     }
 
     /**
-     * Whether the screen coming on should fetch a forecast now: on a charger, when the screen-on interval
-     * makes it due. Free power and a user looking — the moment the pre-unplug guess was standing in for
-     * when the device stays plugged in (plans/261028-learned-unplug-prediction.md).
-     */
-    fun screenOnCatchUp(isCharging: Boolean, lastFetchMs: Long?, nowMs: Long): Boolean =
-        isCharging && decide(isCharging = true, batteryLevel = 100, isScreenOn = true, lastFetchMs = lastFetchMs, nowMs = nowMs).due != null
-
-    /**
-     * When a fetch comes due now that the screen is on: the screen-on interval is shorter (2 h charging,
-     * 4 h on battery, not 8 h), so a platform moves its next wake to this when nothing is due yet
+     * When a fetch comes due now that the screen is on: the screen-on interval is shorter (4 h,
+     * not 8 h), so a platform moves its next wake to this when nothing is due yet
      * (plans/261028-screen-off-cadence-and-due-time-wakes.md).
      */
     fun screenOnDueAtMs(isCharging: Boolean, batteryLevel: Int, lastFetchMs: Long?, nowMs: Long): Long =

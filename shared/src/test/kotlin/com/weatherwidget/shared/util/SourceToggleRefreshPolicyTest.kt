@@ -10,12 +10,12 @@ class SourceToggleRefreshPolicyTest {
     private val hour = 3_600_000L
 
     @Test
-    fun `on a charger a toggle refreshes past the two hour charging interval`() {
-        assertEquals(2 * hour, SourceToggleRefreshPolicy.staleMs(isCharging = true))
+    fun `at high battery or on a charger a toggle refreshes past two hours`() {
+        assertEquals(2 * hour, SourceToggleRefreshPolicy.staleMs(isHighBattery = true))
     }
 
     @Test
-    fun `off a charger a toggle refreshes past four hours`() {
-        assertEquals(4 * hour, SourceToggleRefreshPolicy.staleMs(isCharging = false))
+    fun `at low battery a toggle refreshes past four hours`() {
+        assertEquals(4 * hour, SourceToggleRefreshPolicy.staleMs(isHighBattery = false))
     }
 }
