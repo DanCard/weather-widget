@@ -119,17 +119,9 @@ class WeatherWidgetWorker
             }
             if (input.currentTempOnly) {
                 return handleCurrentTempOnlyWork(input, device).also {
-                    // Bootstraps the due-time sync after an install/upgrade on a charger; a no-op once one is
-                    // pending. While the screen stays on, each run re-checks the viewed source's age.
-                    runCatching {
-                        DueWakePlanner.plan(context, weatherRepository, widgetStateManager, appLogDao, onlyIfMissing = true)
-                        if (device.isScreenInteractive) {
-                            ViewingForecastRefresher.run(
-                                context, widgetStateManager, device.isCharging, device.batteryLevel, "current_temp_tick",
-                            )
-                        }
-                    }
-                        .onFailure { e -> if (e is kotlinx.coroutines.CancellationException) throw e else Log.w(TAG, "Due-wake or viewing check failed", e) }
+                    // Bootstraps the due-time sync after an install/upgrade on a charger; a no-op once one is pending.
+                    runCatching { DueWakePlanner.plan(context, weatherRepository, widgetStateManager, appLogDao, onlyIfMissing = true) }
+                        .onFailure { e -> if (e is kotlinx.coroutines.CancellationException) throw e else Log.w(TAG, "Due-wake planning failed", e) }
                 }
             }
             if (input.nonPrimaryCurrentTempOnly) {

@@ -45,6 +45,10 @@ private fun touchTrigger(name: String) {
 @Volatile
 var uiNotifyServerRef: UiNotifyServer? = null
 
+fun notifySwitchRefresh(signal: SwitchRefreshSignal) {
+    runCatching { uiNotifyServerRef?.pushSwitchRefresh(signal) }
+}
+
 fun notifyDataUpdated() {
     touchTrigger(DATA_UPDATED_TRIGGER)
     runCatching { uiNotifyServerRef?.pushDataUpdated() }
@@ -68,7 +72,7 @@ const val FRESHNESS_THRESHOLD_MS = 10 * 60 * 1000L
 //
 // Wake and network restore are not user-present moments in this sense: they refetch the forecast
 // only when it is due by the normal cadence, via [determineLaunchRefreshAction]'s
-// forecastStaleAfterMs. A screen wake then applies the viewing limit (ViewingForecastRefresh).
+// forecastStaleAfterMs.
 const val FORECAST_FRESHNESS_THRESHOLD_MS = 15 * 60 * 1000L
 // UI-process safety-net cache reload. The `.data-updated` trigger is the primary (interrupt-driven)
 // update path; this slow poll only exists so a missed watch event or a dead watcher loop degrades

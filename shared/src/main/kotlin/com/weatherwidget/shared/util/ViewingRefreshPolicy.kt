@@ -8,10 +8,10 @@ import com.weatherwidget.data.remote.ForecastHorizonCadence
  *
  * - **Current temp / actuals** of the viewed source refresh once older than
  *   [ACTUALS_STALE_WHILE_VIEWING_MS]. That is what the 15 minutes was always for.
- * - **The forecast** of the viewed source refreshes once older than
- *   [FORECAST_STALE_WHILE_VIEWING_MS] at ≥ 70 % or on a charger (user, 2026-11-01, replacing the
- *   same-day "every source every 2 h on a charger"); otherwise once due by the normal background
- *   cadence. [ViewingForecastRefresh] applies it, for the viewed source only.
+ * - **The forecast** refreshes only once it is due by the normal background cadence — never sooner
+ *   because the screen is on: Android cannot tell which widget is on screen. A tap or an opened popup
+ *   is the one known look; [ViewingForecastRefresh] holds that source to
+ *   [FORECAST_STALE_WHILE_VIEWING_MS] at ≥ 70 % or on a charger (user, 2026-11-01).
  *
  * Until 2026-10-08 the forecast used the 15 minutes too ("cloud-while-viewing"), which fetched the
  * whole forecast — 3 billed Google `forecast/hours` pages — up to four times an hour per client.
@@ -31,7 +31,7 @@ object ViewingRefreshPolicy {
         val any: Boolean get() = refreshActuals || refreshForecast
     }
 
-    /** How old the viewed source's forecast may be right now: the viewing limit, else the normal cadence. */
+    /** How old a tapped source's forecast may be right now: the viewing limit, else the normal cadence. */
     fun forecastIntervalMs(isCharging: Boolean, batteryLevel: Int, isScreenOn: Boolean): Long =
         if (isScreenOn && ForecastHorizonCadence.isHighBattery(isCharging, batteryLevel)) {
             FORECAST_STALE_WHILE_VIEWING_MS
@@ -44,7 +44,7 @@ object ViewingRefreshPolicy {
      * @param lastForecastAtMs last forecast fetch for the viewed source. Null is **not** due: "no
      *   forecast yet" belongs to the missing-data paths, and treating it as due would fetch on every
      *   paint of a source with nothing to show.
-     * @param forecastIntervalMs [forecastIntervalMs] now; null when nothing is scheduled.
+     * @param forecastIntervalMs the normal cadence now; null when nothing is scheduled.
      */
     fun decide(
         lastActualsAtMs: Long?,

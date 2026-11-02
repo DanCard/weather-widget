@@ -19,7 +19,7 @@ import com.weatherwidget.data.local.desktop.WakeEventLog
 import com.weatherwidget.shared.notify.DominantTempWatch
 import com.weatherwidget.shared.notify.DominantTempWatchDecision
 import com.weatherwidget.shared.observations.ActualsProviderResolver
-import com.weatherwidget.shared.util.ViewingForecastRefresh
+import com.weatherwidget.shared.util.ViewingRefreshPolicy
 import com.weatherwidget.shared.util.Log
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -372,7 +372,6 @@ internal class DaemonRuntime(
                             kickObservationCatchUp("screensaver:wake")
                             // Screen on shortens the forecast cadence (8 h → 4 h).
                             wakeForecastLoop("screen")
-                            daemonScope.launch(Dispatchers.IO) { checkViewedForecastOnWake() }
                         }
                     }
                 }
@@ -602,35 +601,6 @@ internal class DaemonRuntime(
         return ForecastHorizonCadence.intervalMs(isCharging, level, ScreenStateDetector.isScreenOn())
     }
 
-    /** When each source's last viewing fetch was asked for ([ViewingForecastRefresh]). */
-    private val viewingForecastRequests = java.util.concurrent.ConcurrentHashMap<String, Long>()
-
-    private suspend fun checkViewedForecastOnWake() {
-        val activeRepo = repo ?: return
-        val activeConfig = currentConfig ?: return
-        refreshViewedForecast(activeRepo, activeConfig, "screen_wake")
-    }
-
-    /** Desktop's host for the shared rule. Returns whether a fetch it ran also supplied observations. */
-    private suspend fun refreshViewedForecast(activeRepo: DesktopWeatherRepository, config: DesktopConfig, trigger: String): Boolean {
-        val power = PowerDetector.getPowerState()
-        var suppliedObservations = false
-        val host = DesktopViewingForecastHost(weatherDao, config.displaySource, power, viewingForecastRequests) {
-            try {
-                val outcome = activeRepo.refreshWithOutcome(reason = "viewing_forecast_stale")
-                suppliedObservations = outcome.suppliedObservations
-                panelPublisher.publishForecastState(outcome.snapshot)
-                notifyDataUpdated()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.i(TAG, "Viewing forecast refresh failed: ${e.message}")
-            }
-        }
-        ViewingForecastRefresh.run(host, trigger, System.currentTimeMillis())
-        return suppliedObservations
-    }
-
     suspend fun runLaunchRefresh(activeRepo: DesktopWeatherRepository, config: DesktopConfig, reason: String) {
         try {
             Log.i(TAG, "[$reason] Loading cached data...")
@@ -696,6 +666,9 @@ internal class DaemonRuntime(
                 "reason=$reason source=${displaySource.id} outcome=$outcome published=false",
                 "INFO",
             )
+            // A source switch is a click: the popup says what it started (user, 2026-11-01).
+            val announcesSwitch = reason == SOURCE_CYCLE_REASON && launchRefreshAction == LaunchRefreshAction.FULL_FORECAST
+            if (announcesSwitch) notifySwitchRefresh(SwitchRefreshSignal.QUEUED)
             if (launchRefreshAction != LaunchRefreshAction.NONE) {
                 val fetched = launchRefreshJobs.fetchOnce(LaunchRefreshJobs.key(config)) {
                     var attempt = 0
@@ -726,6 +699,7 @@ internal class DaemonRuntime(
                             dataStatusState.value = DataStatus.Live(System.currentTimeMillis())
                             notifyDataUpdated()
                             Log.i(TAG, "[$reason] refresh successful. DataStatus updated to Live.")
+                            if (announcesSwitch) notifySwitchRefresh(SwitchRefreshSignal.REFRESHED)
                             break
                         } catch (e: CancellationException) {
                             Log.i(TAG, "Refresh cancelled.")
@@ -750,6 +724,7 @@ internal class DaemonRuntime(
                             }
                             val failReason = if (isOffline) "offline" else "source_error"
                             weatherDao.log("REFRESH_FAIL", "$reason fetch: $failReason ${e.message}", "WARN")
+                            if (announcesSwitch) notifySwitchRefresh(SwitchRefreshSignal.FAILED)
                             if (!stillDisplayed()) {
                                 logDetached("failed")
                                 break
@@ -1042,9 +1017,26 @@ internal class DaemonRuntime(
                         continue
                     }
 
-                    // Screen on: this loop refreshes the viewed source's current temp and actuals below,
-                    // and its forecast past the viewing limit (ViewingForecastRefresh).
-                    val fullRefreshSuppliedObservations = screenOn && refreshViewedForecast(newRepo, config, "viewing_tick")
+                    // Screen on: this loop refreshes the viewed source's current temp and actuals below.
+                    // The forecast only when it is due by the normal cadence — never sooner because the
+                    // screen is on (ViewingRefreshPolicy). Covers a forecast loop whose timer froze in suspend.
+                    var fullRefreshSuppliedObservations = false
+                    if (screenOn) {
+                        val lastForecast = weatherDao.getLastSuccessfulFetch(config.displaySource)
+                        if (ViewingRefreshPolicy.forecastDue(lastForecast, activeForecastCadenceMs(), System.currentTimeMillis())) {
+                            try {
+                                Log.i(TAG, "Viewing: forecast due by cadence for ${config.displaySource}; refreshing now.")
+                                val outcome = newRepo.refreshWithOutcome(reason = "viewing_forecast_due")
+                                fullRefreshSuppliedObservations = outcome.suppliedObservations
+                                panelPublisher.publishForecastState(outcome.snapshot)
+                                notifyDataUpdated()
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                Log.i(TAG, "Viewing forecast refresh failed: ${e.message}")
+                            }
+                        }
+                    }
 
                     // The 15-minute nowcast rides this tick (no timer of its own); it gates itself on
                     // Open-Meteo displayed + rain plausible (NowcastRefreshPolicy).

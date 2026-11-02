@@ -67,10 +67,10 @@ internal object WidgetRefreshCoordinator {
                     WidgetWorkScheduler.enqueueRequiredImmediateSync(
                         context = context,
                         forceRefresh = true,
-                        reason = "widget_tap_to_refresh",
+                        reason = SyncDoneNotice.WIDGET_TAP_REASON,
                         userRefresh = true,
                     )
-                    pending?.let { RefreshNotice.NotQueued(it) } ?: RefreshNotice.Queued(RefreshNotice.Kind.FORECAST)
+                    pending?.let { RefreshNotice.NotQueued(it) } ?: RefreshNotice.Queued(RefreshNotice.Kind.FORECAST, displaySource.shortDisplayName)
                 }
             }
         } else if (WidgetRefreshPolicy.shouldTriggerNetworkFetchAfterRefresh(uiOnly, isDataStale)) {

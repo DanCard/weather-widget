@@ -24,15 +24,13 @@ for the source's full supported horizon; there is no shorter three-day forecast 
 - On a charger, a forecast also comes due 45 minutes before the device is predicted to leave the
   charger (see [pre-unplug fetch](#pre-unplug-fetch)), and the overnight fetch that would be overwritten
   first is skipped.
-- **The source being viewed stays within 2 hours** at battery ≥ 70% or on a charger: past that it gets
-  a fetch forced for that source alone, because a normal sync would judge it by the table above and
-  fetch nothing (`ViewingForecastRefresh`, `ViewingRefreshPolicy`; log `VIEWING_FORECAST`). A request
-  blocks another for that source for 15 minutes, so a failing provider is not retried on every look.
-  Below 70% on battery, the table applies.
-  - Android cannot see whether a widget is on screen, so "viewed" means displayed on a widget with the
-    screen on: checked at screen-on, after a graph paint, and on each current-temp run with the screen on.
-  - Desktop checks on screen wake and on each screen-on observation-loop tick.
-- With nothing to fetch, a screen-on moves the next wake to the 4-hour due time (Android
+- **A tapped source stays within 2 hours** at battery ≥ 70% or on a charger: neither platform can tell
+  what is on screen, so a screen coming on never fetches. Tapping a widget (Android) or opening the
+  popup (desktop) checks that one source, and past the limit forces a fetch of it alone
+  (`ViewingForecastRefresh`; log `VIEWING_FORECAST`). Any refresh a tap or click starts, a source switch
+  or arrow included, shows the queued and completed messages; a tap that starts none shows nothing. A request blocks another for that source for 15
+  minutes, so a failing provider is not retried on every tap.
+- A screen-on moves the next wake to the 4-hour due time (Android
   `SCREEN_ON_FORECAST`). The desktop forecast loop re-plans on every screen wake, which has the same
   effect.
 - Switching to a source fetches its forecast when it is at least 2 hours old at battery ≥ 70% or on a
@@ -194,14 +192,16 @@ refreshes are limited across both platforms to at most once every 10 minutes per
 
 - **Throttled (< 10 minutes since last user refresh of that source)**:
   - Network syncs and gap fills for that source are suppressed.
-  - A user-visible notice is shown (Android home widget message banner, in-app `Toast.LENGTH_LONG`
+  - A user-visible notice is shown (Android home widget message banner, in-app `Toast.LENGTH_SHORT`
     on Settings/History/Observations, or Compose `RefreshNoticePill` on Desktop):
     `"Not doing because last refresh was X minute(s) ago, and wait another Y minute(s) before asking for a refresh"`.
   - Logged with `USER_REFRESH_THROTTLED source=… elapsedMin=… waitMin=…` and `REFRESH_TOAST … none=RATE_LIMITED source=…`.
 - **Allowed (≥ 10 minutes or first user refresh for that source)**:
   - Last user refresh timestamp for that source is recorded (`FetchMetadata` per source on Android, `lastUserRefreshMsBySource` on Desktop).
   - Immediate forced forecast sync and history gap fill are enqueued.
-  - A user-visible notice indicates that the refresh is queued.
+  - A three-second notice names the source and says the refresh is queued; another says how it ended
+    ("Refreshed NWS", "Couldn't refresh NWS"). Settings' Refresh data covers every source, so its queued
+    notice names none and its ending names the primary source.
 - **Passive events are exempt**:
   - Background periodic worker ticks, power connect/disconnect events, screen unlock repaints
     (`EXTRA_PASSIVE = true`), and UI-only ticks do not check, update, or get blocked by this throttle.

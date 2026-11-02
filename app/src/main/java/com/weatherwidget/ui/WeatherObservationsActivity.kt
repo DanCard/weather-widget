@@ -407,7 +407,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
 
             findViewById<View>(R.id.refresh_button).isEnabled = false
             findViewById<View>(R.id.refresh_button).alpha = 0.5f
-            com.weatherwidget.widget.RefreshToast.show(this@WeatherObservationsActivity, "observations_refresh", com.weatherwidget.shared.util.RefreshNotice.Queued(com.weatherwidget.shared.util.RefreshNotice.Kind.OBSERVATIONS))
+            com.weatherwidget.widget.RefreshToast.show(this@WeatherObservationsActivity, "observations_refresh", com.weatherwidget.shared.util.RefreshNotice.Queued(com.weatherwidget.shared.util.RefreshNotice.Kind.OBSERVATIONS, source.shortDisplayName))
             
             // In the app scope, not lifecycleScope: closing this screen mid-fetch cancelled the
             // fetch and stored nothing (Fold 4, 2026-10-13). Leaving now cancels only the waiting.
@@ -459,7 +459,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
             findViewById<View>(R.id.refresh_button).isEnabled = true
             findViewById<View>(R.id.refresh_button).alpha = 1.0f
             
-            android.widget.Toast.makeText(this@WeatherObservationsActivity, getString(R.string.obs_refreshed_source, currentSource.shortDisplayName), android.widget.Toast.LENGTH_LONG).show()
+            android.widget.Toast.makeText(this@WeatherObservationsActivity, getString(R.string.obs_refreshed_source, currentSource.shortDisplayName), android.widget.Toast.LENGTH_SHORT).show()
         }
     }
 

@@ -111,7 +111,7 @@ internal object WidgetIntentActionHandler {
                 appWidgetId,
                 if (viewMode.isGraphMode) "graph_nav" else "daily_nav",
             ) ?: return
-        logIfQueued(context, "widget_nav", refreshContext)
+        announceIfQueued(context, appWidgetId, "widget_nav", refreshContext)
         val request =
             request(
                 context,
@@ -177,7 +177,7 @@ internal object WidgetIntentActionHandler {
         }
         val startMs = SystemClock.elapsedRealtime()
         val refreshContext = prepareContext(context, appWidgetId, "cycle_zoom") ?: return
-        logIfQueued(context, "widget_zoom", refreshContext)
+        announceIfQueued(context, appWidgetId, "widget_zoom", refreshContext)
         GraphInteractionRenderer.cycleZoom(
             InteractionRenderDispatcher.graphRequest(
                 request(
@@ -355,10 +355,15 @@ internal object WidgetIntentActionHandler {
             } else {
                 null
             }
-            // A source change shows no notice, whatever it queued (user, 2026-10-15): the user is
-            // looking at another source, not asking for data. The outcome is still logged.
-            RefreshNotice.merge(resolved.refreshNotice, forced)
-                ?.let { RefreshToast.logSilent(context, kind.noticeOrigin, it) }
+            // A switch that starts a refresh says so on this widget (user, 2026-11-01); one that starts
+            // none stays silent, since the user is looking at another source, not asking for data.
+            RefreshNotice.merge(resolved.refreshNotice, forced)?.let { notice ->
+                if (notice is RefreshNotice.Queued) {
+                    RefreshToast.show(context, kind.noticeOrigin, notice.copy(sourceName = source.shortDisplayName), intArrayOf(appWidgetId))
+                } else {
+                    RefreshToast.logSilent(context, kind.noticeOrigin, notice)
+                }
+            }
             return when {
                 !stale -> RefreshOutcome.FRESH
                 forced != null -> RefreshOutcome.QUEUED
@@ -487,7 +492,7 @@ internal object WidgetIntentActionHandler {
         deferActuals: Boolean = false,
     ) {
         val refreshContext = prepareContext(context, appWidgetId, staleReason) ?: return
-        logIfQueued(context, "widget_$staleReason", refreshContext)
+        announceIfQueued(context, appWidgetId, "widget_$staleReason", refreshContext)
         InteractionRenderDispatcher.render(
             viewMode,
             request(
@@ -540,17 +545,19 @@ internal object WidgetIntentActionHandler {
     }
 
     /**
-     * Browsing taps (arrows, zoom, view switches) show no notice, even for a refresh they queued: a
-     * notice is for a refresh the user asked for (user, 2026-10-16;
-     * plans/261016-refresh-notice-only-on-refresh-requests.md). A queued refresh still logs its row.
+     * A browsing tap (arrow, zoom, view switch) that started a refresh says so on its widget (user,
+     * 2026-11-01, replacing plans/261016-refresh-notice-only-on-refresh-requests.md); one that started
+     * none shows nothing.
      */
-    private suspend fun logIfQueued(
+    private suspend fun announceIfQueued(
         context: Context,
+        appWidgetId: Int,
         origin: String,
         refreshContext: WidgetRefreshContextResolver.Resolved,
     ) {
         val notice = refreshContext.refreshNotice as? RefreshNotice.Queued ?: return
-        RefreshToast.logSilent(context, origin, notice)
+        val source = WidgetStateManager(context).getCurrentDisplaySource(appWidgetId)
+        RefreshToast.show(context, origin, notice.copy(sourceName = source.shortDisplayName), intArrayOf(appWidgetId))
     }
 
     /**

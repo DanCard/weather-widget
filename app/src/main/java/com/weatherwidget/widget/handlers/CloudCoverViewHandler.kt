@@ -367,8 +367,8 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
             val retroActual = cloudData.retroActual
 
             // While-viewing watchdog: this view is literally being drawn, so the user is looking.
-            // Refreshes the viewed source's current temp/actuals when stale, and its forecast past the
-            // viewing limit (ViewingRefreshPolicy). Debounced per widget/source.
+            // Refreshes the viewed source's current temp/actuals when stale, and its forecast only when
+            // due by the normal cadence (ViewingRefreshPolicy). Debounced per widget/source.
             maybeRefreshWhileViewing(
                 context = context,
                 stateManager = stateManager,
@@ -596,8 +596,8 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
      * While-viewing watchdog ([ViewingRefreshPolicy], user's rule 2026-10-08). The CLOUD view is
      * rendering, so the user is looking at it. For the viewed source only:
      * - current temp / actuals older than 15 min → a current-temp refresh (`viewing_actuals`);
-     * - forecast past [ViewingRefreshPolicy.forecastIntervalMs] → a targeted forced refresh
-     *   (`viewing_forecast_due`).
+     * - forecast due by the normal cadence → a targeted forced refresh, hourly-limited
+     *   (`viewing_forecast_due`). Never sooner: the screen being on is not a reason to refetch it.
      * Debounced per widget + source with the store the backfill probe uses.
      *
      * [lastActualsAtMs] / [forecastIntervalMs] default to the device's own state; tests pass them.
@@ -637,7 +637,7 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
             FetchMetadata.getLastCurrentTempFetchTime(context)
         }.takeIf { it > 0L }
         val intervalMs = forecastIntervalMs ?: DataFreshness.deviceFetchContext(context, stateManager).let {
-            ViewingRefreshPolicy.forecastIntervalMs(
+            com.weatherwidget.data.remote.ForecastHorizonCadence.intervalMs(
                 isCharging = it.isCharging,
                 batteryLevel = it.batteryLevel,
                 isScreenOn = it.isScreenInteractive,

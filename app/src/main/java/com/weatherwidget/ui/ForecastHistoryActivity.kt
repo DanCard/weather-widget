@@ -766,7 +766,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
         refreshButton.alpha = 0.5f
         lifecycleScope.launch {
             appLogDao.log("HISTORY_REFRESH_TAP", "outcome=fetch_started $tapContext", "INFO")
-            com.weatherwidget.widget.RefreshToast.show(this@ForecastHistoryActivity, "history_refresh", com.weatherwidget.shared.util.RefreshNotice.Queued(com.weatherwidget.shared.util.RefreshNotice.Kind.FORECAST))
+            com.weatherwidget.widget.RefreshToast.show(this@ForecastHistoryActivity, "history_refresh", com.weatherwidget.shared.util.RefreshNotice.Queued(com.weatherwidget.shared.util.RefreshNotice.Kind.FORECAST, source.shortDisplayName))
             val startMs = android.os.SystemClock.elapsedRealtime()
             val startedAtMs = System.currentTimeMillis()
             val lat = targetLat

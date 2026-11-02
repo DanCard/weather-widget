@@ -44,6 +44,7 @@ import com.weatherwidget.data.repository.FetchMetadata
 import com.weatherwidget.shared.graph.HourlyZoomRules
 import com.weatherwidget.shared.util.ApiKeySignupUrls
 import com.weatherwidget.shared.util.RefreshNotice
+import com.weatherwidget.shared.util.RefreshOutcome
 import com.weatherwidget.shared.util.UserRefreshThrottle
 import com.weatherwidget.widget.RefreshToast
 import com.weatherwidget.shared.util.WeatherSourceOrdering
@@ -610,6 +611,16 @@ class SettingsActivity : AppCompatActivity() {
             if (forecastFinished && currentFinished) {
                 handled = true
                 refreshButton.isEnabled = true
+                val source = widgetStateManager.getPrimarySource()
+                val outcome = if (refreshSucceeded) RefreshOutcome.Refreshed else RefreshOutcome.Failed
+                lifecycleScope.launch {
+                    RefreshToast.showOutcome(
+                        this@SettingsActivity,
+                        "settings_refresh",
+                        outcome,
+                        com.weatherwidget.ui.ForecastHistoryActivity.refreshOutcomeText(this@SettingsActivity, outcome, source.shortDisplayName),
+                    )
+                }
             }
         }
 

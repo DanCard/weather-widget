@@ -118,9 +118,9 @@ class WeatherObservationsRefreshOutlivesScreenIntegrationTest {
         scenario.onActivity { it.findViewById<View>(R.id.refresh_button).performClick() }
         waitUntil { org.robolectric.shadows.ShadowToast.shownToastCount() >= 1 }
 
-        assertEquals("Observations refresh queued", org.robolectric.shadows.ShadowToast.getTextOfLatestToast())
+        assertEquals("NWS · Observations refresh queued", org.robolectric.shadows.ShadowToast.getTextOfLatestToast())
         val rows = runBlocking { database.appLogDao().getLogsByTag("REFRESH_TOAST", 10) }.map { it.message }
-        assertEquals(listOf("origin=observations_refresh queued=OBSERVATIONS shown"), rows)
+        assertEquals(listOf("origin=observations_refresh queued=OBSERVATIONS source=NWS shown"), rows)
 
         release.complete(Unit)
         waitUntil { scenario.buttonEnabled() }

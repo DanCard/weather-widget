@@ -32,6 +32,18 @@ const val UI_NOTIFY_SOCKET = "ui-notify.sock"
 
 private const val NOTIFY_BYTE: Byte = 'U'.code.toByte()
 
+/** A daemon refresh a click started (a source switch), for the popup's notice. Each byte also reloads. */
+enum class SwitchRefreshSignal(val byte: Byte) {
+    QUEUED('Q'.code.toByte()),
+    REFRESHED('R'.code.toByte()),
+    FAILED('F'.code.toByte()),
+    ;
+
+    companion object {
+        fun of(byte: Byte): SwitchRefreshSignal? = entries.firstOrNull { it.byte == byte }
+    }
+}
+
 /** Daemon side: accepts UI connections and pushes a byte on each data change. */
 class UiNotifyServer(private val appDataDir: Path) {
     private val clients = CopyOnWriteArrayList<SocketChannel>()
@@ -65,12 +77,16 @@ class UiNotifyServer(private val appDataDir: Path) {
     }
 
     /** Writes a single notify byte to every connected UI client, dropping any that have died. */
-    fun pushDataUpdated() {
+    fun pushDataUpdated() = push(NOTIFY_BYTE)
+
+    fun pushSwitchRefresh(signal: SwitchRefreshSignal) = push(signal.byte)
+
+    private fun push(byte: Byte) {
         if (clients.isEmpty()) return
         val dead = mutableListOf<SocketChannel>()
         for (client in clients) {
             try {
-                client.write(ByteBuffer.wrap(byteArrayOf(NOTIFY_BYTE)))
+                client.write(ByteBuffer.wrap(byteArrayOf(byte)))
             } catch (e: Exception) {
                 dead.add(client)
             }
@@ -100,6 +116,7 @@ class UiNotifyServer(private val appDataDir: Path) {
  */
 class UiNotifyClient(
     private val appDataDir: Path,
+    private val onSwitchRefresh: (SwitchRefreshSignal) -> Unit = {},
     private val onNotify: (reason: String) -> Unit,
 ) {
     @Volatile private var running = false
@@ -122,7 +139,10 @@ class UiNotifyClient(
                         buf.clear()
                         val n = channel.read(buf)
                         if (n < 0) break // server closed → reconnect
-                        if (n > 0) onNotify("push")
+                        if (n > 0) {
+                            for (i in 0 until n) SwitchRefreshSignal.of(buf.get(i))?.let(onSwitchRefresh)
+                            onNotify("push")
+                        }
                     }
                 } catch (e: Exception) {
                     // Socket missing (daemon not up yet) or dropped — retry after a pause.

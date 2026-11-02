@@ -3,7 +3,7 @@ package com.weatherwidget.desktop
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.shared.util.ViewingForecastRefresh
 
-/** Desktop's host for the shared [ViewingForecastRefresh]: one displayed source; requests kept for the process. */
+/** Desktop's host for the shared [ViewingForecastRefresh]: the popup's source; requests kept for the process. */
 internal class DesktopViewingForecastHost(
     private val dao: DesktopWeatherDao,
     private val displaySource: String,

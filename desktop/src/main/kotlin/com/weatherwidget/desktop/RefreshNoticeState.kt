@@ -28,8 +28,8 @@ import java.time.format.FormatStyle
 enum class RefreshNoticeSurface { POPUP, SETTINGS, HISTORY, OBSERVATIONS }
 
 /**
- * The desktop's four-second refresh toast ([RefreshNotice]; plans/261015-refresh-queued-toast-all-surfaces.md):
- * what a user's refresh queued, or why nothing. Android app screens show it for 3.5 s (`LENGTH_LONG`).
+ * The desktop's three-second refresh toast ([RefreshNotice]; plans/261015-refresh-queued-toast-all-surfaces.md):
+ * what a user's refresh queued, or why nothing. Android app screens show it for 2 s (`LENGTH_SHORT`).
  *
  * One per process at a time, at most one per [RefreshNotice.DURATION_MS] ([RefreshNotice.shouldShow]).
  * Each [show] writes `REFRESH_TOAST` through [log], shown or suppressed.
@@ -54,9 +54,9 @@ class RefreshNoticeState(
     }
 
     /**
-     * How a Forecast History Refresh ended ([RefreshOutcome.text]). It answers the same tap as the
+     * How a refresh ended ([RefreshOutcome.text]). It answers the same tap as the
      * "queued" notice, so it replaces that one inside the [RefreshNotice.shouldShow] window rather
-     * than being suppressed, and restarts the four seconds
+     * than being suppressed, and restarts the three seconds
      * (plans/261016-history-refresh-outcome-shared-desktop-parity.md).
      */
     fun showOutcome(outcome: RefreshOutcome, sourceName: String, surface: RefreshNoticeSurface, origin: String) {

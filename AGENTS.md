@@ -85,7 +85,8 @@ Use Java 21 and plain `./gradlew` commands:
 Prefer pure JVM tests, Robolectric for Android dependencies, and instrumented tests only for real
 rendering, view/RemoteViews behavior, or SQLite migrations. Every test must follow the repository's
 category rules. Use `scripts/emulator-tests.sh -c <fully.qualified.TestClass>` for focused device
-iterations. Do not run `installDebug` concurrently with instrumentation. See
+iterations. Do not run `installDebug` concurrently with instrumentation. Leave diagnostic logging
+messages in tests; they are helpful and don't cause harm. See
 [testing strategy](arch/testing-strategy.md) for categories, runner behavior, and focused commands.
 
 ## Runtime and release references

@@ -310,12 +310,11 @@ class ScreenOnReceiver : BroadcastReceiver() {
     }
 
     /**
-     * The screen came on: a displayed source past the viewing limit fetches now
-     * ([ViewingForecastRefresher], 2 h at ≥ 70 % or on a charger). Otherwise the forecast interval is the
-     * screen-on one now, so the due-time sync moves to when that comes due
-     * ([ForecastHorizonCadence.screenOnDueAtMs]), as the hourly tick used to notice
-     * (plans/261028-screen-off-cadence-and-due-time-wakes.md). KEEP / the due-wake policy: a running sync
-     * is never cancelled, and every full sync re-plans.
+     * The screen came on: the forecast interval is the screen-on one now, so the due-time sync moves to
+     * when that comes due ([ForecastHorizonCadence.screenOnDueAtMs]), as the hourly tick used to notice
+     * (plans/261028-screen-off-cadence-and-due-time-wakes.md). It never fetches itself: a screen coming
+     * on says nothing about which widget is being looked at (user, 2026-11-01). The due-wake policy
+     * never cancels a running sync.
      */
     private fun startForecastCatchUp(context: Context) {
         val battery = getBatteryState(context)
@@ -326,10 +325,6 @@ class ScreenOnReceiver : BroadcastReceiver() {
             try {
                 val location = ActiveLocationResolver.current(context) ?: return@launch
                 val stateManager = WidgetStateManager(context.applicationContext)
-                val viewed = ViewingForecastRefresher.run(
-                    context, stateManager, battery.isCharging, battery.batteryLevel, "screen_on", nowMs,
-                )
-                if (viewed.isNotEmpty()) return@launch
                 val dueAt = screenOnForecastDueAtMs(stateManager, location.first, location.second, nowMs, battery.batteryLevel, battery.isCharging)
                     ?: return@launch
                 val delayMs = (dueAt - nowMs).coerceAtLeast(0L)

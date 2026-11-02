@@ -371,6 +371,7 @@ internal object DailyInteractionRenderer {
             ),
             debugTag = "DailyInteractionRenderer",
         )
+        com.weatherwidget.widget.ViewingForecastRefresher.onTap(context, request.appWidgetId)
         InteractionTimingLogger.log(
             database,
             request.appWidgetId,

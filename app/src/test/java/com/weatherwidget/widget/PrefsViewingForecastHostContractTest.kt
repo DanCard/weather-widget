@@ -24,7 +24,7 @@ class PrefsViewingForecastHostContractTest : ViewingForecastHostContract() {
         manager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO))
         lateinit var fixture: Fixture
         val host = ViewingForecastRefresher.AndroidHost(
-            manager, isCharging = false, batteryLevel = 85, lat = LAT, lon = LON, nowMs = System.currentTimeMillis(),
+            manager, WeatherSource.NWS, isCharging = false, batteryLevel = 85, lat = LAT, lon = LON, nowMs = System.currentTimeMillis(),
             appLogDao = mockk<AppLogDao>(relaxed = true),
             fetchSource = { fixture.fetches += it },
         )

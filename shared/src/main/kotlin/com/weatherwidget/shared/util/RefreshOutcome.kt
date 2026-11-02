@@ -5,7 +5,7 @@ import com.weatherwidget.data.remote.QuotaScope
 import com.weatherwidget.data.remote.RateLimitNoticeText
 
 /**
- * What a Forecast History Refresh did, for the message when it finishes — both platforms. A fetch
+ * What a refresh did, for the message when it finishes — both platforms. A fetch
  * with one product refused still "answered" (the other was saved), so "Refreshed Google" alone was
  * shown over a 429'd hourly forecast (Fold 4, 2026-10-16). Android maps it to localized strings;
  * desktop uses [text]. See plans/261016-history-refresh-outcome-shared-desktop-parity.md.

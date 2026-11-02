@@ -123,15 +123,15 @@ class WidgetRefreshToastIntegrationRoboTest {
             .filterNot { it.state.isFinished }
             .map { it.tags }
 
-    // A source change is looking, not asking for data: no notice, whatever it queued (user,
-    // 2026-10-15). The refresh still happens and the row still records it.
+    // A tap that starts a refresh says so on its widget (user, 2026-11-01); one that starts none, such
+    // as a source change onto fresh data, shows nothing.
 
     @Test
-    fun `toggle onto a source with no data queues a refresh but shows nothing`() = runBlocking {
+    fun `toggle onto a source with no data queues a refresh and says so`() = runBlocking {
         try { WidgetIntentRouter.handleToggleApi(context, widgetId) } catch (_: Exception) {}
 
-        assertEquals(null, banner())
-        assertEquals(listOf("origin=widget_toggle_api queued=BOTH silent"), rows())
+        assertEquals("rows=${rows()}", "Meteo · Forecast and observations refresh queued", banner())
+        assertEquals(listOf("origin=widget_toggle_api queued=BOTH source=Meteo shown banner=1"), rows())
     }
 
     @Test
@@ -165,12 +165,16 @@ class WidgetRefreshToastIntegrationRoboTest {
     fun `home button back to a fresh primary source shows nothing`() = runBlocking {
         // The Pixel, 2026-10-15: "NWS forecast up to date · 85m ago" after the home tap.
         seedFresh(WeatherSource.NWS)
+        stateManager.markLongFetch(WeatherSource.NWS.id, lat, lon, System.currentTimeMillis())
+        // seedFresh's single row is incomplete to the real probe, which rightly fetches it.
+        mockkObject(GraphInteractionRenderer)
+        coEvery { GraphInteractionRenderer.selectedSourceNeedsRefresh(any(), any(), any(), any(), any(), any()) } returns false
         stateManager.setCurrentDisplaySource(widgetId, WeatherSource.OPEN_METEO)
 
         try { WidgetIntentRouter.handleResetSource(context, widgetId) } catch (_: Exception) {}
 
         assertEquals(WeatherSource.NWS, stateManager.getCurrentDisplaySource(widgetId))
-        assertEquals(null, banner())
+        assertEquals("rows=${rows()}", null, banner())
         assertTrue(rows().toString(), rows().all { it.startsWith("origin=widget_reset_source ") && it.endsWith(" silent") })
     }
 
@@ -193,8 +197,8 @@ class WidgetRefreshToastIntegrationRoboTest {
             targets.toSet(),
         )
         assertEquals(2, targets.size)
-        assertEquals(null, banner())
-        assertEquals(listOf("origin=widget_reset_source queued=BOTH silent"), rows())
+        assertEquals("rows=${rows()}", "NWS · Forecast and observations refresh queued", banner())
+        assertEquals(listOf("origin=widget_reset_source queued=BOTH source=NWS shown banner=1"), rows())
     }
 
     @Test
@@ -212,29 +216,29 @@ class WidgetRefreshToastIntegrationRoboTest {
     // showed "Forecast and observations refresh queued"). The refresh happens; the row records it.
 
     @Test
-    fun `zoom on stale data queues a refresh but shows nothing`() = runBlocking {
+    fun `zoom on stale data queues a refresh and says so`() = runBlocking {
         stateManager.setViewMode(widgetId, ViewMode.TEMPERATURE)
 
         try { WidgetIntentRouter.handleCycleZoom(context, widgetId) } catch (_: Exception) {}
 
-        assertEquals(null, banner())
-        assertEquals(listOf("origin=widget_zoom queued=BOTH silent"), rows())
+        assertEquals("rows=${rows()}", "NWS · Forecast and observations refresh queued", banner())
+        assertEquals(listOf("origin=widget_zoom queued=BOTH source=NWS shown banner=1"), rows())
     }
 
     @Test
-    fun `daily arrow on stale data queues a refresh but shows nothing`() = runBlocking {
+    fun `daily arrow on stale data queues a refresh and says so`() = runBlocking {
         try { WidgetIntentRouter.handleNavigation(context, widgetId, isLeft = false) } catch (_: Exception) {}
 
-        assertEquals(null, banner())
-        assertEquals(listOf("origin=widget_nav queued=BOTH silent"), rows())
+        assertEquals("rows=${rows()}", "NWS · Forecast and observations refresh queued", banner())
+        assertEquals(listOf("origin=widget_nav queued=BOTH source=NWS shown banner=1"), rows())
     }
 
     @Test
-    fun `view switch on stale data queues a refresh but shows nothing`() = runBlocking {
+    fun `view switch on stale data queues a refresh and says so`() = runBlocking {
         try { WidgetIntentRouter.handleToggleView(context, widgetId) } catch (_: Exception) {}
 
-        assertEquals(null, banner())
-        assertTrue(rows().toString(), rows().isNotEmpty() && rows().all { it.endsWith(" silent") })
+        assertEquals("rows=${rows()}", "NWS · Forecast and observations refresh queued", banner())
+        assertTrue(rows().toString(), rows().isNotEmpty() && rows().all { it.endsWith(" shown banner=1") })
     }
 
     private fun mockStaleTapToRefresh() {
@@ -255,7 +259,7 @@ class WidgetRefreshToastIntegrationRoboTest {
         assertEquals(null, banner())
 
         WidgetRefreshCoordinator.refresh(context, uiOnly = false, repository, widgetId)
-        assertEquals("Forecast refresh queued", banner())
+        assertEquals("NWS · Forecast refresh queued", banner())
 
         shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(RefreshNotice.DURATION_MS))
         assertEquals(null, banner())
@@ -276,7 +280,7 @@ class WidgetRefreshToastIntegrationRoboTest {
         val repository = mockk<WeatherRepository>(relaxed = true)
 
         WidgetRefreshCoordinator.refresh(context, uiOnly = false, repository, widgetId)
-        assertEquals("Forecast refresh queued", banner())
+        assertEquals("NWS · Forecast refresh queued", banner())
 
         shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(RefreshNotice.DURATION_MS))
         RefreshToast.resetForTesting()
@@ -291,7 +295,7 @@ class WidgetRefreshToastIntegrationRoboTest {
         // Switching widget to OPEN_METEO allows refresh immediately
         stateManager.setCurrentDisplaySource(widgetId, WeatherSource.OPEN_METEO)
         WidgetRefreshCoordinator.refresh(context, uiOnly = false, repository, widgetId)
-        assertEquals("Forecast refresh queued", banner())
+        assertEquals("Meteo · Forecast refresh queued", banner())
     }
 
     @Test
@@ -302,7 +306,7 @@ class WidgetRefreshToastIntegrationRoboTest {
 
         WidgetRefreshCoordinator.refresh(context, uiOnly = false, mockk(relaxed = true), widgetId)
 
-        assertEquals("Forecast refresh queued", banner())
+        assertEquals("NWS · Forecast refresh queued", banner())
     }
 
     @Test
@@ -313,17 +317,32 @@ class WidgetRefreshToastIntegrationRoboTest {
         WidgetRefreshCoordinator.refresh(context, uiOnly = false, mockk(relaxed = true), widgetId)
 
         assertEquals("Getting weather for Mountain View…", banner())
-        assertEquals(listOf("origin=widget_tap_to_refresh queued=FORECAST suppressed busy"), rows())
+        assertEquals(listOf("origin=widget_tap_to_refresh queued=FORECAST source=NWS suppressed busy"), rows())
     }
 
     @Test
     fun `the banner clears itself after two seconds`() = runBlocking {
         mockStaleTapToRefresh()
         WidgetRefreshCoordinator.refresh(context, uiOnly = false, mockk(relaxed = true), widgetId)
-        assertEquals("Forecast refresh queued", banner())
+        assertEquals("NWS · Forecast refresh queued", banner())
 
         shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(RefreshNotice.DURATION_MS))
 
         assertEquals(null, banner())
+    }
+
+    @Test
+    fun `a refresh's ending replaces its queued banner but no other message`() = runBlocking {
+        mockStaleTapToRefresh()
+        WidgetRefreshCoordinator.refresh(context, uiOnly = false, mockk(relaxed = true), widgetId)
+        assertEquals("NWS · Forecast refresh queued", banner())
+
+        val ids = intArrayOf(widgetId)
+        RefreshToast.showOutcome(context, "widget_tap_to_refresh", com.weatherwidget.shared.util.RefreshOutcome.Refreshed, "Refreshed NWS", ids)
+        assertEquals("Refreshed NWS", banner())
+
+        stateManager.setTransientMessage(widgetId, "Getting weather for Mountain View…", System.currentTimeMillis() + 60_000L)
+        RefreshToast.showOutcome(context, "widget_tap_to_refresh", com.weatherwidget.shared.util.RefreshOutcome.Refreshed, "Refreshed NWS", ids)
+        assertEquals("Getting weather for Mountain View…", banner())
     }
 }

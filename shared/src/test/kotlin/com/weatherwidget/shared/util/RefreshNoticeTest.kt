@@ -16,15 +16,15 @@ import org.junit.experimental.categories.Category
 class RefreshNoticeTest {
 
     @Test
-    fun `duration is four seconds`() {
-        assertEquals(4_000L, RefreshNotice.DURATION_MS)
+    fun `duration is three seconds`() {
+        assertEquals(3_000L, RefreshNotice.DURATION_MS)
     }
 
     @Test
-    fun `gate shows the first notice and one per four seconds`() {
+    fun `gate shows the first notice and one per three seconds`() {
         assertTrue(RefreshNotice.shouldShow(lastShownMs = null, nowMs = 10_000L))
-        assertFalse(RefreshNotice.shouldShow(lastShownMs = 10_000L, nowMs = 13_999L))
-        assertTrue(RefreshNotice.shouldShow(lastShownMs = 10_000L, nowMs = 14_000L))
+        assertFalse(RefreshNotice.shouldShow(lastShownMs = 10_000L, nowMs = 12_999L))
+        assertTrue(RefreshNotice.shouldShow(lastShownMs = 10_000L, nowMs = 13_000L))
     }
 
     @Test
@@ -171,5 +171,13 @@ class RefreshNoticeTest {
             RefreshOutcome.doneLine(false, "source=NWS", 12, RefreshOutcome.Failed),
         )
         org.junit.Assert.assertEquals("WARN", RefreshOutcome.doneLevel(false))
+    }
+
+    @Test
+    fun `a queued notice names its source so overlapping refreshes can be told apart`() {
+        val notice = RefreshNotice.Queued(RefreshNotice.Kind.FORECAST, "NWS")
+        assertEquals("NWS · Forecast refresh queued", RefreshNotice.text(notice) { "" })
+        assertEquals("Forecast refresh queued", RefreshNotice.text(RefreshNotice.Queued(RefreshNotice.Kind.FORECAST)) { "" })
+        assertEquals("origin=x queued=FORECAST source=NWS shown", RefreshNotice.line("x", notice, "shown"))
     }
 }

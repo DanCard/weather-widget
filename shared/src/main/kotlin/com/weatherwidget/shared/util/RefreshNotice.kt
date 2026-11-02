@@ -1,11 +1,11 @@
 package com.weatherwidget.shared.util
 
 /**
- * What a user's refresh action did, for the two-second toast every surface shows (user, 2026-10-15):
+ * What a user's refresh action did, for the three-second toast every surface shows (user, 2026-11-01):
  * which kind of refresh it queued, or why it queued nothing. One action gets one notice — a widget
  * source toggle runs two staleness checks and [merge]s their results.
  *
- * Only user actions announce; background, cadence and gap-fill fetches never do. Android maps a notice
+ * Refresh requests and refreshes a tap started announce; background, cadence and gap-fill fetches never do. Android maps a notice
  * to string resources (`RefreshToast`); desktop uses [text]. See
  * plans/261015-refresh-queued-toast-all-surfaces.md.
  */
@@ -16,7 +16,8 @@ sealed interface RefreshNotice {
     /** Ordered by how specific the reason is: [merge] keeps the higher one. */
     enum class Reason { UP_TO_DATE, RATE_LIMITED, ALREADY_QUEUED, IN_PROGRESS, QUOTA, NO_LOCATION }
 
-    data class Queued(val kind: Kind) : RefreshNotice
+    /** [sourceName]: which source, so overlapping refreshes can be told apart; null when it covers all of them. */
+    data class Queued(val kind: Kind, val sourceName: String? = null) : RefreshNotice
 
     data class NotQueued(
         val reason: Reason,
@@ -59,15 +60,15 @@ sealed interface RefreshNotice {
         fun line(origin: String, notice: RefreshNotice, outcome: String): String =
             "origin=$origin ${logDetail(notice)} $outcome"
 
-        /** A Forecast History Refresh's ending, shown ([RefreshOutcome.text]). */
-        fun outcomeLine(origin: String, outcome: RefreshOutcome): String =
-            "origin=$origin done=${outcome::class.simpleName}${RefreshOutcome.logDetail(outcome)} shown"
+        /** A refresh's ending, shown ([RefreshOutcome.text]). */
+        fun outcomeLine(origin: String, outcome: RefreshOutcome, shown: String = "shown"): String =
+            "origin=$origin done=${outcome::class.simpleName}${RefreshOutcome.logDetail(outcome)} $shown"
 
         /**
-         * Four seconds (user, 2026-10-15: two was easy to miss). Widget banner and desktop use it exactly;
-         * an Android Toast cannot, so app screens use `LENGTH_LONG`, the platform's longest (3.5 s).
+         * Three seconds (user, 2026-11-01). Widget banner and desktop use it exactly; an Android Toast
+         * cannot, so app screens use `LENGTH_SHORT` (2 s), the only length within 2-3 seconds.
          */
-        const val DURATION_MS = 4_000L
+        const val DURATION_MS = 3_000L
 
         /** At most one notice per [DURATION_MS]: fast cycling through stale sources must not stack toasts. */
         fun shouldShow(lastShownMs: Long?, nowMs: Long): Boolean =
@@ -77,7 +78,7 @@ sealed interface RefreshNotice {
         fun merge(a: RefreshNotice?, b: RefreshNotice?): RefreshNotice? = when {
             a == null -> b
             b == null -> a
-            a is Queued && b is Queued -> Queued(if (a.kind == b.kind) a.kind else Kind.BOTH)
+            a is Queued && b is Queued -> Queued(if (a.kind == b.kind) a.kind else Kind.BOTH, a.sourceName ?: b.sourceName)
             a is Queued -> a
             b is Queued -> b
             else -> if ((b as NotQueued).reason > (a as NotQueued).reason) b else a
@@ -90,13 +91,20 @@ sealed interface RefreshNotice {
         /** "23m", "2h", "2h 10m"; under a minute reads "1m", never "just now ago". */
         fun formatAge(ageMs: Long): String = AgeFormatter.formatDuration(ageMs.coerceAtLeast(60_000L))
 
+        /** "NWS · Forecast refresh queued"; both platforms, around each one's own (translated) sentence. */
+        fun withSource(notice: Queued, sentence: String): String =
+            notice.sourceName?.let { "$it · $sentence" } ?: sentence
+
         /** Desktop text (English). Android's strings are the same sentences, translated. */
         fun text(notice: RefreshNotice, formatTime: (Long) -> String): String = when (notice) {
-            is Queued -> when (notice.kind) {
-                Kind.FORECAST -> "Forecast refresh queued"
-                Kind.OBSERVATIONS -> "Observations refresh queued"
-                Kind.BOTH -> "Forecast and observations refresh queued"
-            }
+            is Queued -> withSource(
+                notice,
+                when (notice.kind) {
+                    Kind.FORECAST -> "Forecast refresh queued"
+                    Kind.OBSERVATIONS -> "Observations refresh queued"
+                    Kind.BOTH -> "Forecast and observations refresh queued"
+                },
+            )
             is NotQueued -> when (notice.reason) {
                 Reason.UP_TO_DATE -> {
                     val what = if (notice.subject == Kind.OBSERVATIONS) "observations" else "forecast"
@@ -122,7 +130,7 @@ sealed interface RefreshNotice {
 
         /** The [TAG] log detail, both platforms. */
         fun logDetail(notice: RefreshNotice): String = when (notice) {
-            is Queued -> "queued=${notice.kind}"
+            is Queued -> "queued=${notice.kind}" + (notice.sourceName?.let { " source=$it" } ?: "")
             is NotQueued -> buildString {
                 append("none=${notice.reason}")
                 notice.sourceName?.let { append(" source=$it") }

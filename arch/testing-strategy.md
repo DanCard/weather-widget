@@ -9,7 +9,7 @@ Use the lightest framework that can exercise the behavior. An integration test i
 3. **MockK only where extraction or a real/fake collaborator is not practical.** MockK is already available in `:app` and `:desktop`. It is appropriate for otherwise-unavoidable Android/WorkManager boundaries, such as verifying `enqueueUniqueWork` policies in `UIUpdateReceiverTest` and `CurrentTempUpdateSchedulerTest`. Do not use mocks to simulate launcher sizing, canvas output, or other platform behavior whose real result is the thing under test.
 4. **Instrumented tests for real Android behavior.** Use `app/src/androidTest/` for real `Canvas`/`Bitmap` rendering, `RemoteViews` and `performClick`, real `View.measure`/`layout`, and real SQLite migrations. Add a Robolectric counterpart when the same behavior can usefully be covered on the JVM; instrumentation remains the authority for actual rendering and platform integration.
 
-A single-component Robolectric test can be a unit test; a multi-component plain-JVM test can be an integration test. Prefer descriptive backtick test names and cover both happy paths and edge cases.
+A single-component Robolectric test can be a unit test; a multi-component plain-JVM test can be an integration test. Prefer descriptive backtick test names and cover both happy paths and edge cases. Leave diagnostic logging messages in tests; they are helpful and don't cause harm.
 
 Test mode redirects the database and preference files, and WorkManager's queue outlives the test process. `WidgetWorkScheduler.enqueueFullSync` therefore queues under `testScopedWorkName` (`<name>_test`), so a leftover test job cannot take a real sync's place. A test that reads one of those names in test mode must use the helper too.
 

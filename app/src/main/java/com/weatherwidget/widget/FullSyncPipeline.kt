@@ -377,10 +377,12 @@ internal class FullSyncPipeline(
                         WidgetLoopScheduler.manageCurrentTempLoopAfterRun(context, appLogDao, device)
                     }
 
+                    SyncDoneNotice.announce(context, widgetStateManager, input, syncOk = true)
                     ListenableWorker.Result.success()
                 },
                 onFailure = { e ->
                     appLogDao.log("SYNC_FAILURE", "Repository failed: ${e.message}", "ERROR")
+                    SyncDoneNotice.announce(context, widgetStateManager, input, syncOk = false)
                     painter.renderPendingLocationFetchFailure("sync_failure")
                     bannerPlace?.let { painter.finishLocationChangeBanner(it, succeeded = false, reason = "sync_failure") }
                     ListenableWorker.Result.retry()
@@ -391,6 +393,7 @@ internal class FullSyncPipeline(
             throw e
         } catch (e: Exception) {
             appLogDao.logException("SYNC_EXCEPTION", "Synchronization failed", e)
+            SyncDoneNotice.announce(context, widgetStateManager, input, syncOk = false)
             runCatching { painter.renderPendingLocationFetchFailure("sync_exception") }
             input.locationChangePlace?.takeIf { input.locationChangeBanner }?.let { place ->
                 runCatching { painter.finishLocationChangeBanner(place, succeeded = false, reason = "sync_exception") }

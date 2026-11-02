@@ -89,6 +89,7 @@ import java.util.Locale
 import javax.swing.SwingUtilities
 import androidx.compose.runtime.CompositionLocalProvider
 import com.weatherwidget.shared.util.RefreshNotice
+import com.weatherwidget.shared.util.ViewingForecastRefresh
 import com.weatherwidget.shared.util.RefreshOutcome
 import com.weatherwidget.shared.util.UserRefreshThrottle
 import com.weatherwidget.shared.observations.ActualsProviderResolver
@@ -302,12 +303,29 @@ internal fun runDesktopUiApplication() = application {
             }
         }
 
+        /** The daemon's refresh after a source switch, on the popup: the click is the UI's, the fetch is not. */
+        fun announceSwitchRefresh(signal: SwitchRefreshSignal) {
+            val origin = "source_switch"
+            val source = WeatherSource.fromDisplaySource(currentConfig?.displaySource ?: "")
+            when (signal) {
+                SwitchRefreshSignal.QUEUED ->
+                    refreshNotice.show(RefreshNotice.Queued(RefreshNotice.Kind.FORECAST, source.shortDisplayName), RefreshNoticeSurface.POPUP, origin)
+                SwitchRefreshSignal.REFRESHED ->
+                    refreshNotice.showOutcome(RefreshOutcome.Refreshed, source.shortDisplayName, RefreshNoticeSurface.POPUP, origin)
+                SwitchRefreshSignal.FAILED ->
+                    refreshNotice.showOutcome(RefreshOutcome.Failed, source.shortDisplayName, RefreshNoticeSurface.POPUP, origin)
+            }
+        }
+
         // Non-lossy daemon → UI push: reload the instant the daemon signals a change, and on every
         // (re)connect (which catches a change that landed while disconnected — daemon restart, resume).
         // Complements the lossy `.data-updated` file watcher below. Keyed on the reload lambda so a
         // repository change rebinds the client with a fresh reload target.
         DisposableEffect(reloadCachedForecast) {
-            val client = UiNotifyClient(appDataDir()) { reason -> reloadCachedForecast("socket:$reason") }
+            val client = UiNotifyClient(
+                appDataDir(),
+                onSwitchRefresh = { signal -> uiScope.launch { announceSwitchRefresh(signal) } },
+            ) { reason -> reloadCachedForecast("socket:$reason") }
             client.start()
             onDispose { client.close() }
         }
@@ -718,19 +736,46 @@ internal fun runDesktopUiApplication() = application {
         }
 
         /**
-         * A Forecast History Refresh's ending, on the History window: "Refreshed Google · Hourly
-         * forecast quota used · resets 12 AM" — the shared rule Android's History screen uses
-         * (plans/261016-history-refresh-outcome-shared-desktop-parity.md). Other origins announce nothing.
+         * A refresh's ending, on the surface that asked: "Refreshed Google · Hourly forecast quota used ·
+         * resets 12 AM" — the shared rule Android uses
+         * (plans/261016-history-refresh-outcome-shared-desktop-parity.md).
          */
-        fun announceHistoryRefreshDone(origin: String, sourceId: String, ok: Boolean, startedAtMs: Long) {
-            if (origin != "history") return
+        fun announceRefreshDone(origin: String, sourceId: String, ok: Boolean, startedAtMs: Long, surface: RefreshNoticeSurface = refreshNoticeSurface(origin)) {
             val outcome = historyRefreshOutcome(weatherDao, sourceId, ok, startedAtMs)
             weatherDao.log(
                 RefreshOutcome.DONE_TAG,
                 RefreshOutcome.doneLine(ok, "source=$sourceId", System.currentTimeMillis() - startedAtMs, outcome),
                 RefreshOutcome.doneLevel(ok),
             )
-            refreshNotice.showOutcome(outcome, WeatherSource.fromId(sourceId).shortDisplayName, refreshNoticeSurface(origin), origin)
+            refreshNotice.showOutcome(outcome, WeatherSource.fromId(sourceId).shortDisplayName, surface, origin)
+        }
+
+        // Opening the popup is the one desktop moment the user is known to be looking: its source
+        // refreshes past the limit and says so (ViewingForecastRefresh; user, 2026-11-01).
+        val viewingForecastRequests = remember { java.util.concurrent.ConcurrentHashMap<String, Long>() }
+        LaunchedEffect(showRequestId) {
+            val repo = repository
+            val cfg = currentConfig
+            if (showRequestId > 0 && repo != null && cfg != null && !refreshInFlight) {
+                val host = DesktopViewingForecastHost(weatherDao, cfg.displaySource, PowerDetector.getPowerState(), viewingForecastRequests) {
+                    val origin = "popup_open"
+                    val source = WeatherSource.fromDisplaySource(cfg.displaySource)
+                    val startedAtMs = System.currentTimeMillis()
+                    refreshNotice.show(RefreshNotice.Queued(RefreshNotice.Kind.FORECAST, source.shortDisplayName), RefreshNoticeSurface.POPUP, origin)
+                    try {
+                        forecast = refreshRunner.start("viewing_refresh") { repo.refresh(reason = "viewing_forecast_stale") }.await()
+                        dataUpdateCount++
+                        notifyRefreshRequested()
+                        announceRefreshDone(origin, source.id, ok = true, startedAtMs, RefreshNoticeSurface.POPUP)
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        weatherDao.log("VIEWING_FORECAST", "failed ${e::class.simpleName}: ${e.message}", "WARN")
+                        announceRefreshDone(origin, source.id, ok = false, startedAtMs, RefreshNoticeSurface.POPUP)
+                    }
+                }
+                ViewingForecastRefresh.run(host, "popup_open", System.currentTimeMillis())
+            }
         }
 
         fun requestFullRefresh(origin: String) {
@@ -786,7 +831,7 @@ internal fun runDesktopUiApplication() = application {
             }
 
             refreshInFlight = true
-            refreshNotice.show(RefreshNotice.Queued(RefreshNotice.Kind.FORECAST), surface, origin)
+            refreshNotice.show(RefreshNotice.Queued(RefreshNotice.Kind.FORECAST, WeatherSource.fromDisplaySource(currentConfig?.displaySource ?: "").shortDisplayName), surface, origin)
             val startedAtMs = System.currentTimeMillis()
             val refreshedSourceId = WeatherSource.fromDisplaySource(currentConfig?.displaySource ?: "").id
             // Through the shared runner on the application-owned scope: removing either child window
@@ -849,7 +894,7 @@ internal fun runDesktopUiApplication() = application {
                         dataUpdateCount++
                         notifyRefreshRequested()
                     }
-                    announceHistoryRefreshDone(origin, refreshedSourceId, ok = true, startedAtMs)
+                    announceRefreshDone(origin, refreshedSourceId, ok = true, startedAtMs, surface)
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     weatherDao.log("REFRESH_CLICK", "origin=$origin refresh cancelled", "WARN")
                     throw e
@@ -860,7 +905,7 @@ internal fun runDesktopUiApplication() = application {
                         "origin=$origin refresh failed ${e::class.simpleName}: ${e.message}",
                         "WARN",
                     )
-                    announceHistoryRefreshDone(origin, refreshedSourceId, ok = false, startedAtMs)
+                    announceRefreshDone(origin, refreshedSourceId, ok = false, startedAtMs, surface)
                 } finally {
                     refreshInFlight = false
                 }
@@ -922,7 +967,9 @@ internal fun runDesktopUiApplication() = application {
             }
 
             refreshInFlight = true
-            refreshNotice.show(RefreshNotice.Queued(RefreshNotice.Kind.OBSERVATIONS), RefreshNoticeSurface.OBSERVATIONS, origin)
+            refreshNotice.show(RefreshNotice.Queued(RefreshNotice.Kind.OBSERVATIONS, WeatherSource.fromDisplaySource(currentConfig?.displaySource ?: "").shortDisplayName), RefreshNoticeSurface.OBSERVATIONS, origin)
+            val startedAtMs = System.currentTimeMillis()
+            val refreshedSourceId = WeatherSource.fromDisplaySource(currentConfig?.displaySource ?: "").id
             // The shared runner, as in requestFullRefresh: closing the window cannot cancel it.
             val refresh = refreshRunner.start("user_refresh:$origin") {
                 repo.refreshObservations(reason = "user_refresh:$origin")
@@ -933,6 +980,7 @@ internal fun runDesktopUiApplication() = application {
                     dataUpdateCount++
                     notifyRefreshRequested()
                     weatherDao.log("REFRESH_CLICK", "origin=$origin completed", "INFO")
+                    announceRefreshDone(origin, refreshedSourceId, ok = true, startedAtMs, RefreshNoticeSurface.OBSERVATIONS)
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     weatherDao.log("REFRESH_CLICK", "origin=$origin refresh cancelled", "WARN")
                     throw e
@@ -942,6 +990,7 @@ internal fun runDesktopUiApplication() = application {
                         "origin=$origin refresh failed ${e::class.simpleName}: ${e.message}",
                         "WARN",
                     )
+                    announceRefreshDone(origin, refreshedSourceId, ok = false, startedAtMs, RefreshNoticeSurface.OBSERVATIONS)
                 } finally {
                     refreshInFlight = false
                 }
@@ -993,7 +1042,7 @@ internal fun runDesktopUiApplication() = application {
             }
 
             refreshInFlight = true
-            refreshNotice.show(RefreshNotice.Queued(RefreshNotice.Kind.FORECAST), refreshNoticeSurface(origin), origin)
+            refreshNotice.show(RefreshNotice.Queued(RefreshNotice.Kind.FORECAST, source.shortDisplayName), refreshNoticeSurface(origin), origin)
             val startedAtMs = System.currentTimeMillis()
             // The shared runner, as in requestFullRefresh: closing the window cannot cancel it.
             val refresh = refreshRunner.start("user_refresh:$origin:${source.id}") {
@@ -1015,7 +1064,7 @@ internal fun runDesktopUiApplication() = application {
                     dataUpdateCount++
                     notifyRefreshRequested()
                     weatherDao.log("REFRESH_CLICK", "origin=$origin source=${source.id} completed", "INFO")
-                    announceHistoryRefreshDone(origin, source.id, ok = true, startedAtMs)
+                    announceRefreshDone(origin, source.id, ok = true, startedAtMs)
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -1024,7 +1073,7 @@ internal fun runDesktopUiApplication() = application {
                         "origin=$origin source=${source.id} failed ${e::class.simpleName}: ${e.message}",
                         "WARN",
                     )
-                    announceHistoryRefreshDone(origin, source.id, ok = false, startedAtMs)
+                    announceRefreshDone(origin, source.id, ok = false, startedAtMs)
                 } finally {
                     refreshInFlight = false
                 }

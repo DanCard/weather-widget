@@ -107,7 +107,7 @@ class RefreshToastRoboTest {
 
         assertEquals(1, ShadowToast.shownToastCount())
         assertEquals("Forecast refresh queued", ShadowToast.getTextOfLatestToast())
-        assertEquals(android.widget.Toast.LENGTH_LONG, ShadowToast.getLatestToast().duration)
+        assertEquals(android.widget.Toast.LENGTH_SHORT, ShadowToast.getLatestToast().duration)
         val row = toastRows().single()
         assertEquals("origin=widget_toggle_api queued=FORECAST shown", row.message)
     }
