@@ -1,0 +1,1 @@
+Stops fetching on screen-on: a tap, or opening Forecast History or Observations, checks that one source and refreshes it past 2 hours at 70% battery or on a charger. Refresh messages name the source and appear at once. Tap to refresh updates one source; Settings > Refresh data updates them all. Desktop popup now shows refresh messages.
