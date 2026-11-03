@@ -12,7 +12,8 @@ limits a task to one platform.
    database or logs are not accessible, stop and ask for the exact missing command or data. When the
    user says the widget still looks wrong, the emulator/device screenshot and renderer logcat outrank
    code inspection; add targeted logging before choosing a fix.
-2. **Review significant changes before editing.** Present the evidence, root cause, and proposed fix,
+2. **Review significant changes before editing.** Always create a plan for significant changes and
+   write it to `plans/` (`YYMMDD-kebab-title.md`). Present the evidence, root cause, and proposed fix,
    then wait for approval. Routine releases and explicit single-purpose instructions such as "run
    tests" or "commit" are exempt. After approval, continue through verification without unnecessary
    check-ins.
@@ -103,9 +104,9 @@ When changing documented behavior, update the relevant living document in the sa
 
 ## Documentation and commits
 
-- Do not create plan or summary files for simple fixes or routine releases. Put plans for complex work
-  directly in `plans/`, with a `YYMMDD-kebab-title.md` name; use `performance/` for performance
-  investigations. Do not overwrite an existing plan.
+- Always create a plan for significant changes and write it directly to `plans/`, with a
+  `YYMMDD-kebab-title.md` name; use `performance/` for performance investigations. Do not create
+  plan or summary files for simple fixes or routine releases. Do not overwrite an existing plan.
 - Dated plans, summaries, notes, and session logs are historical records, not current documentation.
   Link to them for evidence without treating their old behavior as authoritative.
 - Session logs include user prompts and prefer numbered lists for long sequences.
