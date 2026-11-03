@@ -674,9 +674,9 @@ object DailyRainLabels {
 
     /**
      * The hour the daytime chance peaks ("1pm" / "13:00"), drawn above the day rain label.
-     * Only when that label shows a percentage above [PEAK_HOUR_MIN_EXCLUSIVE_PERCENT] — so never on
-     * past days, nor when the label is an amount (≥ 95 % today / ≥ 99 % later) — and, for today,
-     * only until the peak hour is over. [dayPeakAt] is [ResolvedDailyPrecip.dayPeakAt].
+     * Shown when that label shows a percentage or rainfall amount above [PEAK_HOUR_MIN_EXCLUSIVE_PERCENT]
+     * (including at 100%) — never on past days — and, for today, only until the peak hour is over.
+     * [dayPeakAt] is [ResolvedDailyPrecip.dayPeakAt].
      */
     fun buildDailyRainPeakLabel(
         date: LocalDate,
@@ -691,9 +691,9 @@ object DailyRainLabels {
         locale: Locale = Locale.getDefault(),
     ): String? {
         if (isPastDate || date.isBefore(today)) return null
-        if (dailyRainLabelText == null || !dailyRainLabelText.endsWith("%")) return null
+        if (dailyRainLabelText == null) return null
         val probability = dayPrecipProbability ?: return null
-        if (probability <= PEAK_HOUR_MIN_EXCLUSIVE_PERCENT || probability >= 100) return null
+        if (probability <= PEAK_HOUR_MIN_EXCLUSIVE_PERCENT) return null
         val peakAt = dayPeakAt ?: return null
         if (date == today && nowMs >= peakAt + HOUR_MS) return null
         val time = Instant.ofEpochMilli(peakAt).atZone(zoneId).toLocalTime()

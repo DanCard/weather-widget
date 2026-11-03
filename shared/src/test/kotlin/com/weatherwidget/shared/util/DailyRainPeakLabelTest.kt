@@ -60,9 +60,11 @@ class DailyRainPeakLabelTest {
     }
 
     @Test
-    fun `an amount label or 100 percent shows none`() {
-        assertNull("≥ 99 % future days show an amount", peak(probability = 99, label = ".25in"))
-        assertNull(peak(probability = 100, label = "100%"))
+    fun `an amount label or 100 percent shows the peak hour`() {
+        assertEquals("≥ 99 % future days showing amount show peak", "1pm", peak(probability = 99, label = ".25in"))
+        assertEquals("100% chance forecast at 11am shows 11am", "11am", peak(probability = 100, label = "100%", peakAt = at(tomorrow, 11)))
+        assertEquals("100% chance with amount forecast at 11am shows 11am", "11am", peak(probability = 100, label = ".50in", peakAt = at(tomorrow, 11)))
+        assertEquals("95% today showing amount shows peak", "11am", peak(date = today, probability = 95, label = ".15in", peakAt = at(today, 11), now = at(today, 9)))
     }
 
     @Test

@@ -1548,6 +1548,38 @@ class DailyForecastGraphRendererRoboTest {
     }
 
     @Test
+    fun renderGraph_drawsPeakHourOnTopOfTheRainfallAmount() {
+        val days = listOf(
+            DailyForecastGraphRenderer.DayData(
+                date = LocalDate.of(2026, 2, 2),
+                label = "Sun",
+                solidLineHigh = 100f,
+                solidLineLow = 80f,
+            ),
+            DailyForecastGraphRenderer.DayData(
+                date = LocalDate.of(2026, 2, 3),
+                label = "Mon",
+                solidLineHigh = 70f,
+                solidLineLow = 50f,
+                rainData = DailyForecastGraphRenderer.RainLabelData(
+                    dailyPrecipProbability = 100,
+                    dailyRainLabelText = "0.25\"",
+                    dailyRainPeakLabelText = "11am",
+                ),
+            ),
+        )
+        val labels = renderRainLabels(days = days, widthPx = 800, heightPx = 500, numColumns = 4)
+
+        val rain = labels.single { it.kind == DailyForecastGraphRenderer.RainLabelKind.DAY }
+        val peak = labels.single { it.kind == DailyForecastGraphRenderer.RainLabelKind.PEAK }
+        assertEquals("0.25\"", rain.text)
+        assertEquals("11am", peak.text)
+        assertEquals(rain.centerX, peak.centerX, 0.01f)
+        assertTrue("peak above amount: peak.baseline=${peak.baselineY} rain.baseline=${rain.baselineY}", peak.baselineY < rain.baselineY)
+        assertTrue("peak bottom tucks onto the amount's top", peak.bottomY <= rain.topY + 3f * context.resources.displayMetrics.density)
+    }
+
+    @Test
     fun renderGraph_peakHourInTheRainLabelsOwnBlue() {
         val paints = DailyGraphPaintCache.get(
             DailyGraphLayoutResolver.resolve(
