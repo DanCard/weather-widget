@@ -381,6 +381,8 @@ object DailyRainLabels {
         targetDate: LocalDate,
         zoneId: ZoneId = ZoneId.systemDefault(),
         hourlySummary: DailyHourlySummaries.Summary? = null,
+        // Today's day/night max from the stitched hours (DailyHourlySummaries.liveDayNight).
+        today: LocalDate? = null,
     ): ResolvedDailyPrecip {
         val sited = selectSiteHourly(hourly, displaySourceId, centerLat, centerLon)
         return resolveLiveDayNightChance(
@@ -392,6 +394,7 @@ object DailyRainLabels {
             targetDate = targetDate,
             zoneId = zoneId,
             hourlySummary = hourlySummary,
+            today = today,
         )
     }
 
@@ -425,6 +428,8 @@ object DailyRainLabels {
         targetDate: LocalDate,
         zoneId: ZoneId = ZoneId.systemDefault(),
         hourlySummary: DailyHourlySummaries.Summary? = null,
+        // Today's day/night max from the stitched hours (DailyHourlySummaries.liveDayNight).
+        today: LocalDate? = null,
     ): ResolvedDailyPrecip {
         // The forecast row's own hourly max (DailyHourlySummaries, kept at fetch time from the whole
         // download), else the stored hours' window max for rows written before it existed.
@@ -436,6 +441,7 @@ object DailyRainLabels {
             storedNightMax = hourlySummary?.nightPrecipMax,
             storedDayPeakAt = hourlySummary?.dayPrecipPeakAt,
             zoneId = zoneId,
+            today = today,
         )
         return ResolvedDailyPrecip(
             dayPrecip = dayNight.dayMax ?: daytimePrecipProbability ?: precipProbability,
@@ -466,6 +472,8 @@ object DailyRainLabels {
         storedDayPrecipChance: Int? = null,
         storedNightPrecipChance: Int? = null,
         hourlySummary: DailyHourlySummaries.Summary? = null,
+        // Today's day/night max from the stitched hours (DailyHourlySummaries.liveDayNight).
+        today: LocalDate? = null,
     ): ResolvedDailyPrecip {
         if (isPast) {
             // Past days use the raw day/night period split with NO precipProbability→daytime fallback:
@@ -486,6 +494,7 @@ object DailyRainLabels {
             targetDate = targetDate,
             zoneId = zoneId,
             hourlySummary = hourlySummary,
+            today = today,
         )
     }
 
@@ -508,6 +517,8 @@ object DailyRainLabels {
         storedDayPrecipChance: Int? = null,
         storedNightPrecipChance: Int? = null,
         hourlySummary: DailyHourlySummaries.Summary? = null,
+        // Today's day/night max from the stitched hours (DailyHourlySummaries.liveDayNight).
+        today: LocalDate? = null,
     ): ResolvedDailyPrecip {
         if (isPast) {
             return resolveDailyLabelPrecip(
@@ -534,6 +545,7 @@ object DailyRainLabels {
             targetDate = targetDate,
             zoneId = zoneId,
             hourlySummary = hourlySummary,
+            today = today,
         )
     }
 

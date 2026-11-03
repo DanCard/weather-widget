@@ -15,6 +15,7 @@ import java.time.ZoneId
  * a fetch that does not reach a day never blanks what an earlier one saved (user, 2026-10-10).
  */
 object DailyHourlySummaries {
+    private const val TAG = "DailyHourlySummaries"
     private const val HOUR_MS = 3_600_000L
 
     data class Summary(
@@ -109,6 +110,14 @@ object DailyHourlySummaries {
      * one download, and computes the row from it whole. Hours past the 72 h routine store are not
      * rewritten by routine fetches (an on-demand fetch's, or rows kept from before 2026-10-10), so
      * reading hourly first would let them override a fresher row.
+     *
+     * **Today** is the exception ([today] == [date]): when the stitched rows cover a window, that
+     * window's max comes from them. The display passes `HourlyForecastStitcher` output, which freezes
+     * a started hour at its pre-hour forecast, as the hourly graph does; the row is computed from a
+     * single download, where a fetch made during an hour carries the provider's in-hour revision.
+     * Tomorrow.io 2026-11-03: 08:57 run 45% at 10am, 10:02 run 0% → graph 45%, label blank. Today's
+     * hours are always inside the 72 h store, so the far-hour concern above does not apply.
+     * (plans/261103-today-rain-chance-from-stitched-hours.md)
      */
     fun liveDayNight(
         sitedRows: List<HourlyForecast>,
@@ -117,6 +126,39 @@ object DailyHourlySummaries {
         storedNightMax: Int?,
         storedDayPeakAt: Long? = null,
         zoneId: ZoneId = ZoneId.systemDefault(),
+        today: LocalDate? = null,
+    ): DailyRainLabels.DayNightPrecip {
+        val fromRow = liveDayNightFromRow(sitedRows, date, storedDayMax, storedNightMax, storedDayPeakAt, zoneId)
+        if (today == null || date != today) return fromRow
+        val withPrecip = sitedRows.filter { it.precipProbability != null }
+        val dayStart = date.atTime(8, 0).atZone(zoneId).toInstant().toEpochMilli()
+        val dayEnd = date.atTime(20, 0).atZone(zoneId).toInstant().toEpochMilli()
+        val nightEnd = date.plusDays(1).atTime(8, 0).atZone(zoneId).toInstant().toEpochMilli()
+        val maxima = DailyRainLabels.periodMaxima(withPrecip, date, zoneId)
+        val dayCovered = windowCovered(withPrecip, dayStart, dayEnd)
+        val nightCovered = windowCovered(withPrecip, dayEnd, nightEnd)
+        val result = DailyRainLabels.DayNightPrecip(
+            dayMax = if (dayCovered) maxima.dayMax else fromRow.dayMax,
+            nightMax = if (nightCovered) maxima.nightMax else fromRow.nightMax,
+            dayPeakAt = if (dayCovered) maxima.dayPeakAt else fromRow.dayPeakAt,
+        )
+        if (result != fromRow) {
+            Log.v(TAG) {
+                "TODAY_RAIN_STITCHED date=$date row=${fromRow.dayMax}@${fromRow.dayPeakAt}/${fromRow.nightMax} " +
+                    "stitched=${result.dayMax}@${result.dayPeakAt}/${result.nightMax} " +
+                    "dayCovered=$dayCovered nightCovered=$nightCovered rows=${withPrecip.size}"
+            }
+        }
+        return result
+    }
+
+    private fun liveDayNightFromRow(
+        sitedRows: List<HourlyForecast>,
+        date: LocalDate,
+        storedDayMax: Int?,
+        storedNightMax: Int?,
+        storedDayPeakAt: Long?,
+        zoneId: ZoneId,
     ): DailyRainLabels.DayNightPrecip {
         val storedComplete = storedDayMax != null && storedNightMax != null && storedDayPeakAt != null
         val maxima = if (storedComplete) null else DailyRainLabels.periodMaxima(sitedRows, date, zoneId)

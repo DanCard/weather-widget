@@ -304,6 +304,8 @@ object DailyColumnBuilder {
             storedDayPrecipChance = actual?.forecastDayPrecipChance,
             storedNightPrecipChance = actual?.forecastNightPrecipChance,
             hourlySummary = forecast?.hourlySummary,
+            // Today matches the hourly graph: started hours keep their pre-hour forecast.
+            today = today,
         )
         // Past days prefer the amount frozen into daily_history while the day was live.
         val forecastAmountMm = (if (isPast) actual?.forecastPrecipAmountMm else null)

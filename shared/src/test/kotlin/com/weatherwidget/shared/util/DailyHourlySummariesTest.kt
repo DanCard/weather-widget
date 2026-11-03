@@ -262,6 +262,56 @@ class DailyHourlySummariesTest {
         assertEquals(at(day2, 16), noRow.dayPeakAt)
     }
 
+    /**
+     * Tomorrow.io 2026-11-03: the 08:57 run said 45% at 10am; the 10:02 run (mid-hour) said 0% for
+     * every hour, so the row's max is 0. The stitched hours, as the graph draws them, keep 45% at
+     * 10am — today's label must show the graph's value, not the in-hour revision.
+     */
+    private val stitchedToday = series(at(start, 0), at(start.plusDays(1), 12), pop = { ms ->
+        when (ms) {
+            at(start, 10) -> 45
+            at(start, 11) -> 38
+            else -> 0
+        }
+    })
+
+    @Test
+    fun `today shows the stitched hours' max over a row from a mid-hour fetch`() {
+        val shown = DailyHourlySummaries.liveDayNight(
+            stitchedToday, start, storedDayMax = 0, storedNightMax = 0, storedDayPeakAt = at(start, 8),
+            zoneId = zone, today = start,
+        )
+        println("today stitched: $shown")
+        assertEquals("the graph's 45%, not the row's 0", 45, shown.dayMax)
+        assertEquals("peak hour of the stitched max", at(start, 10), shown.dayPeakAt)
+        assertEquals(0, shown.nightMax)
+    }
+
+    @Test
+    fun `today keeps the row when the stitched hours do not cover the window`() {
+        val partial = stitchedToday.filter { it.dateTime >= at(start, 10) && it.dateTime < at(start, 15) }
+        val shown = DailyHourlySummaries.liveDayNight(
+            partial, start, storedDayMax = 30, storedNightMax = 20, storedDayPeakAt = at(start, 9),
+            zoneId = zone, today = start,
+        )
+        println("today partial: $shown")
+        assertEquals(30, shown.dayMax)
+        assertEquals(at(start, 9), shown.dayPeakAt)
+        assertEquals(20, shown.nightMax)
+    }
+
+    @Test
+    fun `future days still prefer the row over covered hours`() {
+        val day1 = start.plusDays(1)
+        val hours = series(at(start, 0), at(start.plusDays(3), 0), pop = { ms -> if (ms == at(day1, 14)) 50 else 5 })
+        val shown = DailyHourlySummaries.liveDayNight(
+            hours, day1, storedDayMax = 30, storedNightMax = 5, storedDayPeakAt = at(day1, 12),
+            zoneId = zone, today = start,
+        )
+        assertEquals("tomorrow: the row's 30, not the hours' 50", 30, shown.dayMax)
+        assertEquals(at(day1, 12), shown.dayPeakAt)
+    }
+
     @Test
     fun `keep-until is the current hour plus the horizon`() {
         val now = at(start, 9) + 24 * 60_000L
