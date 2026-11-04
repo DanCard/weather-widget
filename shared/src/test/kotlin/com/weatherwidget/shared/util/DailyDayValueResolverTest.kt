@@ -262,6 +262,19 @@ class DailyDayValueResolverTest {
     }
 
     @Test
+    fun `icon anchor ignores a colder snapshot when no snapshot bar is drawn (future column)`() {
+        // Desktop Fri: bar ends 49, yesterday's forecast said 48 — icon floated 1 degree below the bar.
+        val future = DailyDayValueResolver.iconAnchorLow(
+            solidLow = 49f, forecastLow = null, snapshotLow = 48f, solidHigh = 72f, snapshotBarDrawn = false,
+        )
+        assertEquals(49f, future)
+        val drawn = DailyDayValueResolver.iconAnchorLow(
+            solidLow = 49f, forecastLow = null, snapshotLow = 48f, solidHigh = 72f, snapshotBarDrawn = true,
+        )
+        assertEquals(48f, drawn)
+    }
+
+    @Test
     fun iconAnchorFollowsMercuryBelowStandInLow() {
         // Current temp (solidHigh) under the forecast-low stand-in: the mercury's drawn bottom
         // is the current temp, so the icon must sit under it rather than under the stand-in.

@@ -188,6 +188,7 @@ internal object DailyColumnRenderer {
             forecastLow = day.dashedLineLow,
             snapshotLow = day.snapshotLow,
             solidHigh = day.solidLineHigh,
+            snapshotBarDrawn = day.isToday || day.isPast,
         ) ?: day.bottomStackLow ?: day.solidLineLow
 
     private fun drawWeatherIcon(

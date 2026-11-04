@@ -559,8 +559,14 @@ fun DailyForecastGraph(
                     forecastLow = day.forecastLow,
                     snapshotLow = day.snapshotLow,
                     solidHigh = day.solidHigh,
+                    snapshotBarDrawn = day.isToday || day.isPast,
                 ) ?: lowForLabel
                 val iconTop = bottomStack.iconTop(yAt(anchorLow), lowText.size.height.toFloat())
+                Log.v("DAILY_ICON_ANCHOR") {
+                    "col=$index anchorLow=$anchorLow solidLow=${day.solidLow} fLow=${day.forecastLow} " +
+                        "snapLow=${day.snapshotLow} solidHigh=${day.solidHigh} barBottomY=${yAt(anchorLow).roundToInt()} " +
+                        "iconTop=${iconTop.roundToInt()} ceiling=${(iconTop - yAt(anchorLow)).roundToInt()} icon=${day.iconName}"
+                }
                 translate(centerX - iconSize / 2f, iconTop) {
                     with(painters[index]) { draw(Size(iconSize, iconSize)) }
                 }
@@ -1118,6 +1124,7 @@ internal fun computeDailyGraphTapLayout(
             forecastLow = day.forecastLow,
             snapshotLow = day.snapshotLow,
             solidHigh = day.solidHigh,
+            snapshotBarDrawn = day.isToday || day.isPast,
         ) ?: lowForLabel
         bottomStack.iconTop(yAt(anchorLow), lowTextHeight)
     }

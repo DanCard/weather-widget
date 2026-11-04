@@ -274,13 +274,20 @@ object DailyDayValueResolver {
      * @param snapshotLow 24h-prior snapshot bar bottom (today only), or null when absent.
      * @param solidHigh Top of the solid bar (today = current temp). The solid bar's drawn bottom is
      *   [mercuryBottom], which a current temp colder than [solidLow] pushes below [solidLow].
+     * @param snapshotBarDrawn false for future columns: they draw no "yesterday's forecast" bar, so a
+     *   colder snapshot low must not pull the icon below the visible bar (1° ≈ 27 px on desktop).
      */
     fun iconAnchorLow(
         solidLow: Float?,
         forecastLow: Float?,
         snapshotLow: Float?,
         solidHigh: Float? = null,
-    ): Float? = listOfNotNull(mercuryBottom(solidHigh, solidLow), forecastLow, snapshotLow).minOrNull()
+        snapshotBarDrawn: Boolean = true,
+    ): Float? = listOfNotNull(
+        mercuryBottom(solidHigh, solidLow),
+        forecastLow,
+        snapshotLow.takeIf { snapshotBarDrawn },
+    ).minOrNull()
 
     /**
      * The bottom of today's thermostat mercury — where the bulb sits. The mercury's top is the
