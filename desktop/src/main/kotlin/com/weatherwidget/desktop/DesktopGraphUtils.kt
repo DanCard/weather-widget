@@ -9,6 +9,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.translate
@@ -841,3 +842,25 @@ internal fun forecastColor(flags: com.weatherwidget.shared.util.WeatherCondition
     return Color(argb)
 }
 
+
+/**
+ * Calls [draw] once per [com.weatherwidget.shared.graph.StaleForecastSpans] span, clipped to it,
+ * with the alpha to draw the forecast line at (dimmed over stale hours). Android's counterpart is
+ * `StaleSpanDrawing.forEachSpan`. Paths are never split, so dashes and curve shape are unchanged.
+ */
+internal inline fun DrawScope.forEachStaleSpan(
+    xs: List<Float>,
+    stale: List<Boolean>,
+    draw: (alpha: Float) -> Unit,
+) {
+    val spans = com.weatherwidget.shared.graph.StaleForecastSpans.spans(xs, stale, 0f, size.width)
+    if (spans.size == 1 && !spans[0].stale) {
+        draw(1f)
+        return
+    }
+    for (span in spans) {
+        clipRect(left = span.start, top = 0f, right = span.end, bottom = size.height) {
+            draw(if (span.stale) com.weatherwidget.shared.graph.StaleForecastSpans.DIM_ALPHA_FACTOR else 1f)
+        }
+    }
+}

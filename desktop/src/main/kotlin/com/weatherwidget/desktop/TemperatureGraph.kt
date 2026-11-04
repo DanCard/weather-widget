@@ -399,6 +399,11 @@ fun TemperatureGraph(
         // 1. Forecast Line segments (Dashed and colored by weather condition)
         if (coords.size >= 2) {
             val tangents = computeTangents(coords)
+            // Stale hours (forecast fetched >3 h before the hour) draw dimmed, as on the widget.
+            forEachStaleSpan(
+                xs = coords.map { it.x },
+                stale = points.map { com.weatherwidget.shared.graph.StaleForecastSpans.isStale(it.dateTime, it.fetchedAt, now) },
+            ) { staleAlpha ->
             for (i in 0 until coords.size - 1) {
                 val segmentColor = forecastColor(conditionFlagsOf(points[i + 1], latitude, longitude))
                 val segmentPath = Path().apply {
@@ -412,11 +417,13 @@ fun TemperatureGraph(
                 drawPath(
                     path = segmentPath,
                     color = segmentColor,
+                    alpha = staleAlpha,
                     style = Stroke(
                         width = 1.5f * scale,
                         pathEffect = PathEffect.dashPathEffect(floatArrayOf(8.dp.toPx() * scale, 4.dp.toPx() * scale))
                     )
                 )
+            }
             }
         }
 
@@ -627,7 +634,9 @@ fun TemperatureGraph(
         // ACTUAL_LOW and drawn flush-right at a y where no line exists. With the list cut at the
         // window, that sample becomes a boundary sample and TemperatureExtrema's edge gate drops it.
         fun msOf(dt: LocalDateTime): Long = dt.atZone(zoneId).toInstant().toEpochMilli()
-        val hourDataList = HourDataAssembler.assembleHourData(actualSeries, zoneId)
+        val hourDataList = HourDataAssembler.assembleHourData(
+            actualSeries, zoneId, com.weatherwidget.shared.graph.StaleForecastSpans.staleHourStarts(points, now),
+        )
             .filter { msOf(it.dateTime) in dataStart..dataEnd }
 
         val originalPointsList = hourDataList.map { hd ->

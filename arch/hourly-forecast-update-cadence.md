@@ -224,6 +224,16 @@ Android screen-on receivers registered at runtime work only while the process is
 `USER_PRESENT` delivery has measured unreliable, and manifest `ACTION_SCREEN_ON` registration is not
 a substitute for the runtime receiver.
 
+## Started hours and stale forecasts
+
+A started hour keeps the last forecast fetched at or before it (`SettledForecastPick`; a fetch during
+the hour can be a hindcast). A device that could not fetch, such as a desktop asleep overnight, keeps
+its last evening forecast for those hours, so devices can disagree. The hourly temperature,
+rain-chance, and cloud graphs on both platforms draw such an hour's forecast line at reduced opacity
+when its forecast was fetched more than 3 h before the hour (`:shared` `StaleForecastSpans`). The
+cloud graph's day-ago prediction is never dimmed.
+See [plans/261104-dim-stale-pre-hour-forecasts.md](../plans/261104-dim-stale-pre-hour-forecasts.md).
+
 ## Related code
 
 - Forecast cadence: `ForecastHorizonCadence.kt`

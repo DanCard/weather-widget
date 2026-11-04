@@ -19,4 +19,5 @@ data class HourData(
     val isActual: Boolean = false,           // True when actualTemperature is available
     val actualTemperature: Float? = null,    // Observed actual temp (past hours only)
     val isObservedActual: Boolean = false,   // Backed by a real blended/observed point, not carry-forward filler
+    val isStaleForecast: Boolean = false,    // Forecast line dimmed: hour's forecast fetched >3 h before it (StaleForecastSpans)
 )

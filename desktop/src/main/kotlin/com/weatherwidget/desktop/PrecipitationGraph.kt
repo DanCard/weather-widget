@@ -182,11 +182,19 @@ fun PrecipitationGraph(
 
         // Draw Curve Line
         val curveStroke = if (totalSpanHours <= 8) 2.dp.toPx() * scale else 3.dp.toPx() * scale
-        drawPath(
-            path = buildCurve(coords),
-            color = COLOR_PRECP_CURVE,
-            style = Stroke(width = curveStroke, cap = StrokeCap.Round, join = StrokeJoin.Round)
-        )
+        // Stale hours (forecast fetched >3 h before the hour) draw dimmed, as on the widget.
+        val curvePath = buildCurve(coords)
+        forEachStaleSpan(
+            xs = coords.map { it.x },
+            stale = points.map { com.weatherwidget.shared.graph.StaleForecastSpans.isStale(it.dateTime, it.fetchedAt, now) },
+        ) { alpha ->
+            drawPath(
+                path = curvePath,
+                color = COLOR_PRECP_CURVE,
+                alpha = alpha,
+                style = Stroke(width = curveStroke, cap = StrokeCap.Round, join = StrokeJoin.Round)
+            )
+        }
 
         // Draw Day/Night boundary dividers at 8AM / 8PM
         val zoneId = ZoneId.systemDefault()

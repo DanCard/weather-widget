@@ -304,18 +304,29 @@ fun CloudCoverGraph(
         // actual to compare it against". Gating them on data availability previously left the
         // Android widget with no dash whenever its actual series was empty.
         val curveStroke = if (totalSpanHours <= 8) 2.dp.toPx() * scale else 3.dp.toPx() * scale
-        drawPath(
-            path = buildCurve(coords),
-            color = COLOR_CLOUD_CURVE,
-            style = Stroke(
-                width = curveStroke,
-                cap = StrokeCap.Round,
-                join = StrokeJoin.Round,
-                pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(
-                    floatArrayOf(6f * scale, 5f * scale),
-                ),
+        // Stale hours dim, as on the widget; the day-ago prediction (frozenByTime) is stale by design.
+        val curvePath = buildCurve(coords)
+        forEachStaleSpan(
+            xs = coords.map { it.x },
+            stale = points.map {
+                it.dateTime !in frozenByTime &&
+                    com.weatherwidget.shared.graph.StaleForecastSpans.isStale(it.dateTime, it.fetchedAt, now)
+            },
+        ) { alpha ->
+            drawPath(
+                path = curvePath,
+                color = COLOR_CLOUD_CURVE,
+                alpha = alpha,
+                style = Stroke(
+                    width = curveStroke,
+                    cap = StrokeCap.Round,
+                    join = StrokeJoin.Round,
+                    pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(
+                        floatArrayOf(6f * scale, 5f * scale),
+                    ),
+                )
             )
-        )
+        }
 
         // The actual, on top: solid, brighter, unsmoothed.
         actualCoordSegments.filter { it.size >= 2 }.forEach { actualCoords ->

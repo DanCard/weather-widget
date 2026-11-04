@@ -61,6 +61,8 @@ object PrecipitationGraphRenderer {
         val isDateLabel: Boolean = false,
         val precipAmountMm: Float? = null,
         val actualPrecipAmountMm: Float? = null,
+        /** Started hour whose forecast was fetched over 3 h before it: line dimmed (:shared StaleForecastSpans). */
+        val isStaleForecast: Boolean = false,
     )
 
     data class LabelPlacementDebug(
@@ -630,7 +632,11 @@ object PrecipitationGraphRenderer {
 
         val (curvePath, fillPath) = AndroidCurvePathBuilder.buildSmoothCurveAndFillPaths(layout.points, layout.graphBottom)
         canvas.drawPath(fillPath, paints.gradientPaint)
-        canvas.drawPath(curvePath, paints.curvePaint)
+        StaleSpanDrawing.drawDimmingStale(
+            canvas, curvePath, paints.curvePaint,
+            xs = layout.points.map { it.first }, stale = hours.map { it.isStaleForecast },
+            widthPx = widthPx.toFloat(), heightPx = heightPx.toFloat(),
+        )
         drawNowcastBand(canvas, hours, layout, nowcastSlots, onDebugLog)
 
         // --- Draw labels and current-time indicator ---

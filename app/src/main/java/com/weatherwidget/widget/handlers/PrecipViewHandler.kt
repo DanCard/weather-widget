@@ -597,6 +597,9 @@ object PrecipViewHandler {
                         actualPrecipAmountMm = com.weatherwidget.shared.actuals.ObservedPrecip.elapsedHourAmount(
                             currentHour, now, actualPrecipByHour,
                         ),
+                        isStaleForecast = com.weatherwidget.shared.graph.StaleForecastSpans.isStale(
+                            hourMs, forecast.fetchedAt, now.atZone(zoneId).toInstant().toEpochMilli(),
+                        ),
                     ),
                 )
             }

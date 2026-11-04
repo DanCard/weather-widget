@@ -107,6 +107,8 @@ object CloudCoverGraphRenderer {
         val isCurrentHour: Boolean = false,
         val showLabel: Boolean = true,
         val isDateLabel: Boolean = false,
+        /** Started hour whose live forecast was fetched over 3 h before it: line dimmed (:shared StaleForecastSpans). */
+        val isStaleForecast: Boolean = false,
     )
 
     data class LabelPlacementDebug(
@@ -430,7 +432,11 @@ object CloudCoverGraphRenderer {
         paints.curvePaint.pathEffect = DashPathEffect(
             floatArrayOf(dpToPx(context, 3f), dpToPx(context, 2.5f)), 0f,
         )
-        canvas.drawPath(curvePath, paints.curvePaint)
+        StaleSpanDrawing.drawDimmingStale(
+            canvas, curvePath, paints.curvePaint,
+            xs = points.map { it.first }, stale = hours.map { it.isStaleForecast },
+            widthPx = widthPx.toFloat(), heightPx = heightPx.toFloat(),
+        )
         paints.curvePaint.pathEffect = previousDashEffect
 
         // The actual, on top: solid, brighter, independently timestamped, and gap-split.

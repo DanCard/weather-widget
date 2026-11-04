@@ -244,7 +244,11 @@ internal fun buildHourDataResult(
     // instead of collapsing onto the nearest hour). Platform decoration — footer hour label, weather
     // icon, sun/day-night flags — is layered on here; the desktop app calls the same assembler with an
     // identity decorator.
-    val finalHours = HourDataAssembler.assembleHourData(actualSeries, zoneId) { base, isTopHour, _ ->
+    val staleHourStarts = com.weatherwidget.shared.graph.StaleForecastSpans.staleHourStarts(
+        forecastsByTime.values.filterNotNull().map { it.toHourlyForecast() },
+        now.atZone(zoneId).toInstant().toEpochMilli(),
+    )
+    val finalHours = HourDataAssembler.assembleHourData(actualSeries, zoneId, staleHourStarts) { base, isTopHour, _ ->
         val time = base.dateTime
         if (isTopHour) {
             val hourMs = time.atZone(zoneId).toInstant().toEpochMilli()

@@ -3,6 +3,7 @@ package com.weatherwidget.shared.graph
 import com.weatherwidget.shared.actuals.ActualTemperatureSeriesResult
 import java.time.Instant
 import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 
 /**
  * Builds the graph's point list ([HourData]) from a shared [ActualTemperatureSeriesResult]. The
@@ -22,6 +23,8 @@ object HourDataAssembler {
     fun assembleHourData(
         series: ActualTemperatureSeriesResult,
         zoneId: ZoneId,
+        /** Hour starts (epoch ms) whose forecast is stale ([StaleForecastSpans.staleHourStarts]); sub-hourly points inherit their hour's. */
+        staleHourStarts: Set<Long> = emptySet(),
         decorate: (base: HourData, isTopHour: Boolean, index: Int) -> HourData = { base, _, _ -> base },
     ): List<HourData> {
         return series.points.mapIndexed { index, point ->
@@ -34,6 +37,8 @@ object HourDataAssembler {
                 isActual = point.isActual,
                 actualTemperature = point.actualTemp,
                 isObservedActual = point.isObservedActual,
+                isStaleForecast = staleHourStarts.isNotEmpty() &&
+                    dateTime.truncatedTo(ChronoUnit.HOURS).atZone(zoneId).toInstant().toEpochMilli() in staleHourStarts,
             )
             decorate(base, isTopHour, index)
         }

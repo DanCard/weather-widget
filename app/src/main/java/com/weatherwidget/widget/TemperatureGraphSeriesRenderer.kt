@@ -161,13 +161,24 @@ internal object TemperatureGraphSeriesRenderer {
                 input.hours,
                 input.series.forecastSegmentPaths,
             )
-        input.series.forecastSegmentPaths.forEachIndexed { index, segment ->
-            if (segment.startsContour) cumulativeLength = 0f
-            segmentPaint.color = segmentColors[index]
-            segmentPaint.pathEffect = DashPathEffect(dashPattern, cumulativeLength)
-            input.canvas.drawPath(segment.path, segmentPaint)
-            pathMeasure.setPath(segment.path, false)
-            cumulativeLength += pathMeasure.length
+        // Stale hours (forecast fetched >3 h before the hour) draw dimmed: one clipped pass per span.
+        StaleSpanDrawing.forEachSpan(
+            input.canvas,
+            xs = input.series.forecastPoints.map { it.first },
+            stale = input.hours.map { it.isStaleForecast },
+            widthPx = input.widthPx.toFloat(),
+            heightPx = input.heightPx.toFloat(),
+        ) { stale ->
+            cumulativeLength = 0f
+            input.series.forecastSegmentPaths.forEachIndexed { index, segment ->
+                if (segment.startsContour) cumulativeLength = 0f
+                segmentPaint.color = segmentColors[index]
+                segmentPaint.alpha = com.weatherwidget.shared.graph.StaleForecastSpans.alphaFor(segmentPaint.alpha, stale)
+                segmentPaint.pathEffect = DashPathEffect(dashPattern, cumulativeLength)
+                input.canvas.drawPath(segment.path, segmentPaint)
+                pathMeasure.setPath(segment.path, false)
+                cumulativeLength += pathMeasure.length
+            }
         }
     }
 
