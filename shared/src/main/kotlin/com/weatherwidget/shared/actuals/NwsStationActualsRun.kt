@@ -66,7 +66,6 @@ object NwsStationActualsRun {
     suspend fun nwsHourlyForDay(host: Host, dayStartMs: Long, dayEndMs: Long, nowMs: Long): List<HourlyForecast> =
         HourlyForecastStitcher.stitch(
             rows = host.nwsHourlyHistory(dayStartMs, dayEndMs),
-            nowMs = nowMs,
             centerLat = host.lat,
             centerLon = host.lon,
         )

@@ -1971,13 +1971,12 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
     fun getHourlySettledAllSources(locationLat: Double, locationLon: Double, startMs: Long, endMs: Long, nowMs: Long = System.currentTimeMillis()): List<HourlyForecast> =
         HourlyForecastStitcher.stitchBySource(
             rows = getHourlyHistorySnapshots(locationLat, locationLon, source = null, startMs, endMs + 1),
-            nowMs = nowMs,
             centerLat = locationLat,
             centerLon = locationLon,
         )
 
     fun getHourlyWithHistory(locationLat: Double, locationLon: Double, source: String, startMs: Long, endMs: Long, nowMs: Long = System.currentTimeMillis()): List<HourlyForecast> =
-        HourlyForecastStitcher.stitch(getHourlyHistory(locationLat, locationLon, source, startMs, endMs, nowMs), nowMs, locationLat, locationLon)
+        HourlyForecastStitcher.stitch(getHourlyHistory(locationLat, locationLon, source, startMs, endMs, nowMs), locationLat, locationLon)
 
     private data class TodayCandidate(val row: DailyForecast, val fetchedAt: Long, val lat: Double, val lon: Double)
 

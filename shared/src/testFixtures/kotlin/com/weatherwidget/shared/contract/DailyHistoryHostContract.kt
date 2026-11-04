@@ -102,7 +102,7 @@ abstract class DailyHistoryHostContract {
             setOf(Triple(H0, 60f, 40), Triple(H0, 62f, null)),
             rows.map { Triple(it.dateTime, it.temperature, it.cloudCover) }.toSet(),
         )
-        val stitched = HourlyForecastStitcher.stitch(rows, nowMs = H0, centerLat = LAT, centerLon = LON)
+        val stitched = HourlyForecastStitcher.stitch(rows, centerLat = LAT, centerLon = LON)
         assertEquals(listOf(Triple(H0, 62f, 40)), stitched.map { Triple(it.dateTime, it.temperature, it.cloudCover) })
     }
 

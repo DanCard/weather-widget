@@ -6,73 +6,60 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.experimental.categories.Category
 
+/** Newest fetch wins for every hour, started or not. plans/261104-remove-hourly-pre-hour-freeze.md */
 @Category(ShortDuration::class)
 class SettledForecastPickTest {
 
     private val hourMs = 3_600_000L
     private val hour = 100 * hourMs
-    private val started = hour + 1
 
-    private fun row(fetchedAt: Long, label: String) =
-        HourlyForecast(dateTime = hour, temperature = 0f, condition = label, fetchedAt = fetchedAt)
+    private fun row(fetchedAt: Long, label: String, precip: Int? = null) =
+        HourlyForecast(dateTime = hour, temperature = 0f, condition = label, fetchedAt = fetchedAt, precipProbability = precip)
 
     private val earlier = row(hour - 5 * hourMs, "earlier")
     private val preHour = row(hour - 1_000L, "preHour")
     private val hindcast = row(hour + 2_000L, "hindcast")
     private val lateHindcast = row(hour + 9_000L, "lateHindcast")
 
-    private fun pick(rows: List<HourlyForecast>, nowMs: Long) = SettledForecastPick.pick(rows, hour, nowMs)?.condition
+    private fun pick(rows: List<HourlyForecast>) = SettledForecastPick.pick(rows)?.condition
 
+    /** Desktop asleep 19:33-03:10 on 2026-11-04: NWS 18:45 said 4%, its 03:10 fetch said 25%. */
     @Test
-    fun `an hour not yet started takes the newest fetch`() {
-        assertEquals("preHour", pick(listOf(earlier, preHour), nowMs = hour))
+    fun `a fetch during the hour replaces an evening forecast`() {
+        val evening = row(hour - (8 * hourMs + 15 * 60_000L), "18:45", precip = 4)
+        val inHour = row(hour + 10 * 60_000L, "03:10", precip = 25)
+        val picked = SettledForecastPick.pick(listOf(evening, inHour))
+        println("picked=${picked?.condition} precip=${picked?.precipProbability}")
+        assertEquals(25, picked?.precipProbability)
     }
 
     @Test
-    fun `a started hour takes the newest fetch at or before it`() {
-        assertEquals("preHour", pick(listOf(hindcast, earlier, lateHindcast, preHour), started))
+    fun `the newest fetch wins, hindcast included`() {
+        assertEquals("lateHindcast", pick(listOf(hindcast, earlier, lateHindcast, preHour)))
     }
 
     @Test
-    fun `a fetch exactly at the hour counts as pre-hour`() {
-        assertEquals("atHour", pick(listOf(preHour, row(hour, "atHour"), hindcast), started))
-    }
-
-    @Test
-    fun `a started hour with no pre-hour fetch takes the earliest`() {
-        assertEquals("hindcast", pick(listOf(lateHindcast, hindcast), started))
-    }
-
-    @Test
-    fun `a synthesized row loses to any real pre-hour fetch`() {
-        assertEquals("earlier", pick(listOf(row(0L, "synthesized"), earlier), started))
-    }
-
-    /** User, 2026-10-27: "Freeze wins always" — a day-old forecast still beats a refill or hindcast. */
-    @Test
-    fun `a stale pre-hour forecast still beats a post-hour row`() {
-        assertEquals("stale", pick(listOf(hindcast, row(hour - 24 * hourMs, "stale")), started))
+    fun `a synthesized row loses to any real fetch`() {
+        assertEquals("earlier", pick(listOf(row(0L, "synthesized"), earlier)))
     }
 
     @Test
     fun `on a fetchedAt tie the row listed first wins`() {
         val live = row(preHour.fetchedAt, "live")
-        assertEquals("live", pick(listOf(live, preHour), started))
+        assertEquals("live", pick(listOf(live, preHour)))
+        assertEquals("preHour", pick(listOf(preHour, live)))
     }
 
     @Test
-    fun `backfill order follows the pick's window, nearest first`() {
-        fun order(rows: List<HourlyForecast>, nowMs: Long) =
-            SettledForecastPick.backfillOrder(rows, hour, nowMs).map { it.condition }
-        val rows = listOf(hindcast, earlier, lateHindcast, preHour)
-
-        assertEquals(listOf("preHour", "earlier"), order(rows, started))
-        assertEquals(listOf("hindcast", "lateHindcast"), order(listOf(lateHindcast, hindcast), started))
-        assertEquals(listOf("lateHindcast", "hindcast", "preHour", "earlier"), order(rows, nowMs = hour))
+    fun `backfill order is newest first`() {
+        assertEquals(
+            listOf("lateHindcast", "hindcast", "preHour", "earlier"),
+            SettledForecastPick.backfillOrder(listOf(hindcast, earlier, lateHindcast, preHour)).map { it.condition },
+        )
     }
 
     @Test
     fun `no rows picks nothing`() {
-        assertNull(pick(emptyList(), started))
+        assertNull(pick(emptyList()))
     }
 }

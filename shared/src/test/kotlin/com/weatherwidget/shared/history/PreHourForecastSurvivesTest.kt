@@ -17,7 +17,9 @@ import java.time.ZoneOffset
 /**
  * Tomorrow.io on desktop, night of 2026-10-31, replayed through the persist run, stitcher and
  * night-chance resolver (`plans/261101-one-hourly-forecast-table.md`). The 02:31 fetch said 97 % for
- * 03:00; a 03:17 fetch then said 20 %. Each fetch only adds rows, so the 97 % settles.
+ * 03:00; a 03:17 fetch then said 20 %. Each fetch only adds rows. Until 2026-11-04 the 97 % settled
+ * (pre-hour freeze); with the freeze removed the newest fetch stands
+ * (plans/261104-remove-hourly-pre-hour-freeze.md).
  */
 @Category(ShortDuration::class)
 class PreHourForecastSurvivesTest {
@@ -62,11 +64,13 @@ class PreHourForecastSurvivesTest {
     }
 
     @Test
-    fun `a fetch during the hour cannot erase the last forecast made before it`() {
+    fun `the newest fetch stands for the night, a fetch during the hour included`() {
         val store = Store().apply { replay() }
-        val stitched = HourlyForecastStitcher.stitch(store.rows, early(3, 30), lat, lon)
+        val stitched = HourlyForecastStitcher.stitch(store.rows, lat, lon)
+        val night = DailyRainLabels.resolveLiveDayNightChance(source, null, null, null, stitched, night, zone).nightPrecip
+        println("night chance=$night (97 under the pre-hour freeze)")
 
-        assertEquals(97, DailyRainLabels.resolveLiveDayNightChance(source, null, null, null, stitched, night, zone).nightPrecip)
+        assertEquals(20, night)
     }
 
     @Test

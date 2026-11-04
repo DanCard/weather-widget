@@ -10,10 +10,9 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 
 /**
- * The current hour has started, so it stands at its newest pre-hour forecast — the graph's rule
- * (SettledForecastPick). Android fed the resolver live rows, whose current hour was a post-hour
- * revision, while desktop fed stitched ones; the headers disagreed.
- * Plan: plans/261027-current-temp-reads-settled-hourly.md.
+ * The resolver reads the graph's rule (SettledForecastPick): the newest fetch, started hour or not,
+ * so both platforms' headers match their graph line.
+ * Plans: plans/261027-current-temp-reads-settled-hourly.md, plans/261104-remove-hourly-pre-hour-freeze.md.
  */
 @Category(ShortDuration::class)
 class CurrentTemperatureResolverSettledHourTest {
@@ -34,7 +33,7 @@ class CurrentTemperatureResolverSettledHourTest {
     )
 
     @Test
-    fun `the started hour interpolates from its pre-hour forecast`() {
+    fun `the started hour interpolates from its newest fetch`() {
         val result = CurrentTemperatureResolver.resolve(
             now = day.withHour(12).withMinute(30),
             displaySource = WeatherSource.OPEN_METEO,
@@ -43,8 +42,8 @@ class CurrentTemperatureResolverSettledHourTest {
             observedAt = null,
         )
 
-        // 60 -> 64 at half past: 62. The post-hour 70 gave 67.
-        assertEquals(62f, result.estimatedTemp!!, 0.01f)
+        // 70 (12:20 fetch) -> 64 at half past: 67. The frozen 11:40 forecast gave 62.
+        assertEquals(67f, result.estimatedTemp!!, 0.01f)
     }
 
     @Test
@@ -53,7 +52,7 @@ class CurrentTemperatureResolverSettledHourTest {
             rows, WeatherSource.OPEN_METEO.id, now = ms(12, 30),
         )
 
-        assertEquals(60f, smoothed.getValue(ms(12)), 0.01f)
+        assertEquals(70f, smoothed.getValue(ms(12)), 0.01f)
     }
 
     @Test

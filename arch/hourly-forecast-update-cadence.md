@@ -226,12 +226,14 @@ a substitute for the runtime receiver.
 
 ## Started hours and stale forecasts
 
-A started hour keeps the last forecast fetched at or before it (`SettledForecastPick`; a fetch during
-the hour can be a hindcast). A device that could not fetch, such as a desktop asleep overnight, keeps
-its last evening forecast for those hours, so devices can disagree. The hourly temperature,
-rain-chance, and cloud graphs on both platforms draw such an hour's forecast line at reduced opacity
-when its forecast was fetched more than 3 h before the hour (`:shared` `StaleForecastSpans`). The
-cloud graph's day-ago prediction is never dimmed.
+Every hour, started or not, shows the newest fetch (`SettledForecastPick`); a fetch during or after
+the hour may be a hindcast and still wins. The pre-hour freeze was removed 2026-11-04
+([plan](../plans/261104-remove-hourly-pre-hour-freeze.md)). Elapsed hours are not written by a fetch
+(`HourlyForecastWrite`), so a device that could not fetch, such as a desktop asleep overnight, keeps
+its last evening forecast for the hours it slept through, and devices can disagree. The hourly
+temperature, rain-chance, and cloud graphs on both platforms draw such an hour's forecast line at
+reduced opacity when its newest fetch was more than 3 h before the hour (`:shared`
+`StaleForecastSpans`). The cloud graph's day-ago prediction is never dimmed.
 See [plans/261104-dim-stale-pre-hour-forecasts.md](../plans/261104-dim-stale-pre-hour-forecasts.md).
 
 ## Related code

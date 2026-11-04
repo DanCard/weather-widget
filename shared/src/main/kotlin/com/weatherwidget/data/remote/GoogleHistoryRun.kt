@@ -5,9 +5,10 @@ package com.weatherwidget.data.remote
  * ([needsHistory]). The rule is [GoogleWeatherApi.needsHistory]; the platform ([Host]) only reads
  * Google's rows at the site.
  *
- * The previous-day refill that also lived here was removed 2026-10-27: every started hour freezes at
- * its pre-hour forecast, so a post-hour rewrite never drew, while each one spent the 20/day quota
- * (plans/261027-remove-google-history-refill.md).
+ * The previous-day refill that also lived here was removed 2026-10-27, when started hours froze at
+ * their pre-hour forecast and a post-hour rewrite never drew, while each one spent the 20/day quota
+ * (plans/261027-remove-google-history-refill.md). The freeze was removed 2026-11-04; the refill was
+ * not restored.
  */
 class GoogleHistoryRun(private val host: Host) {
     interface Host {

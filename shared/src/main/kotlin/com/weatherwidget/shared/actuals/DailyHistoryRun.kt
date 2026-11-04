@@ -129,17 +129,14 @@ class DailyHistoryRun(
         // Today's night window runs 8pm today -> 8am tomorrow, so the hourly reaches a day past tomorrow's midnight.
         val hourlyStartMs = yesterday.atStartOfDay(zone).toInstant().toEpochMilli()
         val hourlyEndMs = today.plusDays(2).atStartOfDay(zone).toInstant().toEpochMilli()
-        // The stitched hourly the graph draws, not the live table alone: once a post-noon fetch
-        // overwrote noon's live row, the live table held only the hindcast, so 2026-10-26's
-        // OPEN_METEO noon cloud froze at 94% while the graph showed the 10% pre-noon forecast.
-        // Elapsed hours take their pre-hour forecast (SettledForecastPick) for rain chance too.
-        // plans/261027-daily-freeze-reads-stitched-hourly.md
+        // The stitched hourly the graph draws (SettledForecastPick: newest fetch per hour), so the
+        // archived noon cloud and rain chance match the graph. plans/261027-daily-freeze-reads-stitched-hourly.md,
+        // plans/261104-remove-hourly-pre-hour-freeze.md
         val history = dailyRows.map { it.source }.distinct().flatMap { source ->
             host.hourlyHistory(hourlyStartMs, hourlyEndMs, latitude, longitude, source)
         }
         val hourly = HourlyForecastStitcher.stitchBySource(
             rows = history,
-            nowMs = nowMs,
             centerLat = latitude,
             centerLon = longitude,
         )

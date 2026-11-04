@@ -17,9 +17,9 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 
 /**
- * `GraphDataLoader.loadCurrentTempInputHourlyForecasts` read the live table only, so the current
- * (started) hour carried its post-hour revision while desktop's stitched read carried the pre-hour
- * forecast. Plan: plans/261027-current-temp-reads-settled-hourly.md.
+ * `GraphDataLoader.loadCurrentTempInputHourlyForecasts` reads the stitched rows desktop reads, so the
+ * current hour carries the newest fetch on both platforms (no pre-hour freeze since 2026-11-04).
+ * Plans: plans/261027-current-temp-reads-settled-hourly.md, plans/261104-remove-hourly-pre-hour-freeze.md.
  */
 @RunWith(RobolectricTestRunner::class)
 @Category(LongDuration::class)
@@ -36,7 +36,7 @@ class CurrentTempInputSettledRoboTest {
     fun close() = db.close()
 
     @Test
-    fun `the current hour comes back at its pre-hour forecast, not the live revision`() = runBlocking {
+    fun `the current hour comes back at its newest fetch, the display source only`() = runBlocking {
         db = TestDatabase.create()
         val key = LocationMatch.quantize(lat) to LocationMatch.quantize(lon)
         db.hourlyForecastDao().insertAll(
@@ -65,6 +65,6 @@ class CurrentTempInputSettledRoboTest {
             db.hourlyForecastDao(), db.hourlyForecastHistoryDao(), source, lat, lon, now,
         )
 
-        assertEquals(listOf(source.id to 60f), rows.filter { it.dateTime == ms(12) && it.source == source.id }.map { it.source to it.temperature })
+        assertEquals(listOf(source.id to 70f), rows.filter { it.dateTime == ms(12) && it.source == source.id }.map { it.source to it.temperature })
     }
 }

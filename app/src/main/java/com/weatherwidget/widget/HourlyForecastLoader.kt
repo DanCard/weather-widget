@@ -121,7 +121,7 @@ internal class HourlyForecastLoader(
         private const val TAG = "HourlyForecastLoader"
 
         private fun stitch(rows: List<HourlyForecastEntity>, nowMs: Long, lat: Double, lon: Double): List<HourlyForecastEntity> =
-            HourlyForecastStitcher.stitchBySource(rows.map { it.toHourlyForecast() }, nowMs, lat, lon)
+            HourlyForecastStitcher.stitchBySource(rows.map { it.toHourlyForecast() }, lat, lon)
                 .map { it.toEntity(lat, lon) }
 
         /**

@@ -15,11 +15,9 @@ import java.time.ZoneId
  *    backfills read the freshest per hour, as does `HourlyForecastSelector`.
  * 2. **Settled pick** ([SettledForecastPick]): `HourlyForecastStitcher` (Android
  *    `HourlyForecastLoader`/`GraphDataLoader`, desktop `getHourlyWithHistory`) and
- *    `DailyNoonCloudCover` read the newest row fetched at or before the hour — else the earliest —
- *    and fill its null fields from that same window, newest first. So keep that row and, per
- *    coalesced field, the newest non-null row in the window. Before this rule (2a3293ef) the
- *    pre-hour row was kept only when it happened to be the previous day's newest, so a same-day
- *    11:44 forecast for noon was pruned behind a 12:01 hindcast and the frozen line reverted.
+ *    `DailyNoonCloudCover` read the newest row, started hour or not (the pre-hour freeze was removed
+ *    2026-11-04), and fill its null fields from the next-newest rows. So keep that row and, per
+ *    coalesced field, the newest non-null row.
  * 3. **Prior-day band:** newest bucket at least [BAND_LEAD_MS] before the hour among rows carrying a
  *    mid or high band (`PriorDayBandForecast.select`).
  * 4. **Rain accuracy:** newest bucket captured on the hour's previous local calendar day
@@ -30,9 +28,7 @@ import java.time.ZoneId
  *
  * Each is "the newest row within a window that never moves", and new snapshots only ever arrive with
  * later buckets, so a row that is not the newest in its window now can never become it later —
- * pruning is safe for future hours as well as past ones, and idempotent. Rule 2 for an hour not yet
- * started keeps the newest fetch, which is also the newest pre-hour row once it starts; its
- * earliest-row fallback applies only when no row predates the hour, and none can arrive afterwards.
+ * pruning is safe for future hours as well as past ones, and idempotent.
  *
  * Keeping each site's own maxima preserves every reader's cross-site maximum, so readers that merge
  * sites (the stitcher's same-site/borrow sets, rain accuracy's unfiltered box) see the same result.
@@ -113,7 +109,7 @@ object HistorySnapshotRetention {
             val prevDayStart = day.minusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
             keepMax(group.filter { it.bucket in prevDayStart until dayStart }, kept) { it.bucket }
             // 2. settled pick and its per-field backfill, from the same window (ties: keep all)
-            val window = SettledForecastPick.backfillOrder(group, hour, nowMs) { it.fetchedAt }
+            val window = SettledForecastPick.backfillOrder(group) { it.fetchedAt }
             keepFetchedAtOf(window.firstOrNull(), window, kept)
             for (field in coalescedFields) {
                 val withField = window.filter { field(it) != null }

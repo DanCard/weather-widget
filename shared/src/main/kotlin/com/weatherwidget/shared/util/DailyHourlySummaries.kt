@@ -112,10 +112,9 @@ object DailyHourlySummaries {
      * reading hourly first would let them override a fresher row.
      *
      * **Today** is the exception ([today] == [date]): when the stitched rows cover a window, that
-     * window's max comes from them. The display passes `HourlyForecastStitcher` output, which freezes
-     * a started hour at its pre-hour forecast, as the hourly graph does; the row is computed from a
-     * single download, where a fetch made during an hour carries the provider's in-hour revision.
-     * Tomorrow.io 2026-11-03: 08:57 run 45% at 10am, 10:02 run 0% → graph 45%, label blank. Today's
+     * window's max comes from them. The display passes `HourlyForecastStitcher` output, the rows the
+     * hourly graph draws (newest fetch per hour; until 2026-11-04 a started hour froze at its pre-hour
+     * forecast — Tomorrow.io 2026-11-03: 08:57 run 45% at 10am, 10:02 run 0% → graph 45%, label blank). Today's
      * hours are always inside the 72 h store, so the far-hour concern above does not apply.
      * (plans/261103-today-rain-chance-from-stitched-hours.md)
      */

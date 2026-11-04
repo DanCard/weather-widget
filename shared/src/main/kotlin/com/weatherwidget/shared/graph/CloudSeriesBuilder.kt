@@ -32,8 +32,8 @@ data class CloudBands(
 data class CloudPoint(
     val timeMs: Long,
     /**
-     * Frozen day-ago prediction for hours of past days; otherwise the stitched row, which for
-     * today's elapsed hours is already the pre-hour forecast (`SettledForecastPick`).
+     * Frozen day-ago prediction for hours of past days; otherwise the stitched row (the newest fetch,
+     * `SettledForecastPick`).
      */
     val forecastCover: Int?,
     /**
@@ -45,7 +45,7 @@ data class CloudPoint(
     val actualCover: Int?,
     /**
      * False when no day-ago prediction was used and [forecastCover] is the stitched row — always the
-     * case for today's hours, whose stitched row is the pre-hour forecast rather than a hindcast.
+     * case for today's hours, whose stitched row is the newest fetch (possibly a hindcast).
      * That fallback is a hindcast wearing the forecast's clothes, so it must stay distinguishable —
      * for diagnostics, for tests, and so the render can decline to imply an accuracy comparison it
      * cannot actually make.
@@ -102,8 +102,7 @@ object CloudSeriesBuilder {
         zoneId: java.time.ZoneId = java.time.ZoneId.systemDefault(),
     ): List<CloudPoint> {
         // A day-ago prediction is only compared for past days (prior to today).
-        // For hours of today, the forecast continues updating until the hour passes, and keeps
-        // the last pre-hour forecast from HourlyForecastStitcher rather than reverting to a day ago.
+        // Hours of today show the stitched row (newest fetch) rather than reverting to a day ago.
         val todayStartMs = java.time.Instant.ofEpochMilli(nowMs).atZone(zoneId)
             .toLocalDate().atStartOfDay(zoneId).toInstant().toEpochMilli()
         // Bit-mask-free nearest lookup: the map is a few thousand keys at most and this property

@@ -127,7 +127,7 @@ object DailyHistoryMaintenance {
      *
      * [dailyRows] is the current forecast (one row per date/source); [hourly] is the stitched hourly
      * (live + history, `HourlyForecastStitcher`) covering yesterday..tomorrow, so elapsed hours carry
-     * their pre-hour forecast as the graph does; [existing] is every `daily_history` fragment in the
+     * the graph's newest fetch; [existing] is every `daily_history` fragment in the
      * same range. Only rows that already exist are updated.
      */
     fun planSnapshotDisplayedRainChance(
@@ -368,7 +368,6 @@ object DailyHistoryMaintenance {
             if (historyRows.isEmpty()) continue
             val stitched = HourlyForecastStitcher.stitch(
                 rows = historyRows,
-                nowMs = nowMs,
                 centerLat = centerLat,
                 centerLon = centerLon,
             )
@@ -425,7 +424,6 @@ object DailyHistoryMaintenance {
                 DailyNoonCloudCover.resolveMeasuredNoonCloudCoverPercent(
                     hourly = HourlyForecastStitcher.stitch(
                         rows = historyRows,
-                        nowMs = nowMs,
                         centerLat = centerLat,
                         centerLon = centerLon,
                     ),

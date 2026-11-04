@@ -112,9 +112,8 @@ object DailyNoonCloudCover {
             .filter { LocalDateTime.ofInstant(Instant.ofEpochMilli(it.dateTime), zone) == noon }
             .filter { with(VisibleCloudCover) { it.visibleCloudCover() } != null }
             .toList()
-        // No "now" here: a noon that has not come yet has only pre-noon fetches, so the settled
-        // rule already returns the newest — the same answer the stitcher's not-started branch gives.
-        return SettledForecastPick.pick(matching, noonMs, nowMs = Long.MAX_VALUE)
+        // The newest fetch, the same row the hourly graph draws at 12:00 (SettledForecastPick).
+        return SettledForecastPick.pick(matching)
             ?.let { with(VisibleCloudCover) { it.visibleCloudCover() } }
             ?.coerceIn(0, 100)
     }

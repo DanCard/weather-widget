@@ -49,22 +49,24 @@ abstract class StitchedHourlyReadContract {
     private fun history(hour: Long, temp: Float, fetchedAt: Long, cloud: Int? = null) =
         seed.hourlyHistory(hr(hour, temp, fetchedAt, cloud), snapshotBucketMs = fetchedAt)
 
-    /** Desktop 2026-10-26: Open-Meteo's 12:27 fetch rewrote noon to 94% after noon had passed. */
+    /** No pre-hour freeze since 2026-11-04 (plans/261104-remove-hourly-pre-hour-freeze.md): the newest fetch stands. */
     @Test
-    fun `a past hour keeps the newest pre-hour forecast, cloud from the nearest snapshot`() = runBlocking {
+    fun `a past hour takes its newest fetch, a null field from the next-newest`() = runBlocking {
         history(H0, 58f, fetchedAt = H0 - 6 * DAY, cloud = 10) // long-range
         history(H0, 61f, fetchedAt = H0 - HOUR, cloud = 40)
         history(H0, 62f, fetchedAt = H0 - 20 * MINUTE) // NWS near-term: no sky cover
         history(H0, 70f, fetchedAt = H0 + 27 * MINUTE, cloud = 94)
         seed.hourly(hr(H0, 70f, fetchedAt = H0 + 27 * MINUTE, cloud = 94))
 
+        history(H0, 72f, fetchedAt = H0 + 40 * MINUTE) // newest: no sky cover
+
         // Two days later: a past day, not just today's elapsed hours.
-        assertEquals(62f to 40, readHour(H0, nowMs = H0 + 2 * DAY))
+        assertEquals(72f to 94, readHour(H0, nowMs = H0 + 2 * DAY))
     }
 
-    /** The header's reserve must match the rain % it reserves for, not a post-hour rewrite. */
+    /** Each source reads its own newest fetch; another source's row never stands in. */
     @Test
-    fun `every source settles on its own pre-hour forecast`() = runBlocking {
+    fun `every source settles on its own newest fetch`() = runBlocking {
         history(H0, 61f, fetchedAt = H0 - HOUR)
         seed.hourly(hr(H0, 70f, fetchedAt = H0 + 20 * MINUTE))
         seed.hourlyHistory(hr(H0, 52f, fetchedAt = H0 - HOUR).copy(source = OTHER_SOURCE), snapshotBucketMs = H0 - HOUR)
@@ -72,16 +74,16 @@ abstract class StitchedHourlyReadContract {
 
         val rows = reader.readAllSources(H0 - HOUR / 2, H0 + HOUR / 2, nowMs = H0 + 30 * MINUTE)
 
-        assertEquals(mapOf(SOURCE to 61f, OTHER_SOURCE to 52f), rows.associate { it.source to it.temperature })
+        assertEquals(mapOf(SOURCE to 70f, OTHER_SOURCE to 58f), rows.associate { it.source to it.temperature })
     }
 
-    /** User, 2026-10-27: "Freeze wins always" — a stale forecast beats a later live rewrite (a Google refill). */
+    /** A later live rewrite (a Google refill) replaces a stale forecast: newest wins. */
     @Test
-    fun `a stale past hour keeps its forecast over a refilled live row`() = runBlocking {
+    fun `a refilled live row replaces a stale past hour's forecast`() = runBlocking {
         history(H0, 71.7f, fetchedAt = H0 - 8 * HOUR, cloud = 20)
         seed.hourly(hr(H0, 69.5f, fetchedAt = H0 + 20 * HOUR, cloud = 60))
 
-        assertEquals(71.7f to 20, readHour(H0, nowMs = H0 + DAY))
+        assertEquals(69.5f to 60, readHour(H0, nowMs = H0 + DAY))
     }
 
     @Test

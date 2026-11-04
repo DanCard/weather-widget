@@ -121,7 +121,7 @@ class DailyHistoryRunTest {
      * plans/261027-daily-freeze-reads-stitched-hourly.md
      */
     @Test
-    fun `noon cloud freezes at the pre-noon forecast the graph draws, not the live hindcast`() = runBlocking {
+    fun `noon cloud archives the newest fetch the graph draws`() = runBlocking {
         val host = FakeHost()
         host.history += history(today, "OPEN_METEO")
         host.forecasts += forecast(today, "OPEN_METEO", fetchedAt = local(today, 6))
@@ -132,12 +132,13 @@ class DailyHistoryRunTest {
 
         DailyHistoryRun(host) { pacific }.snapshotDisplayedRainChance(lat, lon, local(today, 15))
 
-        assertEquals(10, host.inserted.single { it.date == utc(today) }.noonCloudPercent)
+        // No pre-hour freeze since 2026-11-04: the 12:27 fetch stands (it was 10, the 11:40 forecast).
+        assertEquals(94, host.inserted.single { it.date == utc(today) }.noonCloudPercent)
     }
 
-    /** The same stitched hours set the day chance: an elapsed hour counts what was forecast before it. */
+    /** The same stitched hours set the day chance: an elapsed hour counts its newest fetch. */
     @Test
-    fun `day rain chance freezes from the pre-hour forecast of elapsed hours`() = runBlocking {
+    fun `day rain chance archives the newest fetch of elapsed hours`() = runBlocking {
         val host = FakeHost()
         host.history += history(today, "OPEN_METEO")
         host.forecasts += forecast(today, "OPEN_METEO", fetchedAt = local(today, 6))
@@ -148,7 +149,8 @@ class DailyHistoryRunTest {
 
         DailyHistoryRun(host) { pacific }.snapshotDisplayedRainChance(lat, lon, local(today, 15))
 
-        assertEquals(60, host.inserted.single { it.date == utc(today) }.forecastDayPrecipChance)
+        // The 10:00 fetch's 0 stands; the 08:00 forecast's 60 settled under the pre-hour freeze.
+        assertEquals(0, host.inserted.single { it.date == utc(today) }.forecastDayPrecipChance)
     }
 
     @Test

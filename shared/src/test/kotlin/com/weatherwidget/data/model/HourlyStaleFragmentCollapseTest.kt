@@ -88,7 +88,7 @@ class HourlyStaleFragmentCollapseTest {
     )
 
     private fun stitch(rows: List<HourlyForecast>) =
-        HourlyForecastStitcher.stitch(rows = rows, nowMs = hour1900, centerLat = centerLat,
+        HourlyForecastStitcher.stitch(rows = rows, centerLat = centerLat,
             centerLon = centerLon,
         )
 
@@ -161,7 +161,7 @@ class HourlyStaleFragmentCollapseTest {
         val meteo = fragments1900()
         val nws = meteo.map { it.copy(source = "NWS", temperature = it.temperature - 5f) }
 
-        val result = HourlyForecastStitcher.stitchBySource(rows = meteo + nws, nowMs = hour1900, centerLat = centerLat,
+        val result = HourlyForecastStitcher.stitchBySource(rows = meteo + nws, centerLat = centerLat,
             centerLon = centerLon,
         )
 
@@ -173,7 +173,7 @@ class HourlyStaleFragmentCollapseTest {
 
     @Test
     fun `single-source input still routes through the plain stitch path`() {
-        val result = HourlyForecastStitcher.stitchBySource(rows = fragments1900(), nowMs = hour1900, centerLat = centerLat,
+        val result = HourlyForecastStitcher.stitchBySource(rows = fragments1900(), centerLat = centerLat,
             centerLon = centerLon,
         )
         assertEquals(1, result.size)
@@ -225,7 +225,6 @@ class HourlyStaleFragmentCollapseTest {
         val fromRaw = stitch(fragments1900()).single()
         val fromQuantized = HourlyForecastStitcher.stitch(
             rows = fragments1900(),
-            nowMs = hour1900,
             centerLat = LocationMatch.quantize(centerLat),
             centerLon = LocationMatch.quantize(centerLon),
         ).single()
