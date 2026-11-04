@@ -656,4 +656,42 @@ class PrecipitationGraphRendererTest {
         assertTrue("Pred periods are single-hour", predPeriods.all { it.startIndex == it.endIndex })
         assertEquals("Pred hour-1 anchored to its x", 10f, predPeriods.first().anchorX)
     }
+
+    /**
+     * Fold 4, 2026-11-04: NWS 1a..5a = 25/25/25/0/0. A smoothing pass drew and labelled 3a as
+     * "19%" (25·¼ + 25·½ + 0·¼) and lifted 4a to 6%. The graph plots raw source values.
+     */
+    @Test
+    fun `plateau edge hour plots and labels the raw source value`() {
+        val start = LocalDateTime.of(2026, 11, 4, 1, 0)
+        val signal = listOf(25, 25, 25, 0, 0)
+        val hours = signal.mapIndexed { i, prob ->
+            PrecipitationGraphRenderer.PrecipHourData(
+                dateTime = start.plusHours(i.toLong()),
+                precipProbability = prob,
+                label = "${start.plusHours(i.toLong()).hour}h",
+                showLabel = true,
+            )
+        }
+
+        val layout = PrecipitationGraphRenderer.calculateLayout(
+            hours = hours,
+            widthPx = 1000,
+            heightPx = 400,
+            currentTime = start.plusMinutes(150),
+            showHourlyIcons = false,
+            textMeasurer = mockTextMeasurer,
+        )
+
+        val placed = layout.probabilityPlacements.map { "${it.debug.index}(${it.debug.probability}%)" }
+        println("plateau-edge labelSignal=${layout.labelSignal} placed=$placed ys=${layout.points.map { it.second }}")
+
+        assertEquals("Label signal is the raw source series", signal, layout.labelSignal)
+        assertEquals("3a draws at the same height as the 25% plateau", layout.points[0].second, layout.points[2].second, 0.001f)
+        assertEquals("4a draws on the 0% baseline", layout.graphBottom, layout.points[3].second, 0.001f)
+        assertTrue(
+            "Every label is a value the source published. Placed: $placed",
+            layout.probabilityPlacements.all { it.debug.probability in signal },
+        )
+    }
 }

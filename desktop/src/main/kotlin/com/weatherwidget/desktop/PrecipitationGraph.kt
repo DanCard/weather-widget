@@ -90,7 +90,6 @@ fun PrecipitationGraph(
     val cutoff = setup.cutoff
     val points = setup.points
     val painters = setup.painters
-    val smoothIterations = setup.smoothIterations
 
     val watermarkPainter = painterResource("drawable/ic_weather_rain.xml")
     // Where the canvas drew the "Sim loop" and "Radar" pills (px), so the clickable overlays can sit on them.
@@ -117,10 +116,10 @@ fun PrecipitationGraph(
         val windowStart = start
         val windowEnd = cutoff
 
-        val rawProbs = points.map { it.precipProbability?.toFloat() ?: 0f }
-        val smoothedProbs = com.weatherwidget.shared.graph.SeriesSmoothing.smoothValuesPreservingAllExtrema(rawProbs, smoothIterations)
+        // Raw source values, never smoothed (shared PrecipGraphSeries, same as the widget).
+        val probs = com.weatherwidget.shared.graph.PrecipGraphSeries.values(points.map { it.precipProbability })
         
-        val maxProb = smoothedProbs.maxOrNull() ?: 0f
+        val maxProb = probs.maxOrNull() ?: 0f
         val yScaleMax = (maxProb * 1.15f).coerceAtLeast(10f).coerceAtMost(100f)
 
         // Plot bounds + x-axis mapping shared with the cloud/temperature graphs.
@@ -139,7 +138,7 @@ fun PrecipitationGraph(
             return graphBottom - graphHeight * (clamped / yScaleMax)
         }
 
-        val coords = points.mapIndexed { i, _ -> Offset(xAt(i), yAt(smoothedProbs[i])) }
+        val coords = points.mapIndexed { i, _ -> Offset(xAt(i), yAt(probs[i])) }
 
         // Draw Fill Path
         val fillPath = Path().apply {
@@ -215,7 +214,7 @@ fun PrecipitationGraph(
         // Value (%) labels (peak / dip / start / end) via the shared ValueLabelEngine — the same
         // engine used by the cloud graph and the Android renderers. Compose draws top-left anchored,
         // so we treat the measured box bottom as the baseline (ascent = -height, descent = 0).
-        val labelSignal = smoothedProbs.map { it.roundToInt().coerceIn(0, 100) }
+        val labelSignal = probs.map { it.roundToInt().coerceIn(0, 100) }
         val labelStyle = TextStyle(fontSize = (11 * scale).sp, color = Color.White)
         val labelHeight = textMeasurer.measure("0%", labelStyle).size.height.toFloat()
         val placements = ValueLabelEngine.computePlacements(

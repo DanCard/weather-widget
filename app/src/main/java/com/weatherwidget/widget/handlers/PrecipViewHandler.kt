@@ -373,7 +373,6 @@ object PrecipViewHandler {
                 heightPx = bitmapDims.heightPx,
                 currentTime = now,
                 bitmapScale = bitmapDims.bitmapScale,
-                smoothIterations = zoom.smoothIterations,
                 hourLabelSpacingDp = hourLabelSpacingDp,
                 rainAmountWindowHours = rainAmountWindowHours,
                 rainLabelMode = rainLabelMode,

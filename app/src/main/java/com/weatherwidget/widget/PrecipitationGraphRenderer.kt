@@ -7,7 +7,7 @@ import com.weatherwidget.shared.graph.SimLoopPill
 import com.weatherwidget.shared.graph.HourlyGraphDefaults
 import com.weatherwidget.shared.graph.ValueLabelEngine
 import com.weatherwidget.shared.graph.HourlyTimelineGeometry
-import com.weatherwidget.shared.graph.SeriesSmoothing
+import com.weatherwidget.shared.graph.PrecipGraphSeries
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
 import android.content.Context
@@ -16,11 +16,9 @@ import android.util.Log
 import com.weatherwidget.R
 import com.weatherwidget.shared.graph.DayNightHours
 import com.weatherwidget.shared.graph.RainPeriodSelection
-import java.time.Duration
 import java.time.LocalDateTime
 import java.time.LocalDate
 import com.weatherwidget.shared.util.DailyRainLabels
-import kotlin.math.abs
 import kotlin.math.roundToInt
 
 // Rain-period selection lives in :shared so Android and desktop cannot drift. These aliases keep the
@@ -41,7 +39,6 @@ object PrecipitationGraphRenderer {
     private const val COLOR_NOWCAST_BAND = "#B34FC3F7"
 
     private const val GRAPH_TOP_PADDING_DP = 44f
-    private const val FAR_OUT_DATA_HOURS_THRESHOLD = 72L
     private const val Y_SCALE_HEADROOM_FACTOR = 1.15f
     private const val Y_SCALE_MIN = 10f
     // NARROW zoom shows per-hour labels for the first few columns; the rightmost column sits at the
@@ -180,7 +177,6 @@ object PrecipitationGraphRenderer {
         heightPx: Int,
         currentTime: LocalDateTime,
         bitmapScale: Float = 1f,
-        smoothIterations: Int = 2,
         rainAmountWindowHours: Int = 0,
         rainLabelMode: RainLabelMode = RainLabelMode.WINDOW_TOTAL,
         showHourlyIcons: Boolean,
@@ -207,23 +203,8 @@ object PrecipitationGraphRenderer {
         val hourWidth = widthPx.toFloat() / (hours.size - 1).coerceAtLeast(1)
 
         val points = mutableListOf<Pair<Float, Float>>()
-        val rawProbs = hours.map { it.precipProbability.coerceIn(0, 100).toFloat() }
-        val isFarOutData = hours.isNotEmpty() && abs(
-            Duration.between(hours[hours.size / 2].dateTime, currentTime).toHours()
-        ) > FAR_OUT_DATA_HOURS_THRESHOLD
-
-        val probs = if (isFarOutData) {
-            SeriesSmoothing.smoothValuesPreservingExtrema(
-                rawProbs,
-                iterations = smoothIterations,
-                preserveGlobalMax = true,
-                preserveGlobalMin = false,
-                preserveStart = true,
-                preserveEnd = true,
-            )
-        } else {
-            SeriesSmoothing.smoothValuesPreservingAllExtrema(rawProbs, iterations = smoothIterations)
-        }
+        // Raw source values, never smoothed (shared PrecipGraphSeries).
+        val probs = PrecipGraphSeries.values(hours.map { it.precipProbability })
 
         val rawMax = probs.maxOrNull() ?: 0f
         val yScaleMax = (rawMax * Y_SCALE_HEADROOM_FACTOR).coerceAtLeast(Y_SCALE_MIN).coerceAtMost(100f)
@@ -512,7 +493,6 @@ object PrecipitationGraphRenderer {
         heightPx: Int,
         currentTime: LocalDateTime,
         bitmapScale: Float = 1f,
-        smoothIterations: Int = 2,
         hourLabelSpacingDp: Float = HourlyGraphDefaults.DEFAULT_HOUR_LABEL_SPACING_DP,
         rainAmountWindowHours: Int = 0,
         rainLabelMode: RainLabelMode = RainLabelMode.WINDOW_TOTAL,
@@ -624,7 +604,6 @@ object PrecipitationGraphRenderer {
             heightPx = heightPx,
             currentTime = currentTime,
             bitmapScale = bitmapScale,
-            smoothIterations = smoothIterations,
             rainAmountWindowHours = rainAmountWindowHours,
             rainLabelMode = rainLabelMode,
             showHourlyIcons = showHourlyIcons,
