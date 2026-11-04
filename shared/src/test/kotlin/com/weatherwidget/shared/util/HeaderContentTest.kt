@@ -109,11 +109,15 @@ class HeaderContentTest {
     }
 
     @Test
-    fun zeroRainIsHiddenExceptInThePrecipView() {
+    fun zeroRainIsHiddenInEveryView() {
+        // Desktop rain-chance view, 2026-11-04: "Should print nothing instead of 0%".
         val now = LocalDateTime.of(2026, 6, 1, 12, 0)
-        assertNull(build(View.DAILY, emptyList(), now, fallbackDailyPrecip = 0).precipText)
-        assertNull(build(View.CLOUD_COVER, emptyList(), now, fallbackDailyPrecip = 0).precipText)
-        assertEquals("0%", build(View.PRECIPITATION, emptyList(), now, fallbackDailyPrecip = 0).precipText)
+        View.entries.forEach { view ->
+            val content = build(view, emptyList(), now, fallbackDailyPrecip = 0)
+            println("zero rain view=$view precipText=${content.precipText}")
+            assertNull("$view", content.precipText)
+            assertNull("$view", content.precipProbability)
+        }
         assertEquals(0, build(View.DAILY, emptyList(), now, fallbackDailyPrecip = 0).computedPrecipProbability)
     }
 

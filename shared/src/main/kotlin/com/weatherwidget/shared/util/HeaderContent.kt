@@ -18,7 +18,7 @@ object HeaderContent {
     const val LOG_TAG = "HEADER_CONTENT"
 
 
-    /** The view whose header is drawn; the hourly views differ only in the delta and 0 % rules. */
+    /** The view whose header is drawn; the hourly views differ only in the delta rule. */
     enum class View {
         DAILY, TEMPERATURE, PRECIPITATION, CLOUD_COVER;
 
@@ -188,7 +188,7 @@ object HeaderContent {
 
     /**
      * Daily: the next 6 h from now. Hourly views: the next 6 h from the panned hour. Hidden at 0 %
-     * except in the precip view, where 0 % confirms "dry".
+     * in every view (user, 2026-11-04: the precip view's "0%" should print nothing).
      */
     private fun precipitation(
         view: View,
@@ -205,7 +205,7 @@ object HeaderContent {
             fallbackDailyPrecip,
             if (view == View.DAILY) now else centerTime,
         )
-        val shown = if (view == View.PRECIPITATION) probability else probability?.takeIf { it > 0 }
+        val shown = probability?.takeIf { it > 0 }
         return Precip(shown, probability)
     }
 }
