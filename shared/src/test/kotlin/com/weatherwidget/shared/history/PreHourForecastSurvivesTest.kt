@@ -43,7 +43,6 @@ class PreHourForecastSurvivesTest {
             rows.filter { it.dateTime in startMs..endMs }.groupBy { it.dateTime }.values.map { hour -> hour.maxBy { it.fetchedAt } }
         override suspend fun writeHourly(rows: List<HourlyForecast>) { this.rows += rows.map { it.copy(locationLat = lat, locationLon = lon) } }
         override fun elapsedStore(label: Long, nowMs: Long) = object : ElapsedForecastBackfill.Store {
-            override suspend fun coveredHours(startMs: Long, endMs: Long) = emptySet<Long>()
             override suspend fun insert(rows: List<HourlyForecast>) = Unit
         }
         override suspend fun storedDaily(from: LocalDate, to: LocalDate) = emptyList<DailyForecastWrite.Stored<String>>()

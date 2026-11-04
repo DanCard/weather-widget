@@ -43,7 +43,6 @@ class SharedFetchStepsTest {
     @Test
     fun `an elapsed backfill that offers nothing in the window writes and logs nothing`() = runBlocking {
         val store = object : ElapsedForecastBackfill.Store {
-            override suspend fun coveredHours(startMs: Long, endMs: Long): Set<Long> = error("not read")
             override suspend fun insert(rows: List<HourlyForecast>) = error("not written")
         }
         assertNull(ElapsedForecastBackfill.backfill(listOf(row(now + hour, now)), now, store))

@@ -14,10 +14,11 @@ import com.weatherwidget.data.local.LocationMatch
  * (Open-Meteo `past_days`, Silurian `include_past`, Tomorrow.io `nowMinus23h`, NWS's raw
  * gridpoint back to the issuance start), and the write path threw them away.
  *
- * One rule, same-source only: **an elapsed hour is filed iff the source has no history row for
- * it at that site.** That is the only case where nothing is overwritten. Where a genuine snapshot
- * exists, the elapsed value is a hindcast and freshest-wins would promote it over the prediction
- * — that is the case the write-side drop exists for, and it still holds.
+ * One rule: **every elapsed hour the payload carries inside [window] is filed**, stamped with this
+ * fetch's time, so the stitcher's newest-wins reads it. Until 2026-11-04 an hour was filed only when
+ * the source had no row for it (a hindcast must not beat the pre-hour freeze); with the freeze gone
+ * that dropped exactly the data a device asleep overnight needed — desktop kept NWS's 18:45 5% for
+ * 1am while its 04:00 refresh carried the grid's 25% (plans/261104-file-every-elapsed-hour.md).
  *
  * [ELAPSED_BOUNDARY_MS] is the same boundary the live-table filter uses, so both writes agree
  * about which side of "now" an hour is on: an hour goes to exactly one of the two paths.
@@ -33,52 +34,42 @@ object ElapsedForecastBackfill {
     /** Hours [nowMs - LOOKBACK_MS, nowMs - ELAPSED_BOUNDARY_MS) — the window a backfill may fill. */
     fun window(nowMs: Long): LongRange = (nowMs - LOOKBACK_MS) until (nowMs - ELAPSED_BOUNDARY_MS)
 
-    /**
-     * The rows to file: elapsed hours of [fetched] inside [window] that [coveredHours] does not
-     * already hold, in time order. Duplicate hours in the payload collapse to the last one.
-     */
-    fun select(
-        fetched: List<HourlyForecast>,
-        nowMs: Long,
-        coveredHours: Set<Long>,
-    ): List<HourlyForecast> {
+    /** The rows to file: elapsed hours of [fetched] inside [window], in time order. Duplicate hours collapse to the last one. */
+    fun select(fetched: List<HourlyForecast>, nowMs: Long): List<HourlyForecast> {
         val range = window(nowMs)
         return fetched
-            .filter { it.dateTime in range && it.dateTime !in coveredHours }
+            .filter { it.dateTime in range }
             .associateBy { it.dateTime }
             .values
             .sortedBy { it.dateTime }
     }
 
-    /** One backfill's outcome: hours the payload offered in the window, those already covered, rows written. */
-    data class Summary(val offered: Int, val covered: Int, val stored: Int)
+    /** One backfill's outcome: hours the payload offered in the window, rows written. */
+    data class Summary(val offered: Int, val stored: Int)
 
     /** One source's `hourly_forecasts` at one site. */
     interface Store {
-        /** Hours with a history row at the site (same-site match, any bucket) in [startMs, endMs). */
-        suspend fun coveredHours(startMs: Long, endMs: Long): Set<Long>
-
         /** Files [rows] under the platform's snapshot bucket for this fetch. */
         suspend fun insert(rows: List<HourlyForecast>)
     }
 
-    /** Files [fetched]'s uncovered elapsed hours into [store] ([select]); null when it offered none in the window. */
+    /** Files [fetched]'s elapsed hours into [store] ([select]); null when it offered none in the window. */
     suspend fun backfill(fetched: List<HourlyForecast>, nowMs: Long, store: Store): Summary? {
         val range = window(nowMs)
-        val offered = fetched.filter { it.dateTime in range }
-        if (offered.isEmpty()) return null
-        val covered = store.coveredHours(offered.minOf { it.dateTime }, offered.maxOf { it.dateTime } + 1)
-        val selected = select(offered, nowMs, covered)
-        if (selected.isNotEmpty()) store.insert(selected)
-        return Summary(offered.size, covered.size, selected.size)
+        val offered = fetched.count { it.dateTime in range }
+        if (offered == 0) return null
+        // Stamped here, not per platform: newest-wins must read this fetch as the newest on both.
+        val selected = select(fetched, nowMs).map { it.copy(fetchedAt = nowMs) }
+        store.insert(selected)
+        return Summary(offered, selected.size)
     }
 
     const val LOG_TAG = "HOURLY_HISTORY_BACKFILL"
 
     fun logMessage(sourceId: String, latitude: Double, longitude: Double, summary: Summary): String =
         "source=$sourceId site=${LocationMatch.quantize(latitude)},${LocationMatch.quantize(longitude)} " +
-            "offered=${summary.offered} covered=${summary.covered} stored=${summary.stored}"
+            "offered=${summary.offered} stored=${summary.stored}"
 
-    /** INFO only when something was written: in steady state this runs every fetch and stores nothing. */
+    /** INFO when something was written (one line per fetch with a look-back), else VERBOSE. */
     fun logLevel(summary: Summary): String = if (summary.stored > 0) "INFO" else "VERBOSE"
 }

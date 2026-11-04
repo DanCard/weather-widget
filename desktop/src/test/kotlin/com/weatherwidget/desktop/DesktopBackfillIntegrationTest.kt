@@ -233,7 +233,7 @@ class DesktopBackfillIntegrationTest {
     }
 
     @Test
-    fun `Tomorrow refresh does not rewrite elapsed forecast storage with recent history`() = runTest {
+    fun `Tomorrow refresh files its elapsed hour beside the earlier prediction`() = runTest {
         val now = (System.currentTimeMillis() / 60_000L) * 60_000L
         val oldTimelineHour = now - 2 * 3_600_000L
         val currentTimelineHour = now - 30 * 60_000L
@@ -247,8 +247,8 @@ class DesktopBackfillIntegrationTest {
             currentTimeMillis = { now },
         )
         // What an earlier fetch predicted for the elapsed hour, snapshotted while it was still
-        // future. The refresh's revised value for that hour must not replace it (an hour with NO
-        // snapshot is a different case — see ElapsedForecastBackfill — and is not this test).
+        // future. Since 2026-11-04 the refresh files its own value for that hour beside it, stamped
+        // with the refresh time (plans/261104-file-every-elapsed-hour.md); nothing is overwritten.
         val earlierBucket = (oldTimelineHour - 24 * 3_600_000L) / (4 * 3_600_000L) * (4 * 3_600_000L)
         dao.upsertHourlyForecastHistory(
             lat, lon, WeatherSource.TOMORROW_IO.id, earlierBucket,
@@ -271,9 +271,7 @@ class DesktopBackfillIntegrationTest {
             oldTimelineHour - 1L,
             futureHour + 1L,
         )
-        // The elapsed hour keeps the earlier fetch's row: this refresh wrote nothing there.
         assertEquals(listOf(oldTimelineHour, currentTimelineHour, futureHour), live.map { it.dateTime })
-        assertEquals("Predicted", live.first().condition)
         val archived = dao.getHourlyHistory(
             lat,
             lon,
@@ -283,8 +281,8 @@ class DesktopBackfillIntegrationTest {
             nowMs = now,
         )
         val archivedElapsed = archived.filter { it.dateTime == oldTimelineHour }
-        assertEquals(listOf(55f), archivedElapsed.map { it.temperature })
-        assertEquals(listOf("Predicted"), archivedElapsed.map { it.condition })
+        assertEquals(setOf(55f, 60f), archivedElapsed.map { it.temperature }.toSet())
+        assertEquals(now, archivedElapsed.single { it.condition == "Past analysis" }.fetchedAt)
     }
 
     @Test

@@ -8,8 +8,8 @@ import com.weatherwidget.data.remote.HourlyOnDemand
  * One fetch's live hourly rows for one source at one site, as both platforms store them (user
  * 2026-10-24; `plans/261024-shared-forecast-persist-rules.md`):
  *
- * - Hours already elapsed ([ElapsedForecastBackfill.ELAPSED_BOUNDARY_MS]) are not written, so a revised
- *   past hour never becomes the newest row (the elapsed-hour backfill fills only hours the site lacks).
+ * - Hours already elapsed ([ElapsedForecastBackfill.ELAPSED_BOUNDARY_MS]) are not written here; the
+ *   elapsed-hour backfill files every one of them, stamped with this fetch's time.
  * - The fetch's horizon ([HourlyOnDemand.trim]) bounds the rows.
  * - A field this fetch lacks (cloud, chance, amount) takes the stored row's value, so every row is
  *   complete on its own — a reply without sky cover never blanks it.

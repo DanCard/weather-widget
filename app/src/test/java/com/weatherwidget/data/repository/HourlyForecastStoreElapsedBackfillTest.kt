@@ -90,7 +90,6 @@ class HourlyForecastStoreElapsedBackfillTest : RobolectricTest() {
 
         val elapsed = payload().filter { it.dateTime < now - ElapsedForecastBackfill.ELAPSED_BOUNDARY_MS }
         assertEquals(elapsed.size, summary.offered)
-        assertEquals(0, summary.covered)
         assertEquals(elapsed.size, summary.stored)
         assertEquals(elapsed.map { it.dateTime }, historyRows().map { it.dateTime })
         assertEquals(elapsed.map { it.temperature }, historyRows().map { it.temperature })
@@ -98,20 +97,19 @@ class HourlyForecastStoreElapsedBackfillTest : RobolectricTest() {
         assertTrue(historyRows().all { it.locationLat == LocationMatch.quantize(lat) })
     }
 
+    /** Every fetch files its elapsed hours (plans/261104-file-every-elapsed-hour.md). */
     @Test
-    fun `second pass stores nothing`() = runTest {
-        backfill(payload())
-        val before = historyRows()
+    fun `second pass files again, stamped with its fetch time`() = runTest {
+        val first = backfill(payload())!!
 
         val again = backfill(payload().map { it.copy(temperature = 0f) })!!
 
-        assertEquals(0, again.stored)
-        assertEquals(before.size, again.covered)
-        assertEquals(before, historyRows())
+        assertEquals(first.stored, again.stored)
+        assertTrue(historyRows().filter { it.temperature == 0f }.all { it.fetchedAt == now })
     }
 
     @Test
-    fun `an hour with a genuine snapshot in another bucket is left alone`() = runTest {
+    fun `an hour with an older snapshot gets this fetch's row beside it`() = runTest {
         val snapshotted = now - now % h - 3 * h
         val genuine = HourlyForecastEntity(
             dateTime = snapshotted,
@@ -125,31 +123,14 @@ class HourlyForecastStoreElapsedBackfillTest : RobolectricTest() {
         )
         db.hourlyForecastHistoryDao().insertAll(listOf(genuine))
 
-        val summary = backfill(payload())!!
+        backfill(payload())
 
-        assertEquals(1, summary.covered)
         val rowsForHour = historyRows().filter { it.dateTime == snapshotted }
-        assertEquals(listOf(99f), rowsForHour.map { it.temperature })
-        assertEquals(listOf(snapshotted - 24 * h), rowsForHour.map { it.timestampToGroupPredictions })
-    }
-
-    @Test
-    fun `a same-site jitter fragment counts as covered - a different site does not`() = runTest {
-        val t = now - now % h - 2 * h
-        fun rowAt(rowLat: Double, rowLon: Double) = HourlyForecastEntity(
-            dateTime = t, locationLat = rowLat, locationLon = rowLon, temperature = 1f, condition = "x",
-            source = source, timestampToGroupPredictions = 0L, fetchedAt = 0L,
-        )
-        // 0.001 deg away: same site. 0.05 deg away: inside the query box, a different site.
-        db.hourlyForecastHistoryDao().insertAll(listOf(rowAt(LocationMatch.quantize(lat) + 0.001, LocationMatch.quantize(lon))))
-        db.hourlyForecastHistoryDao().insertAll(listOf(rowAt(lat + 0.05, lon).copy(dateTime = t - h)))
-
-        val summary = backfill(payload())!!
-
-        val stored = historyRows().filter { it.locationLat == LocationMatch.quantize(lat) }.map { it.dateTime }
-        assertTrue("jitter fragment covers $t", t !in stored)
-        assertTrue("other site does not cover ${t - h}", (t - h) in stored)
-        assertEquals(1, summary.covered)
+        val newest = rowsForHour.maxBy { it.fetchedAt }
+        println("rows for hour=${rowsForHour.map { it.temperature to it.fetchedAt }}")
+        assertTrue(99f in rowsForHour.map { it.temperature })
+        assertEquals(now, newest.fetchedAt)
+        assertTrue(newest.temperature != 99f)
     }
 
     @Test

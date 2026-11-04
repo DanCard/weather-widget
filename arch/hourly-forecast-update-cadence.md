@@ -228,9 +228,11 @@ a substitute for the runtime receiver.
 
 Every hour, started or not, shows the newest fetch (`SettledForecastPick`); a fetch during or after
 the hour may be a hindcast and still wins. The pre-hour freeze was removed 2026-11-04
-([plan](../plans/261104-remove-hourly-pre-hour-freeze.md)). Elapsed hours are not written by a fetch
-(`HourlyForecastWrite`), so a device that could not fetch, such as a desktop asleep overnight, keeps
-its last evening forecast for the hours it slept through, and devices can disagree. The hourly
+([plan](../plans/261104-remove-hourly-pre-hour-freeze.md)). Every fetch also files the elapsed hours
+its payload still carries (NWS gridpoint since the issuance, Open-Meteo `past_days`, Silurian
+`include_past`, Tomorrow.io 23 h; `ElapsedForecastBackfill`), so a device that slept recovers them on
+its next fetch ([plan](../plans/261104-file-every-elapsed-hour.md)). Hours older than a source's
+look-back keep the last forecast the device fetched, and devices can still disagree there. The hourly
 temperature, rain-chance, and cloud graphs on both platforms draw such an hour's forecast line at
 reduced opacity when its newest fetch was more than 3 h before the hour (`:shared`
 `StaleForecastSpans`). The cloud graph's day-ago prediction is never dimmed.

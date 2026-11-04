@@ -570,17 +570,15 @@ class DesktopWeatherDaoTest {
         val covered = dao.getHourlyHistoryCoveredHours(lat, lon, source, offered.first().dateTime, offered.last().dateTime + 1)
         assertEquals(setOf(snapshotted), covered)
 
-        val selected = ElapsedForecastBackfill.select(offered, now, covered)
+        // Every elapsed hour is filed, the snapshotted one included (plans/261104-file-every-elapsed-hour.md).
+        val selected = ElapsedForecastBackfill.select(offered, now)
+        assertEquals(offered.map { it.dateTime }, selected.map { it.dateTime })
         val bucket = (now / (4 * h)) * (4 * h)
-        dao.upsertHourlyForecastHistory(lat, lon, source, bucket, selected)
+        dao.upsertHourlyForecastHistory(lat, lon, source, bucket, selected.map { it.copy(fetchedAt = now) })
 
         val stored = dao.getHourlyHistory(lat, lon, source, now - 24 * h, now + 24 * h, now)
-        // Every elapsed hour now has a same-site row; the snapshotted one kept its original value.
         assertEquals(offered.map { it.dateTime }, stored.map { it.dateTime }.distinct().sorted())
-        assertEquals(99f, stored.first { it.dateTime == snapshotted }.temperature, 0f)
-
-        // Second pass: everything covered, nothing to write.
-        val coveredAgain = dao.getHourlyHistoryCoveredHours(lat, lon, source, offered.first().dateTime, offered.last().dateTime + 1)
-        assertTrue(ElapsedForecastBackfill.select(offered, now, coveredAgain).isEmpty())
+        // The snapshotted hour keeps its earlier row beside the newer one.
+        assertEquals(setOf(99f, offered[2].temperature), stored.filter { it.dateTime == snapshotted }.map { it.temperature }.toSet())
     }
 }

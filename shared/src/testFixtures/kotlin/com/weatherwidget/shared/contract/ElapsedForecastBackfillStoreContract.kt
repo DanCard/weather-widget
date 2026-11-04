@@ -10,8 +10,7 @@ import java.time.ZoneOffset
 
 /**
  * What [ElapsedForecastBackfill.Store] means, on Android's Room store and desktop's SQLite store
- * (plans/261024-host-contract-tests-room-and-desktop-sqlite.md): which hours count as already
- * snapshotted, and that an insert makes them so.
+ * (plans/261024-host-contract-tests-room-and-desktop-sqlite.md): an insert files every elapsed hour.
  */
 abstract class ElapsedForecastBackfillStoreContract {
     /** Writes a `hourly_forecasts` row as given. */
@@ -22,28 +21,18 @@ abstract class ElapsedForecastBackfillStoreContract {
     /** A fresh, empty database; the store is [SOURCE]'s at [LAT], [LON] (raw device coordinates), filing under [BUCKET]. */
     protected abstract fun open(): Pair<ElapsedForecastBackfill.Store, Seed>
 
+    /** No coverage check since 2026-11-04 (plans/261104-file-every-elapsed-hour.md): every fetch files its elapsed hours. */
     @Test
-    fun `coveredHours - this source at this site, any bucket, start inclusive, end exclusive`() = runBlocking {
+    fun `every backfill files every elapsed hour, already-stored ones included`() = runBlocking {
         val (store, seed) = open()
-        seed.hourlyHistory(hr(H0, lat = 37.417), snapshotBucketMs = BUCKET - 8 * HOUR)
-        seed.hourlyHistory(hr(H0 + HOUR, lat = 37.418), snapshotBucketMs = BUCKET) // same-site fragment
-        seed.hourlyHistory(hr(H0 + 2 * HOUR, lat = 37.467), snapshotBucketMs = BUCKET) // another town in the box
-        seed.hourlyHistory(hr(H0 + 3 * HOUR, source = "OPEN_METEO"), snapshotBucketMs = BUCKET)
-        seed.hourlyHistory(hr(H0 + 4 * HOUR), snapshotBucketMs = BUCKET)
-
-        assertEquals(setOf(H0, H0 + HOUR), store.coveredHours(H0, H0 + 4 * HOUR))
-    }
-
-    @Test
-    fun `inserted hours are covered afterwards, and a second backfill stores nothing`() = runBlocking {
-        val (store, _) = open()
+        seed.hourlyHistory(hr(NOW - 5 * HOUR), snapshotBucketMs = BUCKET - 8 * HOUR)
         val fetched = (0 until 3).map { hr(NOW - (5 - it) * HOUR) }
 
         val first = ElapsedForecastBackfill.backfill(fetched, NOW, store)
-        val second = ElapsedForecastBackfill.backfill(fetched, NOW, store)
+        val second = ElapsedForecastBackfill.backfill(fetched, NOW + HOUR / 2, store)
 
-        assertEquals(3, first?.stored)
-        assertEquals(ElapsedForecastBackfill.Summary(offered = 3, covered = 3, stored = 0), second)
+        assertEquals(ElapsedForecastBackfill.Summary(offered = 3, stored = 3), first)
+        assertEquals(ElapsedForecastBackfill.Summary(offered = 3, stored = 3), second)
     }
 
     companion object {

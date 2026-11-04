@@ -193,20 +193,6 @@ internal class RoomElapsedHistoryStore(
     private val keyLat = LocationMatch.quantize(latitude)
     private val keyLon = LocationMatch.quantize(longitude)
 
-    override suspend fun coveredHours(startMs: Long, endMs: Long) =
-        dao.getHistoryInRangeForBucketWindow(
-            startDateTime = startMs,
-            endDateTime = endMs,
-            bucketStart = Long.MIN_VALUE,
-            bucketEnd = Long.MAX_VALUE,
-            lat = keyLat,
-            lon = keyLon,
-            source = sourceId,
-        ).asSequence()
-            .filter { LocationMatch.sameSite(keyLat, keyLon, it.locationLat, it.locationLon) }
-            .map { it.dateTime }
-            .toSet()
-
     override suspend fun insert(rows: List<HourlyForecast>) {
         dao.insertAll(
             rows.map {

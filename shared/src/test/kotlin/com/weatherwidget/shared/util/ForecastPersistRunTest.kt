@@ -46,8 +46,6 @@ class ForecastPersistRunTest {
         override suspend fun storedHourly(startMs: Long, endMs: Long) = live.values.filter { it.dateTime in startMs..endMs }
         override suspend fun writeHourly(rows: List<HourlyForecast>) = rows.forEach { live[it.dateTime] = it }
         override fun elapsedStore(label: Long, nowMs: Long) = object : ElapsedForecastBackfill.Store {
-            override suspend fun coveredHours(startMs: Long, endMs: Long) =
-                (live.keys + backfilled.map { it.second.dateTime }).filter { it in startMs until endMs }.toSet()
             override suspend fun insert(rows: List<HourlyForecast>) { rows.forEach { backfilled += label to it } }
         }
         override suspend fun storedDaily(from: LocalDate, to: LocalDate) = daily.filter { it.date in from..to }.also { dailyReads++ }

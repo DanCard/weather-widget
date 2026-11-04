@@ -51,16 +51,6 @@ abstract class ForecastPersistHostContract {
     }
 
     @Test
-    fun `a written hour covers this site, for this source`() = runBlocking {
-        val hostOn = open()
-        val host = hostOn(SOURCE, LAT, LON)
-        host.writeHourly(listOf(hr(T0 + HOUR), hr(T0 + 2 * HOUR)))
-
-        assertEquals(setOf(T0 + HOUR, T0 + 2 * HOUR), host.elapsedStore(LABEL, T0).coveredHours(T0, T0 + 3 * HOUR))
-        assertEquals(emptySet<Long>(), hostOn("OPEN_METEO", LAT, LON).elapsedStore(LABEL, T0).coveredHours(T0, T0 + 3 * HOUR))
-    }
-
-    @Test
     fun `daily reads are this source on this site's exact key, both dates included`() = runBlocking {
         val hostOn = open()
         val host = hostOn(SOURCE, LAT, LON)
