@@ -94,10 +94,29 @@ class CurrentTemperatureResolverMixedRunTest {
 
     @Test
     fun `the newest run is held flat before its first slot and interpolated after`() {
-        val run = CurrentTemperatureResolver.newestRunIfObservationBracketIsOlder(desktopRows, WeatherSource.OPEN_WEATHER_MAP.id, ms(15, 47))!!
+        val run = CurrentTemperatureResolver.newestRunIfObservationBracketIsOlder(desktopRows, WeatherSource.OPEN_WEATHER_MAP.id, ms(15, 47), ms(16, 42))!!
 
         assertEquals(listOf(ms(17), ms(18), ms(19), ms(20)), run.map { it.dateTime })
         assertEquals(94.7f, CurrentTemperatureResolver.estimateFromRun(run, ms(15, 47)), 0.001f)
         assertEquals(93.55f, CurrentTemperatureResolver.estimateFromRun(run, ms(17, 30)), 0.01f)
+    }
+
+    // 2026-11-04 desktop OWM: obs 64.2 at 11:15 while the 08:27 run (the drawn line) said ~58.4. The
+    // 10:27 run only starts at 13:00, so holding it flat back to 11:15 gave a +1.7 delta, not ~+5.8.
+    @Test
+    fun `a newer run that starts after the current interval does not replace the drawn line`() {
+        val early = ms(8, 27)
+        val late = ms(10, 27)
+        val rows = listOf(
+            owm(10, 57.2f, early), owm(11, 58.1f, early), owm(12, 59.0f, early),
+            owm(13, 59.9f, early), owm(13, 62.6f, late), owm(14, 62.3f, late), owm(15, 62.1f, late),
+        ).filterNot { it.dateTime == ms(13) && it.fetchedAt == early }
+
+        val id = WeatherSource.OPEN_WEATHER_MAP.id
+        assertNull(CurrentTemperatureResolver.newestRunIfObservationBracketIsOlder(rows, id, ms(11, 15), ms(11, 15)))
+
+        val result = resolve(rows, now = day.withHour(11).withMinute(15), obs = 64.2f, obsAt = ms(11, 15))
+        // drawn line at 11:15 = 58.1 + 0.25 * 0.9 = 58.325
+        assertEquals(64.2f - 58.325f, result.appliedDelta!!, 0.05f)
     }
 }

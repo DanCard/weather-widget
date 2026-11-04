@@ -212,7 +212,7 @@ object CurrentTemperatureResolver {
             // Both estimates must come from ONE forecast run when the observation sits on an older
             // run that the newest run contradicts; otherwise the correction measures the old run's
             // error and is added to an estimate that already includes the newer run.
-            val candidateRun = newestRunIfObservationBracketIsOlder(strictHourlyForecasts, displaySource.id, observedAt)
+            val candidateRun = newestRunIfObservationBracketIsOlder(strictHourlyForecasts, displaySource.id, observedAt, nowMs)
             if (candidateRun != null &&
                 prefersNewestRun(lastObservedTemp, estimatedAtObsTime, estimateFromRun(candidateRun, observedAt))
             ) {
@@ -350,6 +350,7 @@ object CurrentTemperatureResolver {
         hourlyForecasts: List<HourlyForecast>,
         sourceId: String,
         observedAt: Long?,
+        nowMs: Long = observedAt ?: 0L,
     ): List<HourlyForecast>? {
         if (observedAt == null) return null
         val own = hourlyForecasts.filter { it.source == sourceId }
@@ -364,7 +365,12 @@ object CurrentTemperatureResolver {
             .groupBy { it.dateTime }
             .values.map { rows -> rows.maxBy { it.fetchedAt } }
             .sortedBy { it.dateTime }
-        return run.ifEmpty { null }
+        // Only when the fresh run reaches the interval `estimate(now)` interpolates over. A run that
+        // starts later leaves both estimates on the older rows, so switching would hold its first slot
+        // flat back to the observation and measure the delta against a value that is not on the drawn
+        // line (OWM 2026-11-04: +1.7 shown, ~+5.8 real; plans/261104-owm-delta-flat-hold-and-mid-temp-label.md).
+        if (run.isEmpty() || run.first().dateTime > WeatherTimeUtils.hourStartMs(nowMs) + HOUR_MS) return null
+        return run
     }
 
     /**

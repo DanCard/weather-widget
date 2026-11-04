@@ -1170,6 +1170,41 @@ fun TemperatureGraph(
             }
         }
 
+        // Mid-window temperature: the value on the drawn line at the horizontal centre of the plot,
+        // where the left/right high-low labels leave room. Best effort: skipped on any collision.
+        if (points.size >= 2) {
+            val midX = w / 2f
+            val midMs = dataStart + ((midX - dragResidualPx) / w * dataSpan).toLong()
+            fun lerpAt(t: Long, ts: List<Long>, vs: List<Float>): Float? {
+                val j = ts.indexOfFirst { it >= t }
+                if (j <= 0) return null
+                val span = (ts[j] - ts[j - 1]).coerceAtLeast(1L)
+                return vs[j - 1] + (vs[j] - vs[j - 1]) * ((t - ts[j - 1]).toFloat() / span)
+            }
+            val actualPts = actualLinePoints.filter { it.actualTemp != null }
+            val midTemp =
+                lerpAt(midMs, actualPts.map { it.timeMs }, actualPts.map { it.actualTemp!! })
+                    ?: lerpAt(midMs, points.map { it.dateTime }, forecastTemps)?.let { f ->
+                        if (transitionMs != null && midMs > transitionMs) f + ghostDelta else f
+                    }
+            if (midTemp != null && midTemp.isFinite()) {
+                val shown = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(midTemp) else midTemp
+                val midLayout = textMeasurer.measure(
+                    GhostLineLabel.format(shown),
+                    TextStyle(fontSize = (TEMP_VALUE_LABEL_SP * scale).sp, color = Color.White.copy(alpha = 0.85f)),
+                )
+                val lw = midLayout.size.width.toFloat()
+                val lh = midLayout.size.height.toFloat()
+                val curveTop = minOf(getCurveYAtX(midX - lw / 2f), getCurveYAtX(midX), getCurveYAtX(midX + lw / 2f))
+                val rect = Rect(Offset(midX - lw / 2f, curveTop - 4f * scale - lh), Size(lw, lh))
+                val inPlot = rect.top >= 0f && rect.left >= 0f && rect.right <= w
+                if (inPlot && drawnLabels.none { it.overlaps(rect.inflate(2f * scale)) }) {
+                    drawShadowedText(textMeasurer, midLayout, rect.topLeft, scale)
+                    drawnLabels.add(rect)
+                }
+            }
+        }
+
         // NOW label drawn last (on top), collision-aware against the placed labels (shared helper).
         if (now in windowStart..windowEnd) {
             drawNowLabel(markerX, top, graphHeight, scale, textMeasurer, drawnLabels)
