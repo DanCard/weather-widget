@@ -1182,11 +1182,20 @@ fun TemperatureGraph(
                 return vs[j - 1] + (vs[j] - vs[j - 1]) * ((t - ts[j - 1]).toFloat() / span)
             }
             val actualPts = actualLinePoints.filter { it.actualTemp != null }
-            val midTemp =
-                lerpAt(midMs, actualPts.map { it.timeMs }, actualPts.map { it.actualTemp!! })
-                    ?: lerpAt(midMs, points.map { it.dateTime }, forecastTemps)?.let { f ->
-                        if (transitionMs != null && midMs > transitionMs) f + ghostDelta else f
+            val actualTimes = actualPts.map { it.timeMs }
+            val actualTemps = actualPts.map { it.actualTemp!! }
+            val forecastTimes = points.map { it.dateTime }
+            fun tempAtMs(t: Long): Float? =
+                lerpAt(t, actualTimes, actualTemps)
+                    ?: lerpAt(t, forecastTimes, forecastTemps)?.let { f ->
+                        if (transitionMs != null && t > transitionMs) f + ghostDelta else f
                     }
+            fun msAtX(x: Float): Long = dataStart + ((x - dragResidualPx) / w * dataSpan).toLong()
+            // Height follows the label's own value (actual line, or the delta-shifted fill edge), not the
+            // forecast curve: anchored to the forecast curve, a 76.0 sat 8° low and dodged the 75.9 now-temp
+            // label it really collides with (Silurian 2026-11-05).
+            fun lineYAtX(x: Float): Float? = tempAtMs(msAtX(x))?.takeIf { it.isFinite() }?.let { yAt(it) }
+            val midTemp = tempAtMs(midMs)
             if (midTemp != null && midTemp.isFinite()) {
                 val shown = if (useCelsius) com.weatherwidget.shared.util.TempUtils.fahrenheitToCelsius(midTemp) else midTemp
                 val midLayout = textMeasurer.measure(
@@ -1195,7 +1204,8 @@ fun TemperatureGraph(
                 )
                 val lw = midLayout.size.width.toFloat()
                 val lh = midLayout.size.height.toFloat()
-                val curveTop = minOf(getCurveYAtX(midX - lw / 2f), getCurveYAtX(midX), getCurveYAtX(midX + lw / 2f))
+                val midY = yAt(midTemp)
+                val curveTop = listOfNotNull(lineYAtX(midX - lw / 2f), midY, lineYAtX(midX + lw / 2f)).min()
                 val rect = Rect(Offset(midX - lw / 2f, curveTop - 4f * scale - lh), Size(lw, lh))
                 val inPlot = rect.top >= 0f && rect.left >= 0f && rect.right <= w
                 if (inPlot && drawnLabels.none { it.overlaps(rect.inflate(2f * scale)) }) {
