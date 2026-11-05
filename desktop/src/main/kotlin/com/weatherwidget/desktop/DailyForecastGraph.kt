@@ -636,6 +636,8 @@ fun DailyForecastGraph(
                         snapshotBarTop = snapshotBarTop,
                         rawHighLabelTop = rawHighTop,
                         ceiling = labelCeiling,
+                        // The peak hour may overlap the header row, up to its top.
+                        peakCeiling = minOf(labelCeiling, headerBottomPx - headerHeightPx),
                         pxPerDp = scale,
                     ),
                     PLATFORM,

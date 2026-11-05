@@ -78,14 +78,21 @@ object DailyRainLabelLayout {
         val rawHighLabelTop: Float? = highLabelTop,
         /** Highest Y a label may use: the [DailyTopStack] ceiling, or the canvas top if that is lower. */
         val ceiling: Float,
+        /**
+         * Highest Y the peak hour may use. It may overlap the header (user, 2026-11-04), so platforms
+         * pass the top of what they can draw: Android the bitmap top, desktop the header row's top.
+         * The chance label below it still keeps to [ceiling].
+         */
+        val peakCeiling: Float = ceiling,
         /** dp→px for the gaps. */
         val pxPerDp: Float,
     )
 
     /**
      * The day chance sits on the high label (bottom = high top − [DailyRainLabels.RAIN_HIGH_TEMP_GAP_DP],
-     * a slight tuck), clamped to the ceiling. The peak hour sits on the chance label the same way. It
-     * is dropped when it would cross the ceiling; the chance label never moves to make room for it.
+     * a slight tuck), clamped to the ceiling. The peak hour sits on the chance label the same way and
+     * may rise into the header; it is dropped only when it would leave the drawable area
+     * ([DayInput.peakCeiling]). The chance label never moves to make room for it.
      */
     fun layoutDay(host: Host, input: DayInput, platform: String): DayLabels? {
         val anchorTop = DailyRainLabelPlanner.resolveDayRainAnchorTop(input.highLabelTop, input.snapshotBarTop)
@@ -119,11 +126,12 @@ object DailyRainLabelLayout {
             val peakGapPx = DailyRainLabels.RAIN_PEAK_GAP_DP * input.pxPerDp
             stackRawTop = DailyRainLabelPlanner.resolveRainAboveAnchorTop(rawTop, peakSize.height, peakGapPx)
             val peakTop = DailyRainLabelPlanner.resolveRainAboveAnchorTop(top, peakSize.height, peakGapPx)
-            if (peakTop < input.ceiling) {
+            if (peakTop < input.peakCeiling) {
                 Log.d(
                     TAG,
                     "rainPeakLabel skipped: platform=$platform date=${input.date} text=\"$peakText\"" +
-                        " reason=ceiling top=${peakTop.r()} ceiling=${input.ceiling.r()}",
+                        " reason=ceiling top=${peakTop.r()} peakCeiling=${input.peakCeiling.r()}" +
+                        " headerCeiling=${input.ceiling.r()}",
                 )
                 null
             } else {

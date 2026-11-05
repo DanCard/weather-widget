@@ -14,8 +14,9 @@ import java.time.ZoneId
 import java.util.Locale
 
 /**
- * The hour the daytime rain chance peaks, written above the daily rain % when it is > 30 % and
- * < 100 % (user, 2026-10-18; `plans/261018-daily-rain-chance-peak-hour.md`).
+ * The hour the daytime rain chance peaks, written above the daily rain % when it is > 10 %
+ * (user, 2026-10-18, threshold lowered from 30 % on 2026-11-04;
+ * `plans/261018-daily-rain-chance-peak-hour.md`).
  */
 @Category(ShortDuration::class)
 class DailyRainPeakLabelTest {
@@ -48,15 +49,17 @@ class DailyRainPeakLabelTest {
     )
 
     @Test
-    fun `above 30 percent shows the peak hour`() {
+    fun `above 10 percent shows the peak hour`() {
         assertEquals("1pm", peak())
-        assertEquals("1pm", peak(probability = 31, label = "31%"))
+        assertEquals("1pm", peak(probability = 11, label = "11%"))
+        assertEquals("was hidden under the old 30% threshold", "1pm", peak(probability = 30, label = "30%"))
+        assertEquals("1pm", peak(probability = 12, label = "12%"))
     }
 
     @Test
-    fun `30 percent and below shows none`() {
-        assertNull(peak(probability = 30, label = "30%"))
-        assertNull(peak(probability = 12, label = "12%"))
+    fun `10 percent and below shows none`() {
+        assertNull(peak(probability = 10, label = "10%"))
+        assertNull(peak(probability = 5, label = "5%"))
     }
 
     @Test

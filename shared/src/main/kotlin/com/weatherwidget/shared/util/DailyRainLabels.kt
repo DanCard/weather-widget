@@ -38,6 +38,8 @@ object DailyRainLabels {
      * The peak-hour label ("1pm") above the day rain %: its font relative to the % label's, and the
      * gap (dp) between its bottom and the % label's top (negative = tucked into the %'s ascent
      * padding, as [RAIN_HIGH_TEMP_GAP_DP]). Drawn in the % label's own blue (user, 2026-10-18).
+     * Must stay at least 15% smaller than the % label (≤ 0.85) for chances of 30% and below
+     * (user, 2026-11-04); DailyRainLabelLayoutTest guards it.
      */
     const val RAIN_PEAK_FONT_SCALE = 0.75f
     const val RAIN_PEAK_GAP_DP = -2f
@@ -681,8 +683,11 @@ object DailyRainLabels {
         return "$probability%"
     }
 
-    /** Lowest daytime chance (exclusive) that gets its peak hour written above the % (user, 2026-10-18). */
-    const val PEAK_HOUR_MIN_EXCLUSIVE_PERCENT = 30
+    /**
+     * Lowest daytime chance (exclusive) that gets its peak hour written above the % (user, 2026-10-18;
+     * lowered from 30 to 10 on 2026-11-04).
+     */
+    const val PEAK_HOUR_MIN_EXCLUSIVE_PERCENT = 10
 
     /**
      * The hour the daytime chance peaks ("1pm" / "13:00"), drawn above the day rain label.

@@ -96,6 +96,8 @@ internal object DailyForecastRainLabelRenderer {
                 snapshotBarTop = snapshotBarTop,
                 // Nothing above the bitmap is visible.
                 ceiling = layout.labelCeiling.coerceAtLeast(0f),
+                // The peak hour may overlap the header, up to the bitmap top.
+                peakCeiling = 0f,
                 pxPerDp = layout.density * layout.bitmapScale.coerceAtMost(1f),
             ),
             PLATFORM,

@@ -658,12 +658,15 @@ class DailyRainLabelLayoutTest {
         ceiling: Float = 0f,
         peakText: String? = null,
         rawHighLabelTop: Float? = highLabelTop,
+        probability: Int = 40,
+        daysFromToday: Int = 0,
+        peakCeiling: Float = ceiling,
     ) = DailyRainLabelLayout.layoutDay(
         host,
         DailyRainLabelLayout.DayInput(
-            date = "d", rainText = "40%", peakText = peakText, probability = 40, isPast = false,
-            daysFromToday = 0, centerX = 50f, highLabelTop = highLabelTop, snapshotBarTop = null,
-            rawHighLabelTop = rawHighLabelTop, ceiling = ceiling, pxPerDp = 1f,
+            date = "d", rainText = "$probability%", peakText = peakText, probability = probability, isPast = false,
+            daysFromToday = daysFromToday, centerX = 50f, highLabelTop = highLabelTop, snapshotBarTop = null,
+            rawHighLabelTop = rawHighLabelTop, ceiling = ceiling, peakCeiling = peakCeiling, pxPerDp = 1f,
         ),
         "test",
     )
@@ -699,6 +702,35 @@ class DailyRainLabelLayoutTest {
         val tooHigh = day(highLabelTop = 30f, peakText = "1pm", ceiling = 10f)!!
         assertNull(tooHigh.peak)
         assertTrue("the chance label stays put", tooHigh.rain.top >= 10f)
+    }
+
+    @Test
+    fun `peak may overlap the header up to the drawable top`() {
+        // Fold 4, 2026-11-04 (WAPI, Thu 11%): the graph top was solved so the peak ended exactly on
+        // the header ceiling, and the strict check dropped it on a float sliver. The peak may now
+        // rise into the header; only the drawable top (Android bitmap top) drops it.
+        val ceiling = 20f
+        val atTie = checkNotNull(day(highLabelTop = 40f, peakText = "7pm", ceiling = ceiling, peakCeiling = 0f))
+        val peak = checkNotNull(atTie.peak) { "peak dropped although it is inside the bitmap" }
+        println("peak over header: rainTop=${atTie.rain.top} peakTop=${peak.top} headerCeiling=$ceiling")
+        assertTrue("the peak reaches into the header", peak.top < ceiling)
+        assertTrue("the chance label still keeps to the header ceiling", atTie.rain.top >= ceiling)
+
+        // The % clamps to a ceiling of 5, so the peak (14 tall, tucked 2) would start at −7.
+        val offBitmap = checkNotNull(day(highLabelTop = 10f, peakText = "7pm", ceiling = 5f, peakCeiling = 0f))
+        assertNull("a peak above the bitmap top is still dropped", offBitmap.peak)
+    }
+
+    @Test
+    fun `peak hour font is at least 15 percent smaller than a chance of 30 or less`() {
+        // User, 2026-11-04: with the threshold lowered to > 10 %, the hour must not compete with a small %.
+        for (probability in 11..30) for (daysFromToday in 0..7) {
+            val labels = checkNotNull(day(highLabelTop = 200f, peakText = "1pm", probability = probability, daysFromToday = daysFromToday))
+            val peak = checkNotNull(labels.peak) { "peak dropped at $probability% day+$daysFromToday" }
+            val ratio = peak.fontScale / labels.rain.fontScale
+            println("peak font ratio: $probability% day+$daysFromToday rain=${labels.rain.fontScale} peak=${peak.fontScale} ratio=$ratio")
+            assertTrue("$probability% day+$daysFromToday ratio=$ratio", ratio <= 0.85f + 1e-4f)
+        }
     }
 
     @Test
