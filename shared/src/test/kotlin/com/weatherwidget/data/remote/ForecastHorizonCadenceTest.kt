@@ -25,15 +25,16 @@ class ForecastHorizonCadenceTest {
 
     @Test
     fun `every row of the table`() {
-        assertEquals(4, ForecastHorizonCadence.intervalHours(false, 85, isScreenOn = true))
+        assertEquals(8, ForecastHorizonCadence.intervalHours(false, 85, isScreenOn = true))
         assertEquals(8, ForecastHorizonCadence.intervalHours(false, 85, isScreenOn = false))
         for (screenOn in listOf(true, false)) assertEquals(24, ForecastHorizonCadence.intervalHours(false, 60, screenOn))
-        assertEquals(4 * hour, ForecastHorizonCadence.intervalMs(false, 85, true))
+        assertEquals(8 * hour, ForecastHorizonCadence.intervalMs(false, 85, true))
     }
 
     @Test
-    fun `battery screen-on due time is the 4 h interval, 24 h below 70 percent`() {
-        assertEquals(now - hour + 4 * hour - ForecastHorizonCadence.DUE_GRACE_MS,
+    fun `battery screen-on due time is the 8 h interval, 24 h below 70 percent`() {
+        // 4 h until 2026-11-05; screen on and off now share 8 h.
+        assertEquals(now - hour + 8 * hour - ForecastHorizonCadence.DUE_GRACE_MS,
             ForecastHorizonCadence.screenOnDueAtMs(isCharging = false, batteryLevel = 85, lastFetchMs = now - hour, nowMs = now))
         assertEquals(now - hour + 24 * hour - ForecastHorizonCadence.DUE_GRACE_MS,
             ForecastHorizonCadence.screenOnDueAtMs(isCharging = false, batteryLevel = 60, lastFetchMs = now - hour, nowMs = now))
@@ -43,14 +44,14 @@ class ForecastHorizonCadenceTest {
     fun `70 percent is high, 69 is low`() {
         assertTrue(ForecastHorizonCadence.isHighBattery(false, 70))
         assertFalse(ForecastHorizonCadence.isHighBattery(false, 69))
-        assertEquals(4, ForecastHorizonCadence.intervalHours(false, 70, true))
+        assertEquals(8, ForecastHorizonCadence.intervalHours(false, 70, true))
         assertEquals(24, ForecastHorizonCadence.intervalHours(false, 69, true))
     }
 
     @Test
     fun `charging counts as high whatever the level`() {
         assertTrue(ForecastHorizonCadence.isHighBattery(true, 15))
-        assertEquals(4, ForecastHorizonCadence.intervalHours(true, 15, true))
+        assertEquals(8, ForecastHorizonCadence.intervalHours(true, 15, true))
     }
 
     @Test
@@ -66,22 +67,24 @@ class ForecastHorizonCadenceTest {
     }
 
     @Test
-    fun `screen on, high battery - a 4 h old fetch is due, and it is LONG`() {
-        // Was SHORT (3 days) before 2026-10-25.
-        assertEquals(Horizon.LONG, decide(85, true, now - 4 * hour).due)
-        assertNull(decide(85, true, now - 3 * hour).due)
+    fun `screen on, high battery - an 8 h old fetch is due, and it is LONG`() {
+        // Was SHORT (3 days) before 2026-10-25; 4 h until 2026-11-05.
+        assertEquals(Horizon.LONG, decide(85, true, now - 8 * hour).due)
+        assertNull(decide(85, true, now - 7 * hour).due)
     }
 
     @Test
     fun `a check two minutes early still counts`() {
-        assertEquals(Horizon.LONG, decide(85, true, now - 4 * hour + 2 * minute).due)
-        assertNull(decide(85, true, now - 4 * hour + 3 * minute).due)
+        assertEquals(Horizon.LONG, decide(85, true, now - 8 * hour + 2 * minute).due)
+        assertNull(decide(85, true, now - 8 * hour + 3 * minute).due)
     }
 
     @Test
-    fun `the screen coming on makes a 5-h-old fetch due`() {
+    fun `screen on and off share the 8 h interval`() {
+        // Screen on was 4 h until 2026-11-05: the screen coming on no longer makes a 5-h-old fetch due.
         assertNull("screen off: 8 h", decide(85, false, now - 5 * hour).due)
-        assertEquals("screen on: 4 h", Horizon.LONG, decide(85, true, now - 5 * hour).due)
+        assertNull("screen on: 8 h", decide(85, true, now - 5 * hour).due)
+        assertEquals("screen on: 8 h", Horizon.LONG, decide(85, true, now - 8 * hour).due)
     }
 
     @Test
@@ -92,7 +95,7 @@ class ForecastHorizonCadenceTest {
 
     @Test
     fun `due time is the last fetch plus the interval, less the grace`() {
-        assertEquals(now - hour + 4 * hour - 2 * minute, decide(85, true, now - hour).dueAtMs)
+        assertEquals(now - hour + 8 * hour - 2 * minute, decide(85, true, now - hour).dueAtMs)
         assertEquals(now - hour + 24 * hour - 2 * minute, decide(60, true, now - hour).dueAtMs)
     }
 
@@ -173,10 +176,10 @@ class ForecastHorizonCadenceTest {
 
     @Test
     fun `log fragment names the verdict, the interval and the age`() {
-        assertEquals("NWS:LONG(every=4h/5h)", ForecastHorizonCadence.logFragment("NWS", decide(85, true, now - 5 * hour), now))
+        assertEquals("NWS:LONG(every=8h/9h)", ForecastHorizonCadence.logFragment("NWS", decide(85, true, now - 9 * hour), now))
         assertEquals("NWS:none(every=24h/5h,quotaHeldMin=30)",
             ForecastHorizonCadence.logFragment("NWS", decide(60, true, now - 5 * hour), now, fullyBlockedUntilMs = now + 30 * minute))
-        assertEquals("NWS:LONG(every=4h/none)", ForecastHorizonCadence.logFragment("NWS", decide(85, true, null), now))
+        assertEquals("NWS:LONG(every=8h/none)", ForecastHorizonCadence.logFragment("NWS", decide(85, true, null), now))
     }
 
     // --- Pre-wake: a fetch before the alarm while charging (performance/261019-pre-alarm-long-fetch-while-charging.md)
@@ -261,7 +264,7 @@ class ForecastHorizonCadenceTest {
         // Pre-wake more than 8 h away: due as usual.
         assertEquals(Horizon.LONG, preWake(wakeAt = now + 9 * hour, last = now - 9 * hour).due)
         // Screen on (awake at 2 am): screen-on rules.
-        assertEquals(Horizon.LONG, preWake(wakeAt = now + 6 * hour, last = now - 5 * hour, screenOn = true).due)
+        assertEquals(Horizon.LONG, preWake(wakeAt = now + 6 * hour, last = now - 9 * hour, screenOn = true).due)
         // A day-old fetch still runs.
         assertEquals(Horizon.LONG, preWake(wakeAt = now + 6 * hour, last = now - 24 * hour).due)
         // Never fetched here: at once.

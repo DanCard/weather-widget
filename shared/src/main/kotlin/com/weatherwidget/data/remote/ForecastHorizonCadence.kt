@@ -13,7 +13,7 @@ import java.time.ZoneId
  *
  * | Battery | Screen | Every fetch (LONG) |
  * |---|---|---|
- * | ≥ 70 % or charging | on | every 4 h |
+ * | ≥ 70 % or charging | on | every 8 h (4 h until 2026-11-05) |
  * | ≥ 70 % or charging | off | every 8 h |
  * | < 70 % | on or off | every 24 h |
  *
@@ -44,7 +44,7 @@ object ForecastHorizonCadence {
     /** At or above this level (or on a charger) the battery is "high". */
     const val HIGH_BATTERY_PERCENT = 70
 
-    const val SCREEN_ON_HOURS = 4
+    const val SCREEN_ON_HOURS = 8
     const val SCREEN_OFF_HOURS = 8
     const val LOW_BATTERY_HOURS = 24
 
@@ -149,9 +149,10 @@ object ForecastHorizonCadence {
     }
 
     /**
-     * When a fetch comes due now that the screen is on: the screen-on interval is shorter (4 h,
-     * not 8 h), so a platform moves its next wake to this when nothing is due yet
-     * (plans/261028-screen-off-cadence-and-due-time-wakes.md).
+     * When a fetch comes due now that the screen is on, so a platform moves its next wake to this when
+     * nothing is due yet (plans/261028-screen-off-cadence-and-due-time-wakes.md). Since 2026-11-05 the
+     * screen-on and screen-off intervals are both 8 h, so this equals the screen-off due time; kept as
+     * the seam should the two differ again.
      */
     fun screenOnDueAtMs(isCharging: Boolean, batteryLevel: Int, lastFetchMs: Long?, nowMs: Long): Long =
         decide(isCharging, batteryLevel, isScreenOn = true, lastFetchMs = lastFetchMs, nowMs = nowMs).dueAtMs

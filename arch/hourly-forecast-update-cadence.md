@@ -12,7 +12,7 @@ for the source's full supported horizon; there is no shorter three-day forecast 
 
 | Power | Screen | Fetch interval |
 |---|---|---|
-| Charging or battery ≥ 70% | On | 4 hours |
+| Charging or battery ≥ 70% | On | 8 hours |
 | Charging or battery ≥ 70% | Off | 8 hours |
 | Battery < 70% | On or off | 24 hours |
 
@@ -32,9 +32,10 @@ for the source's full supported horizon; there is no shorter three-day forecast 
   resize is not a tap, so it checks nothing. Any refresh a tap or click starts, a source switch or arrow
   included, shows the queued and completed messages; a tap that starts none shows nothing. A request
   blocks another for that source for 15 minutes, so a failing provider is not retried on every tap.
-- A screen-on moves the next wake to the 4-hour due time (Android
-  `SCREEN_ON_FORECAST`). The desktop forecast loop re-plans on every screen wake, which has the same
-  effect.
+- A screen-on moves the next wake to the screen-on due time (Android `SCREEN_ON_FORECAST`). The desktop
+  forecast loop re-plans on every screen wake, which has the same effect. Since 2026-11-05 screen-on and
+  screen-off share the 8-hour interval, so this no longer moves the wake earlier; a source the user
+  reaches for still refreshes within 2 hours.
 - Switching to a source fetches its forecast when it is at least 2 hours old at battery ≥ 70% or on a
   charger, otherwise 4 hours (`SourceToggleRefreshPolicy`; desktop
   `LAUNCH_REFRESH_CHECK reason=source_change`).

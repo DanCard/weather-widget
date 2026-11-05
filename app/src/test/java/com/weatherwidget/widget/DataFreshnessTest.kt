@@ -36,11 +36,11 @@ class DataFreshnessTest {
     }
 
     @Test
-    fun `a non-displayed source follows the same 4-h rule as the displayed one`() {
+    fun `a non-displayed source follows the same 8-h rule as the displayed one`() {
         val now = System.currentTimeMillis()
-        val fresh = mapOf(WeatherSource.NWS.id to now - 10 * 60_000L, WeatherSource.OPEN_METEO.id to now - 3 * 3_600_000L)
+        val fresh = mapOf(WeatherSource.NWS.id to now - 10 * 60_000L, WeatherSource.OPEN_METEO.id to now - 7 * 3_600_000L)
         assertFalse(DataFreshness.isStaleForSources(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO), fresh, now, chargingScreenOn))
-        val stale = fresh + (WeatherSource.OPEN_METEO.id to now - 5 * 3_600_000L)
+        val stale = fresh + (WeatherSource.OPEN_METEO.id to now - 9 * 3_600_000L)
         org.junit.Assert.assertTrue(DataFreshness.isStaleForSources(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO), stale, now, chargingScreenOn))
     }
 
@@ -61,7 +61,7 @@ class DataFreshnessTest {
         val now = System.currentTimeMillis()
         val google = WeatherSource.GOOGLE_WEATHER
         val context = chargingScreenOn.copy(activeSourceIds = setOf(google.id))
-        val ages = mapOf(google.id to now - 7 * 3_600_000L, WeatherSource.NWS.id to now - 10 * 60_000L)
+        val ages = mapOf(google.id to now - 9 * 3_600_000L, WeatherSource.NWS.id to now - 10 * 60_000L)
 
         // Only the hourly product refused: the daily one still answers, so the source is due.
         SourceQuotaBlocks.block(google.id, ForecastProduct.HOURLY, now + 3_600_000L)
@@ -71,7 +71,7 @@ class DataFreshnessTest {
         assertFalse(
             DataFreshness.isStaleForSources(
                 listOf(google, WeatherSource.NWS),
-                mapOf(google.id to now - 7 * 3_600_000L, WeatherSource.NWS.id to now - 10 * 60_000L),
+                mapOf(google.id to now - 9 * 3_600_000L, WeatherSource.NWS.id to now - 10 * 60_000L),
                 now,
                 context,
             ),
@@ -80,7 +80,7 @@ class DataFreshnessTest {
         assertTrue(
             DataFreshness.isStaleForSources(
                 listOf(google, WeatherSource.NWS),
-                mapOf(google.id to now - 7 * 3_600_000L, WeatherSource.NWS.id to now - 10 * 60_000L),
+                mapOf(google.id to now - 9 * 3_600_000L, WeatherSource.NWS.id to now - 10 * 60_000L),
                 now,
                 context,
             ),
@@ -90,7 +90,7 @@ class DataFreshnessTest {
     @Test
     fun `isStaleForSources returns true when NWS is primary and stale but Open-Meteo is fresh`() {
         val now = System.currentTimeMillis()
-        val staleTime = now - (5 * 60 * 60 * 1000L)
+        val staleTime = now - (9 * 60 * 60 * 1000L)
         val freshTime = now - (10 * 60 * 1000L)
         val visibleSources = listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO)
 

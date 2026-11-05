@@ -210,9 +210,9 @@ class ForecastHorizonStorageIntegrationTest : RobolectricTest() {
     }
 
     @Test
-    fun `a day at 85 percent with the screen on is 6 LONG fetches`() = runTest {
-        // At 0, 4, 8, 12, 16, 20 h (was 3 LONG + 3 SHORT).
-        assertEquals(mapOf("LONG" to 6), simulateDay(high))
+    fun `a day at 85 percent with the screen on is 3 LONG fetches`() = runTest {
+        // At 0, 8, 16 h (was 3 LONG + 3 SHORT; 6 LONG at 4 h until 2026-11-05).
+        assertEquals(mapOf("LONG" to 3), simulateDay(high))
     }
 
     @Test

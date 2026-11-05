@@ -94,7 +94,7 @@ class DesktopForecastPlannerTest {
     }
 
     @Test
-    fun `after a fetch nothing is due, the next comes due in 4 h and the loop sleeps until then`() = runTest {
+    fun `after a fetch nothing is due, the next comes due in 8 h and the loop sleeps until then`() = runTest {
         fetch()
         val now = System.currentTimeMillis()
 
@@ -103,17 +103,17 @@ class DesktopForecastPlannerTest {
         assertNull(plan.horizon)
         val next = planner().next(listOf(om), now)!!
         assertEquals(om, next.sourceId)
-        assertTrue("next due ≈ 4 h out", next.atMs in now + 4 * hour - grace - minute..now + 4 * hour)
+        assertTrue("next due ≈ 8 h out", next.atMs in now + 8 * hour - grace - minute..now + 8 * hour)
         assertEquals(ForecastSchedule.Reason.DUE, ForecastSchedule.sleep(next, now, fetchFailed = false).reason)
     }
 
     @Test
-    fun `five hours after a fetch the next is due, and it is LONG`() = runTest {
-        // Was SHORT before 2026-10-25.
+    fun `eight hours after a fetch the next is due, and it is LONG`() = runTest {
+        // Was SHORT before 2026-10-25; screen on was 4 h until 2026-11-05.
         fetch()
         val now = System.currentTimeMillis()
-        assertNull(planner().plan(om, now + 3 * hour).horizon)
-        assertEquals(Horizon.LONG, planner().plan(om, now + 5 * hour).horizon)
+        assertNull(planner().plan(om, now + 5 * hour).horizon)
+        assertEquals(Horizon.LONG, planner().plan(om, now + 8 * hour).horizon)
     }
 
     @Test
