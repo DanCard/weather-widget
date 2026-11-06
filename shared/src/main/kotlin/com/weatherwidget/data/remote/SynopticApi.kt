@@ -74,7 +74,9 @@ class SynopticApi(
                 val qcChecks = airTempQcArray?.getOrNull(i) as? JsonArray
                 val summary = weatherSummaryArray?.getOrNull(i)?.jsonPrimitive?.contentOrNull
                     ?: weatherCondArray?.getOrNull(i)?.jsonPrimitive?.contentOrNull
-                    ?: "Unknown"
+                    // Blank, not a placeholder: a RAWS station reports no condition, and the cards
+                    // and NwsBlend treat "" as "not reported" while "Unknown" would be shown as data.
+                    ?: ""
                 val rawMetar = metarArray?.getOrNull(i)?.jsonPrimitive?.contentOrNull
 
                 var layers = MetarRawSkyParser.layersFrom(rawMetar)

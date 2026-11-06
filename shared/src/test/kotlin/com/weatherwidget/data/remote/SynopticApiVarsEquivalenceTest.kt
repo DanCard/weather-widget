@@ -54,6 +54,15 @@ class SynopticApiVarsEquivalenceTest {
     }
 
     @Test
+    fun `a station with no weather summary gets a blank condition, never the Unknown placeholder`() {
+        // AW020 reports temperature only. "Unknown" read as data on the Observations card
+        // (LOAC1, 2026-11-06); blank is what the cards and NwsBlend treat as "not reported".
+        val aw020 = parse("radius-vars-recent120.json").single { it.info.id == "AW020" }
+        assertTrue(aw020.observations.isNotEmpty())
+        assertTrue(aw020.observations.all { it.textDescription == "" })
+    }
+
+    @Test
     fun `parsed vars list covers every field the parser reads`() {
         val expected = setOf(
             "air_temp",
