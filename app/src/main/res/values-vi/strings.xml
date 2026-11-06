@@ -94,6 +94,16 @@
     <string name="months_view_empty">Không có lịch sử hằng ngày trong khoảng này</string>
     <string name="months_view_more_history">%1$s có lịch sử từ %2$s. Chạm để chuyển.</string>
     <string name="forecast_accuracy_summary_title">Độ chính xác dự báo (30 ngày qua)</string>
+    <string name="source_compare_title">Tất cả nguồn cho %1$s</string>
+    <string name="source_compare_col_source">Nguồn</string>
+    <string name="source_compare_col_high">Cao</string>
+    <string name="source_compare_col_low">Thấp</string>
+    <string name="source_compare_col_rain">Mưa</string>
+    <string name="source_compare_col_night">Đêm</string>
+    <string name="source_compare_col_amount">Lượng</string>
+    <string name="source_compare_col_cloud">Mây</string>
+    <string name="source_compare_col_bias">Lệch</string>
+    <string name="source_compare_col_age">Tuổi</string>
     <string name="loading_accuracy_summary">Đang tải độ chính xác dự báo...</string>
     <string name="error_loading_accuracy_summary">Hiện không thể tải độ chính xác dự báo.</string>
     <string name="data_freshness_unknown">Độ mới của dữ liệu: Không rõ</string>

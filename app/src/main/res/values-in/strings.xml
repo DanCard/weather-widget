@@ -94,6 +94,16 @@
     <string name="months_view_empty">Tidak ada riwayat harian dalam rentang ini</string>
     <string name="months_view_more_history">%1$s memiliki riwayat sejak %2$s. Ketuk untuk beralih.</string>
     <string name="forecast_accuracy_summary_title">Akurasi prakiraan (30 hari terakhir)</string>
+    <string name="source_compare_title">Semua sumber untuk %1$s</string>
+    <string name="source_compare_col_source">Sumber</string>
+    <string name="source_compare_col_high">Maks</string>
+    <string name="source_compare_col_low">Min</string>
+    <string name="source_compare_col_rain">Hujan</string>
+    <string name="source_compare_col_night">Malam</string>
+    <string name="source_compare_col_amount">Jumlah</string>
+    <string name="source_compare_col_cloud">Awan</string>
+    <string name="source_compare_col_bias">Bias</string>
+    <string name="source_compare_col_age">Usia</string>
     <string name="loading_accuracy_summary">Memuat akurasi prakiraan...</string>
     <string name="error_loading_accuracy_summary">Tidak dapat memuat akurasi prakiraan saat ini.</string>
     <string name="data_freshness_unknown">Kesegaran data: Tidak diketahui</string>

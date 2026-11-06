@@ -94,6 +94,16 @@
     <string name="months_view_empty">اس مدت میں کوئی روزانہ تاریخ نہیں</string>
     <string name="months_view_more_history">%1$s کی تاریخ %2$s سے موجود ہے۔ تبدیل کرنے کے لیے ٹیپ کریں۔</string>
     <string name="forecast_accuracy_summary_title">پیشن گوئی کی درستگی (آخری 30 دن)</string>
+    <string name="source_compare_title">%1$s کے تمام ذرائع</string>
+    <string name="source_compare_col_source">ذریعہ</string>
+    <string name="source_compare_col_high">زیادہ</string>
+    <string name="source_compare_col_low">کم</string>
+    <string name="source_compare_col_rain">بارش</string>
+    <string name="source_compare_col_night">رات</string>
+    <string name="source_compare_col_amount">مقدار</string>
+    <string name="source_compare_col_cloud">بادل</string>
+    <string name="source_compare_col_bias">جھکاؤ</string>
+    <string name="source_compare_col_age">عمر</string>
     <string name="loading_accuracy_summary">پیشن گوئی کی درستگی لوڈ ہو رہی ہے...</string>
     <string name="error_loading_accuracy_summary">ابھی پیشن گوئی کی درستگی لوڈ نہیں ہو سکتی۔</string>
     <string name="data_freshness_unknown">ڈیٹا کی تازگی: نامعلوم</string>

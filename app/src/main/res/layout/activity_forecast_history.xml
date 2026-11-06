@@ -377,6 +377,35 @@
                 </LinearLayout>
             </LinearLayout>
 
+            <!-- "All sources for <day>" (shared DaySourceComparison); rows added in code. -->
+            <LinearLayout
+                android:id="@+id/source_comparison_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="12dp"
+                android:background="@drawable/bg_surface_card"
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="12dp"
+                android:layout_marginBottom="6dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/source_comparison_title"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="16sp"
+                    android:textColor="@color/widget_text_primary"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="6dp" />
+
+                <LinearLayout
+                    android:id="@+id/source_comparison_table"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+            </LinearLayout>
+
             <LinearLayout
                 android:id="@+id/accuracy_card"
                 android:layout_width="match_parent"

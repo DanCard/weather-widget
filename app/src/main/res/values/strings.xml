@@ -94,6 +94,16 @@
     <string name="months_view_empty">No daily history in this range</string>
     <string name="months_view_more_history">%1$s has history back to %2$s. Tap to switch.</string>
     <string name="forecast_accuracy_summary_title">Forecast Accuracy (Last 30 Days)</string>
+    <string name="source_compare_title">All sources for %1$s</string>
+    <string name="source_compare_col_source">Source</string>
+    <string name="source_compare_col_high">High</string>
+    <string name="source_compare_col_low">Low</string>
+    <string name="source_compare_col_rain">Rain</string>
+    <string name="source_compare_col_night">Night</string>
+    <string name="source_compare_col_amount">Amount</string>
+    <string name="source_compare_col_cloud">Cloud</string>
+    <string name="source_compare_col_bias">Bias</string>
+    <string name="source_compare_col_age">Age</string>
     <string name="loading_accuracy_summary">Loading forecast accuracy...</string>
     <string name="error_loading_accuracy_summary">Unable to load forecast accuracy right now.</string>
     <string name="data_freshness_unknown">Data freshness: Unknown</string>

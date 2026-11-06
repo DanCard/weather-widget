@@ -94,6 +94,16 @@
     <string name="months_view_empty">Нет ежедневной истории за этот период</string>
     <string name="months_view_more_history">У %1$s есть история с %2$s. Нажмите, чтобы переключить.</string>
     <string name="forecast_accuracy_summary_title">Точность прогнозов (последние 30 дней)</string>
+    <string name="source_compare_title">Все источники на %1$s</string>
+    <string name="source_compare_col_source">Источник</string>
+    <string name="source_compare_col_high">Макс</string>
+    <string name="source_compare_col_low">Мин</string>
+    <string name="source_compare_col_rain">Дождь</string>
+    <string name="source_compare_col_night">Ночь</string>
+    <string name="source_compare_col_amount">Кол-во</string>
+    <string name="source_compare_col_cloud">Облака</string>
+    <string name="source_compare_col_bias">Смещ.</string>
+    <string name="source_compare_col_age">Возраст</string>
     <string name="loading_accuracy_summary">Загрузка точности прогнозов...</string>
     <string name="error_loading_accuracy_summary">Не удаётся загрузить точность прогнозов.</string>
     <string name="data_freshness_unknown">Свежесть данных: неизвестно</string>

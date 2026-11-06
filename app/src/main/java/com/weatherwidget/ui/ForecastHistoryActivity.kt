@@ -4,6 +4,7 @@ import com.weatherwidget.shared.util.WeatherSourceOrdering
 import android.appwidget.AppWidgetManager
 import android.content.Intent
 import android.os.Bundle
+import com.weatherwidget.shared.graph.DaySourceComparison
 import com.weatherwidget.shared.graph.ForecastEvolutionCutoff
 import com.weatherwidget.shared.graph.ForecastHistoryHeader
 import android.os.SystemClock
@@ -282,6 +283,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
         requestedSource: WeatherSource?,
     ) {
         val targetDateEpoch = date.toEpochDay() * WidgetConstants.MS_IN_A_DAY
+        loadSourceComparison(date, lat, lon)
         lifecycleScope.launch(Dispatchers.IO) {
             try {
                 val allSnapshots = forecastDao.getForecastEvolution(targetDateEpoch, lat, lon)
@@ -714,6 +716,95 @@ class ForecastHistoryActivity : AppCompatActivity() {
         return (dp * resources.displayMetrics.density).toInt()
     }
 
+    /**
+     * "All sources for <day>": every visible source's forecast for [date], sorted by high
+     * (shared [DaySourceComparison]; desktop draws the same rows in `DaySourceComparisonTable`).
+     */
+    private fun loadSourceComparison(date: LocalDate, lat: Double, lon: Double) {
+        val sources = effectiveVisibleSources()
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val rows = DaySourceComparison.load(
+                    host = RoomDaySourceComparisonHost(
+                        forecastDao, dailyHistoryDao, hourlyForecastDao, sources,
+                        RoomDaySourceComparisonHost.accuracyBias(accuracyCalculator),
+                    ),
+                    date = date,
+                    lat = lat,
+                    lon = lon,
+                    now = LocalDateTime.now(),
+                )
+                withContext(Dispatchers.Main) {
+                    // A slower load for a day the user has since left must not paint over the new day.
+                    if (date == targetLocalDate) renderSourceComparison(date, rows)
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Error loading all-sources comparison for $date", e)
+            }
+        }
+    }
+
+    private fun renderSourceComparison(date: LocalDate, rows: List<DaySourceComparison.Row>) {
+        val card = findViewById<View>(R.id.source_comparison_card)
+        val table = findViewById<android.widget.LinearLayout>(R.id.source_comparison_table)
+        table.removeAllViews()
+        if (rows.isEmpty()) {
+            card.visibility = View.GONE
+            return
+        }
+        card.visibility = View.VISIBLE
+        val locale = java.util.Locale.getDefault()
+        val dayText = "${date.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, locale)} " +
+            "${date.month.getDisplayName(java.time.format.TextStyle.SHORT, locale)} ${date.dayOfMonth}"
+        findViewById<TextView>(R.id.source_comparison_title).text = getString(R.string.source_compare_title, dayText)
+
+        val useCelsius = widgetStateManager.useCelsius()
+        val nowMs = System.currentTimeMillis()
+        val cells = rows.map { DaySourceComparison.cells(it, nowMs, useCelsius) }
+        // Card margins (12 + 12) and padding (12 + 12) around the table.
+        val tableWidthDp = resources.displayMetrics.widthPixels / resources.displayMetrics.density - 48f
+        val showAmount = DaySourceComparison.showAmountColumn(tableWidthDp, cells)
+        val primary = DataScreenStyler.color(com.weatherwidget.shared.graph.DataScreenStyle.TEXT_PRIMARY)
+        val secondary = DataScreenStyler.color(com.weatherwidget.shared.graph.DataScreenStyle.TEXT_SECONDARY)
+        val header = listOf(
+            R.string.source_compare_col_source, R.string.source_compare_col_high, R.string.source_compare_col_low,
+            R.string.source_compare_col_rain, R.string.source_compare_col_night, R.string.source_compare_col_amount,
+            R.string.source_compare_col_cloud, R.string.source_compare_col_bias, R.string.source_compare_col_age,
+        ).map { getString(it) }
+        table.addView(comparisonRow(header, showAmount, secondary, bold = false, staleAge = false))
+        cells.forEachIndexed { i, c ->
+            val values = listOf(c.source, c.high, c.low, c.dayRain, c.nightRain, c.amount, c.cloud, c.bias, c.age)
+                .map { it.ifEmpty { "—" } }
+            table.addView(comparisonRow(values, showAmount, primary, bold = rows[i].source == cachedRequestedSource, staleAge = c.ageIsStale))
+        }
+    }
+
+    private fun comparisonRow(values: List<String>, showAmount: Boolean, color: Int, bold: Boolean, staleAge: Boolean): View {
+        val row = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.HORIZONTAL
+            setPadding(0, dpToPx(2), 0, dpToPx(2))
+        }
+        val secondary = DataScreenStyler.color(com.weatherwidget.shared.graph.DataScreenStyle.TEXT_SECONDARY)
+        values.forEachIndexed { i, v ->
+            if (i == DaySourceComparison.AMOUNT_COLUMN && !showAmount) return@forEachIndexed
+            val isAge = i == values.lastIndex
+            row.addView(
+                TextView(this).apply {
+                    text = v
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+                    setTextColor(if (isAge && staleAge) secondary else color)
+                    if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    gravity = if (i == 0) android.view.Gravity.START else android.view.Gravity.END
+                    maxLines = 1
+                    layoutParams = android.widget.LinearLayout.LayoutParams(0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, DaySourceComparison.COLUMN_WEIGHTS[i])
+                },
+            )
+        }
+        return row
+    }
+
     /** The Current Observations look, from the palette desktop shares ([DataScreenStyler]). */
     private fun applyDataScreenStyle() {
         DataScreenStyler.background(findViewById(R.id.history_root))
@@ -723,6 +814,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
             R.id.high_graph_card,
             R.id.low_graph_card,
             R.id.actuals_legend_card,
+            R.id.source_comparison_card,
             R.id.accuracy_card,
             R.id.freshness_card,
         ).forEach { DataScreenStyler.card(findViewById(it)) }

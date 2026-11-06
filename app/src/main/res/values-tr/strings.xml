@@ -94,6 +94,16 @@
     <string name="months_view_empty">Bu aralıkta günlük geçmiş yok</string>
     <string name="months_view_more_history">%1$s geçmişi %2$s tarihine kadar uzanıyor. Geçmek için dokunun.</string>
     <string name="forecast_accuracy_summary_title">Tahmin doğruluğu (son 30 gün)</string>
+    <string name="source_compare_title">%1$s için tüm kaynaklar</string>
+    <string name="source_compare_col_source">Kaynak</string>
+    <string name="source_compare_col_high">Yüksek</string>
+    <string name="source_compare_col_low">Düşük</string>
+    <string name="source_compare_col_rain">Yağmur</string>
+    <string name="source_compare_col_night">Gece</string>
+    <string name="source_compare_col_amount">Miktar</string>
+    <string name="source_compare_col_cloud">Bulut</string>
+    <string name="source_compare_col_bias">Sapma</string>
+    <string name="source_compare_col_age">Yaş</string>
     <string name="loading_accuracy_summary">Tahmin doğruluğu yükleniyor...</string>
     <string name="error_loading_accuracy_summary">Tahmin doğruluğu şu anda yüklenemiyor.</string>
     <string name="data_freshness_unknown">Veri güncelliği: Bilinmiyor</string>

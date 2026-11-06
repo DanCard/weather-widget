@@ -94,6 +94,16 @@
     <string name="months_view_empty">ไม่มีประวัติรายวันในช่วงนี้</string>
     <string name="months_view_more_history">%1$s มีประวัติย้อนไปถึง %2$s แตะเพื่อสลับ</string>
     <string name="forecast_accuracy_summary_title">ความแม่นยำของพยากรณ์ (30 วันล่าสุด)</string>
+    <string name="source_compare_title">ทุกแหล่งสำหรับ %1$s</string>
+    <string name="source_compare_col_source">แหล่ง</string>
+    <string name="source_compare_col_high">สูงสุด</string>
+    <string name="source_compare_col_low">ต่ำสุด</string>
+    <string name="source_compare_col_rain">ฝน</string>
+    <string name="source_compare_col_night">กลางคืน</string>
+    <string name="source_compare_col_amount">ปริมาณ</string>
+    <string name="source_compare_col_cloud">เมฆ</string>
+    <string name="source_compare_col_bias">ความเอนเอียง</string>
+    <string name="source_compare_col_age">อายุ</string>
     <string name="loading_accuracy_summary">กำลังโหลดความแม่นยำของพยากรณ์...</string>
     <string name="error_loading_accuracy_summary">ไม่สามารถโหลดความแม่นยำของพยากรณ์ได้ในขณะนี้</string>
     <string name="data_freshness_unknown">ความใหม่ของข้อมูล: ไม่ทราบ</string>

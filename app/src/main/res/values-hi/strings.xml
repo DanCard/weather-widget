@@ -94,6 +94,16 @@
     <string name="months_view_empty">इस अवधि में कोई दैनिक इतिहास नहीं</string>
     <string name="months_view_more_history">%1$s का इतिहास %2$s से उपलब्ध है। बदलने के लिए टैप करें।</string>
     <string name="forecast_accuracy_summary_title">पूर्वानुमान सटीकता (पिछले 30 दिन)</string>
+    <string name="source_compare_title">%1$s के सभी स्रोत</string>
+    <string name="source_compare_col_source">स्रोत</string>
+    <string name="source_compare_col_high">अधिकतम</string>
+    <string name="source_compare_col_low">न्यूनतम</string>
+    <string name="source_compare_col_rain">बारिश</string>
+    <string name="source_compare_col_night">रात</string>
+    <string name="source_compare_col_amount">मात्रा</string>
+    <string name="source_compare_col_cloud">बादल</string>
+    <string name="source_compare_col_bias">झुकाव</string>
+    <string name="source_compare_col_age">आयु</string>
     <string name="loading_accuracy_summary">पूर्वानुमान सटीकता लोड हो रही है...</string>
     <string name="error_loading_accuracy_summary">अभी पूर्वानुमान सटीकता लोड नहीं हो पा रही।</string>
     <string name="data_freshness_unknown">डेटा ताज़गी: अज्ञात</string>

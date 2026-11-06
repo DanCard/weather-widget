@@ -94,6 +94,16 @@
     <string name="months_view_empty">Немає щоденної історії за цей період</string>
     <string name="months_view_more_history">%1$s має історію з %2$s. Торкніться, щоб перемкнути.</string>
     <string name="forecast_accuracy_summary_title">Точність прогнозів (останні 30 днів)</string>
+    <string name="source_compare_title">Усі джерела на %1$s</string>
+    <string name="source_compare_col_source">Джерело</string>
+    <string name="source_compare_col_high">Макс</string>
+    <string name="source_compare_col_low">Мін</string>
+    <string name="source_compare_col_rain">Дощ</string>
+    <string name="source_compare_col_night">Ніч</string>
+    <string name="source_compare_col_amount">К-сть</string>
+    <string name="source_compare_col_cloud">Хмари</string>
+    <string name="source_compare_col_bias">Зміщ.</string>
+    <string name="source_compare_col_age">Вік</string>
     <string name="loading_accuracy_summary">Завантаження точності прогнозів...</string>
     <string name="error_loading_accuracy_summary">Наразі не вдається завантажити точність прогнозів.</string>
     <string name="data_freshness_unknown">Свіжість даних: невідомо</string>

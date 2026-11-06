@@ -94,6 +94,16 @@
     <string name="months_view_empty">لا يوجد سجل يومي في هذه الفترة</string>
     <string name="months_view_more_history">لدى %1$s سجل منذ %2$s. اضغط للتبديل.</string>
     <string name="forecast_accuracy_summary_title">دقة التوقعات (آخر 30 يومًا)</string>
+    <string name="source_compare_title">كل المصادر ليوم %1$s</string>
+    <string name="source_compare_col_source">المصدر</string>
+    <string name="source_compare_col_high">العظمى</string>
+    <string name="source_compare_col_low">الصغرى</string>
+    <string name="source_compare_col_rain">المطر</string>
+    <string name="source_compare_col_night">الليل</string>
+    <string name="source_compare_col_amount">الكمية</string>
+    <string name="source_compare_col_cloud">الغيوم</string>
+    <string name="source_compare_col_bias">الانحياز</string>
+    <string name="source_compare_col_age">العمر</string>
     <string name="loading_accuracy_summary">جارٍ تحميل دقة التوقعات...</string>
     <string name="error_loading_accuracy_summary">يتعذر تحميل دقة التوقعات حاليًا.</string>
     <string name="data_freshness_unknown">حداثة البيانات: غير معروفة</string>

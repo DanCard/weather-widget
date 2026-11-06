@@ -2605,6 +2605,81 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
     }
 
     /**
+     * Every stored forecast row for [targetDate] in the [LocationMatch] box, all sources, with its
+     * storage-key site: the input of the Forecast History "All sources" table
+     * ([com.weatherwidget.shared.graph.DaySourceComparison], which picks the site and the row).
+     * Same rows as Android's `ForecastDao.getForecastEvolution`; implausible temperatures read as null.
+     */
+    fun getForecastRowsForDate(
+        targetDate: Long,
+        locationLat: Double,
+        locationLon: Double,
+    ): List<com.weatherwidget.shared.graph.DaySourceComparison.StoredRow> {
+        val date = LocalDate.ofInstant(java.time.Instant.ofEpochMilli(targetDate), ZoneOffset.UTC)
+        val result = mutableListOf<com.weatherwidget.shared.graph.DaySourceComparison.StoredRow>()
+        db.getConnection().use { conn ->
+            val sql = """
+                SELECT * FROM forecasts
+                WHERE targetDate = ? AND dateOfPrediction <= ? AND ${LocationMatch.JDBC_WHERE}
+                ORDER BY dateOfPrediction ASC, lastConfirmedAt ASC, fetchedAt ASC
+            """.trimIndent()
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setLong(1, targetDate)
+                stmt.setLong(2, targetDate)
+                stmt.setDouble(3, locationLat)
+                stmt.setDouble(4, locationLon)
+                val rs = stmt.executeQuery()
+                while (rs.next()) {
+                    val high = rs.getNullableFloat("highTemp").orNullIfImplausibleTempF()
+                    val low = rs.getNullableFloat("lowTemp").orNullIfImplausibleTempF()
+                    val fetchedAt = rs.getLong("fetchedAt")
+                    val lastConfirmedAt = rs.getLong("lastConfirmedAt")
+                    val forecast = DailyForecast(
+                        date = date.toString(),
+                        highTemp = high,
+                        lowTemp = low,
+                        condition = rs.getString("condition"),
+                        iconToken = rs.getString("nativeDailyIconToken"),
+                        precipProbability = rs.getNullableInt("precipProbability"),
+                        precipAmountMm = rs.getNullableFloat("precipAmountMm"),
+                        isClimateNormal = rs.getInt("isClimateNormal") == 1,
+                        source = rs.getString("source"),
+                        daytimePrecipProbability = rs.getNullableInt("daytimePrecipProbability"),
+                        nighttimePrecipProbability = rs.getNullableInt("nighttimePrecipProbability"),
+                        noonCloudPercent = rs.getNullableInt("noonCloudPercent"),
+                        hourlyDayPrecipMax = rs.getNullableInt("hourlyDayPrecipMax"),
+                        hourlyNightPrecipMax = rs.getNullableInt("hourlyNightPrecipMax"),
+                        hourlyDayPrecipPeakAt = rs.getNullableLong("hourlyDayPrecipPeakAt"),
+                        fetchedAt = fetchedAt,
+                        lastConfirmedAt = lastConfirmedAt,
+                    )
+                    val snapshot = DailyForecastSnapshot(
+                        date = date.toString(),
+                        highTemp = high,
+                        lowTemp = low,
+                        condition = forecast.condition,
+                        iconToken = forecast.iconToken,
+                        precipProbability = forecast.precipProbability,
+                        precipAmountMm = forecast.precipAmountMm,
+                        fetchedAt = fetchedAt,
+                        daytimePrecipProbability = forecast.daytimePrecipProbability,
+                        nighttimePrecipProbability = forecast.nighttimePrecipProbability,
+                        hindcastHighTemp = rs.getNullableFloat("hindcastHighTemp").orNullIfImplausibleTempF(),
+                        hindcastLowTemp = rs.getNullableFloat("hindcastLowTemp").orNullIfImplausibleTempF(),
+                        lastConfirmedAt = lastConfirmedAt,
+                    )
+                    result.add(
+                        com.weatherwidget.shared.graph.DaySourceComparison.StoredRow(
+                            forecast, snapshot, rs.getDouble("locationLat"), rs.getDouble("locationLon"),
+                        ),
+                    )
+                }
+            }
+        }
+        return result
+    }
+
+    /**
      * Overwrites the single resolved-current-status row for (location, source). Written by the
      * daemon after each fetch; read by the genmon panel and the UI popup so they consume one
      * published value instead of re-deriving it independently.

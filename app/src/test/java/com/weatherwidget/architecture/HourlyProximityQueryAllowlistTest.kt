@@ -65,6 +65,9 @@ class HourlyProximityQueryAllowlistTest {
         "NoHourlyDayClickCoordinator.kt" to "presence and last-hour gates: the newest row per hour, never drawn",
         "ForecastHistoryActivity.kt" to
             "today's settled-low look-ahead; sole call site wrapped in GraphDataLoader.unifyToNearestSite",
+        "RoomDaySourceComparisonHost.kt" to
+            "raw box rows for the shared DaySourceComparison runner, which picks the nearest site per source " +
+                "(siteHourly) for both platforms; pinned by DaySourceComparisonTest and DaySourceComparisonHostContract",
     )
 
     @Test

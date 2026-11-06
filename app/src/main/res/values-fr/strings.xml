@@ -94,6 +94,16 @@
     <string name="months_view_empty">Aucun historique quotidien sur cette période</string>
     <string name="months_view_more_history">%1$s a un historique depuis le %2$s. Touchez pour changer.</string>
     <string name="forecast_accuracy_summary_title">Précision des prévisions (30 derniers jours)</string>
+    <string name="source_compare_title">Toutes les sources pour %1$s</string>
+    <string name="source_compare_col_source">Source</string>
+    <string name="source_compare_col_high">Max</string>
+    <string name="source_compare_col_low">Min</string>
+    <string name="source_compare_col_rain">Pluie</string>
+    <string name="source_compare_col_night">Nuit</string>
+    <string name="source_compare_col_amount">Quant.</string>
+    <string name="source_compare_col_cloud">Nuages</string>
+    <string name="source_compare_col_bias">Biais</string>
+    <string name="source_compare_col_age">Âge</string>
     <string name="loading_accuracy_summary">Chargement de la précision des prévisions...</string>
     <string name="error_loading_accuracy_summary">Impossible de charger la précision des prévisions pour le moment.</string>
     <string name="data_freshness_unknown">Fraîcheur des données : inconnue</string>

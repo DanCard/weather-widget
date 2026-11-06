@@ -41,6 +41,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.desktop.theme.WeatherDarkColorScheme
 import com.weatherwidget.desktop.theme.WeatherTypography
 import com.weatherwidget.shared.graph.AxisScale
+import com.weatherwidget.shared.graph.DaySourceComparison
 import com.weatherwidget.shared.graph.ForecastEvolutionCutoff
 import java.time.ZoneId
 import java.time.LocalDateTime
@@ -75,6 +76,8 @@ private data class HistoryData(
     val snapshotCount: Int,
     val newestFetchAgeMs: Long?,
     val accuracySummary: String,
+    /** "All sources for <day>" (shared [DaySourceComparison]). */
+    val sourceComparison: List<DaySourceComparison.Row> = emptyList(),
 )
 
 /**
@@ -224,7 +227,7 @@ internal fun ForecastHistoryContent(
             when {
                 loading -> Text("Loading…", color = ObsStyle.textSecondary)
                 d == null -> Text("No data.", color = ObsStyle.textSecondary)
-                else -> Content(d, graphMode, source, config.settings.useCelsius)
+                else -> Content(d, graphMode, source, config.settings.useCelsius, targetDate)
             }
             }
             RefreshNoticePill(RefreshNoticeSurface.HISTORY, Modifier.align(Alignment.BottomCenter))
@@ -291,7 +294,7 @@ private fun Header(
 }
 
 @Composable
-private fun Content(d: HistoryData, graphMode: GraphMode, source: WeatherSource, useCelsius: Boolean) {
+private fun Content(d: HistoryData, graphMode: GraphMode, source: WeatherSource, useCelsius: Boolean, targetDate: LocalDate) {
     val textMeasurer = rememberTextMeasurer()
     val isError = graphMode == GraphMode.ERROR
     val hasPoints = d.points.isNotEmpty()
@@ -339,6 +342,11 @@ private fun Content(d: HistoryData, graphMode: GraphMode, source: WeatherSource,
     }
     Text(freshness, color = ObsStyle.textSecondary, fontSize = 11.sp)
     Spacer(Modifier.height(12.dp))
+
+    if (d.sourceComparison.isNotEmpty()) {
+        DaySourceComparisonTable(targetDate, d.sourceComparison, source, useCelsius, System.currentTimeMillis())
+        Spacer(Modifier.height(12.dp))
+    }
 
     Text("Accuracy (last 30 days)", fontWeight = FontWeight.Bold, fontSize = 14.sp)
     Spacer(Modifier.height(4.dp))
@@ -565,7 +573,7 @@ private fun DrawScope.labelSlanted(tm: TextMeasurer, text: String, x: Float, bas
 // Data loading
 // ---------------------------------------------------------------------------------------------
 
-private fun loadHistory(
+private suspend fun loadHistory(
     dao: DesktopWeatherDao,
     config: DesktopConfig,
     targetDate: LocalDate,
@@ -655,9 +663,10 @@ private fun loadHistory(
 
     val calc = DesktopAccuracyCalculator(dao, orderedVisibleSources = visibleSources)
     val useCelsius = config.settings.useCelsius
+    val statsBySource = visibleSources.associateWith { calc.calculateAccuracy(it.id, lat, lon, days = 30) }
     val summary = buildString {
         visibleSources.forEachIndexed { index, s ->
-            val stats = calc.calculateAccuracy(s.id, lat, lon, days = 30)
+            val stats = statsBySource[s]
             if (stats != null && stats.totalForecasts > 0) {
                 append("${s.displayName}\n")
                 val highErr = TempUtils.displayDelta(stats.avgHighError, useCelsius)
@@ -675,6 +684,18 @@ private fun loadHistory(
         }
     }.ifBlank { "No accuracy history yet — comparisons build up over the following weeks." }
 
+    val biasBySource = statsBySource.entries
+        .filter { (_, stats) -> stats != null && stats.totalForecasts > 0 }
+        .associate { (s, stats) -> s.id to stats!!.highBias }
+    val sourceComparison = DaySourceComparison.load(
+        host = DesktopDaySourceComparisonHost(dao, visibleSources, biasBySource),
+        date = targetDate,
+        lat = lat,
+        lon = lon,
+        now = LocalDateTime.now(zone),
+        zone = zone,
+    )
+
     return HistoryData(
         points = points,
         apiHigh = apiHigh, apiLow = apiLow,
@@ -683,6 +704,7 @@ private fun loadHistory(
         snapshotCount = points.size,
         newestFetchAgeMs = newestAge,
         accuracySummary = summary,
+        sourceComparison = sourceComparison,
     )
 }
 

@@ -94,6 +94,16 @@
     <string name="months_view_empty">এই সময়সীমায় কোনো দৈনিক ইতিহাস নেই</string>
     <string name="months_view_more_history">%1$s-এর ইতিহাস %2$s থেকে আছে। বদলাতে ট্যাপ করুন।</string>
     <string name="forecast_accuracy_summary_title">পূর্বাভাসের নির্ভুলতা (শেষ ৩০ দিন)</string>
+    <string name="source_compare_title">%1$s-এর সব উৎস</string>
+    <string name="source_compare_col_source">উৎস</string>
+    <string name="source_compare_col_high">সর্বোচ্চ</string>
+    <string name="source_compare_col_low">সর্বনিম্ন</string>
+    <string name="source_compare_col_rain">বৃষ্টি</string>
+    <string name="source_compare_col_night">রাত</string>
+    <string name="source_compare_col_amount">পরিমাণ</string>
+    <string name="source_compare_col_cloud">মেঘ</string>
+    <string name="source_compare_col_bias">পক্ষপাত</string>
+    <string name="source_compare_col_age">বয়স</string>
     <string name="loading_accuracy_summary">পূর্বাভাসের নির্ভুলতা লোড হচ্ছে...</string>
     <string name="error_loading_accuracy_summary">এখন পূর্বাভাসের নির্ভুলতা লোড করা যাচ্ছে না।</string>
     <string name="data_freshness_unknown">ডেটার সতেজতা: অজানা</string>

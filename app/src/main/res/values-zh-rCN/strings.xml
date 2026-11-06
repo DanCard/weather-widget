@@ -94,6 +94,16 @@
     <string name="months_view_empty">此时间段内没有每日历史</string>
     <string name="months_view_more_history">%1$s 有自 %2$s 起的历史记录。点按即可切换。</string>
     <string name="forecast_accuracy_summary_title">预报准确度（最近 30 天）</string>
+    <string name="source_compare_title">%1$s 的所有来源</string>
+    <string name="source_compare_col_source">来源</string>
+    <string name="source_compare_col_high">最高</string>
+    <string name="source_compare_col_low">最低</string>
+    <string name="source_compare_col_rain">降雨</string>
+    <string name="source_compare_col_night">夜间</string>
+    <string name="source_compare_col_amount">雨量</string>
+    <string name="source_compare_col_cloud">云量</string>
+    <string name="source_compare_col_bias">偏差</string>
+    <string name="source_compare_col_age">时长</string>
     <string name="loading_accuracy_summary">正在加载预报准确度...</string>
     <string name="error_loading_accuracy_summary">目前无法加载预报准确度。</string>
     <string name="data_freshness_unknown">数据新鲜度：未知</string>

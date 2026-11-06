@@ -94,6 +94,16 @@
     <string name="months_view_empty">Kein Tagesverlauf in diesem Zeitraum</string>
     <string name="months_view_more_history">%1$s hat Verlaufsdaten seit %2$s. Zum Wechseln tippen.</string>
     <string name="forecast_accuracy_summary_title">Vorhersagegenauigkeit (letzte 30 Tage)</string>
+    <string name="source_compare_title">Alle Quellen für %1$s</string>
+    <string name="source_compare_col_source">Quelle</string>
+    <string name="source_compare_col_high">Hoch</string>
+    <string name="source_compare_col_low">Tief</string>
+    <string name="source_compare_col_rain">Regen</string>
+    <string name="source_compare_col_night">Nacht</string>
+    <string name="source_compare_col_amount">Menge</string>
+    <string name="source_compare_col_cloud">Wolken</string>
+    <string name="source_compare_col_bias">Abw.</string>
+    <string name="source_compare_col_age">Alter</string>
     <string name="loading_accuracy_summary">Vorhersagegenauigkeit wird geladen...</string>
     <string name="error_loading_accuracy_summary">Vorhersagegenauigkeit kann derzeit nicht geladen werden.</string>
     <string name="data_freshness_unknown">Datenaktualität: Unbekannt</string>

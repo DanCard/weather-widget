@@ -94,6 +94,16 @@
     <string name="months_view_empty">Brak historii dziennej w tym okresie</string>
     <string name="months_view_more_history">%1$s ma historię od %2$s. Dotknij, aby przełączyć.</string>
     <string name="forecast_accuracy_summary_title">Trafność prognoz (ostatnie 30 dni)</string>
+    <string name="source_compare_title">Wszystkie źródła dla %1$s</string>
+    <string name="source_compare_col_source">Źródło</string>
+    <string name="source_compare_col_high">Maks</string>
+    <string name="source_compare_col_low">Min</string>
+    <string name="source_compare_col_rain">Deszcz</string>
+    <string name="source_compare_col_night">Noc</string>
+    <string name="source_compare_col_amount">Ilość</string>
+    <string name="source_compare_col_cloud">Chmury</string>
+    <string name="source_compare_col_bias">Odchył.</string>
+    <string name="source_compare_col_age">Wiek</string>
     <string name="loading_accuracy_summary">Ładowanie trafności prognoz...</string>
     <string name="error_loading_accuracy_summary">Nie można teraz wczytać trafności prognoz.</string>
     <string name="data_freshness_unknown">Aktualność danych: nieznana</string>
