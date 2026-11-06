@@ -275,18 +275,19 @@ class DesktopWeatherDaoTest {
     }
 
     /**
-     * A source first fetched after 06:00 (Google, 2026-10-06): the low is still frozen out of
-     * `lowTemp`, but the raw value is kept in `hindcastLowTemp` for the past-day dashed fallback.
+     * A source first fetched after 16:00: the high is frozen out of `highTemp` but kept in
+     * `hindcastHighTemp` for the past-day dashed fallback. Today's low is never frozen
+     * (plans/261106-remove-same-day-low-freeze.md), so it is stored as the forecast.
      */
     @Test
-    fun `upsertForecasts keeps a frozen same-day value as hindcast, not as the forecast`() {
+    fun `upsertForecasts keeps a frozen same-day high as hindcast and stores the low`() {
         val lat = 37.4168
         val lon = -122.0890
         val today = LocalDate.now()
-        val at1116 = today.atTime(11, 16).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val at1716 = today.atTime(17, 16).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
         dao.upsertForecasts(lat, lon, "GOOGLE_WEATHER", listOf(
             DailyForecast(date = today.toString(), highTemp = 81.9f, lowTemp = 60.4f, condition = "Clear"),
-        ), nowMs = at1116)
+        ), nowMs = at1716)
 
         val stored = database.getConnection().use { conn ->
             conn.createStatement().executeQuery(
@@ -296,10 +297,10 @@ class DesktopWeatherDaoTest {
                 listOf(rs.getObject("highTemp"), rs.getObject("lowTemp"), rs.getObject("hindcastHighTemp"), rs.getObject("hindcastLowTemp"))
             }
         }
-        assertEquals(81.9, (stored[0] as Number).toDouble(), 0.01)
-        assertNull("a post-cutoff low never becomes the forecast", stored[1])
-        assertNull("the high was not frozen, so nothing is hindcast", stored[2])
-        assertEquals(60.4, (stored[3] as Number).toDouble(), 0.01)
+        assertNull("a post-cutoff high never becomes the forecast", stored[0])
+        assertEquals(60.4, (stored[1] as Number).toDouble(), 0.01)
+        assertEquals(81.9, (stored[2] as Number).toDouble(), 0.01)
+        assertNull("the low is never frozen, so it is never hindcast", stored[3])
 
         // A later batch makes the first one a snapshot, which carries the hindcast to the renderer.
         setForecastBatchStamp(1000L)
@@ -311,11 +312,11 @@ class DesktopWeatherDaoTest {
             today.plusDays(1).atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli(),
             lat, lon, "GOOGLE_WEATHER",
         )[today.toString()]!!.single()
-        assertNull(snapshot.lowTemp)
-        assertEquals(60.4f, snapshot.hindcastLowTemp!!, 0.01f)
+        assertNull(snapshot.highTemp)
+        assertEquals(81.9f, snapshot.hindcastHighTemp!!, 0.01f)
     }
 
-    /** Before 06:00 local, so the same-day cutoffs (SameDayExtremeCutoff) store both values. */
+    /** Before the 16:00 high cutoff (SameDayExtremeCutoff), so both values are stored. */
     private fun earlyMorningMs(): Long =
         LocalDate.now().atTime(5, 0).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
 

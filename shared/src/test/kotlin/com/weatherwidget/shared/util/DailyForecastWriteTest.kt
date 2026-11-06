@@ -93,12 +93,24 @@ class DailyForecastWriteTest {
 
     @Test
     fun `after the high cutoff the prior high stays and the sent one goes to hindcast`() {
-        val p = plan(listOf(day(today, 90f, 55f)), listOf(stored(today, 80f, 55f, at(5))), nowMs = at(17))
+        val p = plan(listOf(day(today, 90f, 50f)), listOf(stored(today, 80f, 55f, at(5))), nowMs = at(17))
         val v = p.write.single().values
         assertEquals(80f, v.highTemp)
         assertEquals(90f, v.hindcastHighTemp)
-        assertEquals(55f, v.lowTemp) // frozen low = prior's
+        assertEquals("today's low is never frozen", 50f, v.lowTemp)
+        assertNull(v.hindcastLowTemp)
         assertTrue(p.lines.any { it.tag == "SNAPSHOT_SKIP_HINDCAST" })
+    }
+
+    /** Emulator 2026-11-06: Open-Meteo's 08:54 fetch sent 46.6 but the row kept Nov 4's 57. */
+    @Test
+    fun `after 6 am today's low takes this fetch's value, not the prior row's`() {
+        val p = plan(listOf(day(today, 72.2f, 46.6f)), listOf(stored(today, 74f, 57f, at(3))), nowMs = at(8))
+        val v = p.write.single().values
+        assertEquals(46.6f, v.lowTemp)
+        assertEquals(72.2f, v.highTemp)
+        assertNull(v.hindcastLowTemp)
+        assertTrue(p.lines.none { it.tag == "SNAPSHOT_SKIP_HINDCAST" })
     }
 
     @Test

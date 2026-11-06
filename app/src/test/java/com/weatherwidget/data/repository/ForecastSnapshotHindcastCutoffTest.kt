@@ -24,8 +24,9 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 /**
- * Same-day high/low cutoffs (plans/261004-same-day-high-low-cutoffs.md): low is frozen at 06:00
- * local, high at 16:00. Post-cutoff batches must not overwrite the last real prediction.
+ * Same-day high cutoff (plans/261004-same-day-high-low-cutoffs.md): the high is frozen at 16:00
+ * local; a post-cutoff batch must not overwrite the last real prediction. Today's low is never
+ * frozen (plans/261106-remove-same-day-low-freeze.md): every fetch writes it.
  */
 @RunWith(RobolectricTestRunner::class)
 @Category(LongDuration::class)
@@ -101,7 +102,7 @@ class ForecastSnapshotHindcastCutoffTest {
     }
 
     @Test
-    fun `after 6 am the low is frozen to the prior forecast and the high still updates`() = runTest {
+    fun `after 6 am both the low and the high take the newest fetch`() = runTest {
         repository.saveForecastSnapshot(
             listOf(TestData.forecast(targetDate = todayStr, highTemp = 80f, lowTemp = 55f)),
             LAT, LON, "NWS",
@@ -114,7 +115,8 @@ class ForecastSnapshotHindcastCutoffTest {
         )
         val row = latest()
         assertEquals(82f, row.highTemp)
-        assertEquals("low stays the pre-6 am prediction", 55f, row.lowTemp)
+        assertEquals("low takes the 07:00 fetch, not the pre-6 am prediction", 50f, row.lowTemp)
+        assertNull(row.hindcastLowTemp)
     }
 
     @Test
@@ -136,11 +138,11 @@ class ForecastSnapshotHindcastCutoffTest {
         )
         val row = latest()
         assertEquals("high stays the pre-4 pm prediction", 82f, row.highTemp)
-        assertEquals("low stays the pre-6 am prediction", 55f, row.lowTemp)
+        assertEquals("low takes the 16:30 fetch", 52f, row.lowTemp)
     }
 
     @Test
-    fun `first write after both cutoffs stores neither as a forecast, but keeps both as hindcast`() = runTest {
+    fun `first write after 4 pm keeps the high as hindcast and stores the low`() = runTest {
         repository.saveForecastSnapshot(
             listOf(TestData.forecast(targetDate = todayStr, highTemp = 90f, lowTemp = 52f)),
             LAT, LON, "NWS",
@@ -148,18 +150,17 @@ class ForecastSnapshotHindcastCutoffTest {
         )
         val row = latest()
         assertNull(row.highTemp)
-        assertNull(row.lowTemp)
+        assertEquals(52f, row.lowTemp)
         assertEquals(90f, row.hindcastHighTemp)
-        assertEquals(52f, row.hindcastLowTemp)
+        assertNull(row.hindcastLowTemp)
     }
 
     /**
-     * Google 2026-10-06: first fetched at 11:16, so the same-day low was frozen with no prior to
-     * keep and was dropped. It is now kept as hindcast (plans/261007-…), and a changed hindcast is
-     * not deduplicated away as "unchanged".
+     * Google 2026-10-06 was first fetched at 11:16 and its low used to go to hindcast only. Since
+     * 2026-11-06 a mid-day fetch writes today's low as the forecast, and a later one replaces it.
      */
     @Test
-    fun `a source first fetched mid-day keeps its raw low as hindcast, and a changed hindcast is stored`() = runTest {
+    fun `a source first fetched mid-day stores its low, and a later fetch replaces it`() = runTest {
         repository.saveForecastSnapshot(
             listOf(TestData.forecast(targetDate = todayStr, highTemp = 81.9f, lowTemp = 60.4f)),
             LAT, LON, "NWS",
@@ -167,9 +168,9 @@ class ForecastSnapshotHindcastCutoffTest {
         )
         val first = latest()
         assertEquals(81.9f, first.highTemp)
-        assertNull("a post-cutoff low never becomes the forecast", first.lowTemp)
+        assertEquals(60.4f, first.lowTemp)
         assertNull(first.hindcastHighTemp)
-        assertEquals(60.4f, first.hindcastLowTemp)
+        assertNull(first.hindcastLowTemp)
 
         Thread.sleep(5) // fetchedAt (wall clock) is part of the primary key
         repository.saveForecastSnapshot(
@@ -177,9 +178,7 @@ class ForecastSnapshotHindcastCutoffTest {
             LAT, LON, "NWS",
             nowMs = at(11, 35),
         )
-        // Not skipped as unchanged (highTemp/lowTemp are identical); the history bucket then keeps
-        // the newer row, as for any changed forecast inside one bucket.
-        assertEquals(59.8f, latest().hindcastLowTemp)
+        assertEquals(59.8f, latest().lowTemp)
     }
 
     @Test

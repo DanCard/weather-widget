@@ -30,8 +30,9 @@ data class ForecastEntity(
     val precipAmountMm: Float? = null, // Daily precipitation amount in millimeters
     val lastConfirmedAt: Long = System.currentTimeMillis(), // When this forecast was last confirmed by a fetch
     val fetchedAt: Long = System.currentTimeMillis(),
-    // Same-day high/low the source sent after its SameDayExtremeCutoff: kept, never read as a
-    // forecast (highTemp/lowTemp hold the last pre-cutoff value). Past-day dashed fallback only.
+    // Same-day high the source sent after its SameDayExtremeCutoff: kept, never read as a forecast
+    // (highTemp holds the last pre-cutoff value). Past-day dashed fallback only. hindcastLowTemp is
+    // no longer written (today's low is never frozen since 2026-11-06); older rows may hold one.
     val hindcastHighTemp: Float? = null,
     val hindcastLowTemp: Float? = null,
     // What the daily view reads from hourly rows, kept here so hourly is stored to 72 h only

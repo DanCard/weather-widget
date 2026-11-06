@@ -6,9 +6,13 @@ import java.time.LocalTime
 import java.time.ZoneId
 
 /**
- * Same-day high/low are only predictions until a fixed local cutoff. After that a fetch's values
- * are hindcasts and must not enter `forecasts` (user rule, 2026-10-04): the low after 06:00 and the
- * high after 16:00. Per field — a post-06:00 batch may still revise the high.
+ * Same-day high is only a prediction until a fixed local cutoff. After that a fetch's high is a
+ * hindcast and must not enter `forecasts` (user rule, 2026-10-04): the high after 16:00.
+ *
+ * Today's low is never frozen (user, 2026-11-06): every fetch writes it, so the daily view's
+ * forecast low matches the newest hourly forecast. [LOW_CUTOFF] remains the D−1 anchor for
+ * [PriorDayForecast] and the History of Forecasts hindcast trim. See
+ * plans/261106-remove-same-day-low-freeze.md.
  *
  * Wired from both daily writers (`ForecastSnapshotStore.saveForecastSnapshot` on Android,
  * `DesktopWeatherRepository.persistForecastResult` → `upsertForecasts` on desktop). Display reads
@@ -22,14 +26,11 @@ object SameDayExtremeCutoff {
         val highTemp: Float?,
         val lowTemp: Float?,
         val frozeHigh: Boolean,
-        val frozeLow: Boolean,
-    ) {
-        val frozeAny: Boolean get() = frozeHigh || frozeLow
-    }
+    )
 
     /**
-     * Nulls out same-day high/low that are past their cutoff at [nowMs]. Future dates pass
-     * through; past dates are already dropped by the writers.
+     * Nulls out a same-day high past its cutoff at [nowMs]; the low always passes through. Future
+     * dates pass through; past dates are already dropped by the writers.
      */
     fun filter(
         targetDate: LocalDate,
@@ -40,16 +41,14 @@ object SameDayExtremeCutoff {
     ): Filtered {
         val nowDate = Instant.ofEpochMilli(nowMs).atZone(zone).toLocalDate()
         if (!targetDate.isEqual(nowDate)) {
-            return Filtered(highTemp, lowTemp, frozeHigh = false, frozeLow = false)
+            return Filtered(highTemp, lowTemp, frozeHigh = false)
         }
         val nowTime = Instant.ofEpochMilli(nowMs).atZone(zone).toLocalTime()
-        val freezeLow = !nowTime.isBefore(LOW_CUTOFF)
         val freezeHigh = !nowTime.isBefore(HIGH_CUTOFF)
         return Filtered(
             highTemp = if (freezeHigh) null else highTemp,
-            lowTemp = if (freezeLow) null else lowTemp,
+            lowTemp = lowTemp,
             frozeHigh = freezeHigh && highTemp != null,
-            frozeLow = freezeLow && lowTemp != null,
         )
     }
 

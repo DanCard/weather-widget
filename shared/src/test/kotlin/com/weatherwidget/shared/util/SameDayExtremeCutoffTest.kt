@@ -21,15 +21,11 @@ class SameDayExtremeCutoffTest {
         LocalDateTime.of(today, java.time.LocalTime.of(h, m)).atZone(zone).toInstant().toEpochMilli()
 
     @Test
-    fun `same-day low is kept before 6 am and dropped at 6 am`() {
-        val before = SameDayExtremeCutoff.filter(today, 80f, 55f, at(5, 59), zone)
-        assertEquals(55f, before.lowTemp)
-        assertFalse(before.frozeLow)
-
-        val atCutoff = SameDayExtremeCutoff.filter(today, 80f, 55f, at(6, 0), zone)
-        assertNull(atCutoff.lowTemp)
-        assertTrue(atCutoff.frozeLow)
-        assertEquals(80f, atCutoff.highTemp)
+    fun `same-day low is never frozen`() {
+        for (time in listOf(at(5, 59), at(6, 0), at(12, 0), at(23, 59))) {
+            val filtered = SameDayExtremeCutoff.filter(today, 80f, 55f, time, zone)
+            assertEquals(55f, filtered.lowTemp)
+        }
     }
 
     @Test
@@ -44,20 +40,19 @@ class SameDayExtremeCutoffTest {
     }
 
     @Test
-    fun `after 6 am the high still updates and the low stays frozen`() {
+    fun `after 6 am both sides still update`() {
         val filtered = SameDayExtremeCutoff.filter(today, 82f, 56f, at(7, 0), zone)
         assertEquals(82f, filtered.highTemp)
-        assertNull(filtered.lowTemp)
-        assertTrue(filtered.frozeLow)
+        assertEquals(56f, filtered.lowTemp)
         assertFalse(filtered.frozeHigh)
     }
 
     @Test
-    fun `after 4 pm both sides are frozen`() {
+    fun `after 4 pm only the high is frozen`() {
         val filtered = SameDayExtremeCutoff.filter(today, 82f, 56f, at(16, 30), zone)
         assertNull(filtered.highTemp)
-        assertNull(filtered.lowTemp)
-        assertTrue(filtered.frozeAny)
+        assertEquals(56f, filtered.lowTemp)
+        assertTrue(filtered.frozeHigh)
     }
 
     @Test
@@ -66,7 +61,7 @@ class SameDayExtremeCutoffTest {
         val filtered = SameDayExtremeCutoff.filter(tomorrow, 80f, 55f, at(17, 0), zone)
         assertEquals(80f, filtered.highTemp)
         assertEquals(55f, filtered.lowTemp)
-        assertFalse(filtered.frozeAny)
+        assertFalse(filtered.frozeHigh)
     }
 
     @Test
@@ -75,7 +70,7 @@ class SameDayExtremeCutoffTest {
         val filtered = SameDayExtremeCutoff.filter(yesterday, 80f, 55f, at(17, 0), zone)
         assertEquals(80f, filtered.highTemp)
         assertEquals(55f, filtered.lowTemp)
-        assertFalse(filtered.frozeAny)
+        assertFalse(filtered.frozeHigh)
     }
 
     @Test
@@ -84,14 +79,15 @@ class SameDayExtremeCutoffTest {
         val nowMs = java.time.Instant.parse("2026-10-04T23:30:00Z").toEpochMilli()
         val filtered = SameDayExtremeCutoff.filter(today, 80f, 55f, nowMs, zone)
         assertNull(filtered.highTemp)
-        assertNull(filtered.lowTemp)
+        assertEquals(55f, filtered.lowTemp)
     }
 
     @Test
     fun `freezing reports only fields that had a value`() {
-        val filtered = SameDayExtremeCutoff.filter(today, 80f, null, at(17, 0), zone)
-        assertTrue(filtered.frozeHigh)
-        assertFalse(filtered.frozeLow)
+        val withHigh = SameDayExtremeCutoff.filter(today, 80f, null, at(17, 0), zone)
+        assertTrue(withHigh.frozeHigh)
+        val noHigh = SameDayExtremeCutoff.filter(today, null, 55f, at(17, 0), zone)
+        assertFalse(noHigh.frozeHigh)
     }
 
     // ---- today's low when a fetch sends none (plans/261010-google-daily-low-filed-under-the-morning-it-ends.md) ----

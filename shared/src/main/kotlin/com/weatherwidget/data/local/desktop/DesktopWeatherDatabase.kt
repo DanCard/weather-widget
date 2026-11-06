@@ -858,6 +858,7 @@ class DesktopWeatherDatabase(
          * `forecasts` columns holding the same-day high/low a source sent **after** its
          * [com.weatherwidget.shared.util.SameDayExtremeCutoff] cutoff: kept, never read as a forecast
          * (`highTemp`/`lowTemp` still hold the last pre-cutoff value or null). Nullable REAL °F.
+         * `hindcastLowTemp` is no longer written (today's low is never frozen since 2026-11-06).
          * Shared by desktop v27 and Room MIGRATION_73_74.
          */
         val FORECAST_HINDCAST_COLUMNS = listOf("hindcastHighTemp", "hindcastLowTemp")

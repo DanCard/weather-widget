@@ -11,8 +11,9 @@ import java.time.ZoneId
  * existing rows are only re-stamped with this fetch's `lastConfirmedAt`, and the `SNAPSHOT_*` lines.
  *
  * - Past days, climate normals and an already-ended NWS period are not written.
- * - A same-day high/low past its [SameDayExtremeCutoff] keeps the prior row's value (the sent one
- *   goes to `hindcast*`); a missing low for today keeps a recent stored one.
+ * - A same-day high past its [SameDayExtremeCutoff] keeps the prior row's value (the sent one goes
+ *   to `hindcastHighTemp`); today's low always takes this fetch's value, and a missing one keeps a
+ *   recent stored one.
  * - A window this fetch's hourly did not cover keeps the prior row's summary ([DailyHourlySummaries]).
  * - A row with neither high nor low is not written (it would hide an older real row).
  * - A row equal to the prior is not written again; the prior is re-stamped, so readers aging by last
@@ -125,26 +126,19 @@ object DailyForecastWrite {
             // batch must not become the newest row with a hole where the forecast used to be.
             val prior = priorByDate[day.date]?.values
             val highToStore = if (filtered.frozeHigh) prior?.highTemp else filtered.highTemp
-            val lowToStore = if (filtered.frozeLow) {
-                prior?.lowTemp
-            } else {
-                filtered.lowTemp ?: newestLowByDate[day.date].let {
-                    SameDayExtremeCutoff.keptTodayLow(isToday, it?.values?.lowTemp, it?.fetchedAt, nowMs)
-                }
+            val lowToStore = filtered.lowTemp ?: newestLowByDate[day.date].let {
+                SameDayExtremeCutoff.keptTodayLow(isToday, it?.values?.lowTemp, it?.fetchedAt, nowMs)
             }
-            // The frozen side's sent value is kept: readers ignore hindcast*, and a past day with no
+            // The frozen high's sent value is kept: readers ignore hindcast*, and a past day with no
             // pre-cutoff forecast draws it as a dashed fallback (PastDayForecastOverlay).
             val hindcastHigh = if (filtered.frozeHigh) high else null
-            val hindcastLow = if (filtered.frozeLow) low else null
-            if (filtered.frozeAny) {
+            if (filtered.frozeHigh) {
                 lines += Line(
                     "SNAPSHOT_SKIP_HINDCAST",
-                    "date=${day.date} source=$sourceId " +
-                        "froze=${listOfNotNull("high".takeIf { filtered.frozeHigh }, "low".takeIf { filtered.frozeLow }).joinToString("+")} " +
-                        "prior_high=${prior?.highTemp} prior_low=${prior?.lowTemp}",
+                    "date=${day.date} source=$sourceId froze=high prior_high=${prior?.highTemp}",
                 )
             }
-            if (highToStore == null && lowToStore == null && hindcastHigh == null && hindcastLow == null) {
+            if (highToStore == null && lowToStore == null && hindcastHigh == null) {
                 return@mapNotNull null
             }
             val summary = DailyHourlySummaries.carryForward(day.summary, prior?.summary)
@@ -165,7 +159,7 @@ object DailyForecastWrite {
                     daytimePrecipProbability = periods.day,
                     nighttimePrecipProbability = periods.night,
                     hindcastHighTemp = hindcastHigh,
-                    hindcastLowTemp = hindcastLow,
+                    hindcastLowTemp = null,
                     summary = summary,
                 ),
             )

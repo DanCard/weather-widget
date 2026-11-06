@@ -15,7 +15,8 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 
 /**
- * Same-day high/low cutoffs (plans/261004-same-day-high-low-cutoffs.md) on the desktop writer.
+ * Same-day high cutoff (plans/261004-same-day-high-low-cutoffs.md) on the desktop writer; today's
+ * low is never frozen (plans/261106-remove-same-day-low-freeze.md).
  */
 @Category(ShortDuration::class)
 class DesktopWeatherDaoHindcastCutoffTest {
@@ -60,12 +61,12 @@ class DesktopWeatherDaoHindcastCutoffTest {
     }
 
     @Test
-    fun `after 6 am the low is frozen to the prior forecast and the high still updates`() {
+    fun `after 6 am both the low and the high take the newest fetch`() {
         dao.upsertForecasts(lat, lon, source, listOf(DailyForecast(todayStr, 80f, 55f, "Sunny")), nowMs = at(5, 30))
         dao.upsertForecasts(lat, lon, source, listOf(DailyForecast(todayStr, 82f, 50f, "Sunny")), nowMs = at(7, 0))
         val row = dao.getDailyForecasts(lat, lon, source).single()
         assertEquals(82f, row.highTemp)
-        assertEquals("low stays the pre-6 am prediction", 55f, row.lowTemp)
+        assertEquals("low takes the 07:00 fetch, not the pre-6 am prediction", 50f, row.lowTemp)
     }
 
     @Test
@@ -75,18 +76,15 @@ class DesktopWeatherDaoHindcastCutoffTest {
         dao.upsertForecasts(lat, lon, source, listOf(DailyForecast(todayStr, 90f, 52f, "Sunny")), nowMs = at(16, 30))
         val row = dao.getDailyForecasts(lat, lon, source).single()
         assertEquals("high stays the pre-4 pm prediction", 82f, row.highTemp)
-        assertEquals("low stays the pre-6 am prediction", 55f, row.lowTemp)
+        assertEquals("low takes the 16:30 fetch", 52f, row.lowTemp)
     }
 
     @Test
-    fun `first write after both cutoffs stores neither high nor low`() {
+    fun `first write after 4 pm stores the low but no high`() {
         dao.upsertForecasts(lat, lon, source, listOf(DailyForecast(todayStr, 90f, 52f, "Sunny")), nowMs = at(17, 0))
-        val rows = dao.getDailyForecasts(lat, lon, source)
-        // The row may exist for condition/precip, but must not carry hindcast temps.
-        rows.forEach {
-            assertNull("no junk high", it.highTemp)
-            assertNull("no junk low", it.lowTemp)
-        }
+        val row = dao.getDailyForecasts(lat, lon, source).single()
+        assertNull("no hindcast high", row.highTemp)
+        assertEquals(52f, row.lowTemp)
     }
 
     @Test

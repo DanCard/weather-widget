@@ -12,8 +12,9 @@ import java.time.temporal.ChronoUnit
  * (or a low after the low) is a hindcast and is removed (user, 2026-10-09: "remove them entirely").
  * Same rule as the past-day overlay ([com.weatherwidget.shared.actuals.ForecastOverlaySettle]).
  *
- * The fixed [SameDayExtremeCutoff] times always apply as well: after them the writer stores a copy
- * of the last pre-cutoff value, which would otherwise be drawn again at the later fetch time.
+ * The fixed [SameDayExtremeCutoff] times always apply as well: after 16:00 the writer stores a copy
+ * of the last pre-cutoff high, which would otherwise be drawn again at the later fetch time; a low
+ * fetched after 06:00 is written as sent but is past the night's low, so it is trimmed as a hindcast.
  * See plans/261009-forecast-history-drops-hindcast-points.md.
  */
 object ForecastEvolutionCutoff {
