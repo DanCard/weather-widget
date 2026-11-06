@@ -1110,8 +1110,7 @@ fun TemperatureGraph(
                 localizedPattern = "Actual temperature data from %1\$s",
                 providerName = provider.displayName,
             )
-            val actualsSourceText = actualsSourceLabel?.fullText
-            if (actualsSourceText != null && (windowEnd - windowStart) / 3_600_000L <= DominantStationLabel.MAX_HOURS_SPAN) {
+            if (actualsSourceLabel != null && (windowEnd - windowStart) / 3_600_000L <= DominantStationLabel.MAX_HOURS_SPAN) {
                 val actualsSourceBaseStyle = TextStyle(
                     fontSize = (DOMINANT_STATION_LABEL_SP * scale).sp,
                     color = COLOR_ACTUAL,
@@ -1121,10 +1120,13 @@ fun TemperatureGraph(
                         blurRadius = 2f * scale,
                     ),
                 )
-                fun measureActuals(fontScale: Float): TextLayoutResult =
+                fun measureActuals(
+                    segments: List<DominantStationLabel.Segment>,
+                    fontScale: Float,
+                ): TextLayoutResult =
                     textMeasurer.measure(
                         buildAnnotatedString {
-                            actualsSourceLabel.segments.forEach { segment ->
+                            segments.forEach { segment ->
                                 when (segment.part) {
                                     DominantStationLabel.Part.SOURCE_PREFIX ->
                                         withStyle(SpanStyle(fontSize = (ACTUALS_SOURCE_PREFIX_LABEL_SP * scale * fontScale).sp)) {
@@ -1136,16 +1138,18 @@ fun TemperatureGraph(
                         },
                         actualsSourceBaseStyle.copy(fontSize = (DOMINANT_STATION_LABEL_SP * scale * fontScale).sp),
                     )
+                // Desktop's header is a row above the canvas, so the label may use the canvas top;
+                // it shrinks, then wraps onto two lines, else it is omitted (shared placeWrapped).
                 val actualsSourcePlot = GraphLabelArea.rect(w, footer.graphBottom(h, scale))
-                val actualsSourceScaled =
-                    DominantStationLabel.placeWithFontFallback(
-                        text = actualsSourceText,
+                val actualsSourcePlaced =
+                    DominantStationLabel.placeWrapped(
+                        label = actualsSourceLabel,
                         spanHours = (windowEnd - windowStart) / 3_600_000L,
                         plot = actualsSourcePlot,
                         drawnBounds = drawnLabels.map { GraphRect(it.left, it.top, it.right, it.bottom) },
                         curveYsAt = ::visibleCurveYsAt,
-                        metricsForScale = { fontScale ->
-                            val measured = measureActuals(fontScale)
+                        measureLine = { segments, fontScale ->
+                            val measured = measureActuals(segments, fontScale)
                             GraphEmptySpaceFinder.Metrics(
                                 width = measured.size.width.toFloat(),
                                 ascent = -measured.size.height.toFloat(),
@@ -1155,17 +1159,15 @@ fun TemperatureGraph(
                         padPx = 2f * scale,
                         vetoBounds = labelVeto,
                     )
-                if (actualsSourceScaled != null) {
-                    val placement = actualsSourceScaled.placement
-                    val measured = measureActuals(actualsSourceScaled.fontScale)
-                    val topLeft = Offset(placement.box.left, placement.box.top)
-                    drawText(measured, topLeft = topLeft)
-                    drawnLabels.add(
-                        Rect(
-                            topLeft,
-                            Size(measured.size.width.toFloat(), measured.size.height.toFloat()),
-                        ),
-                    )
+                if (actualsSourcePlaced != null) {
+                    actualsSourcePlaced.lines.forEach { line ->
+                        drawText(
+                            measureActuals(line.segments, actualsSourcePlaced.fontScale),
+                            topLeft = Offset(line.left, line.top),
+                        )
+                    }
+                    val box = actualsSourcePlaced.placement.box
+                    drawnLabels.add(Rect(box.left, box.top, box.right, box.bottom))
                 }
             }
         }

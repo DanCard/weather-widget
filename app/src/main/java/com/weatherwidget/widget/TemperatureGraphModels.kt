@@ -90,6 +90,8 @@ data class DominantStationDebug(
      * instead would assert against a band the renderer never used.
      */
     val navArrowBounds: List<RectF> = emptyList(),
+    /** The search ceiling: the header band's bottom, in bitmap px. */
+    val topPx: Float = 0f,
 )
 
 data class ActualsSourceDebug(
@@ -101,6 +103,12 @@ data class ActualsSourceDebug(
     val baselineY: Float?,
     /** The nav-arrow rectangles this render actually reserved. */
     val navArrowBounds: List<RectF> = emptyList(),
+    /** The search ceiling: the header band's bottom, in bitmap px. */
+    val topPx: Float = 0f,
+    /** The drawn lines (one, or two when wrapped); empty when not drawn. */
+    val lines: List<String> = emptyList(),
+    /** The font scale the label was drawn at; 1 when not drawn. */
+    val fontScale: Float = 1f,
 )
 
 /**

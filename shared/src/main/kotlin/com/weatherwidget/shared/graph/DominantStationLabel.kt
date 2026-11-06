@@ -340,6 +340,152 @@ object DominantStationLabel {
         return null
     }
 
+    /** One drawn line of a [WrappedPlacement]: its runs, left edge, top, and baseline (graph px). */
+    data class Line(
+        val segments: List<Segment>,
+        val left: Float,
+        val top: Float,
+        val baselineY: Float,
+    ) {
+        val text: String get() = segments.joinToString(separator = "") { it.text }
+    }
+
+    /**
+     * A placed label of one or two [lines]. [placement]'s box is the whole block and its `baselineY` the
+     * first line's; each line is left-aligned at the box's left edge.
+     */
+    data class WrappedPlacement(
+        val placement: Placement,
+        val fontScale: Float,
+        val lines: List<Line>,
+    )
+
+    /**
+     * [placeWithFontFallback] plus a two-line fallback, for long prose annotations such as
+     * "Actual temperature data from X": one line at every [fontScales] step first, then the label
+     * wrapped onto two lines at every step, else null (the label is omitted). [plot] is the full
+     * search area — pass a top below anything composited over the canvas (Android's header row).
+     *
+     * [measureLine] measures one line's segments at a font scale. The wrap point is the space that
+     * makes the wider of the two lines narrowest ([wrapTwoLines]); a label with no space never wraps.
+     */
+    fun placeWrapped(
+        label: LabelText,
+        spanHours: Long,
+        plot: GraphRect,
+        drawnBounds: List<GraphRect>,
+        curveYsAt: (Float) -> List<Float>,
+        measureLine: (segments: List<Segment>, scale: Float) -> GraphEmptySpaceFinder.Metrics,
+        padPx: Float,
+        maxSpanHours: Long = MAX_HOURS_SPAN,
+        vetoBounds: List<GraphRect> = emptyList(),
+        nowIndicatorVisible: Boolean = true,
+        fontScales: List<Float> = FALLBACK_FONT_SCALES,
+    ): WrappedPlacement? {
+        if (label.fullText.isBlank()) return null
+        val layouts: List<(Float) -> List<List<Segment>>> =
+            listOf(
+                { _ -> listOf(label.segments) },
+                { scale -> wrapTwoLines(label.segments) { measureLine(it, scale).width } },
+            )
+        for (layout in layouts) {
+            for (scale in fontScales) {
+                val lines = layout(scale)
+                if (lines.isEmpty()) break
+                val lineMetrics = lines.map { measureLine(it, scale) }
+                val ascent = lineMetrics.minOf { it.ascent }
+                val descent = lineMetrics.maxOf { it.descent }
+                val lineHeight = descent - ascent
+                val block =
+                    GraphEmptySpaceFinder.Metrics(
+                        width = lineMetrics.maxOf { it.width },
+                        ascent = ascent,
+                        descent = descent + lineHeight * (lines.size - 1),
+                    )
+                val placed =
+                    place(
+                        text = label.fullText,
+                        spanHours = spanHours,
+                        plot = plot,
+                        drawnBounds = drawnBounds,
+                        curveYsAt = curveYsAt,
+                        metrics = block,
+                        padPx = padPx,
+                        maxSpanHours = maxSpanHours,
+                        vetoBounds = vetoBounds,
+                        nowIndicatorVisible = nowIndicatorVisible,
+                    ) ?: continue
+                return WrappedPlacement(
+                    placement = placed,
+                    fontScale = scale,
+                    lines =
+                        lines.mapIndexed { i, segments ->
+                            Line(
+                                segments = segments,
+                                left = placed.box.left,
+                                top = placed.box.top + lineHeight * i,
+                                baselineY = placed.baselineY + lineHeight * i,
+                            )
+                        },
+                )
+            }
+        }
+        return null
+    }
+
+    /**
+     * Splits [segments] at one space into two lines, choosing the space that minimizes the wider
+     * line's [width]. The space itself is dropped and each run keeps its [Part]. Empty when the text
+     * has no interior space.
+     */
+    fun wrapTwoLines(
+        segments: List<Segment>,
+        width: (List<Segment>) -> Float,
+    ): List<List<Segment>> {
+        val full = segments.joinToString(separator = "") { it.text }
+        val spaces = full.indices.filter { full[it] == ' ' && it > 0 && it < full.length - 1 }
+        return spaces
+            .map { splitAt(segments, it) }
+            .filter { (first, second) -> first.isNotEmpty() && second.isNotEmpty() }
+            .minByOrNull { (first, second) -> maxOf(width(first), width(second)) }
+            ?.let { (first, second) -> listOf(first, second) }
+            ?: emptyList()
+    }
+
+    /** [segments] split around the space at [spaceIndex] of their concatenation, blank runs dropped. */
+    private fun splitAt(segments: List<Segment>, spaceIndex: Int): Pair<List<Segment>, List<Segment>> {
+        val first = mutableListOf<Segment>()
+        val second = mutableListOf<Segment>()
+        var start = 0
+        for (segment in segments) {
+            val end = start + segment.text.length
+            val before = segment.text.substring(0, (spaceIndex - start).coerceIn(0, segment.text.length))
+            val after = segment.text.substring((spaceIndex + 1 - start).coerceIn(0, segment.text.length))
+            if (before.isNotEmpty()) first += Segment(before, segment.part)
+            if (after.isNotEmpty()) second += Segment(after, segment.part)
+            start = end
+        }
+        return trimEnd(first) to trimStart(second)
+    }
+
+    private fun trimEnd(line: List<Segment>): List<Segment> {
+        val out = line.toMutableList()
+        while (out.isNotEmpty()) {
+            val trimmed = out.last().text.trimEnd()
+            if (trimmed.isEmpty()) out.removeAt(out.lastIndex) else { out[out.lastIndex] = out.last().copy(text = trimmed); break }
+        }
+        return out
+    }
+
+    private fun trimStart(line: List<Segment>): List<Segment> {
+        val out = line.toMutableList()
+        while (out.isNotEmpty()) {
+            val trimmed = out.first().text.trimStart()
+            if (trimmed.isEmpty()) out.removeAt(0) else { out[0] = out.first().copy(text = trimmed); break }
+        }
+        return out
+    }
+
     /**
      * Places already-[format]ted [text], or returns null when it should not be drawn (nothing to say,
      * window too wide, or no empty band fits).

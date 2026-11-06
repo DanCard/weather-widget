@@ -78,4 +78,39 @@ internal object TemperatureHeaderFit {
         )
         return Resolved(headerScale, headerButtons, deltaLabelText, measured, HeaderFit.resolve(measured))
     }
+
+    /**
+     * Where the RemoteViews header row stops covering the graph bitmap, in bitmap px from its top.
+     *
+     * The context annotations (dominant station, "Actual temperature data from X") use this as their
+     * search ceiling (`plans/261106-actuals-source-label-clears-header.md`); value and ghost labels
+     * ignore the header (`da576280`). Vertical only — the annotations are wider than the gaps between
+     * header items.
+     * The band runs from the bitmap top to [HEADER_ROW_CENTER_DP] plus half the row's tallest item:
+     * the temperature, the weather icon, the rain % when shown, or a centre button.
+     */
+    fun headerBandBottomPx(
+        context: Context,
+        resolved: Resolved,
+        header: TemperatureWidgetState.HeaderState,
+        bitmapScale: Float,
+    ): Float {
+        val density = context.resources.displayMetrics.density
+        val textScale = resolved.headerScale * resolved.fit.textScale
+        val tallestDp = maxOf(
+            header.currentTempSizeDp * textScale,
+            HeaderConstants.WEATHER_ICON_SIZE_DP * textScale,
+            if (resolved.fit.showRain) header.precipTextSizeDp * resolved.headerScale else 0f,
+            HeaderConstants.CENTER_ICON_SIZE_DP,
+        )
+        return (HEADER_ROW_CENTER_DP + tallestDp / 2f) * density * bitmapScale
+    }
+
+    /**
+     * The header row's vertical centre, in dp below the bitmap top. Each header zone is 50dp tall,
+     * starts 8dp (left cluster) to 10dp (right) above the root's content top, and centres its child
+     * with a -10dp top margin — (50 - h) / 2 - 10, a centre 15dp down the zone — so 5–7dp into the
+     * bitmap. 5 matches the Fold 4's weather-icon ink (2026-10-27, outlined on device).
+     */
+    private const val HEADER_ROW_CENTER_DP = 5f
 }

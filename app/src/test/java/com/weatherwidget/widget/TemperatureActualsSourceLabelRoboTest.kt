@@ -92,6 +92,7 @@ class TemperatureActualsSourceLabelRoboTest {
         widthPx: Int = 900,
         heightPx: Int = 500,
         visibility: NavArrowGeometry.Visibility = NavArrowGeometry.Visibility.BOTH,
+        headerBandBottomPx: Float = 0f,
     ): RenderResult {
         var dominantDebug: DominantStationDebug? = null
         var actualsDebug: ActualsSourceDebug? = null
@@ -106,6 +107,7 @@ class TemperatureActualsSourceLabelRoboTest {
             dominantStationLabel = dominantStationLabel,
             actualsSourceLabel = actualsSourceLabel,
             navArrowVisibility = visibility,
+            headerBandBottomPx = headerBandBottomPx,
             onDominantStationPlaced = { dominantDebug = it },
             onActualsSourcePlaced = { actualsDebug = it },
         )
@@ -182,5 +184,72 @@ class TemperatureActualsSourceLabelRoboTest {
                 !actualsRect.intersects(dominantRect),
             )
         }
+    }
+
+    /**
+     * Pixel 7 Pro 2026-11-06: with nothing over the top strip the label lands there, under the
+     * RemoteViews header row. Given the header band as a ceiling it must stay below it.
+     */
+    @Test
+    fun `actuals source label stays below the header band`() {
+        val unbounded = render().actualsSource
+        println("unbounded: reason=${unbounded.reason} box=${unbounded.box} lines=${unbounded.lines}")
+        val headerBottom = 120f
+        assertTrue(
+            "fixture must reproduce the bug: without a ceiling the label sits in the header band. box=${unbounded.box}",
+            requireNotNull(unbounded.box).top < headerBottom,
+        )
+
+        val bounded = render(headerBandBottomPx = headerBottom).actualsSource
+        println("bounded: reason=${bounded.reason} box=${bounded.box} lines=${bounded.lines} scale=${bounded.fontScale}")
+        assertEquals(headerBottom, bounded.topPx)
+        if (bounded.reason == "drawn") {
+            assertTrue(
+                "label drawn under the header band. box=${bounded.box} headerBottom=$headerBottom",
+                requireNotNull(bounded.box).top >= headerBottom,
+            )
+        } else {
+            assertEquals("no_empty_band", bounded.reason)
+        }
+    }
+
+    @Test
+    fun `actuals source label is omitted when the header band leaves no room`() {
+        val debug = render(headerBandBottomPx = 499f).actualsSource
+        assertEquals("no_empty_band", debug.reason)
+        assertEquals(null, debug.box)
+        assertTrue(debug.lines.isEmpty())
+    }
+
+    /**
+     * Fold 4 2026-11-06: `knuq 71.6° @ 2:35 pm` drew at baseline 25 px under a 19 px header band,
+     * across the header's "-3.5 from yest". The dominant-station label shares the header ceiling.
+     */
+    @Test
+    fun `dominant station label stays below the header band`() {
+        val unbounded = render(dominantStationLabel = dominantLabel(), actualsSourceLabel = null).dominant
+        println("dominant unbounded: reason=${unbounded.reason} box=${unbounded.box}")
+        val headerBottom = 120f
+        assertTrue(
+            "fixture must reproduce the bug: without a ceiling the label sits in the header band. box=${unbounded.box}",
+            requireNotNull(unbounded.box).top < headerBottom,
+        )
+
+        val bounded =
+            render(dominantStationLabel = dominantLabel(), actualsSourceLabel = null, headerBandBottomPx = headerBottom).dominant
+        println("dominant bounded: reason=${bounded.reason} box=${bounded.box} topPx=${bounded.topPx}")
+        assertEquals(headerBottom, bounded.topPx)
+        assertEquals("drawn", bounded.reason)
+        assertTrue(
+            "dominant label drawn under the header band. box=${bounded.box} headerBottom=$headerBottom",
+            requireNotNull(bounded.box).top >= headerBottom,
+        )
+    }
+
+    @Test
+    fun `dominant station label is omitted when the header band leaves no room`() {
+        val debug = render(dominantStationLabel = dominantLabel(), headerBandBottomPx = 499f).dominant
+        assertEquals("no_empty_band", debug.reason)
+        assertEquals(null, debug.box)
     }
 }

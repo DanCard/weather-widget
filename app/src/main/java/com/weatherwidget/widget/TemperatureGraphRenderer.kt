@@ -123,6 +123,12 @@ object TemperatureGraphRenderer {
          */
         actualsSourceLabel: DominantStationLabel.LabelText? = null,
         /**
+         * Bitmap px from the top that the RemoteViews header row covers. The context annotations
+         * ([dominantStationLabel], [actualsSourceLabel]) keep below it; value and ghost labels may
+         * use the strip (`da576280`).
+         */
+        headerBandBottomPx: Float = 0f,
+        /**
          * Which nav arrows the launcher composites over this bitmap, so free-floating labels are not
          * drawn underneath them. Defaults to BOTH: the hourly path shows both unconditionally
          * (`TemperatureTouchTargets.setupNavigationButtons`), and over-reserving a 36dp edge band is
@@ -277,6 +283,7 @@ object TemperatureGraphRenderer {
                 onDominantStationPlaced = onDominantStationPlaced,
                 onActualsSourcePlaced = onActualsSourcePlaced,
                 onForecastDeltaPlaced = onForecastDeltaPlaced,
+                headerBandBottomPx = headerBandBottomPx,
             )
         val fetchDotInput =
             TemperatureFetchDotRenderer.Input(

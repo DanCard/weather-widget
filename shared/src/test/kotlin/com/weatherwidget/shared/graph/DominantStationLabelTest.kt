@@ -58,6 +58,108 @@ class DominantStationLabelTest {
         padPx = 4f,
     )
 
+    // --- placeWrapped: the actuals-source annotation (shrink, then wrap, else omit) ---------------
+
+    private val actualsLabel: DominantStationLabel.LabelText =
+        requireNotNull(DominantStationLabel.formatActualsSourceLabel("Actual temperature data from %1\$s", "NWS"))
+
+    /** 5 px per character at scale 1, so a line's width is predictable. */
+    private fun charMetrics(
+        maxSingleLineWidth: Float = Float.MAX_VALUE,
+    ): (List<DominantStationLabel.Segment>, Float) -> GraphEmptySpaceFinder.Metrics = { segments, scale ->
+        val width = segments.sumOf { it.text.length } * 5f * scale
+        // A line wider than the cap gets an impossible width, standing in for "does not fit".
+        GraphEmptySpaceFinder.Metrics(
+            width = if (width > maxSingleLineWidth) 10_000f else width,
+            ascent = -10f * scale,
+            descent = 3f * scale,
+        )
+    }
+
+    private fun placeWrapped(
+        plot: GraphRect = this.plot,
+        measureLine: (List<DominantStationLabel.Segment>, Float) -> GraphEmptySpaceFinder.Metrics = charMetrics(),
+    ) = DominantStationLabel.placeWrapped(
+        label = actualsLabel,
+        spanHours = 24L,
+        plot = plot,
+        drawnBounds = emptyList(),
+        curveYsAt = lowCurve,
+        measureLine = measureLine,
+        padPx = 4f,
+    )
+
+    @Test
+    fun `wrap splits at the space that keeps the wider line narrowest and keeps segment parts`() {
+        val lines = DominantStationLabel.wrapTwoLines(actualsLabel.segments) { line -> line.sumOf { it.text.length }.toFloat() }
+        println("wrapTwoLines: ${lines.map { line -> line.map { "${it.part}:'${it.text}'" } }}")
+
+        assertEquals(2, lines.size)
+        assertEquals(listOf(DominantStationLabel.Segment("Actual temperature", DominantStationLabel.Part.SOURCE_PREFIX)), lines[0])
+        assertEquals(
+            listOf(
+                DominantStationLabel.Segment("data from ", DominantStationLabel.Part.SOURCE_PREFIX),
+                DominantStationLabel.Segment("NWS", DominantStationLabel.Part.STATION),
+            ),
+            lines[1],
+        )
+    }
+
+    @Test
+    fun `wrap is impossible without an interior space`() {
+        val single = listOf(DominantStationLabel.Segment("NWS", DominantStationLabel.Part.STATION))
+        assertTrue(DominantStationLabel.wrapTwoLines(single) { 1f }.isEmpty())
+    }
+
+    @Test
+    fun `wrapped placement keeps one line at full size when it fits`() {
+        val result = placeWrapped()
+        println("placeWrapped fits: $result")
+        assertEquals(1, result?.lines?.size)
+        assertEquals(1.0f, result?.fontScale)
+    }
+
+    @Test
+    fun `wrapped placement shrinks one line before it wraps`() {
+        // Full text = 32 chars = 160 px at scale 1; the 0.8 step (128 px) fits a 140 px cap.
+        val result = placeWrapped(measureLine = charMetrics(maxSingleLineWidth = 140f))
+        println("placeWrapped shrink: $result")
+        assertEquals(1, result?.lines?.size)
+        assertEquals(0.8f, result?.fontScale)
+    }
+
+    @Test
+    fun `wrapped placement wraps onto two lines when no single line fits at any scale`() {
+        // 0.6 × 160 = 96 px still exceeds a 95 px cap; the wrapped 18-char line is 90 px at full size.
+        val result = placeWrapped(measureLine = charMetrics(maxSingleLineWidth = 95f))
+        println("placeWrapped wrap: $result")
+        assertNotNull(result)
+        result!!
+        assertEquals(listOf("Actual temperature", "data from NWS"), result.lines.map { it.text })
+        assertEquals(1.0f, result.fontScale)
+        // Lines stack one line-height apart, left-aligned, inside the block box.
+        val lineHeight = 13f
+        assertEquals(result.lines[0].baselineY + lineHeight, result.lines[1].baselineY, 0.01f)
+        assertEquals(result.lines[0].top + lineHeight, result.lines[1].top, 0.01f)
+        assertEquals(result.placement.box.top, result.lines[0].top, 0.01f)
+        assertEquals(result.placement.box.bottom, result.lines[1].top + lineHeight, 0.01f)
+        result.lines.forEach { assertEquals(result.placement.box.left, it.left, 0.01f) }
+    }
+
+    @Test
+    fun `wrapped placement is omitted when two lines do not fit either`() {
+        assertNull(placeWrapped(measureLine = charMetrics(maxSingleLineWidth = 20f)))
+    }
+
+    @Test
+    fun `wrapped placement stays below the plot top it is given`() {
+        val ceiling = 60f
+        val result = placeWrapped(plot = GraphRect(0f, ceiling, 400f, 200f))
+        println("placeWrapped ceiling: $result")
+        assertNotNull(result)
+        assertTrue("box top ${result!!.placement.box.top} above ceiling $ceiling", result.placement.box.top >= ceiling)
+    }
+
     @Test
     fun `font fallback keeps full size when it fits`() {
         val result = placeWithFallback { metrics }

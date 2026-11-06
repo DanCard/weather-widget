@@ -140,7 +140,12 @@ Canvas/RemoteViews and desktop Compose execute those plans with platform text me
 This keeps label and layout decisions testable on the JVM and minimizes platform-specific drift.
 
 Hourly-graph labels share one top limit, `GraphLabelArea.TOP` (the canvas edge, not the plot top), so
-no placer carries its own exception. Graphs do not check for collision with the header row.
+no placer carries its own exception. Value and ghost labels do not check for collision with the header
+row. The context annotations — the dominant station (`knuq 71.6° @ 2:35 pm`) and "Actual temperature
+data from X" — search only below Android's header band (`TemperatureHeaderFit.headerBandBottomPx`;
+desktop's header sits above the canvas). Both shrink (`1.0/0.8/0.6`) and are omitted when nothing
+fits; the actuals-source annotation also tries two lines before it is omitted
+(`DominantStationLabel.placeWrapped`).
 
 Android's `WeatherWidgetProvider` and interaction coordinators route widget actions, serialize
 interactions per widget, load cached state, and paint through the widget render pipeline. RemoteViews

@@ -86,6 +86,12 @@ internal object TemperatureGraphAnnotationRenderer {
         val onDominantStationPlaced: ((DominantStationDebug) -> Unit)? = null,
         val onActualsSourcePlaced: ((ActualsSourceDebug) -> Unit)? = null,
         val onForecastDeltaPlaced: ((ForecastDeltaDebug) -> Unit)? = null,
+        /**
+         * Bitmap px from the top that the RemoteViews header row covers. The context annotations
+         * (dominant station, actuals source) keep below it; value and ghost labels may use the strip
+         * (`da576280`). See [contextLabelArea].
+         */
+        val headerBandBottomPx: Float = 0f,
     ) {
         fun tempToY(temp: Float): Float =
             TemperatureGraphStyle.tempToY(
@@ -478,7 +484,7 @@ internal object TemperatureGraphAnnotationRenderer {
                 DominantStationLabel.placeWithFontFallback(
                     text = text,
                     spanHours = spanHours,
-                    plot = input.labelArea(),
+                    plot = input.contextLabelArea(),
                     drawnBounds = input.graphObstacles(),
                     curveYsAt = { visibleCurveYs(input, it, ghostVisible) },
                     metricsForScale = { scale ->
@@ -524,6 +530,7 @@ internal object TemperatureGraphAnnotationRenderer {
                 centerX = dominantPlacement?.centerX,
                 baselineY = dominantPlacement?.baselineY,
                 navArrowBounds = input.navArrowVeto().map { it.toRectF() },
+                topPx = input.headerBandBottomPx,
             ),
         )
         // Mirrors the desktop DominantStationDiag. Placement-side reasons only: the upstream
@@ -531,7 +538,7 @@ internal object TemperatureGraphAnnotationRenderer {
         if (Log.isLoggable(TAG, Log.VERBOSE)) {
             Log.v(
                 TAG,
-                "DominantStationDiag: reason=$reason spanH=$spanHours maxSpanH=${DominantStationLabel.MAX_HOURS_SPAN} " +
+                "DominantStationDiag: reason=$reason spanH=$spanHours maxSpanH=${DominantStationLabel.MAX_HOURS_SPAN} topPx=${input.headerBandBottomPx.roundToInt()} " +
                     "text=${text ?: "null"} fontScale=$dominantFontScale drawnBounds=${input.obstacles.bounds().size} " +
                     "plotW=${input.widthPx} plotH=${(input.graphBottom - input.graphTop).roundToInt()}" +
                     (dominantPlacement?.let {
@@ -637,15 +644,17 @@ internal object TemperatureGraphAnnotationRenderer {
     /**
      * "Actual temperature data from X" — the borrowed-actuals context annotation. Mirrors the
      * cloud-cover graph's source label, and is the LOWEST priority free-floating label: it is placed
-     * after the delta, dominant-station and ghost labels, so it simply disappears whenever nothing
-     * clear is left. Drawn in the small actual-pink station paint, matching how the cloud graph
-     * renders the same annotation.
+     * after the delta, dominant-station and ghost labels. Like the dominant-station label it keeps
+     * below the RemoteViews header row ([contextLabelArea]), and when no single line fits it shrinks, then wraps onto two
+     * lines, else it is omitted (`DominantStationLabel.placeWrapped`). Drawn in the small actual-pink
+     * station paint, matching how the cloud graph renders the same annotation.
      */
     fun placeActualsSourceLabel(
         input: Input,
         hours: List<HourData>,
         actualsSourceLabel: DominantStationLabel.LabelText?,
     ) {
+        val topPx = input.headerBandBottomPx
         val text = actualsSourceLabel?.fullText?.takeIf { it.isNotBlank() }
         val spanHours =
             if (hours.size >= 2) {
@@ -653,17 +662,15 @@ internal object TemperatureGraphAnnotationRenderer {
             } else {
                 0L
             }
-        var placement: DominantStationLabel.Placement? = null
-        var actualsSourceFontScale = 1f
+        var placed: DominantStationLabel.WrappedPlacement? = null
         val reason: String
-        if (actualsSourceLabel == null) {
+        if (actualsSourceLabel == null || text == null) {
             reason = "no_text"
         } else if (hours.size < 2) {
             reason = "too_few_hours"
         } else if (spanHours > DominantStationLabel.MAX_HOURS_SPAN) {
             reason = "span_too_wide"
         } else {
-            val labelText = requireNotNull(text) { "non-null text required once the label is non-null" }
             val ghostVisible = ghostLineVisible(input, hours)
             val stationPaint = input.paints.dominantStationTextPaint
             val prefixPaint = input.paints.actualsSourcePrefixTextPaint
@@ -672,21 +679,17 @@ internal object TemperatureGraphAnnotationRenderer {
                     DominantStationLabel.Part.SOURCE_PREFIX -> scaledPaint(prefixPaint, scale)
                     else -> scaledPaint(stationPaint, scale)
                 }
-            val scaled =
-                DominantStationLabel.placeWithFontFallback(
-                    text = labelText,
+            placed =
+                DominantStationLabel.placeWrapped(
+                    label = actualsSourceLabel,
                     spanHours = spanHours,
-                    plot = input.labelArea(),
+                    plot = input.contextLabelArea(),
                     drawnBounds = input.graphObstacles(),
                     curveYsAt = { visibleCurveYs(input, it, ghostVisible) },
-                    metricsForScale = { scale ->
-                        val widths =
-                            actualsSourceLabel.segments.map { segment ->
-                                paintFor(segment.part, scale).measureText(segment.text)
-                            }
+                    measureLine = { segments, scale ->
                         val stationPaintScaled = paintFor(DominantStationLabel.Part.STATION, scale)
                         GraphEmptySpaceFinder.Metrics(
-                            width = widths.sum(),
+                            width = segments.sumOf { paintFor(it.part, scale).measureText(it.text).toDouble() }.toFloat(),
                             ascent = TemperatureGraphStyle.fontAscent(stationPaintScaled),
                             descent = TemperatureGraphStyle.fontDescent(stationPaintScaled),
                         )
@@ -694,30 +697,25 @@ internal object TemperatureGraphAnnotationRenderer {
                     padPx = TemperatureGraphStyle.dpToPx(input.context, DOMINANT_STATION_LABEL_PAD_DP),
                     vetoBounds = input.labelVetoBounds(),
                 )
-            if (scaled != null) {
-                val placed = scaled.placement
-                placement = placed
-                var x = placed.box.left
-                actualsSourceLabel.segments.forEach { segment ->
-                    val paint = paintFor(segment.part, scaled.fontScale)
-                    input.canvas.drawText(
-                        segment.text,
-                        x,
-                        placed.baselineY,
-                        paint,
-                    )
-                    x += paint.measureText(segment.text)
+            if (placed != null) {
+                placed.lines.forEach { line ->
+                    var x = line.left
+                    line.segments.forEach { segment ->
+                        val paint = paintFor(segment.part, placed.fontScale)
+                        input.canvas.drawText(segment.text, x, line.baselineY, paint)
+                        x += paint.measureText(segment.text)
+                    }
                 }
                 input.obstacles.add(
                     TemperatureGraphObstacleType.ACTUALS_SOURCE,
-                    placed.box.toRectF(),
+                    placed.placement.box.toRectF(),
                 )
                 reason = "drawn"
-                actualsSourceFontScale = scaled.fontScale
             } else {
                 reason = "no_empty_band"
             }
         }
+        val placement = placed?.placement
         input.onActualsSourcePlaced?.invoke(
             ActualsSourceDebug(
                 reason = reason,
@@ -726,16 +724,20 @@ internal object TemperatureGraphAnnotationRenderer {
                 centerX = placement?.centerX,
                 baselineY = placement?.baselineY,
                 navArrowBounds = input.navArrowVeto().map { it.toRectF() },
+                topPx = topPx,
+                lines = placed?.lines?.map { it.text } ?: emptyList(),
+                fontScale = placed?.fontScale ?: 1f,
             ),
         )
         if (Log.isLoggable(TAG, Log.VERBOSE)) {
             Log.v(
                 TAG,
                 "ActualsSourceDiag: reason=$reason spanH=$spanHours maxSpanH=${DominantStationLabel.MAX_HOURS_SPAN} " +
-                    "text=${text ?: "null"} fontScale=$actualsSourceFontScale drawnBounds=${input.obstacles.bounds().size}" +
+                    "text=${text ?: "null"} topPx=${topPx.roundToInt()} fontScale=${placed?.fontScale ?: 1f} " +
+                    "lines=${placed?.lines?.map { it.text } ?: emptyList<String>()} drawnBounds=${input.obstacles.bounds().size}" +
                     (placement?.let {
                         " boxLeft=${it.box.left.roundToInt()} boxRight=${it.box.right.roundToInt()} " +
-                            "centerX=${it.centerX.roundToInt()} baselineY=${it.baselineY.roundToInt()} boxW=${it.box.width.roundToInt()}"
+                            "boxTop=${it.box.top.roundToInt()} boxBottom=${it.box.bottom.roundToInt()}"
                     } ?: ""),
             )
         }
@@ -858,17 +860,26 @@ internal object TemperatureGraphAnnotationRenderer {
         obstacles.bounds().map { GraphRect(it.left, it.top, it.right, it.bottom) }
 
     /**
+     * Where free-floating labels may go: the shared label area, from the bitmap top (not the plot
+     * top) down to the plot bottom. Value and ghost labels do not avoid the header row over that strip
+     * (`da576280`); the context annotations use [contextLabelArea] instead.
+     */
+    private fun Input.labelArea(): GraphRect = GraphLabelArea.rect(widthPx.toFloat(), graphBottom)
+
+    /**
+     * [labelArea] below the header band ([Input.headerBandBottomPx]): where the context annotations
+     * (dominant station, actuals source) search, so neither is drawn under the header row
+     * (`plans/261106-actuals-source-label-clears-header.md`).
+     */
+    private fun Input.contextLabelArea(): GraphRect =
+        labelArea().let { GraphRect(it.left, maxOf(it.top, headerBandBottomPx), it.right, it.bottom) }
+
+    /**
      * Every obstacle a free-floating label must not be drawn *across* but need not keep clear of:
      * the NOW line plus the nav arrows. Both are invisible to [graphObstacles] — NOW because it is a
      * vertical that `curveYsAt` cannot express, the arrows because they are RemoteViews children
      * composited over this bitmap rather than ink on it.
      */
-    /**
-     * Where free-floating labels may go: the shared label area, from the bitmap top (not the plot
-     * top) down to the plot bottom. The header row over that strip is in [graphObstacles].
-     */
-    private fun Input.labelArea(): GraphRect = GraphLabelArea.rect(widthPx.toFloat(), graphBottom)
-
     private fun Input.labelVetoBounds(): List<GraphRect> = nowLineVeto() + navArrowVeto()
 
     /** The arrows as veto rects, also surfaced on [DominantStationDebug] so tests need not guess. */

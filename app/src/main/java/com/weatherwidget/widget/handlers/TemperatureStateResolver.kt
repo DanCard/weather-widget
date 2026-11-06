@@ -298,6 +298,23 @@ internal object TemperatureStateResolver {
         var bitmap: android.graphics.Bitmap? = null
         if (useGraph) {
             val bitmapDims = WidgetSizeCalculator.computeBitmapDimensions(context, dimensions.widthDp, dimensions.heightDp)
+            // The RemoteViews header row covers the bitmap's top strip; the context annotations
+            // (dominant station, actuals source) keep below it
+            // (plans/261106-actuals-source-label-clears-header.md).
+            val headerBandBottomPx = TemperatureHeaderFit.headerBandBottomPx(
+                context = context,
+                resolved = TemperatureHeaderFit.resolve(
+                    context = context,
+                    header = headerState,
+                    widthDp = dimensions.widthDp,
+                    numRows = dimensions.rows,
+                    zoom = zoom,
+                    centerTime = centerTime,
+                    today = now.toLocalDate(),
+                ),
+                header = headerState,
+                bitmapScale = bitmapDims.bitmapScale,
+            )
 
             val dominantContribution = dominantStation?.contribution
             val dominantStationLabel =
@@ -433,6 +450,7 @@ internal object TemperatureStateResolver {
                     useCelsius = useCelsius,
                     dominantStationLabel = dominantStationLabel,
                     actualsSourceLabel = actualsSourceLabel,
+                    headerBandBottomPx = headerBandBottomPx,
                 )
             }
             renderMs = System.currentTimeMillis() - renderStartMs
