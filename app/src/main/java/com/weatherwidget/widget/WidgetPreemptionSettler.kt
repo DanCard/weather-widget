@@ -35,6 +35,19 @@ internal object WidgetPreemptionSettler {
         WidgetIntentRouter.renderWidgetFromCache(ctx, id, repo)
     }
 
+    /**
+     * The repository a settle renders with when its caller had none to give. A null repository makes
+     * the graph skip its observation read and paint a forecast-only body with no actuals — the empty
+     * redraw of `plans/261106-preemption-settle-null-repository.md`.
+     */
+    @VisibleForTesting
+    internal var resolveRepository: (Context) -> WeatherRepository = ::entryPointRepository
+
+    private fun entryPointRepository(context: Context): WeatherRepository =
+        dagger.hilt.android.EntryPointAccessors
+            .fromApplication(context.applicationContext, com.weatherwidget.di.RepositoryEntryPoint::class.java)
+            .weatherRepository()
+
     @VisibleForTesting
     internal var scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
@@ -80,13 +93,15 @@ internal object WidgetPreemptionSettler {
             list
         }
         if (toSettle.isEmpty()) return
+        val repoSource = if (repository != null) "passed" else "resolved"
+        val settleRepository = repository ?: resolveRepository(context)
 
         runCatching {
             scope.launch(Dispatchers.IO) {
                 runCatching {
                     WeatherDatabase.getDatabase(context).appLogDao().log(
                         "WIDGET_PREEMPTION_SETTLE",
-                        "widgets=${toSettle.joinToString(",")}",
+                        "widgets=${toSettle.joinToString(",")} repo=$repoSource",
                         "INFO",
                     )
                 }
@@ -95,7 +110,7 @@ internal object WidgetPreemptionSettler {
 
         for (widgetId in toSettle) {
             try {
-                renderWidget(context, widgetId, repository)
+                renderWidget(context, widgetId, settleRepository)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -115,6 +130,7 @@ internal object WidgetPreemptionSettler {
             pendingSettlementWidgets.clear()
             settlementDelayMs = DEFAULT_SETTLEMENT_DELAY_MS
             renderWidget = { ctx, id, repo -> WidgetIntentRouter.renderWidgetFromCache(ctx, id, repo) }
+            resolveRepository = ::entryPointRepository
         }
     }
 }

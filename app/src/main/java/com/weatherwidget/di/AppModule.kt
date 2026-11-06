@@ -83,6 +83,12 @@ interface RepositoryEntryPoint {
 
     /** The app client (usage-counted) for fetches made outside an injected class: the nowcast. */
     fun httpClient(): io.ktor.client.HttpClient
+
+    /**
+     * For repaints scheduled by a caller that holds no repository: `WidgetPreemptionSettler`. Without
+     * it the graph's observation read is skipped and the widget paints with no actuals.
+     */
+    fun weatherRepository(): com.weatherwidget.data.repository.WeatherRepository
 }
 
 @Module

@@ -73,6 +73,17 @@ internal object TemperatureGraphHoursLoader {
             val minEpoch = alignedCenter.minusHours(WidgetQueryWindows.HOURLY_LOOKBACK_HOURS).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
             val maxEpoch = alignedCenter.plusHours(WidgetQueryWindows.HOURLY_LOOKAHEAD_HOURS).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
             val obsStartMs = System.currentTimeMillis()
+            if (repository == null) {
+                // Not deferred, yet nothing to read with: the graph paints forecast-only, with no
+                // actual line or labels. Every caller should hand a repository down; one that does
+                // not shows here instead of as an unexplained empty redraw
+                // (plans/261106-preemption-settle-null-repository.md).
+                database.appLogDao().log(
+                    "OBS_READ_NO_REPOSITORY",
+                    "widget=$appWidgetId source=${displaySource.id} center=$alignedCenter",
+                    "WARN",
+                )
+            }
             val readApis = ActualsReadScope.apisFor(displaySource)
             val read = repository?.readObservationsInRange(minEpoch, maxEpoch, lat, lon, readApis)
             val loaded = read?.rows ?: emptyList()

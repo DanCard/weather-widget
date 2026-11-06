@@ -96,4 +96,40 @@ class WidgetPreemptionSettlerTest : RobolectricTest() {
         testScheduler.advanceUntilIdle()
         assertTrue(renderedList.isEmpty())
     }
+
+    /**
+     * Pixel 7 Pro 2026-11-06: a startup follow-up deferred by the repaint gate was recorded with a
+     * null repository, and its settle painted widget 88 with no observations (rawObs=0) — no actual
+     * line, no labels — until the next worker paint. A settle must never render without one.
+     */
+    @Test
+    fun `settle resolves a repository when the preempting caller had none`() = runTest {
+        val resolved: WeatherRepository = mockk(relaxed = true)
+        val renderedWith = mutableListOf<WeatherRepository?>()
+        WidgetPreemptionSettler.renderWidget = { _, _, repo -> renderedWith.add(repo) }
+        WidgetPreemptionSettler.resolveRepository = { resolved }
+        WidgetPreemptionSettler.scope = this
+        WidgetPreemptionSettler.settlementDelayMs = 1000L
+
+        WidgetPreemptionSettler.recordPreempted(context, listOf(88), null)
+        testScheduler.advanceUntilIdle()
+
+        println("settle with null caller repository rendered with: $renderedWith")
+        assertEquals(1, renderedWith.size)
+        assertTrue("settle rendered without a repository", renderedWith.single() === resolved)
+    }
+
+    @Test
+    fun `settle keeps the repository its caller passed`() = runTest {
+        val renderedWith = mutableListOf<WeatherRepository?>()
+        WidgetPreemptionSettler.renderWidget = { _, _, repo -> renderedWith.add(repo) }
+        WidgetPreemptionSettler.resolveRepository = { error("must not resolve when one was passed") }
+        WidgetPreemptionSettler.scope = this
+        WidgetPreemptionSettler.settlementDelayMs = 1000L
+
+        WidgetPreemptionSettler.recordPreempted(context, listOf(88), repository)
+        testScheduler.advanceUntilIdle()
+
+        assertTrue(renderedWith.single() === repository)
+    }
 }
