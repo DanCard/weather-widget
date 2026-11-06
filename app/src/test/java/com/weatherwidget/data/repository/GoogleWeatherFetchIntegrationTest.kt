@@ -6,7 +6,6 @@ import com.weatherwidget.data.remote.GoogleWeatherApi
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
 import com.weatherwidget.shared.util.DailyHourlyConsistency
-import com.weatherwidget.shared.util.ForecastTempRounding
 import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.testutil.GoogleWeatherFixtures
 import com.weatherwidget.testutil.TestDatabase
@@ -142,7 +141,6 @@ class GoogleWeatherFetchIntegrationTest {
             .query("SELECT targetDate, lowTemp FROM forecasts WHERE source = ? AND lowTemp IS NOT NULL", arrayOf<Any>(source))
             .use { c -> buildList { while (c.moveToNext()) add(java.time.LocalDate.ofEpochDay(c.getLong(0) / 86_400_000L) to c.getFloat(1)) } }
 
-        val today = java.time.LocalDate.now(zone)
         var checked = 0
         lows.forEach { (date, low) ->
             val start = date.atStartOfDay(zone).toInstant().toEpochMilli()
@@ -152,9 +150,9 @@ class GoogleWeatherFetchIntegrationTest {
             // (2026-11-01 ran with 9 of its 10 rows and took a partial morning for a covered one).
             val morningHours = (end - start) / 3_600_000L
             if (morning.size.toLong() == morningHours) {
-                // Stored like every forecast temperature: whole degrees for future days, unrounded for today.
-                val expected = ForecastTempRounding.forStorage(morning.minOf { it.second }, isToday = date == today)
-                assertEquals("$date low vs its 00:00–09:00 hourly minimum", expected!!, low, 0.01f)
+                // Stored at full precision on every day (plans/261105-store-full-precision-forecast-temps.md).
+                val expected = morning.minOf { it.second }
+                assertEquals("$date low vs its 00:00–09:00 hourly minimum", expected, low, 0.01f)
                 checked++
             } else {
                 assertEquals("$date is past the hours: Google's shifted day minimum", 40f, low, 0.01f)

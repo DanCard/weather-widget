@@ -994,15 +994,17 @@ private fun DailyForecastTextMode(
                 // Shared with Android's 1-row widget (DailyColumnBuilder.textHigh / textLow).
                 val high = com.weatherwidget.shared.daily.DailyColumnBuilder.textHigh(day)
                 val low = com.weatherwidget.shared.daily.DailyColumnBuilder.textLow(day)
+                // A future provider forecast prints whole degrees, as Android's text mode (shared DailyColumn).
+                val wholeDegrees = day.printsWholeDegrees
                 Text(
-                    text = com.weatherwidget.shared.util.TempUtils.formatTemp(high, useCelsius) ?: "--",
+                    text = com.weatherwidget.shared.util.TempUtils.formatDayTemp(high, useCelsius, wholeDegrees) ?: "--",
                     style = MaterialTheme.typography.titleMedium.copy(fontSize = (MaterialTheme.typography.titleMedium.fontSize.value * 1.3f).sp),
                     color = Color.White,
                     maxLines = 1,
                 )
                 if (state.dimensions.cols >= 2) {
                     Text(
-                        text = com.weatherwidget.shared.util.TempUtils.formatTemp(low, useCelsius) ?: "--",
+                        text = com.weatherwidget.shared.util.TempUtils.formatDayTemp(low, useCelsius, wholeDegrees) ?: "--",
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = (MaterialTheme.typography.labelSmall.fontSize.value * 1.3f).sp),
                         color = Color.White.copy(alpha = 0.62f),
                         maxLines = 1,

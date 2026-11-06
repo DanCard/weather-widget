@@ -93,13 +93,18 @@ internal object DailyTemperatureLabelRenderer {
         return text.length * paint.textSize * 0.55f
     }
 
+    /**
+     * A column's temperature label. [wholeDegrees]: the column's shared `printsWholeDegrees` (a future
+     * provider forecast, [TempUtils.formatDayTemp]); forecasts are stored at full precision.
+     */
     internal fun format(
         value: Float,
         forceInteger: Boolean = false,
         useCelsius: Boolean,
+        wholeDegrees: Boolean,
     ): String {
         val displayValue = if (useCelsius) TempUtils.fahrenheitToCelsius(value) else value
         if (forceInteger) return "${displayValue.roundToInt()}°"
-        return TempUtils.formatTemp(value, useCelsius).orEmpty()
+        return TempUtils.formatDayTemp(value, useCelsius, wholeDegrees).orEmpty()
     }
 }

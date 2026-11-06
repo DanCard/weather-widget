@@ -103,6 +103,11 @@ At a high level:
 5. Repaint from stored state. UI interactions read cached data immediately and request network work
    only when the relevant policy says it is due.
 
+Temperatures are stored at the provider's precision on every day; nothing rounds before storage, and
+accuracy scores the raw difference. Display rounds: a daily column prints whole degrees only for a
+future provider forecast (`DailyColumn.printsWholeDegrees`, `TempUtils.formatDayTemp`); today, past
+days, climate normals and History of Forecasts (graphs and the all-sources table) print the tenth.
+
 A failed fetch, quota block, or rate limit shows a failure pill over the graph on both platforms. The pill
 stays until the failure or block ends: there is no dismissal. Clicking it opens the details, worded from
 `:shared` `SourceErrorDetails`, which describes the pill that opened it: headline, explanation, the

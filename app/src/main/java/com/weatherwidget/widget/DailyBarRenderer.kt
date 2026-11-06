@@ -240,6 +240,7 @@ internal object DailyBarRenderer {
                 text = DailyTemperatureLabelRenderer.format(
                     plan.actualHigh,
                     useCelsius = layout.useCelsius,
+                    wholeDegrees = day.printsWholeDegrees,
                 ),
                 centerX = centerX,
                 baselineY = plan.actualBaseline,
@@ -255,6 +256,7 @@ internal object DailyBarRenderer {
                 text = DailyTemperatureLabelRenderer.format(
                     plan.forecastHigh,
                     useCelsius = layout.useCelsius,
+                    wholeDegrees = day.printsWholeDegrees,
                 ),
                 centerX = forecastLabelX,
                 baselineY = plan.forecastBaseline,
@@ -272,6 +274,7 @@ internal object DailyBarRenderer {
         val highLabel = DailyTemperatureLabelRenderer.format(
             displayHigh,
             useCelsius = layout.useCelsius,
+            wholeDegrees = day.printsWholeDegrees,
         )
         val labelBaseline = plan?.anchorBaseline ?: run {
             Log.w(

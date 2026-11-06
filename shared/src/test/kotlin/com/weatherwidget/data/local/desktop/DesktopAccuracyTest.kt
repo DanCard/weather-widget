@@ -121,7 +121,7 @@ class DesktopAccuracyTest {
         assertEquals(1.333, stats.avgLowError, 0.01)
         assertEquals(0.667, stats.highBias, 0.01)
         assertEquals(0.667, stats.lowBias, 0.01)
-        assertEquals(3, stats.maxError)
+        assertEquals(3.0, stats.maxError, 0.001)
         assertEquals(100.0, stats.percentWithin3Degrees, 0.01)
         assertEquals(4.833, stats.accuracyScore, 0.01)
     }

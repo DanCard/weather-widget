@@ -34,6 +34,37 @@ object TempUtils {
     }
 
     /**
+     * A daily column's temperature label, both platforms. [wholeDegrees] is the column's
+     * `DailyColumn.printsWholeDegrees` (a future provider forecast); otherwise as [formatTemp].
+     * Forecasts are stored at the provider's precision (plans/261105-store-full-precision-forecast-temps.md);
+     * this is where a column rounds. History of Forecasts never rounds (it calls [formatTemp]).
+     */
+    fun formatDayTemp(v: Float?, useCelsius: Boolean, wholeDegrees: Boolean): String? {
+        if (v == null) return null
+        if (!wholeDegrees) return formatTemp(v, useCelsius)
+        return "${display(v, useCelsius).roundToInt()}°"
+    }
+
+    /**
+     * A signed temperature difference (°F in), as [formatTemp] prints a value: "+2°", "-1.4°", "0°".
+     * The forecast-accuracy rows on both platforms use it; errors are kept at full precision.
+     */
+    fun formatSignedDelta(deltaF: Float, useCelsius: Boolean): String {
+        val v = displayDelta(deltaF, useCelsius)
+        val rounded = v.roundToInt()
+        val body = if (abs(v - rounded) < 0.01f) {
+            "${abs(rounded)}"
+        } else {
+            String.format(Locale.getDefault(), "%.1f", abs(v))
+        }
+        return when {
+            body.trimStart('0', '.', ',').isEmpty() -> "0°"
+            v > 0f -> "+$body°"
+            else -> "-$body°"
+        }
+    }
+
+    /**
      * Calculates a simple squared Euclidean distance for sorting nearby locations.
      */
     fun distanceSq(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {

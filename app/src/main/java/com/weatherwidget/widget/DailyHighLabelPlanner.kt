@@ -149,7 +149,7 @@ internal object DailyHighLabelPlanner {
         val fullFontHeight = basePaint.fontMetrics?.let { it.descent - it.ascent } ?: basePaint.textSize
         fun drawnScale(high: Float) = DailyTemperatureLabelRenderer.drawScale(
             base = basePaint,
-            text = DailyTemperatureLabelRenderer.format(high, useCelsius = layout.useCelsius),
+            text = DailyTemperatureLabelRenderer.format(high, useCelsius = layout.useCelsius, wholeDegrees = day.printsWholeDegrees),
             // The FULL (unshrunk) dual size: DUAL_FORECAST_FONT_SCALE is decided below, from this.
             extraScale = DualHighLabel.TWO_LABEL_FONT_SCALE,
             maxWidthPx = layout.tempLabelMaxWidthPx,
@@ -246,7 +246,7 @@ internal object DailyHighLabelPlanner {
     ): Float {
         val anchorHigh = resolveHighLabelPlan(day, layout, paints)?.anchorHigh
             ?: day.effectiveHigh() ?: day.solidLineHigh ?: return 1f
-        val highText = DailyTemperatureLabelRenderer.format(anchorHigh, useCelsius = layout.useCelsius)
+        val highText = DailyTemperatureLabelRenderer.format(anchorHigh, useCelsius = layout.useCelsius, wholeDegrees = day.printsWholeDegrees)
         val tempPaint = when {
             day.isToday -> paints.todayTempTextPaint
             day.isPast -> paints.pastTempTextPaint

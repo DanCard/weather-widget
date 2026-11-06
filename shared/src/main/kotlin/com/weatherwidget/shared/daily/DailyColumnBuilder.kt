@@ -74,7 +74,16 @@ data class DailyColumn(
     val actualsFromOtherSite: Boolean = false,
     /** A past day's right (settled forecast) bar has a fallback side (PastDayForecastOverlay) — dashed. */
     val forecastIsFallback: Boolean = false,
-)
+) {
+    /**
+     * This column's temperature labels print whole degrees: a day after today showing a provider's
+     * forecast. Today, past days and climate-normal days (including the GENERIC_GAP filler) keep the
+     * tenth. Forecasts are stored at full precision; this is the one place a column rounds
+     * (user, 2026-11-05; plans/261105-store-full-precision-forecast-temps.md).
+     */
+    val printsWholeDegrees: Boolean
+        get() = !isToday && !isPast && !isClimateNormal && forecast?.source != WeatherSource.GENERIC_GAP.id
+}
 
 /**
  * The daily column rule, both platforms (plans/261023-shared-daily-column-builder.md): which row,

@@ -93,6 +93,7 @@ internal object DailyColumnRenderer {
                         displayLow,
                         forceInteger = forceInteger,
                         useCelsius = layout.useCelsius,
+                        wholeDegrees = day.printsWholeDegrees,
                     )
                 val tempPaint =
                     when {

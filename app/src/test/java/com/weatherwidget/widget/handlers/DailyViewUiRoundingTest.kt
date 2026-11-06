@@ -33,7 +33,7 @@ class DailyViewUiRoundingTest {
     )
 
     @Test
-    fun `UI shows the tenth for today history and future forecast alike`() {
+    fun `UI shows the tenth for today history and climate normals, whole degrees for a future forecast`() {
         val now = LocalDateTime.now()
         val displaySource = WeatherSource.OPEN_METEO
         val yesterday = today.minusDays(1)
@@ -43,7 +43,8 @@ class DailyViewUiRoundingTest {
         val weatherByDate = mapOf(
             yesterday to createForecast(yesterdayStr, 72.4f, 50.6f),
             today to createForecast(todayStr, 72.4f, 50.6f),
-            tomorrow to createForecast(tomorrowStr, 72.4f, 50.6f)
+            tomorrow to createForecast(tomorrowStr, 72.4f, 50.6f),
+            today.plusDays(2) to createForecast(today.plusDays(2).toString(), 64.9f, 49.5f, isClimateNormal = true),
         )
 
         val textDays = DailyViewLogic.prepareTextDays(
@@ -71,13 +72,20 @@ class DailyViewUiRoundingTest {
         assertEquals("Today high should show decimal in UI", "72.4°", todayData.highLabel)
         assertEquals("Today low should show decimal in UI", "50.6°", todayData.lowLabel)
 
-        // 3. Verify Tomorrow forecast (now also shows the tenth)
+        // 3. Tomorrow's provider forecast: stored at full precision, printed in whole degrees
+        //    (plans/261105-store-full-precision-forecast-temps.md).
         val tomorrowData = textDays.find { it.dateStr == tomorrowStr }!!
-        assertEquals("Tomorrow high should show decimal in UI", "72.4°", tomorrowData.highLabel)
-        assertEquals("Tomorrow low should show decimal in UI", "50.6°", tomorrowData.lowLabel)
+        assertEquals("Tomorrow high rounds at display", "72°", tomorrowData.highLabel)
+        assertEquals("Tomorrow low rounds at display", "51°", tomorrowData.lowLabel)
+
+        // 4. A future climate-normal day keeps its tenth.
+        val normalData = textDays.find { it.dateStr == today.plusDays(2).toString() }!!
+        println("DailyViewUiRoundingTest normal day: ${normalData.highLabel}/${normalData.lowLabel}")
+        assertEquals("64.9°", normalData.highLabel)
+        assertEquals("49.5°", normalData.lowLabel)
     }
 
-    private fun createForecast(date: String, high: Float, low: Float): ForecastEntity {
+    private fun createForecast(date: String, high: Float, low: Float, isClimateNormal: Boolean = false): ForecastEntity {
         return ForecastEntity(
             targetDate = dateEpoch(date),
             dateOfPrediction = dateEpoch(date),
@@ -86,6 +94,7 @@ class DailyViewUiRoundingTest {
             highTemp = high,
             lowTemp = low,
             condition = "Clear",
+            isClimateNormal = isClimateNormal,
             source = WeatherSource.OPEN_METEO.id,
             fetchedAt = 1L
         )

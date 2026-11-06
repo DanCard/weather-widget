@@ -44,10 +44,10 @@ class DesktopWeatherDaoTest {
     }
 
     @Test
-    fun `upsertForecasts rounds future days to integers and keeps today decimal`() {
-        // Parity with Android via the shared ForecastTempRounding rule: today keeps full precision
-        // (accuracy tracking), future days round to integer (noise reduction). 90.61 was the exact
-        // Silurian value that read 91 on Android but 90.1 on desktop before this rule was shared.
+    fun `upsertForecasts stores today and future days at full precision`() {
+        // Display rounds future days (TempUtils.formatDayTemp); storage keeps the provider's value
+        // (plans/261105-store-full-precision-forecast-temps.md). Until then future days were stored
+        // as whole degrees: 90.61 was written as 91.
         val lat = 37.4168
         val lon = -122.0890
         // Local today, as the writer decides it (PredictionDate). This test once used the UTC
@@ -65,8 +65,8 @@ class DesktopWeatherDaoTest {
 
         assertEquals(90.61f, todayRow.highTemp!!, 0.001f)
         assertEquals(65.37f, todayRow.lowTemp!!, 0.001f)
-        assertEquals(91.0f, futureRow.highTemp!!, 0.001f)
-        assertEquals(65.0f, futureRow.lowTemp!!, 0.001f)
+        assertEquals(90.61f, futureRow.highTemp!!, 0.001f)
+        assertEquals(65.37f, futureRow.lowTemp!!, 0.001f)
     }
 
     @Test

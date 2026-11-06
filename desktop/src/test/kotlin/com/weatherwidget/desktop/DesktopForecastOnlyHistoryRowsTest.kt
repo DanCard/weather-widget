@@ -70,9 +70,9 @@ class DesktopForecastOnlyHistoryRowsTest {
         val row = rows.single { it.source == source && it.date == epochDay(yesterday) }
         assertNull("no actual may be fabricated", row.computedHighTemp)
         assertNull(row.computedLowTemp)
-        // For-storage rounding: non-today forecast values are stored rounded (ForecastTempRounding).
-        assertEquals(74f, row.forecastHighTemp)
-        assertEquals(58f, row.forecastLowTemp)
+        // Stored at full precision on every day (plans/261105-store-full-precision-forecast-temps.md).
+        assertEquals(73.6f, row.forecastHighTemp!!, 0.001f)
+        assertEquals(58.3f, row.forecastLowTemp!!, 0.001f)
         assertEquals(DailyHistoryWriter.FORECAST_ONLY_ROW.storedValue, row.lastWriter)
         assertTrue("today must never get a forecast-only row", rows.none { it.date == epochDay(today) })
     }

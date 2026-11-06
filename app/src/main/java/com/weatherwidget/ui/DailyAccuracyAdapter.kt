@@ -9,7 +9,6 @@ import androidx.recyclerview.widget.RecyclerView
 import com.weatherwidget.R
 import com.weatherwidget.shared.stats.AccuracyBreakdown.DailyResult
 import kotlin.math.abs
-import kotlin.math.roundToInt
 
 class DailyAccuracyAdapter(private val useCelsius: Boolean) : RecyclerView.Adapter<DailyAccuracyAdapter.ViewHolder>() {
     private var items = listOf<DailyResult>()
@@ -62,27 +61,19 @@ class DailyAccuracyAdapter(private val useCelsius: Boolean) : RecyclerView.Adapt
                 }
             }
 
-            val dispActualHigh = com.weatherwidget.shared.util.TempUtils.display(item.computedHighTemp.toFloat(), useCelsius).roundToInt()
-            val dispActualLow = com.weatherwidget.shared.util.TempUtils.display(item.computedLowTemp.toFloat(), useCelsius).roundToInt()
-            val dispForecastHigh = com.weatherwidget.shared.util.TempUtils.display(item.forecastHigh.toFloat(), useCelsius).roundToInt()
-            val dispForecastLow = com.weatherwidget.shared.util.TempUtils.display(item.forecastLow.toFloat(), useCelsius).roundToInt()
-
-            val dispHighError = com.weatherwidget.shared.util.TempUtils.displayDelta(item.highError.toFloat(), useCelsius).roundToInt()
-            val dispLowError = com.weatherwidget.shared.util.TempUtils.displayDelta(item.lowError.toFloat(), useCelsius).roundToInt()
-
-            actualTempsText.text = "$dispActualHigh° / $dispActualLow°"
-            forecastTempsText.text = "$dispForecastHigh° / $dispForecastLow°"
-
-            val highErrorStr = if (dispHighError >= 0) "+$dispHighError°" else "$dispHighError°"
-            val lowErrorStr = if (dispLowError >= 0) "+$dispLowError°" else "$dispLowError°"
-            errorText.text = "$highErrorStr / $lowErrorStr"
+            // Full precision; one decimal unless whole (shared TempUtils, as desktop's StatisticsWindow).
+            val fmt = { v: Float -> com.weatherwidget.shared.util.TempUtils.formatTemp(v, useCelsius).orEmpty() }
+            actualTempsText.text = "${fmt(item.computedHighTemp)} / ${fmt(item.computedLowTemp)}"
+            forecastTempsText.text = "${fmt(item.forecastHigh)} / ${fmt(item.forecastLow)}"
+            errorText.text = com.weatherwidget.shared.util.TempUtils.formatSignedDelta(item.highError, useCelsius) +
+                " / " + com.weatherwidget.shared.util.TempUtils.formatSignedDelta(item.lowError, useCelsius)
 
             // Color code the error based on magnitude
             val maxError = maxOf(abs(item.highError), abs(item.lowError))
             errorText.setTextColor(
                 when {
-                    maxError <= 2 -> Color.parseColor("#34C759") // Green
-                    maxError <= 5 -> Color.parseColor("#FFCC00") // Yellow
+                    maxError <= 2f -> Color.parseColor("#34C759") // Green
+                    maxError <= 5f -> Color.parseColor("#FFCC00") // Yellow
                     else -> Color.parseColor("#FF3B30") // Red
                 },
             )

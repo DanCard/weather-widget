@@ -221,6 +221,8 @@ object DailyForecastGraphRenderer {
         val forecastIsFallback: Boolean = false,
         /** This past day's actuals were measured at a previous site (PreviousSiteHistory) — drawn dashed. */
         val actualsFromOtherSite: Boolean = false,
+        /** Shared DailyColumn.printsWholeDegrees: a future provider forecast prints whole degrees. */
+        val printsWholeDegrees: Boolean = false,
     ) : CloudCoverDiagnosticRow
 
     fun renderGraph(

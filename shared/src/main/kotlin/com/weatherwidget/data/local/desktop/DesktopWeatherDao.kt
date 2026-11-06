@@ -26,7 +26,6 @@ import com.weatherwidget.data.remote.orNullIfImplausibleTempF
 import com.weatherwidget.shared.actuals.MetarCloudBlender
 import com.weatherwidget.shared.actuals.RetiredProductCleanup
 import com.weatherwidget.shared.observations.ObservationWriteRun
-import com.weatherwidget.shared.util.ForecastTempRounding
 import com.weatherwidget.shared.util.SameDayExtremeCutoff
 import com.weatherwidget.shared.util.Log
 import com.weatherwidget.shared.util.NetworkUsageReport

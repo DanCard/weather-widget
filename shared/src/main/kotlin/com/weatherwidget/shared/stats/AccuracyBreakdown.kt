@@ -11,7 +11,7 @@ import java.time.LocalDate
  * The Android `AccuracyCalculator` and the desktop `DesktopAccuracyCalculator` used to carry
  * near-identical copies of this date loop (same epoch math, same forecast pick, same baseline
  * resolution, same per-day scoring). It now lives once, in `:shared`, with platform DAOs supplying
- * the raw rows. Baseline selection, temperature resolution and rounding still delegate to the
+ * the raw rows. Baseline selection, temperature resolution and scoring still delegate to the
  * existing shared primitives ([ActualsBaselineResolver], [resolveBaselineTemps], [AccuracyPure]).
  */
 object AccuracyBreakdown {
@@ -33,13 +33,14 @@ object AccuracyBreakdown {
      */
     data class DailyResult(
         val date: String,
-        val computedHighTemp: Int,
-        val computedLowTemp: Int,
-        val forecastHigh: Int,
-        val forecastLow: Int,
+        // °F at the stored precision; display rounds (AccuracyPure.DailyAccuracy).
+        val computedHighTemp: Float,
+        val computedLowTemp: Float,
+        val forecastHigh: Float,
+        val forecastLow: Float,
         val source: String,
-        val highError: Int,
-        val lowError: Int,
+        val highError: Float,
+        val lowError: Float,
         val baselineSourceId: String? = null,
         val baselineStationId: String? = null,
         val baselineFellBackToBlend: Boolean = false,

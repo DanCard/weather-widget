@@ -166,7 +166,7 @@ class OpenMeteoIntegrationTest {
     }
 
     @Test
-    fun `fetching from Open-Meteo preserves today decimals and rounds tomorrow in DB`() = runTest {
+    fun `fetching from Open-Meteo stores today and tomorrow at full precision in DB`() = runTest {
         // Mock response with 72.4 for today and 72.6 for tomorrow
         val mockResponse = """
             {
@@ -211,10 +211,11 @@ class OpenMeteoIntegrationTest {
         assertEquals("Today high should preserve decimal", 72.4f, todaySnap.highTemp!!, 0.001f)
         assertEquals("Today low should preserve decimal", 50.2f, todaySnap.lowTemp!!, 0.001f)
 
-        // 2. Verify Tomorrow's high (Should be ROUNDED to 73.0)
+        // 2. Tomorrow keeps the sent value too (was rounded to 73 / 52 before
+        //    plans/261105-store-full-precision-forecast-temps.md; display rounds it now).
         val tomorrowSnap = snapshots.find { it.targetDate == dateEpoch(tomorrow) }!!
-        assertEquals("Tomorrow high should be rounded", 73.0f, tomorrowSnap.highTemp!!, 0.001f)
-        assertEquals("Tomorrow low should be rounded", 52.0f, tomorrowSnap.lowTemp!!, 0.001f)
+        assertEquals("Tomorrow high keeps its decimal", 72.6f, tomorrowSnap.highTemp!!, 0.001f)
+        assertEquals("Tomorrow low keeps its decimal", 51.8f, tomorrowSnap.lowTemp!!, 0.001f)
     }
 
     /**

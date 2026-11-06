@@ -96,17 +96,26 @@ class DailyForecastGraphRendererTest {
 
     @Test
     fun `formatTempLabel rounds to integer when forceInteger`() {
-        assertEquals("49°", DailyTemperatureLabelRenderer.format(48.6f, forceInteger = true, useCelsius = false))
+        assertEquals("49°", DailyTemperatureLabelRenderer.format(48.6f, forceInteger = true, useCelsius = false, wholeDegrees = false))
     }
 
     @Test
     fun `formatTempLabel preserves decimal for fractional part by default`() {
-        assertEquals("48.6°", DailyTemperatureLabelRenderer.format(48.6f, useCelsius = false))
+        assertEquals("48.6°", DailyTemperatureLabelRenderer.format(48.6f, useCelsius = false, wholeDegrees = false))
     }
 
     @Test
     fun `formatTempLabel suppresses the point-zero case`() {
-        assertEquals("49°", DailyTemperatureLabelRenderer.format(49.0f, useCelsius = false))
+        assertEquals("49°", DailyTemperatureLabelRenderer.format(49.0f, useCelsius = false, wholeDegrees = false))
+    }
+
+    @Test
+    fun `formatTempLabel prints a future day in whole degrees from its full-precision value`() {
+        // Stored at full precision since plans/261105-store-full-precision-forecast-temps.md; the
+        // label rounds a future day. Today and past days keep the tenth.
+        assertEquals("72°", DailyTemperatureLabelRenderer.format(72.4f, useCelsius = false, wholeDegrees = true))
+        assertEquals("73°", DailyTemperatureLabelRenderer.format(72.5f, useCelsius = false, wholeDegrees = true))
+        assertEquals("72.4°", DailyTemperatureLabelRenderer.format(72.4f, useCelsius = false, wholeDegrees = false))
     }
 
     @Test

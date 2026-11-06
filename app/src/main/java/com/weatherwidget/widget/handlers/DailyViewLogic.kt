@@ -252,7 +252,6 @@ object DailyViewLogic {
             val isTerminalLowOnlyNwsFuture = DailyFutureDayResolver.isTerminalLowOnlyNwsFutureDay(weather, date, today, weatherByDate)
             val precip = if (isToday) todayPrecipProbability else weather?.precipProbability
             val useCelsius = stateManager?.useCelsius() ?: false
-            val formatTemp = { v: Float? -> com.weatherwidget.shared.util.TempUtils.formatTemp(v, useCelsius) }
             val label =
                 if (isToday) {
                     todayLabel
@@ -282,6 +281,10 @@ object DailyViewLogic {
             )
             val textHigh = com.weatherwidget.shared.daily.DailyColumnBuilder.textHigh(column)
             val textLow = com.weatherwidget.shared.daily.DailyColumnBuilder.textLow(column)
+            // A future provider forecast prints whole degrees (shared DailyColumn.printsWholeDegrees).
+            val formatTemp = { v: Float? ->
+                com.weatherwidget.shared.util.TempUtils.formatDayTemp(v, useCelsius, column.printsWholeDegrees)
+            }
             val highLabel = formatTemp(textHigh)
             val lowLabel = formatTemp(textLow)
             val isTodayForecastFallback = isToday && column.solidHigh == null &&
@@ -537,6 +540,7 @@ object DailyViewLogic {
                         isPast = isPastDate,
                         isClimateNormal = column.isClimateNormal && shown?.source != WeatherSource.GENERIC_GAP.id,
                         isSourceGapFallback = shown?.source == WeatherSource.GENERIC_GAP.id,
+                        printsWholeDegrees = column.printsWholeDegrees,
                         solidIsForecastFallback = column.solidIsForecastFallback,
                         dashedLineHigh = column.forecastHigh,
                         dashedLineLow = column.forecastLow,

@@ -133,7 +133,7 @@ private fun SummaryCard(s: AccuracyPure.AccuracyStatistics, useCelsius: Boolean)
             Spacer(Modifier.height(8.dp))
             val avgHigh = TempUtils.displayDelta(s.avgHighError, useCelsius)
             val avgLow = TempUtils.displayDelta(s.avgLowError, useCelsius)
-            val maxErr = TempUtils.displayDelta(s.maxError.toDouble(), useCelsius)
+            val maxErr = TempUtils.displayDelta(s.maxError, useCelsius)
             StatRow("Avg error (high / low)", "%.1f° / %.1f°".format(avgHigh, avgLow))
             StatRow("Bias (high / low)", "${biasText(s.highBias, useCelsius)} / ${biasText(s.lowBias, useCelsius)}")
             StatRow("Max error", "%.1f°".format(maxErr))
@@ -161,19 +161,14 @@ private fun BreakdownTable(rows: List<AccuracyPure.DailyAccuracy>, useCelsius: B
         rows.reversed().forEach { r ->
             Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
                 BodyCell(r.date, 2f)
-                val dispForecastHigh = com.weatherwidget.shared.util.TempUtils.display(r.forecastHigh.toFloat(), useCelsius).roundToInt()
-                val dispForecastLow = com.weatherwidget.shared.util.TempUtils.display(r.forecastLow.toFloat(), useCelsius).roundToInt()
-                val dispActualHigh = com.weatherwidget.shared.util.TempUtils.display(r.computedHighTemp.toFloat(), useCelsius).roundToInt()
-                val dispActualLow = com.weatherwidget.shared.util.TempUtils.display(r.computedLowTemp.toFloat(), useCelsius).roundToInt()
-                val dispHighError = com.weatherwidget.shared.util.TempUtils.displayDelta(r.highError.toFloat(), useCelsius).roundToInt()
-                val dispLowError = com.weatherwidget.shared.util.TempUtils.displayDelta(r.lowError.toFloat(), useCelsius).roundToInt()
-
-                BodyCell("$dispForecastHigh/$dispForecastLow", 1.4f)
-                BodyCell("$dispActualHigh/$dispActualLow", 1.4f)
+                // Full precision; one decimal unless whole (shared TempUtils, as Android's DailyAccuracyAdapter).
+                val fmt = { v: Float -> com.weatherwidget.shared.util.TempUtils.formatTemp(v, useCelsius).orEmpty() }
+                BodyCell("${fmt(r.forecastHigh)}/${fmt(r.forecastLow)}", 1.4f)
+                BodyCell("${fmt(r.computedHighTemp)}/${fmt(r.computedLowTemp)}", 1.4f)
                 Row(Modifier.weight(1.2f)) {
-                    Text(signed(dispHighError), fontSize = 12.sp, color = errColor(dispHighError, useCelsius))
+                    Text(com.weatherwidget.shared.util.TempUtils.formatSignedDelta(r.highError, useCelsius), fontSize = 12.sp, color = errColor(r.highError, useCelsius))
                     Text("/", fontSize = 12.sp, color = Color.Gray)
-                    Text(signed(dispLowError), fontSize = 12.sp, color = errColor(dispLowError, useCelsius))
+                    Text(com.weatherwidget.shared.util.TempUtils.formatSignedDelta(r.lowError, useCelsius), fontSize = 12.sp, color = errColor(r.lowError, useCelsius))
                 }
             }
         }
@@ -189,8 +184,6 @@ private fun androidx.compose.foundation.layout.RowScope.HeaderCell(text: String,
 private fun androidx.compose.foundation.layout.RowScope.BodyCell(text: String, weight: Float) {
     Text(text, Modifier.weight(weight), fontSize = 12.sp)
 }
-
-private fun signed(v: Int) = if (v > 0) "+$v" else "$v"
 
 private fun biasText(bias: Double, useCelsius: Boolean): String {
     val displayBias = TempUtils.displayDelta(bias, useCelsius)
@@ -209,8 +202,10 @@ private fun scoreColor(score: Double): Color = when {
     else -> Color(0xFFF44336)
 }
 
-private fun errColor(err: Int, useCelsius: Boolean): Color {
-    val limit = if (useCelsius) 1 else 2
+/** [errF] in °F at full precision; the limits are in display units, as before. */
+private fun errColor(errF: Float, useCelsius: Boolean): Color {
+    val err = TempUtils.displayDelta(errF, useCelsius)
+    val limit = if (useCelsius) 1f else 2f
     return when {
         abs(err) <= limit -> Color(0xFF4CAF50)
         abs(err) <= limit * 2 -> Color(0xFFFFC107)

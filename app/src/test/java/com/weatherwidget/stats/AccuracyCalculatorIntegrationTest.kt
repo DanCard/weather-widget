@@ -184,12 +184,12 @@ class AccuracyCalculatorIntegrationTest {
         assertEquals(1, result.size)
         val day = result[0]
         assertEquals(target, day.date)
-        assertEquals(72, day.computedHighTemp)
-        assertEquals(50, day.computedLowTemp)
-        assertEquals(68, day.forecastHigh)
-        assertEquals(53, day.forecastLow)
-        assertEquals(+4, day.highError)  // actual - forecast = 72 - 68
-        assertEquals(-3, day.lowError)   // actual - forecast = 50 - 53
+        assertEquals(72f, day.computedHighTemp, 0.001f)
+        assertEquals(50f, day.computedLowTemp, 0.001f)
+        assertEquals(68f, day.forecastHigh, 0.001f)
+        assertEquals(53f, day.forecastLow, 0.001f)
+        assertEquals(4f, day.highError, 0.001f)  // actual - forecast = 72 - 68
+        assertEquals(-3f, day.lowError, 0.001f)   // actual - forecast = 50 - 53
     }
 
     @Test
@@ -207,10 +207,10 @@ class AccuracyCalculatorIntegrationTest {
 
         assertEquals(1, result.size)
         // Latest snapshot (65/45) should be used, not the older one (60/40)
-        assertEquals(65, result[0].forecastHigh)
-        assertEquals(45, result[0].forecastLow)
-        assertEquals(+5, result[0].highError)
-        assertEquals(+5, result[0].lowError)
+        assertEquals(65f, result[0].forecastHigh, 0.001f)
+        assertEquals(45f, result[0].forecastLow, 0.001f)
+        assertEquals(5f, result[0].highError, 0.001f)
+        assertEquals(5f, result[0].lowError, 0.001f)
     }
 
     @Test
@@ -229,8 +229,8 @@ class AccuracyCalculatorIntegrationTest {
         assertTrue(result[0].date < result[1].date)
         assertTrue(result[1].date < result[2].date)
         result.forEach { day ->
-            assertEquals(+2, day.highError)
-            assertEquals(-2, day.lowError)
+            assertEquals(2f, day.highError, 0.001f)
+            assertEquals(-2f, day.lowError, 0.001f)
         }
     }
 
@@ -258,8 +258,8 @@ class AccuracyCalculatorIntegrationTest {
         // Open-Meteo is scored against NWS's actual rather than dropped.
         assertEquals(1, meteoResult.size)
         val day = meteoResult.single()
-        assertEquals(72, day.computedHighTemp)
-        assertEquals(+4, day.highError)
+        assertEquals(72f, day.computedHighTemp, 0.001f)
+        assertEquals(4f, day.highError, 0.001f)
         assertEquals(
             "the borrowed baseline must be named, or the error misstates what it measured",
             WeatherSource.NWS.id,
@@ -397,6 +397,6 @@ class AccuracyCalculatorIntegrationTest {
         assertNotNull("Google must appear in the comparison without any screen listing it", stats)
         assertEquals(1, stats!!.totalForecasts)
         assertEquals(WeatherSource.NWS.id, day.baselineSourceId)
-        assertEquals(-2, day.highError) // actual − forecast, as elsewhere in this file
+        assertEquals(-2f, day.highError, 0.001f) // actual − forecast, as elsewhere in this file
     }
 }

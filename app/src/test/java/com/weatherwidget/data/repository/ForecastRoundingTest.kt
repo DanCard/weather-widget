@@ -65,7 +65,7 @@ class ForecastRoundingTest {
     fun tearDown() = db.close()
 
     @Test
-    fun `today forecast preserves decimal precision while tomorrow is rounded`() = runTest {
+    fun `today and tomorrow are both stored at full precision`() = runTest {
         val weather = listOf(
             TestData.forecast(targetDate = today, source = "OPEN_METEO", highTemp = 72.4f, lowTemp = 50.6f),
             TestData.forecast(targetDate = tomorrow, source = "OPEN_METEO", highTemp = 72.4f, lowTemp = 50.6f)
@@ -84,9 +84,9 @@ class ForecastRoundingTest {
         assertEquals(72.4f, todaySaved.highTemp!!, 0.001f)
         assertEquals(50.6f, todaySaved.lowTemp!!, 0.001f)
 
-        // Verify tomorrow's rounding
+        // Tomorrow too: display rounds it (plans/261105-store-full-precision-forecast-temps.md); was stored 72 / 51.
         val tomorrowSaved = savedForecasts.find { it.targetDate == dateEpoch(tomorrow) }!!
-        assertEquals(72.0f, tomorrowSaved.highTemp!!, 0.001f)
-        assertEquals(51.0f, tomorrowSaved.lowTemp!!, 0.001f)
+        assertEquals(72.4f, tomorrowSaved.highTemp!!, 0.001f)
+        assertEquals(50.6f, tomorrowSaved.lowTemp!!, 0.001f)
     }
 }

@@ -1,7 +1,6 @@
 package com.weatherwidget.shared.stats
 
 import kotlin.math.abs
-import kotlin.math.roundToInt
 
 /**
  * Pure-Kotlin forecast accuracy scoring and statistics computation.
@@ -14,16 +13,20 @@ object AccuracyPure {
     private const val GOOD_THRESHOLD = 3.0
     private const val FAIR_THRESHOLD = 4.0
 
-    /** One day's forecast-vs-actual comparison (all temps rounded to whole degrees). */
+    /**
+     * One day's forecast-vs-actual comparison at the stored precision (°F). Display rounds; scoring
+     * never does (plans/261105-store-full-precision-forecast-temps.md — until then every value was
+     * rounded to whole degrees, a leftover of the 2026-02-25 Int-to-Float move).
+     */
     data class DailyAccuracy(
         val date: String,
-        val computedHighTemp: Int,
-        val computedLowTemp: Int,
-        val forecastHigh: Int,
-        val forecastLow: Int,
+        val computedHighTemp: Float,
+        val computedLowTemp: Float,
+        val forecastHigh: Float,
+        val forecastLow: Float,
         val source: String,
-        val highError: Int, // actual - forecast
-        val lowError: Int,
+        val highError: Float, // actual - forecast
+        val lowError: Float,
     )
 
     /** Aggregate accuracy statistics for a single source over a lookback window. */
@@ -34,7 +37,7 @@ object AccuracyPure {
         val highBias: Double,
         val lowBias: Double,
         val avgError: Double,
-        val maxError: Int,
+        val maxError: Double,
         val percentWithin3Degrees: Double,
         val accuracyScore: Double,
         val totalForecasts: Int,
@@ -46,19 +49,20 @@ object AccuracyPure {
         if (dailyAccuracies.isEmpty()) return null
 
         val n = dailyAccuracies.size
-        val totalHighError = dailyAccuracies.sumOf { abs(it.highError) }
-        val totalLowError = dailyAccuracies.sumOf { abs(it.lowError) }
-        val avgHighError = totalHighError.toDouble() / n
-        val avgLowError = totalLowError.toDouble() / n
+        val totalHighError = dailyAccuracies.sumOf { abs(it.highError.toDouble()) }
+        val totalLowError = dailyAccuracies.sumOf { abs(it.lowError.toDouble()) }
+        val avgHighError = totalHighError / n
+        val avgLowError = totalLowError / n
         val avgError = (avgHighError + avgLowError) / 2
 
-        val highBias = dailyAccuracies.sumOf { it.highError }.toDouble() / n
-        val lowBias = dailyAccuracies.sumOf { it.lowError }.toDouble() / n
+        val highBias = dailyAccuracies.sumOf { it.highError.toDouble() } / n
+        val lowBias = dailyAccuracies.sumOf { it.lowError.toDouble() } / n
 
-        val maxError = dailyAccuracies.maxOf { maxOf(abs(it.highError), abs(it.lowError)) }
+        val maxError = dailyAccuracies.maxOf { maxOf(abs(it.highError), abs(it.lowError)) }.toDouble()
 
+        // The raw error: a 3.4° miss is outside 3° (it counted inside while errors were rounded).
         val within3Degrees = dailyAccuracies.count {
-            abs(it.highError) <= 3 && abs(it.lowError) <= 3
+            abs(it.highError) <= 3f && abs(it.lowError) <= 3f
         }
         val percentWithin3 = (within3Degrees.toDouble() / n) * 100
 
@@ -104,19 +108,15 @@ object AccuracyPure {
     ): DailyAccuracy? {
         val fHigh = forecastHigh ?: return null
         val fLow = forecastLow ?: return null
-        val aHighR = computedHighTemp.roundToInt()
-        val aLowR = computedLowTemp.roundToInt()
-        val fHighR = fHigh.roundToInt()
-        val fLowR = fLow.roundToInt()
         return DailyAccuracy(
             date = date,
-            computedHighTemp = aHighR,
-            computedLowTemp = aLowR,
-            forecastHigh = fHighR,
-            forecastLow = fLowR,
+            computedHighTemp = computedHighTemp,
+            computedLowTemp = computedLowTemp,
+            forecastHigh = fHigh,
+            forecastLow = fLow,
             source = source,
-            highError = aHighR - fHighR,
-            lowError = aLowR - fLowR,
+            highError = computedHighTemp - fHigh,
+            lowError = computedLowTemp - fLow,
         )
     }
 }

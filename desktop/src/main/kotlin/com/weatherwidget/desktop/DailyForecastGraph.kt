@@ -99,10 +99,8 @@ fun DailyForecastGraph(
     headerBottomPx: Float = 0f,
     headerHeightPx: Float = 0f,
 ) {
-    val formatTemp = { v: Float? ->
-        if (v == null) ""
-        else com.weatherwidget.shared.util.TempUtils.formatTemp(v, useCelsius) ?: ""
-    }
+    // A future provider forecast prints whole degrees (shared DailyColumn.printsWholeDegrees).
+    val formatTemp = { v: Float?, day: DesktopDailyDay -> formatDayTemp(v, day, useCelsius) }
     val textMeasurer = rememberTextMeasurer()
     // Zones the Today overlay used on the previous draw, feeding the planner's hysteresis so label
     // jitter cannot migrate a block between zones between frames. A plain remembered map (not
@@ -404,8 +402,8 @@ fun DailyForecastGraph(
             val dualActualIsUpper = dualActualHigh != null && dualForecastHigh != null &&
                 dualActualHigh >= dualForecastHigh
             val showDualHighs = if (dualActualHigh != null && dualForecastHigh != null && dualOffsets != null) {
-                val aText = formatTemp(dualActualHigh)
-                val fText = formatTemp(dualForecastHigh)
+                val aText = formatTemp(dualActualHigh, day)
+                val fText = formatTemp(dualForecastHigh, day)
                 val aH = textMeasurer.measure(aText, TextStyle(fontSize = tempFontSize(aText, dualBase).sp)).size.height.toFloat()
                 // Collision test at FULL size decides whether the forecast shrinks at all; the room
                 // test then measures the boxes at the size they will actually be drawn.
@@ -431,7 +429,7 @@ fun DailyForecastGraph(
             } else false
 
             if (showDualHighs && dualActualHigh != null && dualForecastHigh != null && dualOffsets != null) {
-                val aText = formatTemp(dualActualHigh)
+                val aText = formatTemp(dualActualHigh, day)
                 val aSize = tempFontSize(aText, dualBase)
                 val aLayout = textMeasurer.measure(aText, TextStyle(fontSize = aSize.sp, color = COLOR_OBSERVED))
                 // Same pushed positions the room test measured (dualExtraPush applies to the
@@ -447,7 +445,7 @@ fun DailyForecastGraph(
                 drawOutlinedText(textMeasurer, aLayout, Offset(aX, aY))
                 recordTodayObstacle(aX, aY, aX + aLayout.size.width, aY + aLayout.size.height)
 
-                val fText = formatTemp(dualForecastHigh)
+                val fText = formatTemp(dualForecastHigh, day)
                 val fSize = tempFontSize(fText, dualBase * dualForecastScale)
                 val fLayout = textMeasurer.measure(fText, TextStyle(fontSize = fSize.sp, color = forecastColor(day)))
                 val fY = dualTop(
@@ -485,7 +483,7 @@ fun DailyForecastGraph(
                     )
                 else day.solidHigh ?: day.forecastHigh ?: day.snapshotHigh ?: day.ghostHigh
                 if (singleHigh != null) {
-                    val highLabelText = formatTemp(singleHigh)
+                    val highLabelText = formatTemp(singleHigh, day)
                     val highSize = tempFontSize(highLabelText, DESKTOP_TEMP_LABEL_BASE_SP * scale)
                     // Thermostat (observed) color whenever the printed number IS today's observed
                     // high — before 5pm too, when the day already ran hotter than forecast (shared
@@ -533,7 +531,7 @@ fun DailyForecastGraph(
                 }
             }
             if (lowForLabel != null) {
-                val lowLabelText = formatTemp(lowForLabel)
+                val lowLabelText = formatTemp(lowForLabel, day)
                 val lowSize = tempFontSize(lowLabelText, DESKTOP_LOW_TEMP_LABEL_BASE_SP * scale)
                 // Thermostat (observed) color whenever the printed number IS the actual: a past day's
                 // observed low, and today's once the observed low is what prints (the shared rule —
@@ -1119,7 +1117,7 @@ internal fun computeDailyGraphTapLayout(
 
     val iconTops = days.map { day ->
         val lowForLabel = day.lowForLabel() ?: return@map null
-        val lowLabelText = formatTemp(lowForLabel, useCelsius)
+        val lowLabelText = formatDayTemp(lowForLabel, day, useCelsius)
         val lowTextHeight = measureLowLabelHeight(lowLabelText, DESKTOP_LOW_TEMP_LABEL_BASE_SP * scale)
         val anchorLow = com.weatherwidget.shared.util.DailyDayValueResolver.iconAnchorLow(
             solidLow = day.solidLow,
@@ -1179,9 +1177,6 @@ private fun labelSizeFor(dayWidth: Float): Float =
         else -> 11f
     }
 
-// Show the tenth for any non-integer value (".0" suppressed by TempUtils.formatTemp), for
-// forecasts/future and actuals alike — matches the Android daily view. NWS integer forecasts
-// stay clean; climate normals and decimal sources reveal their tenth.
 /** The printed low for a column — one call so the label, its Y and the tap layout agree. */
 private fun DesktopDailyDay.lowForLabel(): Float? =
     com.weatherwidget.shared.util.DailyDayValueResolver.effectiveLowForLabel(
@@ -1192,9 +1187,14 @@ private fun DesktopDailyDay.lowForLabel(): Float? =
         actualLow = actual?.computedLowTemp,
     )
 
-private fun formatTemp(v: Float?, useCelsius: Boolean): String {
+/**
+ * A column's temperature label, as Android's daily view (shared TempUtils.formatDayTemp): a future
+ * provider forecast prints whole degrees ([DesktopDailyDay.printsWholeDegrees]); today, past days and
+ * climate normals show the tenth for any non-whole value.
+ */
+private fun formatDayTemp(v: Float?, day: DesktopDailyDay, useCelsius: Boolean): String {
     if (v == null) return ""
-    return com.weatherwidget.shared.util.TempUtils.formatTemp(v, useCelsius) ?: ""
+    return com.weatherwidget.shared.util.TempUtils.formatDayTemp(v, useCelsius, wholeDegrees = day.printsWholeDegrees) ?: ""
 }
 
 /** Temp-label font size: wide 3+ digit temps (100°, 97.7°) draw a further 10% smaller. */

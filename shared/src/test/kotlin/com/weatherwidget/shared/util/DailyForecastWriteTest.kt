@@ -45,6 +45,33 @@ class DailyForecastWriteTest {
     ) = DailyForecastWrite.plan(incoming, stored, "OPEN_METEO", nowMs, nowMs, userRefresh, zone)
 
     @Test
+    fun `a future day is stored at the provider's precision`() {
+        // Until plans/261105-store-full-precision-forecast-temps.md future days were stored as whole degrees (72.4 -> 72).
+        val p = plan(listOf(day(today.plusDays(1), 72.4f, 50.6f)))
+        val row = p.write.single()
+        assertEquals(72.4f, row.values.highTemp!!, 0.001f)
+        assertEquals(50.6f, row.values.lowTemp!!, 0.001f)
+    }
+
+    @Test
+    fun `a sub-degree move on a future day writes a new row instead of re-stamping`() {
+        // Dedup compares at full precision (user, 2026-11-05). The old rounding made 72.4 and 72.3 both 72: a re-stamp.
+        val prior = stored(today.plusDays(1), 72.4f, 50f, fetchedAt = at(1))
+        val p = plan(listOf(day(today.plusDays(1), 72.3f, 50f)), listOf(prior))
+        println("DailyForecastWriteTest sub-degree: write=${p.write.map { it.values.highTemp }} restamp=${p.restamp}")
+        assertEquals(listOf(72.3f), p.write.map { it.values.highTemp })
+        assertTrue(p.restamp.isEmpty())
+    }
+
+    @Test
+    fun `an identical full-precision value is still only re-stamped`() {
+        val prior = stored(today.plusDays(1), 72.4f, 50f, fetchedAt = at(1))
+        val p = plan(listOf(day(today.plusDays(1), 72.4f, 50f)), listOf(prior))
+        assertTrue(p.write.isEmpty())
+        assertEquals(listOf(prior.ref), p.restamp)
+    }
+
+    @Test
     fun `past days, climate normals and an ended period are not written`() {
         val p = plan(
             listOf(

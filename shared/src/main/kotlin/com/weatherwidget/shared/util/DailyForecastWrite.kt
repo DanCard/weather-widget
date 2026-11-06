@@ -116,8 +116,8 @@ object DailyForecastWrite {
             val isToday = day.date == today
             val filtered = SameDayExtremeCutoff.filter(
                 targetDate = day.date,
-                highTemp = ForecastTempRounding.forStorage(high, isToday),
-                lowTemp = ForecastTempRounding.forStorage(low, isToday),
+                highTemp = high,
+                lowTemp = low,
                 nowMs = nowMs,
                 zone = zone,
             )
@@ -134,8 +134,8 @@ object DailyForecastWrite {
             }
             // The frozen side's sent value is kept: readers ignore hindcast*, and a past day with no
             // pre-cutoff forecast draws it as a dashed fallback (PastDayForecastOverlay).
-            val hindcastHigh = if (filtered.frozeHigh) ForecastTempRounding.forStorage(high, isToday) else null
-            val hindcastLow = if (filtered.frozeLow) ForecastTempRounding.forStorage(low, isToday) else null
+            val hindcastHigh = if (filtered.frozeHigh) high else null
+            val hindcastLow = if (filtered.frozeLow) low else null
             if (filtered.frozeAny) {
                 lines += Line(
                     "SNAPSHOT_SKIP_HINDCAST",
