@@ -1,0 +1,1 @@
+Compare all visible weather sources side-by-side for any day in Forecast History; store forecast temperatures at full precision; show peak rain hours on daily forecasts; dim stale hourly forecast segments; plot raw precipitation chance; and refine background fetch cadence.
