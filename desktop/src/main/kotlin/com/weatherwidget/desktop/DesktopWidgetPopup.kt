@@ -93,6 +93,13 @@ internal fun WidgetPopup(
     currentTempFetchIsWarmup: Boolean = false,
     currentTempFetchDetails: com.weatherwidget.data.remote.SourceErrorDetails.Content? = null,
     nowOverrideMs: Long? = null,
+    /**
+     * The window's clock, advanced each STATUS_TICK_MS with the header temperature. The hourly graph
+     * draws with it, so its fetch-dot age ("7m") and NOW line move on that tick: reading the time inside
+     * the graph froze both until new data arrived (7m shown at a 10 min age, 2026-11-06). Sharing the
+     * header's tick adds no wakeup. [nowOverrideMs] (tests) wins.
+     */
+    clockMs: Long? = null,
     onForecastDeltaPlaced: ((com.weatherwidget.shared.graph.ForecastDeltaLabel.Outcome) -> Unit)? = null,
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -412,7 +419,7 @@ internal fun WidgetPopup(
                                     onZoomScroll = handleZoomScroll,
                                     onPan = handlePan,
                                     useCelsius = config.settings.useCelsius,
-                                    nowMs = nowOverrideMs,
+                                    nowMs = nowOverrideMs ?: clockMs,
                                     onForecastDeltaPlaced = onForecastDeltaPlaced,
                                 )
                             }

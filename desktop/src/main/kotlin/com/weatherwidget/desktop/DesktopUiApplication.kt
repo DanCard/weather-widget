@@ -1235,6 +1235,7 @@ internal fun runDesktopUiApplication() = application {
                 resolvedCurrentTemp = resolvedCurrentTemp,
                 resolvedDeltaFromYesterday = resolvedDeltaFromYesterday,
                 noDataSourceId = noDataSourceId,
+                clockMs = nowMs,
                 showRequestId = showRequestId,
                 icon = appIcon,
                 onClose = { popupVisible = false },

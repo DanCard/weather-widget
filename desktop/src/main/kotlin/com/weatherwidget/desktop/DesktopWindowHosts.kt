@@ -237,6 +237,8 @@ internal fun PopupWindowHost(
     resolvedCurrentTemp: Float?,
     resolvedDeltaFromYesterday: Float?,
     noDataSourceId: String?,
+    /** The window's STATUS_TICK_MS clock, the one the header temperature follows; see WidgetPopup. */
+    clockMs: Long?,
     showRequestId: Int,
     icon: Painter,
     onClose: () -> Unit,
@@ -322,6 +324,7 @@ internal fun PopupWindowHost(
                 resolvedCurrentTemp = resolvedCurrentTemp,
                 resolvedDeltaFromYesterday = resolvedDeltaFromYesterday,
                 noDataSourceId = noDataSourceId,
+                clockMs = clockMs,
                 onUpdateLocation = onUpdateLocation,
                 onUpdateConfig = onUpdateConfig,
                 onOpenSettings = onOpenSettings,
