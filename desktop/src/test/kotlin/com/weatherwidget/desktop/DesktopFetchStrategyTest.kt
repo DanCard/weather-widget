@@ -99,6 +99,26 @@ class DesktopFetchStrategyTest {
         assertNull("power policy: none", DesktopFetchStrategy.observationLoopWaitMs(null, fetch, fetch, wake))
     }
 
+    /**
+     * 2026-11-06: fetch at 10:30:31, source toggles until 10:33:44; each loop restart logged
+     * waitSec=599, so no fetch ran until 10:43:44. A restart must keep the deadline set by the fetch.
+     * plans/261106-loop-restart-keeps-observation-deadline.md
+     */
+    @Test
+    fun `a loop restart keeps the deadline of the last observation fetch`() {
+        val restart = 10_000 * MS_PER_MINUTE
+        val seed = DesktopFetchStrategy.OBSERVATION_LOOP_FIRST_PASS_SEED_MS
+        val wait = DesktopFetchStrategy.observationLoopWaitMs(10, restart - 3 * MS_PER_MINUTE, seed, restart)
+        println("restart 3 min after fetch: waitMin=${wait!! / MS_PER_MINUTE.toDouble()}")
+        assertEquals("rest of the interval, not a fresh 10 min", 7 * MS_PER_MINUTE, wait)
+        assertEquals(
+            "overdue at restart → fetch on the first pass",
+            0L,
+            DesktopFetchStrategy.observationLoopWaitMs(10, restart - 25 * MS_PER_MINUTE, seed, restart),
+        )
+        assertEquals("never fetched → now", 0L, DesktopFetchStrategy.observationLoopWaitMs(10, null, seed, restart))
+    }
+
     @Test
     fun `a failed or skipped pass counts, so the loop never spins on an old fetch`() {
         val now = 10_000 * MS_PER_MINUTE

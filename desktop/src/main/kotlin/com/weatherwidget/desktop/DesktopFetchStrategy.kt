@@ -44,6 +44,17 @@ object DesktopFetchStrategy {
      * away-skipped pass waits an interval rather than spinning.
      * plans/261106-screen-on-replans-observation-loop.md
      */
+    /**
+     * The observation loop's `lastLoopPassMs` before its first pass. 0 = no pass yet, so the first wait
+     * counts from the last observation fetch alone. A loop restart (source switch, settings save)
+     * seeded "now" and pushed the fetch a full interval out on every toggle.
+     * plans/261106-loop-restart-keeps-observation-deadline.md
+     */
+    const val OBSERVATION_LOOP_FIRST_PASS_SEED_MS = 0L
+
+    /** Cap on the observation loop's wait for its restart's launch refresh; a hung launch must not stall it. */
+    const val OBSERVATION_LOOP_LAUNCH_WAIT_MS = 2 * 60 * 1000L
+
     fun observationLoopWaitMs(intervalMinutes: Long?, lastObservationFetchMs: Long?, lastLoopPassMs: Long, nowMs: Long): Long? {
         intervalMinutes ?: return null
         return CurrentTempCadence.remainingMs(intervalMinutes, maxOf(lastObservationFetchMs ?: 0L, lastLoopPassMs), nowMs)

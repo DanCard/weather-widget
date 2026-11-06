@@ -1018,9 +1018,22 @@ internal class DaemonRuntime(
             // on, power change) re-plans it — a pass chosen with the monitor in standby no longer sits
             // out 60 min with the screen back on (plans/261106-screen-on-replans-observation-loop.md).
             launch {
-                // The launch refresh owns the first interval, as before; a failed or away-skipped pass
-                // also counts, so a fetch that keeps failing retries once per interval, never in a spin.
-                var lastLoopPassMs = System.currentTimeMillis()
+                // A restart (every source switch or settings save) must not restart the interval: wait for
+                // this restart's launch refresh, so we never fetch beside it and read any fetch it made,
+                // then count from the last observation fetch. Seeding "now" pushed the fetch out 10 min per
+                // toggle (plans/261106-loop-restart-keeps-observation-deadline.md). After the first pass a
+                // failed or away-skipped pass still counts, so a failing fetch retries once per interval.
+                val launchStartMs = System.currentTimeMillis()
+                val launchDone = withTimeoutOrNull(DesktopFetchStrategy.OBSERVATION_LOOP_LAUNCH_WAIT_MS) {
+                    launchJob?.join() ?: Unit
+                } != null
+                weatherDao.log(
+                    "OBS_LOOP_START",
+                    "reason=$reason endedBy=${if (launchDone) "launch_done" else "timeout"} " +
+                        "waitedSec=${(System.currentTimeMillis() - launchStartMs) / 1000}",
+                    "INFO",
+                )
+                var lastLoopPassMs = DesktopFetchStrategy.OBSERVATION_LOOP_FIRST_PASS_SEED_MS
                 var wakeReason: String? = null
                 while (true) {
                     val (isCharging, level) = PowerDetector.getPowerState()

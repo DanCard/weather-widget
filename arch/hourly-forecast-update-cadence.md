@@ -123,7 +123,9 @@ desktop uses its observation loop. The desktop loop counts each wait from the la
 (`CurrentTempCadence.remainingMs`) and re-plans on a wake: the ScreenSaver D-Bus unblank, a screen
 off → on edge seen by the 60-s presence read (`DesktopPresence`; the only signal when a monitor leaves
 DPMS standby without a lock), or a plug/unplug. Each plan logs `OBS_LOOP_PLAN screenOn=… intervalMin=…
-waitSec=… [wake=…]` to `app_logs`. Screen-on catch-up fetches only when the relevant observation age
+waitSec=… [wake=…]` to `app_logs`. A loop restart (every source switch or settings save) keeps that
+deadline: the restarted loop waits for its launch refresh (at most 2 min, logged as `OBS_LOOP_START`),
+then counts from the last observation fetch, never from the restart. Screen-on catch-up fetches only when the relevant observation age
 and battery policy permit it. Other enabled sources follow `NonPrimaryObservationPolicy`, not the
 displayed source's table.
 
