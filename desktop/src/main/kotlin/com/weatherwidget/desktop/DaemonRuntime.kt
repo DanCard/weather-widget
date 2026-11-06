@@ -32,6 +32,9 @@ import kotlin.system.exitProcess
 
 private const val TAG = "DaemonProcess"
 private const val OBS_LOOP_PLAN_TAG = "OBS_LOOP_PLAN"
+
+/** An observation fetch skipped because the same source's is already in flight (LaunchRefreshJobs.observationKey). */
+private const val OBS_FETCH_COALESCED_TAG = "OBS_FETCH_COALESCED"
 private const val DOMINANT_TEMP_WATCH_TAG = "DOMINANT_TEMP_WATCH"
 
 /** How often the daemon sights the charger for the pre-unplug rule; well inside ChargeHistory.MAX_ESTIMATE_GAP_MS. */
@@ -926,7 +929,14 @@ internal class DaemonRuntime(
         daemonScope.launch {
             val src = WeatherSource.fromDisplaySource(activeConfig.displaySource).id
             try {
-                val result = activeRepo.refreshObservations()
+                val result = launchRefreshJobs.fetchOnce(LaunchRefreshJobs.observationKey(activeConfig)) {
+                    activeRepo.refreshObservations()
+                }
+                if (result == null) {
+                    // The observation loop is already fetching these observations; it publishes them.
+                    weatherDao.log(OBS_FETCH_COALESCED_TAG, "caller=catchup:$reason source=${activeConfig.displaySource}", "INFO")
+                    return@launch
+                }
                 panelPublisher.publishForecastState(result)
                 checkDominantTempWatch(activeRepo, result, "catchup:$reason")
                 dataStatusState.value = DataStatus.Live(weatherDao.getLastSuccessfulFetch(activeConfig.displaySource) ?: System.currentTimeMillis())
@@ -1126,13 +1136,20 @@ internal class DaemonRuntime(
                         // Charging: every visible source's feed, each once (Android's charging loop; the
                         // shared CurrentConditionsRun). On battery, the displayed source alone
                         // (CurrentTempCadence: primary only on battery).
-                        val result = if (isCharging) {
-                            newRepo.refreshObservations(
-                                visibleSources = config.effectiveSources.map(WeatherSource::fromId),
-                                reason = "charging_loop",
-                            )
-                        } else {
-                            newRepo.refreshObservations(reason = "obs_loop")
+                        val result = launchRefreshJobs.fetchOnce(LaunchRefreshJobs.observationKey(config)) {
+                            if (isCharging) {
+                                newRepo.refreshObservations(
+                                    visibleSources = config.effectiveSources.map(WeatherSource::fromId),
+                                    reason = "charging_loop",
+                                )
+                            } else {
+                                newRepo.refreshObservations(reason = "obs_loop")
+                            }
+                        }
+                        if (result == null) {
+                            // A catch-up is already fetching these observations; it publishes them.
+                            weatherDao.log(OBS_FETCH_COALESCED_TAG, "caller=obs_loop source=${config.displaySource}", "INFO")
+                            continue
                         }
                         panelPublisher.publishForecastState(result)
                         checkDominantTempWatch(newRepo, result, "obs_loop")

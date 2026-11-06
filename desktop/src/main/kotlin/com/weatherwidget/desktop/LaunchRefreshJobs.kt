@@ -85,6 +85,14 @@ internal class LaunchRefreshJobs(private val scope: CoroutineScope) {
 
     companion object {
         fun key(config: DesktopConfig): String = "${config.displaySource}@${config.lat},${config.lon}"
+
+        /**
+         * One observations-only fetch at a time per source and site: the observation loop and the
+         * panel-click catch-up both fetched at 10:40:18 on 2026-11-06 (two Synoptic calls, a
+         * DAILY_HISTORY_RACE). Separate from [key] so an observation fetch never makes a launch
+         * forecast refresh skip.
+         */
+        fun observationKey(config: DesktopConfig): String = "obs:${key(config)}"
     }
 }
 

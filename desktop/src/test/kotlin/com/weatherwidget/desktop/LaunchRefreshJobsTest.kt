@@ -13,6 +13,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -152,6 +153,37 @@ class LaunchRefreshJobsTest {
         withTimeout(10_000) { startupRefresh!!.join() }
         assertEquals("one service request for the source", 1, held.calls.get())
         assertNotNull(dao.getLastSuccessfulFetch(source))
+    }
+
+    /**
+     * 2026-11-06 10:40:18: the observation loop and a panel-click catch-up fetched the same
+     * observations together. The second caller skips; a launch forecast refresh is not blocked.
+     */
+    @Test
+    fun `an observation fetch in flight makes a second one skip but never a launch refresh`() = runBlocking {
+        val jobs = LaunchRefreshJobs(scope)
+        val config = DesktopConfig(lat, lon, "Home", settings = DesktopSettings(weatherSource = WeatherSource.NWS.id))
+        val obsKey = LaunchRefreshJobs.observationKey(config)
+        val entered = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val calls = AtomicInteger()
+        val loop = scope.launch {
+            jobs.fetchOnce(obsKey) { calls.incrementAndGet(); entered.complete(Unit); release.await() }
+        }
+        withTimeout(10_000) { entered.await() }
+
+        val catchUp = scope.async { jobs.fetchOnce(obsKey) { calls.incrementAndGet() } }
+        val catchUpResult = withTimeout(10_000) { catchUp.await() }
+        val launch = scope.async { jobs.fetchOnce(LaunchRefreshJobs.key(config)) { "forecast" } }
+        val launchResult = withTimeout(10_000) { launch.await() }
+        println("obsKey=$obsKey catchUp=$catchUpResult launch=$launchResult")
+
+        assertNull("catch-up skips while the loop's fetch is in flight", catchUpResult)
+        assertEquals("the launch refresh still runs", "forecast", launchResult)
+        release.complete(Unit)
+        withTimeout(10_000) { loop.join() }
+        assertEquals("one observation fetch", 1, calls.get())
+        assertNotNull("the key is free again once it finishes", jobs.fetchOnce(obsKey) { Unit })
     }
 
     @Test
