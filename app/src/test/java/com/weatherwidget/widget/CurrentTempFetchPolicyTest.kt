@@ -223,10 +223,14 @@ class CurrentTempFetchPolicyTest {
     }
 
     @Test
-    fun `screen-on catch-up does nothing on a charger after a recent fetch or below 70 percent`() {
+    fun `screen-on catch-up re-plans a charger after a recent fetch and does nothing below 70 percent`() {
         val now = 10_000_000_000L
         assertEquals(
-            com.weatherwidget.shared.util.CurrentTempCadence.ScreenOnCatchUp.NONE,
+            com.weatherwidget.shared.util.CurrentTempCadence.ScreenOnCatchUp.SCHEDULE,
+            CurrentTempFetchPolicy.screenOnCatchUp(isCharging = true, batteryLevel = 100, lastFetchMs = now - 7 * 60_000L, nowMs = now),
+        )
+        assertEquals(
+            com.weatherwidget.shared.util.CurrentTempCadence.ScreenOnCatchUp.FETCH_NOW,
             CurrentTempFetchPolicy.screenOnCatchUp(isCharging = true, batteryLevel = 100, lastFetchMs = now - 10 * 60_000L, nowMs = now),
         )
         assertEquals(
@@ -239,9 +243,10 @@ class CurrentTempFetchPolicyTest {
     fun `screen-on first delay is the remainder of the interval, at least 1 minute`() {
         val now = 10_000_000_000L
         val min = 60_000L
-        assertEquals(15L, CurrentTempFetchPolicy.screenOnFirstDelayMinutes(lastFetchMs = now - 5 * min, nowMs = now))
-        assertEquals(1L, CurrentTempFetchPolicy.screenOnFirstDelayMinutes(lastFetchMs = now - 19 * min - 50_000L, nowMs = now))
-        assertEquals(20L, CurrentTempFetchPolicy.screenOnFirstDelayMinutes(lastFetchMs = now, nowMs = now))
+        assertEquals(15L, CurrentTempFetchPolicy.screenOnFirstDelayMinutes(isCharging = false, lastFetchMs = now - 5 * min, nowMs = now))
+        assertEquals(1L, CurrentTempFetchPolicy.screenOnFirstDelayMinutes(isCharging = false, lastFetchMs = now - 19 * min - 50_000L, nowMs = now))
+        assertEquals(20L, CurrentTempFetchPolicy.screenOnFirstDelayMinutes(isCharging = false, lastFetchMs = now, nowMs = now))
+        assertEquals(3L, CurrentTempFetchPolicy.screenOnFirstDelayMinutes(isCharging = true, lastFetchMs = now - 7 * min, nowMs = now))
     }
 
     @Test

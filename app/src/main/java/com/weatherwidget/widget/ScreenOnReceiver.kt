@@ -251,9 +251,10 @@ class ScreenOnReceiver : BroadcastReceiver() {
      * than 20 minutes, which is most of them, would never see a fetch. This is the one place
      * screen-on reaches the network; the loop's interval still bounds how often.
      *
-     * On a charger the loop is already running; screen-on fetches only when the last fetch is
-     * ≥ 15 min old, since screen-off spaces the charging loop 30 min apart (2026-10-19). Screen-off on
-     * battery cancels the loop ([handleScreenOff]).
+     * On a charger the loop is already running, but screen-off spaces it 60 min apart: screen-on
+     * fetches when the last fetch is ≥ 10 min old, else re-plans the next run 10 min after it
+     * (plans/261106-screen-on-replans-observation-loop.md). Screen-off on battery cancels the loop
+     * ([handleScreenOff]).
      */
     private fun startBatteryScreenOnLoop(context: Context) {
         val battery = getBatteryState(context)
@@ -282,7 +283,7 @@ class ScreenOnReceiver : BroadcastReceiver() {
                 CurrentTempUpdateScheduler.scheduleNextChargingUpdate(
                     context = context,
                     isScreenInteractive = true,
-                    firstDelayMinutes = CurrentTempFetchPolicy.screenOnFirstDelayMinutes(lastFetchMs, nowMs),
+                    firstDelayMinutes = CurrentTempFetchPolicy.screenOnFirstDelayMinutes(battery.isCharging, lastFetchMs, nowMs),
                     nowMs = nowMs,
                 )
             com.weatherwidget.shared.util.CurrentTempCadence.ScreenOnCatchUp.NONE -> Unit

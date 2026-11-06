@@ -81,15 +81,39 @@ class CurrentTempCadenceTest {
     }
 
     @Test
-    fun `screen-on catch-up on a charger fetches once 15 min have passed, never schedules`() {
+    fun `screen-on catch-up on a charger fetches once 10 min have passed, else re-plans the loop`() {
+        // 2026-11-06: a pass chosen with the monitor in standby waited 60 min; a screen-on 7 min after
+        // the fetch was left alone (NONE) and the user saw no fetch for the rest of that hour.
         assertEquals(ScreenOnCatchUp.FETCH_NOW, CurrentTempCadence.screenOnCatchUp(true, 90, 0L, now))
-        assertEquals(ScreenOnCatchUp.FETCH_NOW, CurrentTempCadence.screenOnCatchUp(true, 30, now - 15 * minute, now))
-        assertEquals(ScreenOnCatchUp.NONE, CurrentTempCadence.screenOnCatchUp(true, 90, now - 14 * minute, now))
+        assertEquals(ScreenOnCatchUp.FETCH_NOW, CurrentTempCadence.screenOnCatchUp(true, 30, now - 10 * minute, now))
+        assertEquals(ScreenOnCatchUp.FETCH_NOW, CurrentTempCadence.screenOnCatchUp(true, 90, now - 60 * minute, now))
+        for (age in listOf(0L, 7L, 9L)) {
+            assertEquals("age=$age", ScreenOnCatchUp.SCHEDULE, CurrentTempCadence.screenOnCatchUp(true, 90, now - age * minute, now))
+        }
+        // Any battery level on a charger: the charging band has no battery floor.
+        assertEquals(ScreenOnCatchUp.SCHEDULE, CurrentTempCadence.screenOnCatchUp(true, 5, now - 7 * minute, now))
     }
 
     @Test
-    fun `first delay after a recent fetch is the rest of the 20 min, at least 1`() {
-        assertEquals(15L, CurrentTempCadence.screenOnFirstDelayMinutes(now - 5 * minute, now))
-        assertEquals(1L, CurrentTempCadence.screenOnFirstDelayMinutes(now - 20 * minute + 1, now))
+    fun `first delay after a recent fetch is the rest of the 20 min on battery, at least 1`() {
+        assertEquals(15L, CurrentTempCadence.screenOnFirstDelayMinutes(false, now - 5 * minute, now))
+        assertEquals(1L, CurrentTempCadence.screenOnFirstDelayMinutes(false, now - 20 * minute + 1, now))
+    }
+
+    @Test
+    fun `first delay after a recent fetch is the rest of the 10 min on a charger`() {
+        assertEquals(10L, CurrentTempCadence.screenOnFirstDelayMinutes(true, now, now))
+        assertEquals(3L, CurrentTempCadence.screenOnFirstDelayMinutes(true, now - 7 * minute, now))
+        assertEquals(1L, CurrentTempCadence.screenOnFirstDelayMinutes(true, now - 9 * minute, now))
+    }
+
+    @Test
+    fun `remaining time counts from the last fetch, 0 when due, never above the interval`() {
+        assertEquals(0L, CurrentTempCadence.remainingMs(10, 0L, now))
+        assertEquals(3 * minute, CurrentTempCadence.remainingMs(10, now - 7 * minute, now))
+        assertEquals(0L, CurrentTempCadence.remainingMs(10, now - 12 * minute, now))
+        assertEquals(53 * minute, CurrentTempCadence.remainingMs(60, now - 7 * minute, now))
+        // A clock step back must not wait longer than one interval.
+        assertEquals(10 * minute, CurrentTempCadence.remainingMs(10, now + 5 * minute, now))
     }
 }

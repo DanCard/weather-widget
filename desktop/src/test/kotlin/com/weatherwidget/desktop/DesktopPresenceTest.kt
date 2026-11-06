@@ -99,4 +99,38 @@ class DesktopPresenceTest {
         assertTrue(returns.toString(), returns.all { it.hour == 8 && it.minute == 0 })
         println("workstation week: ${fetches.size} observation fetches, returns at $returns")
     }
+
+    /** plans/261106-screen-on-replans-observation-loop.md: DPMS standby → on sends no D-Bus signal. */
+    @Test
+    fun `the minute check reports a screen off to on edge once, and nothing while it stays on`() {
+        var edges = 0
+        val p = DesktopPresence(screenState = { screen }, clock = { now }, zone = { zone }, onScreenOn = { edges++ })
+        p.evaluate()
+        assertEquals("first read on: no edge", 0, edges)
+        now += minute
+        p.evaluate()
+        assertEquals("on → on: no edge", 0, edges)
+        screen = false
+        now += minute
+        p.evaluate()
+        screen = true
+        now += minute
+        p.evaluate()
+        assertEquals("off → on: one edge", 1, edges)
+        now += minute
+        p.evaluate()
+        assertEquals("stays on: still one", 1, edges)
+        // An unreadable screen neither fires nor resets the last reading.
+        screen = false
+        now += minute
+        p.evaluate()
+        screen = null
+        now += minute
+        p.evaluate()
+        screen = true
+        now += minute
+        p.evaluate()
+        println("screen edges=$edges")
+        assertEquals("off → unknown → on: one more edge", 2, edges)
+    }
 }

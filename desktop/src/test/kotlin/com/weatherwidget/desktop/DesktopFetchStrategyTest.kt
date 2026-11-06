@@ -75,18 +75,36 @@ class DesktopFetchStrategyTest {
     }
 
     @Test
-    fun `screen wake catches up on battery at 70 percent after 20 min, a click after 10 min at any power`() {
+    fun `a panel click catches up after 10 min at any power`() {
         val now = 10_000 * MS_PER_MINUTE
-        val wake = "screensaver:wake"
-        assertEquals(true, DesktopFetchStrategy.shouldCatchUpOnKick(wake, now - 20 * MS_PER_MINUTE, false, 80, now))
-        assertEquals(false, DesktopFetchStrategy.shouldCatchUpOnKick(wake, now - 15 * MS_PER_MINUTE, false, 80, now))
-        assertEquals("below 70 %", false, DesktopFetchStrategy.shouldCatchUpOnKick(wake, null, false, 69, now))
-        // On AC the screen-off loop runs 30 min apart: an unblank fetches once 15 min have passed.
-        assertEquals("on AC, never fetched", true, DesktopFetchStrategy.shouldCatchUpOnKick(wake, null, true, 90, now))
-        assertEquals("on AC, 15 min old", true, DesktopFetchStrategy.shouldCatchUpOnKick(wake, now - 15 * MS_PER_MINUTE, true, 90, now))
-        assertEquals("on AC, 14 min old", false, DesktopFetchStrategy.shouldCatchUpOnKick(wake, now - 14 * MS_PER_MINUTE, true, 90, now))
-        assertEquals(true, DesktopFetchStrategy.shouldCatchUpOnKick("genmon:click", now - 10 * MS_PER_MINUTE, true, 20, now))
-        assertEquals(false, DesktopFetchStrategy.shouldCatchUpOnKick("genmon:click", now - 5 * MS_PER_MINUTE, true, 20, now))
+        assertEquals(true, DesktopFetchStrategy.shouldCatchUpObservations(now - 10 * MS_PER_MINUTE, now))
+        assertEquals(false, DesktopFetchStrategy.shouldCatchUpObservations(now - 5 * MS_PER_MINUTE, now))
+        assertEquals(true, DesktopFetchStrategy.shouldCatchUpObservations(null, now))
+    }
+
+    /**
+     * 2026-11-06: the 08:29 pass read the monitor (DPMS standby) as off and slept 60 min; with the
+     * screen back on at 08:36 a re-plan waits only until 10 min after the 08:29 fetch.
+     * plans/261106-screen-on-replans-observation-loop.md
+     */
+    @Test
+    fun `observation loop re-plans a screen-off hour down to the rest of 10 min once the screen is on`() {
+        val fetch = 10_000 * MS_PER_MINUTE
+        val offInterval = DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = true, batteryLevel = 100, screenOn = false)!! / MS_PER_MINUTE
+        val onInterval = DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = true, batteryLevel = 100, screenOn = true)!! / MS_PER_MINUTE
+        assertEquals(60 * MS_PER_MINUTE, DesktopFetchStrategy.observationLoopWaitMs(offInterval, fetch, fetch, fetch))
+        val wake = fetch + 7 * MS_PER_MINUTE
+        assertEquals(3 * MS_PER_MINUTE, DesktopFetchStrategy.observationLoopWaitMs(onInterval, fetch, fetch, wake))
+        assertEquals("overdue → now", 0L, DesktopFetchStrategy.observationLoopWaitMs(onInterval, fetch, fetch, fetch + 15 * MS_PER_MINUTE))
+        assertNull("power policy: none", DesktopFetchStrategy.observationLoopWaitMs(null, fetch, fetch, wake))
+    }
+
+    @Test
+    fun `a failed or skipped pass counts, so the loop never spins on an old fetch`() {
+        val now = 10_000 * MS_PER_MINUTE
+        val oldFetch = now - 3 * 60 * MS_PER_MINUTE
+        assertEquals(10 * MS_PER_MINUTE, DesktopFetchStrategy.observationLoopWaitMs(10, oldFetch, lastLoopPassMs = now, nowMs = now))
+        assertEquals(0L, DesktopFetchStrategy.observationLoopWaitMs(10, null, lastLoopPassMs = 0L, nowMs = now))
     }
 
     // Forecast cadence: ForecastHorizonCadence (`:shared`, ForecastHorizonCadenceTest).

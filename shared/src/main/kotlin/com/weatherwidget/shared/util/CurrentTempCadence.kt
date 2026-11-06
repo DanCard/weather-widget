@@ -32,8 +32,6 @@ object CurrentTempCadence {
     /** Charging screen-off while the dominant-station watch is armed. */
     const val CHARGING_SCREEN_OFF_WATCH_MINUTES = 30L
 
-    /** On a charger, screen-on fetches when the last fetch is at least this old. */
-    const val CHARGING_SCREEN_ON_CATCH_UP_MINUTES = 15L
     const val BATTERY_SCREEN_ON_MINUTES = BatteryTier.SCREEN_ON_OBSERVATION_INTERVAL_MINUTES
     const val OPPORTUNISTIC_MINUTES = 45L
 
@@ -72,41 +70,57 @@ object CurrentTempCadence {
             ?: OPPORTUNISTIC_MINUTES.takeIf { opportunisticAllowed(isCharging, batteryLevel, screenOn, watchArmed) }
 
     enum class ScreenOnCatchUp {
-        /** A recent fetch on a charger, or battery below the cutoff: screen-on does not touch the loop. */
+        /** Battery below the cutoff: screen-on does not touch the loop. */
         NONE,
 
-        /** Last fetch is at least one interval old: fetch now; the run reschedules the loop. */
+        /** Last fetch is at least one screen-on interval old: fetch now; the run reschedules the loop. */
         FETCH_NOW,
 
-        /** Last fetch is recent: start the loop, first run when the interval since it elapses. */
+        /** Last fetch is recent: (re)plan the loop, first run when the screen-on interval since it elapses. */
         SCHEDULE,
     }
 
+    /** The screen-on loop interval: [CHARGING_SCREEN_ON_MINUTES] on a charger, else [BATTERY_SCREEN_ON_MINUTES]. */
+    fun screenOnIntervalMinutes(isCharging: Boolean): Long =
+        if (isCharging) CHARGING_SCREEN_ON_MINUTES else BATTERY_SCREEN_ON_MINUTES
+
     /**
-     * What the screen coming on does. On battery: without the catch-up the loop's first run is a full
-     * interval after screen-on, and a typical session is shorter than that, so it would rarely fetch.
-     * On a charger the loop is already running, but screen-off spaces it up to [CHARGING_SCREEN_OFF_MINUTES]
-     * apart: fetch now when the last one is ≥ [CHARGING_SCREEN_ON_CATCH_UP_MINUTES] old, else leave
-     * the loop be. [lastFetchMs] is the last **current-temperature** fetch (≤ 0 = none).
+     * What the screen coming on does: fetch now when the last **current-temperature** fetch
+     * ([lastFetchMs], ≤ 0 = none) is a full screen-on interval old, else re-plan the loop so its next
+     * run is that interval after the last fetch ([screenOnFirstDelayMinutes]).
+     *
+     * On battery the loop is not running with the screen off, and a typical session is shorter than
+     * an interval, so without this it would rarely fetch. On a charger the loop is running, but a pass
+     * chosen while the screen was off waits [CHARGING_SCREEN_OFF_MINUTES]; returning [SCHEDULE] rather
+     * than leaving it be stops a screen-on session from waiting out that hour
+     * (plans/261106-screen-on-replans-observation-loop.md; until then a fetch under 15 min old was left
+     * alone).
      */
     fun screenOnCatchUp(isCharging: Boolean, batteryLevel: Int, lastFetchMs: Long, nowMs: Long): ScreenOnCatchUp {
-        if (isCharging) {
-            val stale = lastFetchMs <= 0L || nowMs - lastFetchMs >= CHARGING_SCREEN_ON_CATCH_UP_MINUTES * MINUTE_MS
-            return if (stale) ScreenOnCatchUp.FETCH_NOW else ScreenOnCatchUp.NONE
-        }
-        if (!BatteryTier.screenOnObservationAllowed(batteryLevel, isScreenOn = true)) return ScreenOnCatchUp.NONE
-        val ageMs = nowMs - lastFetchMs
-        return if (lastFetchMs <= 0L || ageMs >= BATTERY_SCREEN_ON_MINUTES * MINUTE_MS) {
+        if (!isCharging && !BatteryTier.screenOnObservationAllowed(batteryLevel, isScreenOn = true)) return ScreenOnCatchUp.NONE
+        val intervalMs = screenOnIntervalMinutes(isCharging) * MINUTE_MS
+        return if (lastFetchMs <= 0L || nowMs - lastFetchMs >= intervalMs) {
             ScreenOnCatchUp.FETCH_NOW
         } else {
             ScreenOnCatchUp.SCHEDULE
         }
     }
 
-    /** Minutes until the next loop run when screen-on found a recent fetch (never below 1). */
-    fun screenOnFirstDelayMinutes(lastFetchMs: Long, nowMs: Long): Long {
-        val remainingMs = BATTERY_SCREEN_ON_MINUTES * MINUTE_MS - (nowMs - lastFetchMs)
-        return (remainingMs / MINUTE_MS).coerceIn(1L, BATTERY_SCREEN_ON_MINUTES)
+    /** Minutes until the next loop run when screen-on found a recent fetch (1 ..= the screen-on interval). */
+    fun screenOnFirstDelayMinutes(isCharging: Boolean, lastFetchMs: Long, nowMs: Long): Long {
+        val interval = screenOnIntervalMinutes(isCharging)
+        return (remainingMs(interval, lastFetchMs, nowMs) / MINUTE_MS).coerceIn(1L, interval)
+    }
+
+    /**
+     * Time left until a loop run [intervalMinutes] after [lastFetchMs] (≤ 0 = none): 0 = due now, never
+     * more than the interval. The next run is always counted from the last fetch, so re-planning on a
+     * screen or power change never fetches sooner than the interval allows.
+     */
+    fun remainingMs(intervalMinutes: Long, lastFetchMs: Long, nowMs: Long): Long {
+        val intervalMs = intervalMinutes * MINUTE_MS
+        if (lastFetchMs <= 0L) return 0L
+        return (lastFetchMs + intervalMs - nowMs).coerceIn(0L, intervalMs)
     }
 
     private const val MINUTE_MS = 60_000L

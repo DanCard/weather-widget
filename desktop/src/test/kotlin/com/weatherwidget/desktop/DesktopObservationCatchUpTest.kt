@@ -12,10 +12,11 @@ import java.nio.file.Files
 import java.sql.DriverManager
 
 /**
- * The screen-wake catch-up judges the observations' own freshness ([DesktopWeatherDao.getLastSuccessfulObservationFetch]:
- * `OBS_REFRESH` / `REFRESH` rows), never the forecast's `REFRESH` age alone, then asks the shared rule
- * ([DesktopFetchStrategy.shouldCatchUpOnKick] → `CurrentTempCadence`).
- * performance/261011-unify-current-temp-cadence-shared.md
+ * The observation loop's re-plan on a screen wake judges the observations' own freshness
+ * ([DesktopWeatherDao.getLastSuccessfulObservationFetch]: `OBS_REFRESH` / `REFRESH` rows), never the
+ * forecast's `REFRESH` age alone, then asks the shared rule
+ * ([DesktopFetchStrategy.observationLoopWaitMs] → `CurrentTempCadence.remainingMs`).
+ * performance/261011-unify-current-temp-cadence-shared.md, plans/261106-screen-on-replans-observation-loop.md
  */
 @Category(ShortDuration::class)
 class DesktopObservationCatchUpTest {
@@ -37,8 +38,13 @@ class DesktopObservationCatchUpTest {
             }
         }
 
-    private fun wakeCatchesUp() =
-        DesktopFetchStrategy.shouldCatchUpOnKick("screensaver:wake", dao.getLastSuccessfulObservationFetch(source), false, 85, now)
+    /** Screen on, battery 85 % (20-min band); the loop's own last pass long ago. */
+    private fun wakeCatchesUp(): Boolean {
+        val interval = DesktopFetchStrategy.getObservationRefreshDelayMs(isCharging = false, batteryLevel = 85, screenOn = true)!! / minute
+        val wait = DesktopFetchStrategy.observationLoopWaitMs(interval, dao.getLastSuccessfulObservationFetch(source), 0L, now)
+        println("wake re-plan waitMs=$wait")
+        return wait == 0L
+    }
 
     @Test
     fun `a fresh observation fetch beside an old forecast refresh does not catch up`() {

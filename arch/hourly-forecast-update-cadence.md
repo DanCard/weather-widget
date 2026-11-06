@@ -108,8 +108,10 @@ source's current-temperature/recent-observation fetches:
 | Battery 66–69% | 45 minutes | None | None |
 | Battery ≤ 65% | None | None | None |
 
-Nobody sees a screen-off reading: a screen-on fetches when the last one is old enough (charging ≥ 15
-minutes, battery ≥ 20 minutes), and history is refilled (NWS gap fill; every forecast fetch takes
+Nobody sees a screen-off reading: a screen-on fetches when the last one is a full screen-on interval
+old (charging ≥ 10 minutes, battery ≥ 20 minutes) and otherwise re-plans the loop so its next run is
+that interval after the last fetch (`CurrentTempCadence.screenOnCatchUp` → `SCHEDULE`; a pass chosen
+with the screen off would otherwise wait out its 60 minutes with the screen on), and history is refilled (NWS gap fill; every forecast fetch takes
 Tomorrow.io's last 23 hours). The armed one-shot notification is the exception. The opportunistic
 45-minute band never fetches on a charger (the loop covers it).
 
@@ -117,7 +119,11 @@ An unplug the app did not hear is placed at the last charging sighting if it is 
 charging interval plus 15 minutes (`ChargeHistory.MAX_ESTIMATE_GAP_MS`); a screen-on is a sighting too.
 
 Android uses charging WorkManager, battery screen-on alarms, and an opportunistic JobScheduler band;
-desktop uses its observation loop. Screen-on catch-up fetches only when the relevant observation age
+desktop uses its observation loop. The desktop loop counts each wait from the last observation fetch
+(`CurrentTempCadence.remainingMs`) and re-plans on a wake: the ScreenSaver D-Bus unblank, a screen
+off → on edge seen by the 60-s presence read (`DesktopPresence`; the only signal when a monitor leaves
+DPMS standby without a lock), or a plug/unplug. Each plan logs `OBS_LOOP_PLAN screenOn=… intervalMin=…
+waitSec=… [wake=…]` to `app_logs`. Screen-on catch-up fetches only when the relevant observation age
 and battery policy permit it. Other enabled sources follow `NonPrimaryObservationPolicy`, not the
 displayed source's table.
 

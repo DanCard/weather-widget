@@ -31,6 +31,7 @@ import java.nio.file.StandardWatchEventKinds
 import kotlin.system.exitProcess
 
 private const val TAG = "DaemonProcess"
+private const val OBS_LOOP_PLAN_TAG = "OBS_LOOP_PLAN"
 private const val DOMINANT_TEMP_WATCH_TAG = "DOMINANT_TEMP_WATCH"
 
 /** How often the daemon sights the charger for the pre-unplug rule; well inside ChargeHistory.MAX_ESTIMATE_GAP_MS. */
@@ -83,8 +84,25 @@ internal class DaemonRuntime(
         forecastLoopWake.trySend(reason)
     }
 
+    /**
+     * Wakes the observation loop to re-plan its wait (screen on, power change). Conflated; a wake
+     * never fetches sooner than the shared interval since the last fetch allows.
+     */
+    private val observationLoopWake = kotlinx.coroutines.channels.Channel<String>(kotlinx.coroutines.channels.Channel.CONFLATED)
+
+    fun wakeObservationLoop(reason: String) {
+        observationLoopWake.trySend(reason)
+    }
+
+    /** Screen-on wake, from any signal: the ScreenSaver D-Bus line or the presence tick's off → on edge. */
+    private fun onScreenCameOn(reason: String) {
+        wakeObservationLoop(reason)
+        // Screen on shortens the forecast cadence (8 h → 4 h).
+        wakeForecastLoop("screen")
+    }
+
     /** Away state: no background fetching while nobody is at the machine (DesktopPresence). */
-    private val presence = DesktopPresence()
+    private val presence = DesktopPresence(onScreenOn = { onScreenCameOn("screen_edge") })
 
     /** Logs an away ↔ present change; a return catches up observations now and wakes the forecast loop. */
     private fun onPresenceTransition(transition: DesktopPresence.Transition?) {
@@ -369,9 +387,7 @@ internal class DaemonRuntime(
                     for (line in lines) {
                         if (isScreenWakeSignalLine(line)) {
                             onPresenceTransition(presence.markPresent("unblank"))
-                            kickObservationCatchUp("screensaver:wake")
-                            // Screen on shortens the forecast cadence (8 h → 4 h).
-                            wakeForecastLoop("screen")
+                            onScreenCameOn("screensaver")
                         }
                     }
                 }
@@ -406,6 +422,8 @@ internal class DaemonRuntime(
                             charging = power.isCharging
                             preUnplug.observePower(charging, exact = true)
                             preUnplug.arm(trigger = "power_event")
+                            // Plugged: 10-min screen-on band; unplugged: battery bands. Re-plan now.
+                            wakeObservationLoop(if (charging) "plugged" else "unplugged")
                         }
                         val now = BatteryTier.cadenceTier(power.isCharging, power.batteryLevel)
                         if (now != tier) {
@@ -896,8 +914,7 @@ internal class DaemonRuntime(
 
         // Freshness of the observations themselves (OBS_REFRESH / REFRESH), not the forecast's REFRESH.
         val lastFetch = weatherDao.getLastSuccessfulObservationFetch(activeConfig.displaySource)
-        val (isCharging, level) = PowerDetector.getPowerState()
-        if (!DesktopFetchStrategy.shouldCatchUpOnKick(reason, lastFetch, isCharging, level, now)) {
+        if (!DesktopFetchStrategy.shouldCatchUpObservations(lastFetch, now)) {
             Log.d(TAG, "kickObservationCatchUp ($reason) skipped: not due (lastObsFetch=${lastFetch?.let { (now - it) / 1000 } ?: "none"}s ago)")
             return
         }
@@ -996,22 +1013,52 @@ internal class DaemonRuntime(
                 }
             }
 
-            // 3b. Temp actuals (observations) fetch loop
+            // 3b. Temp actuals (observations) fetch loop. Each pass waits the shared interval for the
+            // power and screen state *now*, counted from the last observation fetch, and a wake (screen
+            // on, power change) re-plans it — a pass chosen with the monitor in standby no longer sits
+            // out 60 min with the screen back on (plans/261106-screen-on-replans-observation-loop.md).
             launch {
+                // The launch refresh owns the first interval, as before; a failed or away-skipped pass
+                // also counts, so a fetch that keeps failing retries once per interval, never in a spin.
+                var lastLoopPassMs = System.currentTimeMillis()
+                var wakeReason: String? = null
                 while (true) {
                     val (isCharging, level) = PowerDetector.getPowerState()
                     val screenOn = ScreenStateDetector.isScreenOn()
-                    val delayMs = DesktopFetchStrategy.getObservationRefreshDelayMs(
-                        isCharging, level, screenOn, watchArmed = dominantTempWatchStore.load().armed,
+                    val watchArmed = dominantTempWatchStore.load().armed
+                    val intervalMinutes = DesktopFetchStrategy.getObservationRefreshDelayMs(
+                        isCharging, level, screenOn, watchArmed = watchArmed,
+                    )?.let { it / 60_000L }
+                    val lastObsFetchMs = weatherDao.getLastSuccessfulObservationFetch(config.displaySource)
+                    val waitMs = DesktopFetchStrategy.observationLoopWaitMs(
+                        intervalMinutes, lastObsFetchMs, lastLoopPassMs, System.currentTimeMillis(),
                     )
+                    // One line per plan: the only record of why the next fetch is 10 vs 60 min away
+                    // (a monitor in DPMS standby reads as screen off).
+                    weatherDao.log(
+                        OBS_LOOP_PLAN_TAG,
+                        "screenOn=$screenOn charging=$isCharging level=$level watchArmed=$watchArmed " +
+                            "intervalMin=${intervalMinutes ?: "none"} " +
+                            "waitSec=${waitMs?.let { it / 1000L } ?: "none"}" +
+                            (wakeReason?.let { " wake=$it" } ?: ""),
+                        "INFO",
+                    )
+                    wakeReason = null
 
-                    if (delayMs == null) {
+                    if (waitMs == null) {
                         Log.i(TAG, "Observation loop: background fetch suspended (battery $level%, screenOn=$screenOn). Re-checking in 5 min.")
-                        delay(SUSPEND_RECHECK_INTERVAL_MS)
+                        wakeReason = withTimeoutOrNull(SUSPEND_RECHECK_INTERVAL_MS) { observationLoopWake.receive() }
                         continue
                     }
 
-                    delay(delayMs)
+                    if (waitMs > 0L) {
+                        val woke = withTimeoutOrNull(waitMs) { observationLoopWake.receive() }
+                        if (woke != null) {
+                            wakeReason = woke
+                            continue
+                        }
+                    }
+                    lastLoopPassMs = System.currentTimeMillis()
                     if (presence.isAway) {
                         presence.countSkippedObservation()
                         continue

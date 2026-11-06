@@ -54,8 +54,8 @@ object CurrentTempFetchPolicy {
     ): CurrentTempCadence.ScreenOnCatchUp = CurrentTempCadence.screenOnCatchUp(isCharging, batteryLevel, lastFetchMs, nowMs)
 
     /** [CurrentTempCadence.screenOnFirstDelayMinutes]. */
-    fun screenOnFirstDelayMinutes(lastFetchMs: Long, nowMs: Long): Long =
-        CurrentTempCadence.screenOnFirstDelayMinutes(lastFetchMs, nowMs)
+    fun screenOnFirstDelayMinutes(isCharging: Boolean, lastFetchMs: Long, nowMs: Long): Long =
+        CurrentTempCadence.screenOnFirstDelayMinutes(isCharging, lastFetchMs, nowMs)
 
     /**
      * Opportunistic work is allowed only above the battery cutoff. Other current-temperature work

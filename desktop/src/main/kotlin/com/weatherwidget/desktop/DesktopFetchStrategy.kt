@@ -24,7 +24,8 @@ object DesktopFetchStrategy {
 
     /**
      * Whether a panel click should refresh observations now: the last observation fetch is at least
-     * [CATCH_UP_STALENESS_THRESHOLD_MINUTES] old. Screen wake uses [CurrentTempCadence.screenOnCatchUp].
+     * [CATCH_UP_STALENESS_THRESHOLD_MINUTES] old (also a return from away). Screen wake re-plans the
+     * observation loop instead ([observationLoopWaitMs]).
      */
     fun shouldCatchUpObservations(
         lastFetchMs: Long?,
@@ -36,24 +37,17 @@ object DesktopFetchStrategy {
     }
 
     /**
-     * Whether a catch-up kick fetches observations now. Screen wake (`screensaver:*`) follows the shared
-     * [CurrentTempCadence.screenOnCatchUp] (battery ≥ 70 %, last fetch ≥ 20 min; on AC ≥ 15 min, since
-     * screen-off spaces the loop 30 min apart); a panel click is user interaction and keeps [shouldCatchUpObservations].
-     * [lastObservationFetchMs] is the observations' own last fetch, never the forecast's.
+     * How long the observation loop waits before its next fetch, or null when none runs now (power
+     * policy): [intervalMinutes] (the shared table for the power and screen state now) counted from the
+     * later of the last observation fetch and the loop's own last pass, via the shared
+     * [CurrentTempCadence.remainingMs]. 0 = fetch now. The loop's last pass counts so that a failed or
+     * away-skipped pass waits an interval rather than spinning.
+     * plans/261106-screen-on-replans-observation-loop.md
      */
-    fun shouldCatchUpOnKick(
-        reason: String,
-        lastObservationFetchMs: Long?,
-        isCharging: Boolean,
-        batteryLevel: Int,
-        nowMs: Long,
-    ): Boolean =
-        if (reason.startsWith("screensaver")) {
-            CurrentTempCadence.screenOnCatchUp(isCharging, batteryLevel, lastObservationFetchMs ?: 0L, nowMs) ==
-                CurrentTempCadence.ScreenOnCatchUp.FETCH_NOW
-        } else {
-            shouldCatchUpObservations(lastObservationFetchMs, nowMs)
-        }
+    fun observationLoopWaitMs(intervalMinutes: Long?, lastObservationFetchMs: Long?, lastLoopPassMs: Long, nowMs: Long): Long? {
+        intervalMinutes ?: return null
+        return CurrentTempCadence.remainingMs(intervalMinutes, maxOf(lastObservationFetchMs ?: 0L, lastLoopPassMs), nowMs)
+    }
 
     /**
      * Returns the delay in MS for the next non-primary (non-displayed) source actuals fetch, or

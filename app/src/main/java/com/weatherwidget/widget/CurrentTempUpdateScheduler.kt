@@ -181,7 +181,10 @@ object CurrentTempUpdateScheduler {
                 workManager.getWorkInfosForUniqueWork(WidgetWorkScheduler.WORK_NAME_CURRENT_TEMP).get()
             }
                 .map(ChargingWorkInfo::fromWorkInfo)
-        val decision = decideChargingLoopWork(existingWork, nowMs, ignoreRunningWorkId, intervalMinutes)
+        // "Too far" is measured against the run actually wanted: a screen-on re-plan (firstDelayMinutes)
+        // must replace a delayed run chosen while the screen was off 60 min out
+        // (plans/261106-screen-on-replans-observation-loop.md). Only delayed, not-running work is replaced.
+        val decision = decideChargingLoopWork(existingWork, nowMs, ignoreRunningWorkId, delayMinutes)
 
         logSchedulerEvent(
             context = context,

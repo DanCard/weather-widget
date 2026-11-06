@@ -8,7 +8,8 @@ import java.time.ZoneId
  * and forecast loops fetch nothing, and the return catches up at once
  * (performance/261019-desktop-away-state-no-fetching-while-nobody-is-there.md).
  *
- * [evaluate] runs every [CHECK_INTERVAL_MS] and on every screen signal; [markPresent] on anything the
+ * [evaluate] runs every [CHECK_INTERVAL_MS] and on every screen signal, and reports a screen off → on
+ * edge through `onScreenOn`; [markPresent] on anything the
  * user did (unblank, panel click, popup, resume). Each returns the transition to log and act on, or
  * null when nothing changed. A daemon start counts as presence.
  */
@@ -16,11 +17,18 @@ internal class DesktopPresence(
     private val screenState: () -> Boolean? = { ScreenStateDetector.screenState() },
     private val clock: () -> Long = System::currentTimeMillis,
     private val zone: () -> ZoneId = ZoneId::systemDefault,
+    /**
+     * Called when [evaluate] reads the screen on after reading it off. A monitor leaving DPMS standby
+     * without a lock sends no ScreenSaver D-Bus signal, so this 60-s read is the only screen-on signal
+     * there (plans/261106-screen-on-replans-observation-loop.md).
+     */
+    private val onScreenOn: () -> Unit = {},
 ) {
     /** An away ↔ present change: [line] is the `AWAY_STATE` message. */
     data class Transition(val away: Boolean, val line: String)
 
     private var lastPresentMs = clock()
+    private var lastScreen: Boolean? = null
     private var awaySinceMs: Long? = null
     private var skippedObservations = 0
     private var skippedForecasts = 0
@@ -33,6 +41,10 @@ internal class DesktopPresence(
     fun evaluate(): Transition? {
         val screen = screenState()
         val now = clock()
+        if (screen != null) {
+            if (screen && lastScreen == false) onScreenOn()
+            lastScreen = screen
+        }
         if (UserPresence.isPresentNow(screen)) lastPresentMs = now
         val basis = UserPresence.away(screen, lastPresentMs, now, zone())
         return when {

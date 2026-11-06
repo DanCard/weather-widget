@@ -306,6 +306,69 @@ class CurrentTempUpdateSchedulerTest {
         }
     }
 
+    /**
+     * 2026-11-06: a charging pass chosen with the screen off waits 60 min. A screen-on 7 min after that
+     * fetch re-plans the next run 3 min out; before, screen-on returned NONE and the 53-min delayed
+     * run stood, so the user saw no fetch for the rest of the hour.
+     */
+    @Test
+    fun `charging screen-on re-plan replaces a screen-off 60-minute run with the first delay`() {
+        val pendingId = UUID.randomUUID()
+        val pending = mockk<WorkInfo>()
+        every { pending.id } returns pendingId
+        every { pending.state } returns WorkInfo.State.ENQUEUED
+        every { pending.runAttemptCount } returns 0
+        every { pending.nextScheduleTimeMillis } returns NOW_MS + TimeUnit.MINUTES.toMillis(53)
+        every { mockWorkManager.getWorkInfosForUniqueWork(any()) } returns
+            com.google.common.util.concurrent.Futures.immediateFuture(listOf(pending))
+        setBattery(level = 100, charging = true)
+
+        val request = slot<OneTimeWorkRequest>()
+        kotlinx.coroutines.test.runTest {
+            CurrentTempUpdateScheduler.scheduleNextChargingUpdate(
+                context = context,
+                workManager = mockWorkManager,
+                nowMs = NOW_MS,
+                isScreenInteractive = true,
+                firstDelayMinutes = 3L,
+            )
+        }
+
+        verify {
+            mockWorkManager.enqueueUniqueWork(
+                eq(WidgetWorkScheduler.WORK_NAME_CURRENT_TEMP),
+                eq(ExistingWorkPolicy.REPLACE),
+                capture(request),
+            )
+        }
+        println("re-plan initialDelayMs=${request.captured.workSpec.initialDelay}")
+        assertEquals(TimeUnit.MINUTES.toMillis(3), request.captured.workSpec.initialDelay)
+    }
+
+    @Test
+    fun `charging screen-on re-plan keeps a run already due within the first delay`() {
+        val pending = mockk<WorkInfo>()
+        every { pending.id } returns UUID.randomUUID()
+        every { pending.state } returns WorkInfo.State.ENQUEUED
+        every { pending.runAttemptCount } returns 0
+        every { pending.nextScheduleTimeMillis } returns NOW_MS + TimeUnit.MINUTES.toMillis(2)
+        every { mockWorkManager.getWorkInfosForUniqueWork(any()) } returns
+            com.google.common.util.concurrent.Futures.immediateFuture(listOf(pending))
+        setBattery(level = 100, charging = true)
+
+        kotlinx.coroutines.test.runTest {
+            CurrentTempUpdateScheduler.scheduleNextChargingUpdate(
+                context = context,
+                workManager = mockWorkManager,
+                nowMs = NOW_MS,
+                isScreenInteractive = true,
+                firstDelayMinutes = 3L,
+            )
+        }
+
+        verify(exactly = 0) { mockWorkManager.enqueueUniqueWork(any(), any(), any<OneTimeWorkRequest>()) }
+    }
+
     // 75%, not higher: at >= 78% a first discharging reading is inferred as a held charge
     // (BatteryTier.HELD_CHARGE_MIN_LEVEL) and the snapshot reports charging.
     @Test

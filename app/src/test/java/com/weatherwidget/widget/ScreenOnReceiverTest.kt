@@ -313,21 +313,37 @@ class ScreenOnReceiverTest {
     }
 
     @Test
-    fun `SCREEN_ON below 70 percent, or charging after a recent fetch, leaves the loop alone`() {
+    fun `SCREEN_ON below 70 percent on battery leaves the loop alone`() {
         stubScreenOnLoop(level = 69, charging = false, lastFetchMs = 0L)
-        receiver.onReceive(context, Intent(Intent.ACTION_SCREEN_ON))
-
-        every { BatterySnapshotProvider.snapshot(any()) } returns BatterySnapshot(isCharging = true, batteryLevel = 100)
-        com.weatherwidget.data.repository.FetchMetadata.setLastCurrentTempFetchTime(context, System.currentTimeMillis() - 10 * 60_000L)
         receiver.onReceive(context, Intent(Intent.ACTION_SCREEN_ON))
 
         verify(exactly = 0) { CurrentTempUpdateScheduler.enqueueImmediateUpdate(any(), any(), any(), any(), any(), any(), any()) }
         verify(exactly = 0) { CurrentTempUpdateScheduler.scheduleNextChargingUpdate(any<Context>(), any<Boolean>(), any<Long>(), any<Long>()) }
     }
 
+    /**
+     * plans/261106-screen-on-replans-observation-loop.md: a charging run scheduled with the screen off
+     * waits 60 min; a screen-on 7 min after the fetch re-plans it 3 min out (it used to be left alone).
+     */
     @Test
-    fun `SCREEN_ON on a charger with a fetch 15 min old catches up now`() {
-        stubScreenOnLoop(level = 100, charging = true, lastFetchMs = System.currentTimeMillis() - 16 * 60_000L)
+    fun `SCREEN_ON on a charger after a recent fetch re-plans the loop for the rest of 10 min`() {
+        stubScreenOnLoop(level = 100, charging = true, lastFetchMs = System.currentTimeMillis() - 7 * 60_000L)
+        receiver.onReceive(context, Intent(Intent.ACTION_SCREEN_ON))
+
+        verify(exactly = 0) { CurrentTempUpdateScheduler.enqueueImmediateUpdate(any(), any(), any(), any(), any(), any(), any()) }
+        verify {
+            CurrentTempUpdateScheduler.scheduleNextChargingUpdate(
+                context = any(),
+                isScreenInteractive = true,
+                firstDelayMinutes = match { it in 2L..3L },
+                nowMs = any(),
+            )
+        }
+    }
+
+    @Test
+    fun `SCREEN_ON on a charger with a fetch 10 min old catches up now`() {
+        stubScreenOnLoop(level = 100, charging = true, lastFetchMs = System.currentTimeMillis() - 11 * 60_000L)
         receiver.onReceive(context, Intent(Intent.ACTION_SCREEN_ON))
         verify(exactly = 1) {
             CurrentTempUpdateScheduler.enqueueImmediateUpdate(any(), "charging_screen_on_catchup", any(), any(), any(), any(), any())
