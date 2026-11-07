@@ -4,6 +4,7 @@ import com.weatherwidget.shared.util.WeatherColors
 import android.graphics.Color
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.data.local.ForecastEntity
+import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.util.WeatherConditionColors
 import com.weatherwidget.testutil.TestData.dateEpoch
@@ -292,7 +293,14 @@ class DailyGapFallbackGraphIntegrationTest {
                 displaySource = WeatherSource.NWS,
                 skipYesterday = false,
                 skipHistory = false,
-                hourlyForecasts = emptyList(),
+                // The day label's amount is the 8am–8pm hours' sum, so the rainy day needs them.
+                hourlyForecasts = (8 until 20).map { h ->
+                    HourlyForecastEntity(
+                        dateTime = today.plusDays(1).atTime(h, 0).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                        locationLat = 37.7749, locationLon = -122.4194, temperature = 40f, condition = "Rain",
+                        source = WeatherSource.NWS.id, precipProbability = 100, precipAmountMm = 0.0508f / 12f, fetchedAt = 1L,
+                    )
+                },
             )
 
             val rainLabels = mutableListOf<DailyForecastGraphRenderer.DailyRainLabelPlacement>()
@@ -309,7 +317,8 @@ class DailyGapFallbackGraphIntegrationTest {
             }
 
             val tomorrow = today.plusDays(1)
-            val amountLabel = rainLabels.single { it.date == tomorrow }
+            println("tomorrow rain labels: ${rainLabels.filter { it.date == tomorrow }.map { "${it.kind}=${it.text}" }}")
+            val amountLabel = rainLabels.single { it.date == tomorrow && it.kind == DailyForecastGraphRenderer.RainLabelKind.DAY }
             assertEquals(".002in", amountLabel.text)
         } finally {
             Locale.setDefault(previousLocale)

@@ -316,9 +316,16 @@ object DailyColumnBuilder {
             // Today matches the hourly graph: the stitched rows it draws.
             today = today,
         )
-        // Past days prefer the amount frozen into daily_history while the day was live.
-        val forecastAmountMm = (if (isPast) actual?.forecastPrecipAmountMm else null)
-            ?: forecast?.precipAmountMm ?: snapshot?.precipAmountMm
+        // The day label's amount covers 8am–8pm, like its chance; the night label owns 8pm–8am.
+        // Not the row's midnight-to-midnight total, which counted 8pm–midnight twice (Silurian
+        // 2026-11-13). Past days show the measured split and never read this.
+        val forecastAmountMm = if (isPast) null else com.weatherwidget.shared.util.DailyRainLabels.dayForecastAmountMm(
+            hourly = hourly,
+            displaySourceId = displaySourceId,
+            centerLat = centerLat,
+            centerLon = centerLon,
+            targetDate = date,
+        )
         val dailyRainLabelText = com.weatherwidget.shared.util.DailyRainLabels.buildDailyRainLabel(
             date = date,
             today = today,

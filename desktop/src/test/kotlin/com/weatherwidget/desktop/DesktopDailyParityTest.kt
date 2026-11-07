@@ -45,6 +45,7 @@ class DesktopDailyParityTest {
                 daytimePrecipProbability = r.dayPrecip,
                 nighttimePrecipProbability = r.nightPrecip,
                 noonCloudPercent = r.noonCloud,
+                precipAmountMm = r.precipAmountMm,
                 // As the reader stamps it: a fixture row is one fetch, never re-stamped.
                 fetchedAt = r.fetchedAt,
                 lastConfirmedAt = r.fetchedAt,

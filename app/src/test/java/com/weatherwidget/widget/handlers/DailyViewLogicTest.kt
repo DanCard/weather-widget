@@ -911,7 +911,7 @@ class DailyViewLogicTest {
             displaySource = WeatherSource.NWS,
             skipYesterday = false,
             skipHistory = true,
-            hourlyForecasts = emptyList(),
+            hourlyForecasts = daytimeRainHours(future, totalMm = 0.0508f),
         )
 
         val futureDay = result.first { it.date == future }
@@ -942,7 +942,7 @@ class DailyViewLogicTest {
             displaySource = WeatherSource.NWS,
             skipYesterday = false,
             skipHistory = true,
-            hourlyForecasts = emptyList(),
+            hourlyForecasts = daytimeRainHours(today, totalMm = 10f),
         )
 
         val todayDay = result.first { it.date == today }
@@ -1037,7 +1037,7 @@ class DailyViewLogicTest {
             displaySource = WeatherSource.NWS,
             skipYesterday = false,
             skipHistory = true,
-            hourlyForecasts = emptyList(),
+            hourlyForecasts = daytimeRainHours(today, totalMm = 10f),
             todayPrecipProbability = 100,
             allowTodayRainChanceLabel = true,
         )
@@ -1071,7 +1071,7 @@ class DailyViewLogicTest {
             displaySource = WeatherSource.NWS,
             skipYesterday = false,
             skipHistory = true,
-            hourlyForecasts = emptyList(),
+            hourlyForecasts = daytimeRainHours(future, totalMm = 5.0f),
         )
 
         val futureDay = result.first { it.date == future }
@@ -1326,7 +1326,7 @@ class DailyViewLogicTest {
             displaySource = WeatherSource.NWS,
             skipYesterday = false,
             skipHistory = true,
-            hourlyForecasts = emptyList(),
+            hourlyForecasts = daytimeRainHours(future, totalMm = 0.0508f),
         )
 
         val futureDay = result.first { it.date == future }
@@ -2007,6 +2007,19 @@ class DailyViewLogicTest {
             precipAmountMm = precipAmountMm,
             fetchedAt = 1L,
         )
+    }
+
+    /**
+     * The 8am–8pm hours of [date] sharing [totalMm]: the day label's amount is these hours' sum,
+     * never the daily row's midnight-to-midnight total (plans/261106-day-rain-amount-daytime-window.md).
+     */
+    private fun daytimeRainHours(
+        date: LocalDate,
+        totalMm: Float,
+        source: String = WeatherSource.NWS.id,
+    ): List<HourlyForecastEntity> = (8 until 20).map { h ->
+        createHourlyForecast(date.atTime(h, 0), cloudCover = 100, source = source)
+            .copy(precipProbability = 100, precipAmountMm = totalMm / 12f, condition = "Rain")
     }
 
     private fun createHourlyForecast(

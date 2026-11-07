@@ -43,6 +43,7 @@ class AndroidDailyParityTest {
         lastConfirmedAt = r.fetchedAt,
         fetchedAt = r.fetchedAt,
         noonCloudPercent = r.noonCloud,
+        precipAmountMm = r.precipAmountMm,
     )
 
     private fun hourlyEntity(h: com.weatherwidget.data.model.HourlyForecast) = HourlyForecastEntity(

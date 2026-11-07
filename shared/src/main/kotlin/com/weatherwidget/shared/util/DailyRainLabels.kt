@@ -304,10 +304,8 @@ object DailyRainLabels {
 
     /**
      * Total forecast rain over the 8pm–8am night of [targetDate] for [displaySourceId] at the site
-     * centred on ([centerLat], [centerLon]): the same window as the night chance, one row per hour.
-     * A max can stand on any one hour but a sum cannot, so this is null unless the rows cover the
-     * whole night with no hole and every hour has an amount — a partial total never passes as the
-     * night's. GENERIC_GAP is deliberately not a fallback: climate-normal filler is not a forecast.
+     * centred on ([centerLat], [centerLon]): the same window as the night chance. See
+     * [windowForecastAmountMm] for when it is null.
      */
     fun nightForecastAmountMm(
         hourly: List<HourlyForecast>,
@@ -316,18 +314,54 @@ object DailyRainLabels {
         centerLon: Double,
         targetDate: LocalDate,
         zoneId: ZoneId = ZoneId.systemDefault(),
+    ): Float? = windowForecastAmountMm(
+        hourly, displaySourceId, centerLat, centerLon,
+        startMs = targetDate.atTime(20, 0).atZone(zoneId).toInstant().toEpochMilli(),
+        endMs = targetDate.plusDays(1).atTime(8, 0).atZone(zoneId).toInstant().toEpochMilli(),
+    )
+
+    /**
+     * Total forecast rain over the 8am–8pm day of [targetDate], the window of the day chance and the
+     * complement of [nightForecastAmountMm]. The daily row's amount is midnight to midnight, so it
+     * also holds the 8pm–midnight hours the night label already counts (Silurian Fri 2026-11-13:
+     * day .26in + night .24in, of which .146in was in both).
+     */
+    fun dayForecastAmountMm(
+        hourly: List<HourlyForecast>,
+        displaySourceId: String,
+        centerLat: Double,
+        centerLon: Double,
+        targetDate: LocalDate,
+        zoneId: ZoneId = ZoneId.systemDefault(),
+    ): Float? = windowForecastAmountMm(
+        hourly, displaySourceId, centerLat, centerLon,
+        startMs = targetDate.atTime(8, 0).atZone(zoneId).toInstant().toEpochMilli(),
+        endMs = targetDate.atTime(20, 0).atZone(zoneId).toInstant().toEpochMilli(),
+    )
+
+    /**
+     * Sum of [displaySourceId]'s hourly amounts over [startMs, endMs). A max can stand on any one
+     * hour but a sum cannot, so this is null unless the rows cover the whole window with no hole and
+     * every hour has an amount — a partial total never passes as the window's. GENERIC_GAP is
+     * deliberately not a fallback: climate-normal filler is not a forecast.
+     */
+    private fun windowForecastAmountMm(
+        hourly: List<HourlyForecast>,
+        displaySourceId: String,
+        centerLat: Double,
+        centerLon: Double,
+        startMs: Long,
+        endMs: Long,
     ): Float? {
-        val startMs = targetDate.atTime(20, 0).atZone(zoneId).toInstant().toEpochMilli()
-        val endMs = targetDate.plusDays(1).atTime(8, 0).atZone(zoneId).toInstant().toEpochMilli()
         val sited = HourlyForecastSelector
             .selectForecastsByTime(hourly, displaySourceId, centerLat, centerLon)
             .values.toList()
         if (!DailyHourlySummaries.windowCovered(sited, startMs, endMs)) return null
-        val night = sited.filter { it.dateTime in startMs until endMs }.sortedBy { it.dateTime }
-        val steps = night.zipWithNext { a, b -> b.dateTime - a.dateTime }
+        val rows = sited.filter { it.dateTime in startMs until endMs }.sortedBy { it.dateTime }
+        val steps = rows.zipWithNext { a, b -> b.dateTime - a.dateTime }
         if (steps.isNotEmpty() && steps.any { it != steps.min() }) return null
-        val amounts = night.map { it.precipAmountMm ?: return null }
-        return amounts.sum().takeIf { night.isNotEmpty() }
+        val amounts = rows.map { it.precipAmountMm ?: return null }
+        return amounts.sum().takeIf { rows.isNotEmpty() }
     }
 
     /** True while [date]'s 8pm–8am night is under way: from 8pm until 8am the next morning. */

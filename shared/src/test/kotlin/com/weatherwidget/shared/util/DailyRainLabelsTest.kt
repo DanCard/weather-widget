@@ -826,6 +826,56 @@ class DailyRainLabelsTest {
         assertNull(nightAmount(rows, date))
     }
 
+    // ---- day forecast amount (8am–8pm) ----
+
+    private fun dayRows(date: LocalDate, from: Int = 0, until: Int = 24, amount: (Int) -> Float? = { 0.5f }) =
+        (from until until).map { h ->
+            HourlyForecast(
+                dateTime = date.atTime(h, 0).atZone(nightZone).toInstant().toEpochMilli(),
+                temperature = 50f,
+                condition = "Rain",
+                precipProbability = 100,
+                precipAmountMm = amount(h),
+                source = "OPEN_WEATHER_MAP",
+                locationLat = 37.42,
+                locationLon = -122.09,
+            )
+        }
+
+    private fun dayAmount(rows: List<HourlyForecast>, date: LocalDate) =
+        DailyRainLabels.dayForecastAmountMm(rows, "OPEN_WEATHER_MAP", 37.42, -122.09, date, nightZone)
+
+    @Test
+    fun dayAmountSumsOnlyEightAmToEightPm() {
+        val date = LocalDate.of(2026, 11, 13)
+        // 1 mm every evening hour, 0.1 mm otherwise: the 8pm–midnight rain belongs to the night.
+        val rows = dayRows(date) { if (it >= 20) 1f else 0.1f }
+        val amount = dayAmount(rows, date)
+        println("day amount 08-20 = $amount (calendar-day total ${rows.sumOf { it.precipAmountMm!!.toDouble() }})")
+        assertEquals(1.2f, amount!!, 0.001f)
+    }
+
+    @Test
+    fun dayAndNightAmountsDoNotOverlap() {
+        val date = LocalDate.of(2026, 11, 13)
+        // Fri 08:00 → Sat 08:00: every hour belongs to exactly one of the two labels.
+        val rows = dayRows(date, from = 8) + dayRows(date.plusDays(1), until = 8)
+        val day = dayAmount(rows, date)!!
+        val night = nightAmount(rows, date)!!
+        println("day=$day night=$night rows=${rows.size}")
+        assertEquals(6f, day, 0.001f)
+        assertEquals(6f, night, 0.001f)
+        assertEquals(rows.sumOf { it.precipAmountMm!!.toDouble() }.toFloat(), day + night, 0.001f)
+    }
+
+    @Test
+    fun dayAmountIsNullWhenTheDaytimeIsNotFullyCoveredOrAnHourHasNoAmount() {
+        val date = LocalDate.of(2026, 11, 13)
+        assertNull(dayAmount(dayRows(date, from = 10), date))
+        assertNull(dayAmount(dayRows(date, until = 15), date))
+        assertNull(dayAmount(dayRows(date) { if (it == 12) null else 0.5f }, date))
+    }
+
     @Test
     fun nightInProgressRunsFromEightPmUntilEightAm() {
         val date = LocalDate.of(2026, 10, 31)

@@ -46,6 +46,8 @@ object DailyParity {
         val nightPrecip: Int? = null,
         val noonCloud: Int? = null,
         val isClimateNormal: Boolean = false,
+        /** The row's whole-day (midnight-to-midnight) total, as providers report it. */
+        val precipAmountMm: Float? = null,
     )
 
     data class Fixture(
@@ -356,6 +358,41 @@ object DailyParity {
                 history = pastHistory(today, GOOGLE),
                 currentTemp = 58f,
             ),
+            // Silurian 2026-11-06 for Fri 11-13, three days out here: 100 % day and night, the row's
+            // whole-day total 6.64 mm. The day label is the 8am–8pm hours (2.60 mm = .1in) and the
+            // night label 8pm–8am (6.10 mm = .24in); the row total (.26in) double-counted 8pm–midnight.
+            // (plans/261106-day-rain-amount-daytime-window.md)
+            run {
+                val wet = today.plusDays(3)
+                val fetch = ms(today, 16, 53)
+                Fixture(
+                    name = "rain-amount-day-night-split",
+                    now = today.atTime(19, 0),
+                    displaySource = "SILURIAN",
+                    rows = week(today, "SILURIAN") { d, r ->
+                        if (d == wet) {
+                            r.copy(condition = "Rain", noonCloud = 100, precip = 100, dayPrecip = 100, nightPrecip = 100, precipAmountMm = 6.64f)
+                        } else r
+                    },
+                    history = pastHistory(today, "SILURIAN"),
+                    hourly = (0 until 32).map { i ->
+                        val date = if (i < 24) wet else wet.plusDays(1)
+                        val h = i % 24
+                        HourlyForecast(
+                            dateTime = ms(date, h), temperature = 55f, condition = "Rain", precipProbability = 100,
+                            precipAmountMm = when {
+                                date == wet && h < 8 -> 0.0425f   // 0.34 mm before the day window
+                                date == wet && h < 20 -> 0.2167f  // 2.60 mm, 8am–8pm
+                                date == wet -> 0.925f             // 3.70 mm, 8pm–midnight
+                                else -> 0.3f                      // 2.40 mm, midnight–8am
+                            },
+                            cloudCover = 100, source = "SILURIAN", fetchedAt = fetch,
+                            locationLat = LAT, locationLon = LON, cloudCoverLow = 100,
+                        )
+                    },
+                    currentTemp = 60f,
+                )
+            },
             // Early morning: today's actual low still falling, no actual high yet.
             Fixture(
                 name = "early-morning",
