@@ -255,6 +255,11 @@ emit_results_summary() {
     done_at=" (done at $(format_elapsed $((end_epoch - OVERALL_START))))"
   fi
   local result_failures=$((failures + errors))
+  # Remember what this summary line said, so the final tally can tell when the XML changed under
+  # it (warn_if_results_changed).
+  if [ -n "${SINGLE_INVOCATION_REPORTED_DIR:-}" ] && [ -d "$SINGLE_INVOCATION_REPORTED_DIR" ]; then
+    echo "$test_count $result_failures" > "$SINGLE_INVOCATION_REPORTED_DIR/counts.$label"
+  fi
   local cached=false
   if [ -n "$task_log" ] && grep -qE "^> Task ${task_path} (UP-TO-DATE|FROM-CACHE)" "$task_log" 2>/dev/null; then
     cached=true
@@ -282,6 +287,29 @@ emit_results_summary() {
     log_and_echo "${color}${test_count} ${label} tests passed (${skipped} skipped) in $(format_seconds "${duration:-0}")${done_at}.${color_end}"
   else
     log_and_echo "${color}${test_count} ${label} tests passed in $(format_seconds "${duration:-0}")${done_at}.${color_end}"
+  fi
+}
+
+# The final tally re-reads the XML after every live summary line has printed. A Gradle test run
+# started elsewhere meanwhile (e.g. `./gradlew :desktop:test --tests X`) replaces that module's
+# whole results dir: on 2026-11-07 the total said "5839 tests, 1 failed" while every line had said
+# "passed" — the 857 desktop results had become one focused class with a failure, and nothing named
+# it. Say so, and name the failures, instead of a bare count.
+#   $1 label   $2 results dir   $3 test count now   $4 failures now
+warn_if_results_changed() {
+  local label=$1 results_dir=$2 now_count=$3 now_failures=$4
+  local counts_file="${SINGLE_INVOCATION_REPORTED_DIR:-}/counts.$label"
+  [ -n "${SINGLE_INVOCATION_REPORTED_DIR:-}" ] && [ -f "$counts_file" ] || return 0
+  local live_count live_failures
+  read -r live_count live_failures < "$counts_file"
+  if [ "$live_count" = "$now_count" ] && [ "$live_failures" = "$now_failures" ]; then
+    return 0
+  fi
+  log_and_echo "${YELLOW}${label} results changed on disk after their summary line: ${live_count} tests/${live_failures} failed then, ${now_count} tests/${now_failures} failed now. Another Gradle test run overwrote ${results_dir#"$ROOT_DIR"/} while this script ran; the total below counts the overwritten results.${NC}"
+  if [ "$now_failures" -gt 0 ]; then
+    list_failed_tests "$results_dir" | while IFS= read -r line; do
+      log_and_echo "${RED}${line}${NC}"
+    done
   fi
 }
 
@@ -550,6 +578,7 @@ for module in shared desktop; do
     total_tests=$((total_tests + test_count))
     module_failures=$((failures + errors))
     total_failures=$((total_failures + module_failures))
+    warn_if_results_changed "$module" "$results_dir" "$test_count" "$module_failures"
     # Usually already printed live by the poller when the background run exited.
     if [ -z "${SINGLE_INVOCATION_REPORTED_DIR:-}" ] || [ ! -f "$SINGLE_INVOCATION_REPORTED_DIR/$module" ]; then
       emit_module_summary "$module"
@@ -576,6 +605,7 @@ for bucket in "${BUCKETS[@]}"; do
     total_tests=$((total_tests + test_count))
     bucket_failures=$((failures + errors))
     total_failures=$((total_failures + bucket_failures))
+    warn_if_results_changed "${bucket,,}" "$results_dir" "$test_count" "$bucket_failures"
     if [ -z "${SINGLE_INVOCATION_REPORTED_DIR:-}" ] || [ ! -f "$SINGLE_INVOCATION_REPORTED_DIR/$bucket" ]; then
       emit_bucket_summary "$bucket" "$results_dir" "$gradle_log" "test${bucket}DebugUnitTest${RUN_MODE}"
     fi
