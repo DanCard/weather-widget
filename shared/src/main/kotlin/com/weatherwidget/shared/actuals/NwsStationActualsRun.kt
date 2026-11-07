@@ -133,7 +133,17 @@ object NwsStationActualsRun {
             val touched = pulled.keys + cached.keys
             val rows = host.dailyHistory(touched.min(), touched.max()).filter { it.source == WeatherSource.NWS.id }
             // Every same-date NWS fragment in the box: the value describes a station, not a coordinate.
-            val pulledRows = rows.mapNotNull { row -> pulled[row.date]?.let { applyPulled(row, it, nowMs) } }
+            val today = java.time.Instant.ofEpochMilli(nowMs).atZone(zone).toLocalDate()
+            val coveredDates = pulled.keys.filterTo(mutableSetOf()) { date ->
+                val day = LocalDate.ofEpochDay(date / DAY_MS)
+                val dayStart = day.atStartOfDay(zone).toInstant().toEpochMilli()
+                val dayEnd = day.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+                day.isBefore(today) &&
+                    StoredBlendGuard.storedPoolCoversDay(day, WeatherSource.NWS.id, host.storedObservations(dayStart, dayEnd), zone)
+            }
+            val pulledRows = rows.mapNotNull { row ->
+                pulled[row.date]?.let { applyPulled(row, it, nowMs, storedPoolCoversDay = row.date in coveredDates) }
+            }
             val cachedRows = rows.mapNotNull { row -> cached[row.date]?.let { applyCached(row, it, nowMs) } }
             if (pulledRows.isNotEmpty() || cachedRows.isNotEmpty()) host.upsert(pulledRows + cachedRows)
             if (pulledRows.isNotEmpty()) {
@@ -141,7 +151,8 @@ object NwsStationActualsRun {
                     "NWS_STATION_ACTUALS",
                     "rows=${pulledRows.size} dates=${pulled.size} " +
                         pulled.entries.sortedBy { it.key }.joinToString(" ") { (date, a) ->
-                            "${LocalDate.ofEpochDay(date / DAY_MS)}=blend[${a.blendHigh}/${a.blendLow}]" +
+                            "${LocalDate.ofEpochDay(date / DAY_MS)}=blend[${a.blendHigh}/${a.blendLow}" +
+                                (if (date in coveredDates) " not-written:stored-pool-covers" else "") + "]" +
                                 (a.station?.let { "${it.stationId}[${it.high}/${it.low} n=${it.readingCount}]" } ?: "no-station")
                         },
                     "DEBUG",
@@ -167,16 +178,28 @@ object NwsStationActualsRun {
     }
 
     /**
-     * A pulled day: the blend (only ever overwritten by a pull that produced one) and the station
-     * extreme when one qualified — a day can have a blend but no station extreme (personal stations
-     * feed one and are barred from the other), so a stored api value is kept then. Null when unchanged.
+     * A pulled day: the station extreme when one qualified — a day can have a blend but no station
+     * extreme (personal stations feed one and are barred from the other), so a stored api value is
+     * kept then — and the pull's blend only where the stored pool cannot build one.
+     *
+     * [storedPoolCoversDay] ([StoredBlendGuard.storedPoolCoversDay]): the blend recompute owns the
+     * day's high/low, from the same pool the hourly graph draws, so the pull leaves them alone. A row
+     * with no stored high/low still takes the pull's until the recompute writes its own.
+     * 2026-11-07: the pull wrote 73.38° over the stored 71.48° because api.weather.gov had dropped
+     * KPAO's cooler 13:47 report; the daily view and the hourly graph then disagreed. Null when unchanged.
      */
-    fun applyPulled(row: DailyHistory, a: NwsDailyExtremesFetch.DailyActualsFromStations, nowMs: Long): DailyHistory? =
-        row.copy(
-            computedHighTemp = a.blendHigh,
-            computedLowTemp = a.blendLow,
-            computedHighAt = a.blendHighAt,
-            computedLowAt = a.blendLowAt,
+    fun applyPulled(
+        row: DailyHistory,
+        a: NwsDailyExtremesFetch.DailyActualsFromStations,
+        nowMs: Long,
+        storedPoolCoversDay: Boolean = false,
+    ): DailyHistory? {
+        val writeBlend = !storedPoolCoversDay || row.computedHighTemp == null || row.computedLowTemp == null
+        return row.copy(
+            computedHighTemp = if (writeBlend) a.blendHigh else row.computedHighTemp,
+            computedLowTemp = if (writeBlend) a.blendLow else row.computedLowTemp,
+            computedHighAt = if (writeBlend) a.blendHighAt else row.computedHighAt,
+            computedLowAt = if (writeBlend) a.blendLowAt else row.computedLowAt,
             apiHighTemp = a.station?.high ?: row.apiHighTemp,
             apiLowTemp = a.station?.low ?: row.apiLowTemp,
             apiStationId = a.station?.stationId ?: row.apiStationId,
@@ -185,6 +208,7 @@ object NwsStationActualsRun {
             lastWriter = DailyHistoryWriter.NWS_STATION_PULL.storedValue,
             updatedAt = nowMs,
         ).takeIf { it.copy(updatedAt = row.updatedAt) != row }
+    }
 
     /**
      * A cache-derived day: the api actual only. The blend already comes from the stored pool via the

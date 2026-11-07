@@ -55,14 +55,13 @@ object DailyBlendWrite {
             }
             var changedAny = false
             fragments.forEach { existing ->
-                // A past day keeps its stored high/low when it came from the NWS station pull, or when
-                // this pool saw only part of the day. Today's row is never kept; CACHED_OBSERVATIONS
-                // rows are not frozen (their blend comes from this same pool).
+                // A past day keeps its stored high/low when this pool saw only part of the day. Today's
+                // row is never kept. A station-pull row is not frozen: when this pool covers the day,
+                // its blend is the one the hourly graph draws, and the daily value must match it.
                 val keep = StoredBlendGuard.keep(
                     date = date,
                     today = today,
                     source = new.source,
-                    storedActualsSource = existing.actualsSource,
                     storedHigh = existing.computedHighTemp,
                     storedLow = existing.computedLowTemp,
                     readings = dayReadings,

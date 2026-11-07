@@ -33,6 +33,10 @@ rows by their exact date key before `DailyBlendWrite` plans field-limited update
 under the rounded site (`DailyHistoryKey`); the 2026-10-25 migration merged older raw-fix fragments,
 newest first with gaps filled from the others.
 
+`StoredBlendGuard` keeps a past day's stored high/low only when the provider's readings miss the
+pre-dawn or afternoon window. `DailyBlendRecomputeRun.WRITE_RULES_VERSION` is part of the skip
+signature; bump it when the write rules change so days with unchanged readings are rebuilt once.
+
 The current observation table can include NWS, METAR, Synoptic, and provider analysis/history data.
 Provenance matters: Synoptic web-fallback rows filed under NWS represent redistributed station
 observations, while a forecast-only provider's elapsed forecast hours must not become measured
@@ -65,6 +69,12 @@ on-demand single-day fetch runs none. The runner:
 4. Falls back to suitable stored observations when an answered request has insufficient data;
    request failure remains distinct from an empty answer.
 5. Writes station provenance with the values and updates all same-site NWS fragments that need it.
+   The pull's blend lands only where the stored pool cannot build the day
+   (`StoredBlendGuard.storedPoolCoversDay`) or the row has none yet. Otherwise the high/low stay the
+   recompute's, built from the same pool the hourly graph draws, and the recompute replaces a pulled
+   blend on its next run. The pull does not freeze a day: its pool is only what the endpoint
+   returns, which can drop reports. On 2026-11-07 it missed KPAO's cooler 13:47 METAR and wrote
+   73.4° over a stored 71.5°.
 
 Other providers use their own documented history/analysis products according to `HistoricalDataKind`
 and the shared ingestion runners. Google Weather and Silurian are forecast-only for temperature and

@@ -210,33 +210,27 @@ class NwsStationActualsStoreTest {
     }
 
     /**
-     * Without the freeze guard the ordinary recompute — which runs on widget loads and
-     * history-screen opens — would immediately overwrite the API-derived blend with one rebuilt
-     * from the stored, part-Synoptic pool.
+     * The pull no longer freezes a past day (2026-11-07). Its blend saw only the stations the
+     * endpoint returned — it had dropped KPAO's cooler 13:47 report — so 73.4° outlived the stored
+     * pool's 71.5°, the value the hourly graph draws. The recompute rebuilds it; the api actual stays.
      */
     @Test
-    fun `a past day resolved from the pull keeps its blend across a recompute`() = runTest {
+    fun `a past day resolved from the pull is rebuilt by a recompute`() = runTest {
         db.dailyHistoryDao().insertAll(listOf(nwsRow()))
         store.persistNwsDailyActuals(lat, lon, mapOf(yesterdayEpoch to actuals()))
         db.observationDao().insertAll(
             listOf(
                 observation(3, 60.8f, "KNUQ", 3.83f),
-                observation(15, 73.4f, "KNUQ", 3.83f), // a thinner pool that would blend lower
+                observation(15, 73.4f, "KNUQ", 3.83f),
             ),
         )
 
-        // TWICE: a single recompute passed even when the merge dropped actualsSource, because the
-        // guard reads the value the PREVIOUS write left behind. The second pass is what catches it.
-        dailyActualsStore.recomputeDailyExtremesForDay(lat, lon, yesterday)
         dailyActualsStore.recomputeDailyExtremesForDay(lat, lon, yesterday)
 
         val row = nwsRows().first()
-        assertEquals("frozen once resolved from the endpoint", 74.6f, row.computedHighTemp)
-        assertEquals(
-            "provenance must survive the merge or the guard disables itself",
-            DailyActualsSource.NWS_STATION_PULL.storedValue,
-            row.actualsSource,
-        )
+        assertEquals("the stored pool's blend replaces the pull's", 73.4f, row.computedHighTemp!!, 0.01f)
+        assertEquals("the pull's api actual survives", 75.2f, row.apiHighTemp)
+        assertEquals(DailyActualsSource.NWS_STATION_PULL.storedValue, row.actualsSource)
     }
 
     @Test
@@ -314,24 +308,6 @@ class NwsStationActualsStoreTest {
         assertEquals(75.2f, row.apiHighTemp)
         assertEquals("KNUQ", row.apiStationId)
         assertEquals("the blend is the recompute's to own", 75f, row.computedHighTemp)
-    }
-
-    /**
-     * The freeze marker is `actualsSource`, not `apiStationId` — the latter conflated provenance
-     * with station identity. Nulling the station id must not unfreeze a pull-derived blend.
-     */
-    @Test
-    fun `freeze keys on actualsSource, not apiStationId`() = runTest {
-        db.dailyHistoryDao().insertAll(listOf(nwsRow()))
-        store.persistNwsDailyActuals(lat, lon, mapOf(yesterdayEpoch to actuals()))
-        db.dailyHistoryDao().insertAll(nwsRows().map { it.copy(apiStationId = null) })
-        db.observationDao().insertAll(
-            listOf(observation(3, 60.8f, "KNUQ", 3.83f), observation(15, 73.4f, "KNUQ", 3.83f)),
-        )
-
-        dailyActualsStore.recomputeDailyExtremesForDay(lat, lon, yesterday)
-
-        assertEquals(74.6f, nwsRows().first().computedHighTemp)
     }
 
     /** A cache-derived blend comes from the stored pool already, so the recompute keeps owning it. */

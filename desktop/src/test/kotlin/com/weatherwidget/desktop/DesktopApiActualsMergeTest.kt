@@ -110,14 +110,15 @@ class DesktopApiActualsMergeTest {
     }
 
     /**
-     * Mirrors Android's freeze guard: once a past day's actuals come from the station pull
-     * (`apiStationId != null`) the recompute must not rebuild its blend from the stored pool.
+     * Mirrors Android: the pull no longer freezes a past day (2026-11-07). A covered day's blend is
+     * rebuilt from the stored pool — the value the hourly graph draws — and the api actual stays.
      */
     @Test
-    fun `a past day resolved from the pull keeps its blend across a recompute`() {
+    fun `a past day resolved from the pull is rebuilt by a recompute`() {
         val now = System.currentTimeMillis()
         dao.upsertObservations(coveredStation("KNUQ", 3.83f, 60.8f, 75.2f).map { it.toEntity(now) })
         runBlocking { repository.recomputeDailyExtremes(now) }
+        val recomputed = storedNwsRow().computedHighTemp
         dao.upsertDailyHistory(
             listOf(
                 storedNwsRow().copy(
@@ -127,21 +128,18 @@ class DesktopApiActualsMergeTest {
                     apiStationDistanceKm = 3.83f,
                     apiHighTemp = 75.2f,
                     apiLowTemp = 60.8f,
-                    // The freeze marker is provenance, not station identity.
                     actualsSource = DailyActualsSource.NWS_STATION_PULL.storedValue,
                 ),
             ),
         )
 
-        // TWICE — see the Android sibling: one pass passes even when the merge drops actualsSource.
+        // Unchanged observations would skip the day; this pins the guard, not the skip.
+        dao.blendSignatures.clear()
         runBlocking { repository.recomputeDailyExtremes(now + 1000) }
-        runBlocking { repository.recomputeDailyExtremes(now + 2000) }
         val row = storedNwsRow()
-        assertEquals("frozen once resolved from the endpoint", 74.6f, row.computedHighTemp)
-        assertEquals(
-            DailyActualsSource.NWS_STATION_PULL.storedValue,
-            row.actualsSource,
-        )
+        assertEquals("the stored pool's blend replaces the pull's", recomputed, row.computedHighTemp)
+        assertEquals("the pull's api actual survives", 75.2f, row.apiHighTemp)
+        assertEquals(DailyActualsSource.NWS_STATION_PULL.storedValue, row.actualsSource)
     }
 
     /** A cache-derived day's blend comes from the stored pool, so the recompute keeps owning it. */

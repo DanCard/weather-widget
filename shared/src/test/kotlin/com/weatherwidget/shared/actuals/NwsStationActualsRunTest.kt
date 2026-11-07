@@ -106,6 +106,44 @@ class NwsStationActualsRunTest {
         assertNull(NwsStationActualsRun.applyCached(written, extreme, nowMs = 9L))
     }
 
+    private val pulledDay = NwsDailyExtremesFetch.DailyActualsFromStations(
+        blendHigh = 73.38f,
+        blendLow = 46.9f,
+        station = StationDailyExtremes.StationDailyExtreme(
+            stationId = "KNUQ", stationName = "Moffett", distanceKm = 3.8f, high = 73.4f, low = 48.2f, readingCount = 59,
+        ),
+        blendHighAt = 111L,
+        blendLowAt = 222L,
+    )
+
+    /**
+     * 2026-11-07: the pull wrote 73.38° over the stored pool's 71.48°, and the daily view stopped
+     * matching the hourly graph. When the stored pool covers the day, the pull fills the api actual
+     * and provenance only; the blend stays the recompute's.
+     */
+    @Test
+    fun aPullLeavesTheBlendAloneWhenTheStoredPoolCoversTheDay() {
+        val written = NwsStationActualsRun.applyPulled(row(), pulledDay, nowMs = 5L, storedPoolCoversDay = true)!!
+        assertEquals("the recompute's blend stays", 70f, written.computedHighTemp)
+        assertEquals(50f, written.computedLowTemp)
+        assertNull("no time from a blend that was not written", written.computedHighAt)
+        assertEquals("the station extreme still lands", 73.4f, written.apiHighTemp)
+        assertEquals("KNUQ", written.apiStationId)
+        assertEquals(DailyActualsSource.NWS_STATION_PULL.storedValue, written.actualsSource)
+    }
+
+    @Test
+    fun aPullWritesItsBlendWhereTheStoredPoolCannot() {
+        val uncovered = NwsStationActualsRun.applyPulled(row(), pulledDay, nowMs = 5L, storedPoolCoversDay = false)!!
+        assertEquals(73.38f, uncovered.computedHighTemp)
+        assertEquals(111L, uncovered.computedHighAt)
+
+        val empty = row().copy(computedHighTemp = null, computedLowTemp = null)
+        val filled = NwsStationActualsRun.applyPulled(empty, pulledDay, nowMs = 5L, storedPoolCoversDay = true)!!
+        assertEquals("nothing stored yet: the pull fills it until the recompute runs", 73.38f, filled.computedHighTemp)
+        assertEquals(46.9f, filled.computedLowTemp)
+    }
+
     /**
      * User, 2026-10-24: live rows win; history fills only hours with no live row (desktop's rule, now
      * both). Every fetch overwrites the live row as it writes its snapshot, so the live row is never

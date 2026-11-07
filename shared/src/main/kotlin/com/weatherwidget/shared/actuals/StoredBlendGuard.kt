@@ -21,9 +21,6 @@ object StoredBlendGuard {
         /** Write the recompute's high/low. */
         NONE,
 
-        /** A past day built from the NWS station pull: the stored pool is thinner than the pull. */
-        PULL_FROZEN,
-
         /**
          * A past day whose provider readings miss the pre-dawn or the afternoon window
          * ([StationDailyExtremes.poolCoversDay]): a sliver of the day must not replace a whole one.
@@ -35,6 +32,12 @@ object StoredBlendGuard {
     }
 
     /**
+     * A past day's stored row was once kept whenever the NWS station pull had written it
+     * (`PULL_FROZEN`). Removed 2026-11-07: the pull's blend then outlived the stored pool's, so the
+     * daily view showed 73.4° for a day the hourly graph drew peaking at 71.5°. The pull had missed
+     * KPAO's 12:47 and 13:47 reports (api.weather.gov dropped them; the METARs read 18-19 °C), so
+     * the stored pool was the fuller one. Coverage is now the only reason to keep a stored row.
+     *
      * @param source the row's source id; its readings are the actuals provider's
      *   ([ActualsProviderResolver.providerIdFor]), which for a borrower is another feed.
      * @param readings any pool; scoped here to the provider and to [date].
@@ -43,27 +46,33 @@ object StoredBlendGuard {
         date: LocalDate,
         today: LocalDate,
         source: String,
-        storedActualsSource: String?,
         storedHigh: Float?,
         storedLow: Float?,
         readings: List<ObservationReading>,
         zone: ZoneId,
     ): Keep {
         if (!date.isBefore(today)) return Keep.NONE
-        if (DailyActualsSource.fromStored(storedActualsSource) == DailyActualsSource.NWS_STATION_PULL) {
-            return Keep.PULL_FROZEN
-        }
         if (storedHigh == null || storedLow == null) return Keep.NONE
+        return if (storedPoolCoversDay(date, source, readings, zone)) Keep.NONE else Keep.UNCOVERED
+    }
+
+    /**
+     * Whether [source]'s actuals provider has readings across [date]'s pre-dawn and afternoon
+     * windows ([StationDailyExtremes.poolCoversDay]). When it does, the blend recompute owns the
+     * day's high/low — the same pool the hourly graph draws — and no other writer may replace it.
+     */
+    fun storedPoolCoversDay(
+        date: LocalDate,
+        source: String,
+        readings: List<ObservationReading>,
+        zone: ZoneId,
+    ): Boolean {
         val providerId = WeatherSource.entries.firstOrNull { it.id == source }
             ?.let { ActualsProviderResolver.providerIdFor(it) }
             ?: source
         val providerReadings = readings.filter { it.api == providerId && it.stationId != NwsBlend.STATION_ID }
         val dayStartMs = date.atStartOfDay(zone).toInstant().toEpochMilli()
         val dayEndMs = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
-        return if (StationDailyExtremes.poolCoversDay(providerReadings, dayStartMs, dayEndMs, zone)) {
-            Keep.NONE
-        } else {
-            Keep.UNCOVERED
-        }
+        return StationDailyExtremes.poolCoversDay(providerReadings, dayStartMs, dayEndMs, zone)
     }
 }

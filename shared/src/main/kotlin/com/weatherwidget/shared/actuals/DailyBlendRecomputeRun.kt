@@ -40,6 +40,14 @@ object DailyBlendRecomputeRun {
      */
     const val MAX_TRACKED_DAYS = 256
 
+    /**
+     * Part of every skip signature, so a change to what a recompute writes reaches days whose
+     * observations have not changed since. Bump it with such a change. `2` (2026-11-07): the NWS
+     * station pull no longer freezes a past day (StoredBlendGuard), and the rows it froze must be
+     * rebuilt from the stored pool even though their readings are unchanged.
+     */
+    const val WRITE_RULES_VERSION = 2
+
     private const val DAY_MS = 86_400_000L
 
     interface Host {
@@ -122,7 +130,9 @@ object DailyBlendRecomputeRun {
         // Through the next 8am: the day's night rain falls after its midnight (DayNightHours).
         val nightEndMs = date.plusDays(1).atTime(DayNightHours.DAY_START_HOUR, 0).atZone(zone).toInstant().toEpochMilli()
         // The providers too: a switched provider builds the day from other rows though none changed.
-        val signature = if (force) null else host.observationSignature(dayStartMs, nightEndMs)?.let { "$it|${providerSignature()}" }
+        // [WRITE_RULES_VERSION] re-reduces every tracked day once when the write rules change.
+        val signature = if (force) null else host.observationSignature(dayStartMs, nightEndMs)
+            ?.let { "$it|${providerSignature()}|$WRITE_RULES_VERSION" }
         if (key != null && signature != null && host.signatures[key] == signature) {
             host.log("DAILY_RECOMPUTE_SKIP", "date=$date sig=$signature at=${host.lat},${host.lon}", "VERBOSE")
             return 0

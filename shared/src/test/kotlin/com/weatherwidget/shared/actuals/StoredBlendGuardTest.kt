@@ -7,6 +7,8 @@ import com.weatherwidget.shared.observations.ActualsProviderResolver
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.experimental.categories.Category
@@ -58,12 +60,10 @@ class StoredBlendGuardTest {
         date: LocalDate = yesterday,
         storedHigh: Float? = 68.3f,
         storedLow: Float? = 51.0f,
-        storedActualsSource: String? = null,
     ) = StoredBlendGuard.keep(
         date = date,
         today = today,
         source = WeatherSource.SILURIAN.id,
-        storedActualsSource = storedActualsSource,
         storedHigh = storedHigh,
         storedLow = storedLow,
         readings = readings,
@@ -96,11 +96,21 @@ class StoredBlendGuardTest {
         assertEquals(StoredBlendGuard.Keep.NONE, keep(listOf(reading(today, 23)), date = today))
     }
 
+    /**
+     * 2026-11-07: a station-pull row is no longer frozen. Its 73.4° outlived the stored pool's 71.5°,
+     * the value the hourly graph draws, because the pull had missed KPAO's cooler 13:47 report.
+     */
     @Test
-    fun `a pull-derived past day stays frozen`() {
-        assertEquals(
-            StoredBlendGuard.Keep.PULL_FROZEN,
-            keep(lateEvening + reading(yesterday, 4) + reading(yesterday, 14), storedActualsSource = "nws_station_pull"),
+    fun `whole-day coverage is what the station pull defers to`() {
+        assertTrue(
+            "dawn + afternoon: the recompute owns the day",
+            StoredBlendGuard.storedPoolCoversDay(
+                yesterday, WeatherSource.SILURIAN.id, lateEvening + reading(yesterday, 4) + reading(yesterday, 14), zone,
+            ),
+        )
+        assertFalse(
+            "evening only: the pull may fill it",
+            StoredBlendGuard.storedPoolCoversDay(yesterday, WeatherSource.SILURIAN.id, lateEvening, zone),
         )
     }
 }
