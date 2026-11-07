@@ -116,10 +116,11 @@ internal object DailyForecastRainLabelRenderer {
         onRainLabelDrawn: ((DailyRainLabelPlacement) -> Unit)?,
         canvas: Canvas,
     ) {
-        days.forEach { (column, day) ->
-            val text = day.rainData.nightRainLabelText ?: return@forEach
-            val left = boundsByColumn[column] ?: return@forEach
-            val leftLow = left.lowLabel ?: return@forEach
+        // Lay out every night label first, so neighbours can be kept apart before any is drawn.
+        val laidOut = days.mapNotNull { (column, day) ->
+            val text = day.rainData.nightRainLabelText ?: return@mapNotNull null
+            val left = boundsByColumn[column] ?: return@mapNotNull null
+            val leftLow = left.lowLabel ?: return@mapNotNull null
             val right = boundsByColumn[column + 1]
             val centerX = layout.columnCenter(column)
             val gapCenterX =
@@ -128,28 +129,28 @@ internal object DailyForecastRainLabelRenderer {
                 } else {
                     centerX + layout.columnWidth(column) / 2f
                 }
-            val label = DailyRainLabelLayout.layoutNight(
-                rainLabelHost(paints),
-                DailyRainLabelLayout.NightInput(
-                    date = day.date.toString(),
-                    text = text,
-                    probability = day.rainData.nighttimePrecipProbability,
-                    isPast = day.isPast,
-                    daysFromToday = day.daysFromToday,
-                    columnCenterX = centerX,
-                    gapCenterX = gapCenterX,
-                    columnWidth = layout.columnWidth(column),
-                    leftLowLabel = leftLow.toBox(),
-                    rightLowLabel = right?.lowLabel?.toBox(),
-                    obstacles = left.nightObstacles + right?.nightObstacles.orEmpty(),
-                    dayLabelTop = layout.bottomStack.dayLabelTop,
-                    canvasWidth = layout.widthPx.toFloat(),
-                    pxPerDp = layout.density,
-                ),
-                PLATFORM,
+            val input = DailyRainLabelLayout.NightInput(
+                date = day.date.toString(),
+                text = text,
+                probability = day.rainData.nighttimePrecipProbability,
+                isPast = day.isPast,
+                daysFromToday = day.daysFromToday,
+                columnCenterX = centerX,
+                gapCenterX = gapCenterX,
+                columnWidth = layout.columnWidth(column),
+                leftLowLabel = leftLow.toBox(),
+                rightLowLabel = right?.lowLabel?.toBox(),
+                obstacles = left.nightObstacles + right?.nightObstacles.orEmpty(),
+                dayLabelTop = layout.bottomStack.dayLabelTop,
+                canvasWidth = layout.widthPx.toFloat(),
+                pxPerDp = layout.density,
             )
+            day to DailyRainLabelLayout.LaidOutNight(input, DailyRainLabelLayout.layoutNight(rainLabelHost(paints), input, PLATFORM))
+        }
+        val separated = DailyRainLabelLayout.separateNightLabels(laidOut.map { it.second }, PLATFORM)
+        laidOut.zip(separated).forEach { (entry, label) ->
             canvas.drawText(label.text, label.centerX, label.baseline, createRainPaint(paints, label.fontScale))
-            onRainLabelDrawn?.invoke(label.toPlacement(day, Float.NaN))
+            onRainLabelDrawn?.invoke(label.toPlacement(entry.first, Float.NaN))
         }
     }
 

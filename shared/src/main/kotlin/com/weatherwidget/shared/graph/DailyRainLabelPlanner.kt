@@ -398,20 +398,7 @@ object DailyRainLabelPlanner {
         val step = (DailyRainLabels.NIGHT_NUDGE_STEP_DP * density).coerceAtLeast(0.5f)
         val inkOverlapPx = DailyRainLabels.NIGHT_RECENTER_INK_OVERLAP_DP * density
         val maxDropPx = DailyRainLabels.NIGHT_RECENTER_MAX_DROP_DP * density
-        val inkBoxes = obstacles.map {
-            val h = it.bottom - it.top
-            when {
-                it.isLowDigits -> it.copy(
-                    top = it.top + h * DailyRainLabels.LOW_BLANK_ASCENT_FRACTION,
-                    bottom = it.bottom - h * DailyRainLabels.DIGIT_BLANK_DESCENT_FRACTION,
-                )
-                // The ° box is already cut to the top half of the line box, so its fraction doubles.
-                it.isDegreeSign -> it.copy(
-                    top = it.top + h * DailyRainLabels.LOW_BLANK_ASCENT_FRACTION / DailyRainLabels.DEGREE_SIGN_HEIGHT_FRACTION,
-                )
-                else -> it
-            }
-        }
+        val inkBoxes = inkBoxes(obstacles)
         fun clearOfInk(cx: Float, atTop: Float) = inkBoxes.none {
             val ow = minOf(cx + width / 2f, it.right) - maxOf(cx - width / 2f, it.left)
             val oh = minOf(atTop + height, it.bottom) - maxOf(atTop, it.top)
@@ -653,6 +640,26 @@ object DailyRainLabelPlanner {
             Box(left, top, digitsRight, bottom, isLowDigits = true),
             Box(digitsRight, top, right, degreeBottom, isDegreeSign = true),
         )
+    }
+
+    /**
+     * [obstacles] cut to their ink: a low label's line box has no ink in its top
+     * [DailyRainLabels.LOW_BLANK_ASCENT_FRACTION], and its digits none in the bottom
+     * [DailyRainLabels.DIGIT_BLANK_DESCENT_FRACTION]. Icons are kept whole.
+     */
+    fun inkBoxes(obstacles: List<Box>): List<Box> = obstacles.map {
+        val h = it.bottom - it.top
+        when {
+            it.isLowDigits -> it.copy(
+                top = it.top + h * DailyRainLabels.LOW_BLANK_ASCENT_FRACTION,
+                bottom = it.bottom - h * DailyRainLabels.DIGIT_BLANK_DESCENT_FRACTION,
+            )
+            // The ° box is already cut to the top half of the line box, so its fraction doubles.
+            it.isDegreeSign -> it.copy(
+                top = it.top + h * DailyRainLabels.LOW_BLANK_ASCENT_FRACTION / DailyRainLabels.DEGREE_SIGN_HEIGHT_FRACTION,
+            )
+            else -> it
+        }
     }
 
     private fun nudgeName(dx: Float, dy: Float): String = when {

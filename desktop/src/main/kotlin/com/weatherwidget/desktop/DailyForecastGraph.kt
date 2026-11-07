@@ -221,7 +221,7 @@ fun DailyForecastGraph(
         // between two columns, so they are drawn after the loop, once both neighbours exist.
         val nightLabelObstacles = mutableMapOf<Int, MutableList<DailyRainLabelPlanner.Box>>()
         val lowLabelBoxes = mutableMapOf<Int, DailyRainLabelPlanner.Box>()
-        val deferredNightLabels = mutableListOf<() -> Unit>()
+        val deferredNightLabels = mutableListOf<() -> DailyRainLabelLayout.LaidOutNight?>()
         val rainHost = desktopRainLabelHost(textMeasurer, scale)
         fun drawRainLabel(label: DailyRainLabelLayout.Placed) {
             val layout = textMeasurer.measure(label.text, rainLabelStyle(label.kind, label.fontScale, scale))
@@ -658,31 +658,30 @@ fun DailyForecastGraph(
             // (deferredNightLabels), once the right neighbour's icon and low label exist.
             val nightText = day.nightRainLabelText
             if (nightText != null) deferredNightLabels += night@{
-                val leftLow = lowLabelBoxes[index] ?: return@night
-                DailyRainLabelLayout.layoutNight(
-                    rainHost,
-                    DailyRainLabelLayout.NightInput(
-                        date = day.date.toString(),
-                        text = nightText,
-                        probability = day.nightPrecipProbability,
-                        isPast = day.isPast,
-                        daysFromToday = day.daysFromToday,
-                        columnCenterX = centerX,
-                        gapCenterX = columns.centers.getOrNull(index + 1)?.let { (centerX + it) / 2f }
-                            ?: (centerX + columnWidth / 2f),
-                        columnWidth = columnWidth,
-                        leftLowLabel = leftLow,
-                        rightLowLabel = lowLabelBoxes[index + 1],
-                        obstacles = nightLabelObstacles[index].orEmpty() + nightLabelObstacles[index + 1].orEmpty(),
-                        dayLabelTop = bottomStack.dayLabelTop,
-                        canvasWidth = size.width,
-                        pxPerDp = scale,
-                    ),
-                    PLATFORM,
-                ).let(::drawRainLabel)
+                val leftLow = lowLabelBoxes[index] ?: return@night null
+                val input = DailyRainLabelLayout.NightInput(
+                    date = day.date.toString(),
+                    text = nightText,
+                    probability = day.nightPrecipProbability,
+                    isPast = day.isPast,
+                    daysFromToday = day.daysFromToday,
+                    columnCenterX = centerX,
+                    gapCenterX = columns.centers.getOrNull(index + 1)?.let { (centerX + it) / 2f }
+                        ?: (centerX + columnWidth / 2f),
+                    columnWidth = columnWidth,
+                    leftLowLabel = leftLow,
+                    rightLowLabel = lowLabelBoxes[index + 1],
+                    obstacles = nightLabelObstacles[index].orEmpty() + nightLabelObstacles[index + 1].orEmpty(),
+                    dayLabelTop = bottomStack.dayLabelTop,
+                    canvasWidth = size.width,
+                    pxPerDp = scale,
+                )
+                DailyRainLabelLayout.LaidOutNight(input, DailyRainLabelLayout.layoutNight(rainHost, input, PLATFORM))
             }
         }
-        deferredNightLabels.forEach { it() }
+        // Every night label is laid out before any is drawn, so neighbours can be kept apart.
+        DailyRainLabelLayout.separateNightLabels(deferredNightLabels.mapNotNull { it() }, PLATFORM)
+            .forEach(::drawRainLabel)
         // The measuring pass only needs the columns' top-label extents.
         if (measureOnly) return DailyDrawPass(topHeadroom, bottom)
 

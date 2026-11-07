@@ -54,6 +54,47 @@ class DailyRainLabelLayoutTest {
         "test",
     )
 
+    // Pixel 7 Pro 2026-11-06 19:36 (Silurian, canvas 517 px, 2.63 px/dp): Sat, the last column,
+    // "100%" centred under Sat's own "57°" sat at 343.2, 6 dp under the digits' ink (bottom 336.6
+    // less 22 % blank descent = 327.4). It now tucks to 1 dp under that ink.
+    private fun pixelSatNight(obstacles: List<Box>) = DailyRainLabelLayout.layoutNight(
+        DailyRainLabelLayout.Host { _, _, _ -> DailyRainLabelLayout.TextSize(47f, 22.5f, 17f) },
+        DailyRainLabelLayout.NightInput(
+            date = "2026-11-14", text = "100%", probability = 100, isPast = false, daysFromToday = 8,
+            columnCenterX = 480.1f, gapCenterX = 517f, columnWidth = 73.9f,
+            leftLowLabel = Box(453.6f, 295.0f, 506.6f, 336.6f), rightLowLabel = null,
+            obstacles = obstacles, dayLabelTop = 395.7f, canvasWidth = 517f, pxPerDp = 2.627f,
+        ),
+        "test",
+    )
+
+    private val pixelSatObstacles = listOf(
+        Box(453.6f, 242.0f, 506.6f, 295.0f), // Sat icon
+        Box(453.6f, 295.0f, 493.6f, 336.6f, isLowDigits = true), // "57"
+        Box(493.6f, 295.0f, 506.6f, 315.8f, isDegreeSign = true), // °
+    )
+
+    @Test
+    fun `last column night label centred under its own low tucks up to 1 dp under the digits' ink`() {
+        val label = pixelSatNight(pixelSatObstacles)
+        val inkBottom = 336.6f - (336.6f - 295.0f) * DailyRainLabels.DIGIT_BLANK_DESCENT_FRACTION
+        println("Pixel Sat 100%: fit=${label.placement} top=${label.top} (was 343.2) inkBottom=$inkBottom")
+        assertEquals("NIGHT_CENTERED", label.placement)
+        assertEquals(inkBottom + 2.627f, label.top, 0.01f)
+        assertEquals(label.top + 17f, label.baseline, 0.01f)
+    }
+
+    @Test
+    fun `centred night label stops rising at other ink in the way`() {
+        // Something drawn between the label and the low: the label stops 1 dp under its ink.
+        val label = pixelSatNight(pixelSatObstacles + Box(470f, 332f, 500f, 338f))
+        println("Pixel Sat 100% under a blocker: top=${label.top}")
+        // Rises in 0.5 dp steps, so it stops within one step of 1 dp under the blocker.
+        val clear = 338f + 2.627f
+        assertTrue("top ${label.top} should be in [$clear, ${clear + 0.5f * 2.627f}]", label.top >= clear && label.top <= clear + 0.5f * 2.627f)
+        assertTrue("still rose from 343.2", label.top < 343.2f)
+    }
+
     @Test
     fun `fold night label pinned on the floor under the left low nudges right and down`() {
         // 2026-10-31 Fold NWS trace: "48%" touched the 9 of Today's "47.9°", 2 dp left of centre.
