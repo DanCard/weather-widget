@@ -189,11 +189,17 @@ internal fun SettingsWindow(
                         IconButton(onClick = saveAndClose) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                         }
+                        // The title goes back too, as on Android (SettingsActivity settings_title).
+                        // Only the word is the click target; the Spacer takes the remaining width.
                         Text(
                             "Settings",
                             style = MaterialTheme.typography.titleLarge,
-                            modifier = Modifier.padding(start = 8.dp).weight(1f)
+                            modifier = Modifier
+                                .padding(start = 8.dp)
+                                .clickable(onClick = saveAndClose)
+                                .testTag("settings_title"),
                         )
+                        Spacer(modifier = Modifier.weight(1f))
 
                         // Phase 4 item 1: color-coded header buttons matching Android's drawable
                         // palette. Refresh Data is the primary "go" action (green); View App Logs

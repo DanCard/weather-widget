@@ -85,6 +85,36 @@ class SettingsWindowPhase5Test {
     }
 
     @Test
+    fun clickingSettingsTitle_savesDirtyEditsAndCloses() {
+        var closeCount = 0
+        val savedConfigs = mutableListOf<DesktopConfig>()
+        composeTestRule.setContent {
+            SettingsWindow(
+                config = sampleConfig,
+                onClose = { closeCount++ },
+                onSave = { savedConfigs += it.copy() },
+                onExit = {},
+                autoSaveDelayMs = 60_000L,
+            )
+        }
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithTag("source_remove_TOMORROW_IO").performScrollTo().performClick()
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithTag("settings_title").performClick()
+        composeTestRule.waitForIdle()
+
+        println("clickingSettingsTitle: closeCount=$closeCount saved=${savedConfigs.map { it.settings.visibleSources }}")
+        assertEquals("the title closes the window like the back arrow", 1, closeCount)
+        assertEquals(
+            "the title flushes the dirty edit before closing",
+            listOf("NWS", "OPEN_METEO", "SILURIAN"),
+            savedConfigs.single().settings.visibleSources,
+        )
+    }
+
+    @Test
     fun autoSave_firesAfterIdlePeriod_withoutClosingWindow() {
         val savedConfigs = mutableListOf<DesktopConfig>()
         val testDelay = 100L
