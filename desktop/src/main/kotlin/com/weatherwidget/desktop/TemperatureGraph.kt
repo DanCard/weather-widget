@@ -1174,7 +1174,14 @@ fun TemperatureGraph(
 
         // Mid-window temperature: the value on the drawn line at the horizontal centre of the plot,
         // where the left/right high-low labels leave room. Best effort: skipped on any collision.
-        if (points.size >= 2) {
+        // Only when the engine placed nothing but far-left/far-right labels (shared gate): any
+        // interior label already describes the middle, and the mid label would duplicate it.
+        val placedIndices = placements.map { it.index }
+        val midHiddenReason = MidWindowTempLabelGate.hiddenReason(placedIndices, hourDataList.lastIndex)
+        if (midHiddenReason != null) {
+            Log.v("MidTempLabel", "hidden reason=$midHiddenReason placed=$placedIndices lastIndex=${hourDataList.lastIndex}")
+        }
+        if (points.size >= 2 && MidWindowTempLabelGate.shouldShow(placedIndices, hourDataList.lastIndex)) {
             val midX = w / 2f
             val midMs = dataStart + ((midX - dragResidualPx) / w * dataSpan).toLong()
             fun lerpAt(t: Long, ts: List<Long>, vs: List<Float>): Float? {
