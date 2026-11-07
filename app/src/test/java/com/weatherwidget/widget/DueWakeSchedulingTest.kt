@@ -68,7 +68,7 @@ class DueWakeSchedulingTest {
     }
 
     @Test
-    fun `battery screen-on due time is the 8 h screen-on interval`() {
+    fun `battery screen-on due time is the 10 h screen-on interval`() {
         val manager = WidgetStateManager(context)
         manager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO))
         val displayed = manager.getActiveDisplaySourceIds().single()
@@ -77,13 +77,13 @@ class DueWakeSchedulingTest {
         val now = 1_800_000_000_000L
         manager.markLongFetch(displayed, lat, lon, now - 2 * hour)
         val dueAt = ScreenOnReceiver.screenOnForecastDueAtMs(manager, lat, lon, now, batteryLevel = 85)!!
-        assertTrue("≈ 6 h out (8 h after the fetch; 4 h until 2026-11-05)", dueAt in now + 6 * hour - 3 * minute..now + 6 * hour)
+        assertTrue("≈ 8 h out (10 h after the fetch; 8 h until 2026-11-07, 4 h until 2026-11-05)", dueAt in now + 8 * hour - 3 * minute..now + 8 * hour)
         val low = ScreenOnReceiver.screenOnForecastDueAtMs(manager, lat, lon, now, batteryLevel = 60)!!
         assertTrue("below 70 % the 24 h interval holds", low > now + 20 * hour)
     }
 
     @Test
-    fun `charging screen-on with nothing due has the 8 h due time`() {
+    fun `charging screen-on with nothing due has the 10 h due time`() {
         val manager = WidgetStateManager(context)
         manager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO))
         val displayed = manager.getActiveDisplaySourceIds().single()
@@ -92,7 +92,7 @@ class DueWakeSchedulingTest {
         val now = 1_800_000_000_000L
         manager.markLongFetch(displayed, lat, lon, now - 3 * hour)
         val dueAt = ScreenOnReceiver.screenOnForecastDueAtMs(manager, lat, lon, now, batteryLevel = 40, isCharging = true)!!
-        assertTrue("≈ 5 h out (8 h after the fetch)", dueAt in now + 5 * hour - 3 * minute..now + 5 * hour)
+        assertTrue("≈ 7 h out (10 h after the fetch)", dueAt in now + 7 * hour - 3 * minute..now + 7 * hour)
     }
 
     @Test

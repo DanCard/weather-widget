@@ -137,8 +137,8 @@ class ForecastHorizonPlanRoboTest {
     @Test
     fun `a source not on screen follows the same rule as the displayed one`() {
         allFresh()
-        fetchedAgo(NWS, 8)
-        fetchedAgo(OPEN_METEO, 8)
+        fetchedAgo(NWS, 10)
+        fetchedAgo(OPEN_METEO, 10)
         assertEquals(mapOf(NWS to ForecastParts.BOTH, OPEN_METEO to ForecastParts.BOTH), plan())
     }
 
@@ -153,11 +153,11 @@ class ForecastHorizonPlanRoboTest {
     }
 
     @Test
-    fun `screen off waits 8 h`() {
+    fun `screen off waits 10 h`() {
         allFresh()
         fetchedAgo(NWS, 5)
         assertEquals(emptyMap<WeatherSource, ForecastParts>(), plan(ctx(screenOn = false)))
-        fetchedAgo(NWS, 8)
+        fetchedAgo(NWS, 10)
         assertEquals(mapOf(NWS to ForecastParts.BOTH), plan(ctx(screenOn = false)))
     }
 
@@ -190,17 +190,17 @@ class ForecastHorizonPlanRoboTest {
     }
 
     @Test
-    fun `requiresNetworkFetch wakes 8 h after a fetch with the screen on`() {
-        // 4 h until 2026-11-05.
+    fun `requiresNetworkFetch wakes 10 h after a fetch with the screen on`() {
+        // 4 h until 2026-11-05, 8 h until 2026-11-07.
         allFresh()
-        fetchedAgo(NWS, 8)
+        fetchedAgo(NWS, 10)
         assertTrue(coordinator().requiresNetworkFetch(noRows, ctx(), null, lat, lon))
     }
 
     @Test
-    fun `a fetch 8 h after the last is LONG and moves the marker`() = runBlocking {
+    fun `a fetch 10 h after the last is LONG and moves the marker`() = runBlocking {
         // Was SHORT before 2026-10-25, which left the LONG marker where it was.
-        fetchedAgo(OPEN_METEO, 8)
+        fetchedAgo(OPEN_METEO, 10)
         coordinator().fetchFromAllApis(lat, lon, mapOf(OPEN_METEO to ForecastParts.BOTH), ctx())
         verify { wsm.markLongFetch(OPEN_METEO.id, lat, lon, now) }
     }

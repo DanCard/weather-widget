@@ -69,7 +69,7 @@ class DesktopForecastPlannerTest {
     }
 
     @Test
-    fun `on AC with a predicted unplug, the loop wakes in the lead before it instead of the 8 h interval`() = runTest {
+    fun `on AC with a predicted unplug, the loop wakes in the lead before it instead of the 10 h interval`() = runTest {
         // plans/261028-learned-unplug-prediction.md: a notebook that leaves AC at a learned time.
         fetch()
         val now = System.currentTimeMillis()
@@ -81,7 +81,7 @@ class DesktopForecastPlannerTest {
         // Past the 3 h min gap since the fetch, inside the lead: due.
         assertEquals(ForecastParts.BOTH, ac.plan(om, inLead).parts)
         val noPrediction = planner(charging = true, screenOn = false)
-        assertTrue(noPrediction.next(listOf(om), now)!!.atMs > now + 7 * hour)
+        assertTrue(noPrediction.next(listOf(om), now)!!.atMs > now + 9 * hour)
     }
 
     @Test
@@ -94,7 +94,7 @@ class DesktopForecastPlannerTest {
     }
 
     @Test
-    fun `after a fetch nothing is due, the next comes due in 8 h and the loop sleeps until then`() = runTest {
+    fun `after a fetch nothing is due, the next comes due in 10 h and the loop sleeps until then`() = runTest {
         fetch()
         val now = System.currentTimeMillis()
 
@@ -103,25 +103,25 @@ class DesktopForecastPlannerTest {
         assertNull(plan.horizon)
         val next = planner().next(listOf(om), now)!!
         assertEquals(om, next.sourceId)
-        assertTrue("next due ≈ 8 h out", next.atMs in now + 8 * hour - grace - minute..now + 8 * hour)
+        assertTrue("next due ≈ 10 h out", next.atMs in now + 10 * hour - grace - minute..now + 10 * hour)
         assertEquals(ForecastSchedule.Reason.DUE, ForecastSchedule.sleep(next, now, fetchFailed = false).reason)
     }
 
     @Test
-    fun `eight hours after a fetch the next is due, and it is LONG`() = runTest {
-        // Was SHORT before 2026-10-25; screen on was 4 h until 2026-11-05.
+    fun `ten hours after a fetch the next is due, and it is LONG`() = runTest {
+        // Was SHORT before 2026-10-25; screen on was 4 h until 2026-11-05, 8 h until 2026-11-07.
         fetch()
         val now = System.currentTimeMillis()
         assertNull(planner().plan(om, now + 5 * hour).horizon)
-        assertEquals(Horizon.LONG, planner().plan(om, now + 8 * hour).horizon)
+        assertEquals(Horizon.LONG, planner().plan(om, now + 10 * hour).horizon)
     }
 
     @Test
-    fun `screen off makes it 8 h`() = runTest {
+    fun `screen off makes it 10 h`() = runTest {
         fetch()
         val now = System.currentTimeMillis()
         val next = planner(screenOn = false).next(listOf(om), now)!!
-        assertTrue(next.atMs - now in 8 * hour - grace - minute..8 * hour)
+        assertTrue(next.atMs - now in 10 * hour - grace - minute..10 * hour)
     }
 
     @Test

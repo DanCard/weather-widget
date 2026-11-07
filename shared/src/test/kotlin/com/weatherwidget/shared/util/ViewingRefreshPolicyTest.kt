@@ -47,6 +47,6 @@ class ViewingRefreshPolicyTest {
         assertEquals(2 * hour, ViewingRefreshPolicy.forecastIntervalMs(false, 70, isScreenOn = true))
         assertEquals(2 * hour, ViewingRefreshPolicy.forecastIntervalMs(true, 40, isScreenOn = true))
         assertEquals(24 * hour, ViewingRefreshPolicy.forecastIntervalMs(false, 69, isScreenOn = true))
-        assertEquals("nobody is looking", 8 * hour, ViewingRefreshPolicy.forecastIntervalMs(true, 100, isScreenOn = false))
+        assertEquals("nobody is looking", 10 * hour, ViewingRefreshPolicy.forecastIntervalMs(true, 100, isScreenOn = false))
     }
 }
