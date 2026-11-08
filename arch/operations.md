@@ -39,6 +39,12 @@ location when runtime state can reveal it.
 slow tap, compare logcat's `InputReader` touch-up and `ActivityManager Received BROADCAST` lines with
 `WidgetInteractionRcvr onReceive`. Repeat taps that arrive as a burst are the usual sign of a stall.
 
+Samsung Freecess: when a Samsung widget stops advancing with the screen on, check
+`adb logcat | grep -E "Freecess.*weatherwidget|due to freecess"` and
+`dumpsys connectivity | grep <uid>` (`blockedReasons=c0` = app-background + OEM deny). While frozen,
+alarms (wakeup and non-wakeup) are held and the uid's network is blocked; a tap, screen-on, widget
+broadcast or job start unfreezes it, which is why the screen-on UI tick is a job (`UFZ … reason:`). See `plans/261108-samsung-freecess-stalls-now-dot.md`.
+
 When an emulator widget looks wrong but the app logged a good paint, run
 `scripts/capture-launcher-state.sh` before pressing HOME or restarting the launcher. It saves a
 screenshot, the launcher's live view tree, and a bugreport for every running emulator under

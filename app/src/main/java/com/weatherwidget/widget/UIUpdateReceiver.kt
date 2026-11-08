@@ -3,7 +3,6 @@ package com.weatherwidget.widget
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -33,23 +32,7 @@ class UIUpdateReceiver : BroadcastReceiver() {
     }
 
     private suspend fun handleUiUpdateAlarm(context: Context) {
-        val powerManager = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
-        if (!powerManager.isInteractive) {
-            Log.d(TAG, "Screen is off, skipping UI update work but preserving schedule")
-            UIUpdateScheduler(context).scheduleNextUpdate()
-            return
-        }
-
-        Log.d(TAG, "UI update alarm triggered")
-
-        WidgetWorkScheduler.enqueueUiRepaint(context, reason = WidgetTimedRepaintGate.REASON_UI_TICK)
-        Log.d(TAG, "UI-only update enqueued")
-
-        // Heartbeat recovery: Ensure the charging loop is running if the device is plugged in.
-        // This handles cases where ACTION_POWER_CONNECTED was missed by the OS.
-        CurrentTempUpdateScheduler.scheduleNextChargingUpdate(context, powerManager.isInteractive)
-
-        UIUpdateScheduler(context).scheduleNextUpdate()
+        UiTick.run(context, via = "alarm")
     }
 
     companion object {

@@ -110,6 +110,37 @@ class UIUpdateScheduler(private val context: Context) {
      * Schedule a UI update after the specified delay.
      */
     private fun scheduleUpdate(delayMillis: Long) {
+        val interactive = (context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager).isInteractive
+        if (interactive) {
+            scheduleTickWork(delayMillis)
+            return
+        }
+        scheduleAlarm(delayMillis)
+    }
+
+    /**
+     * Screen on: a delayed job, not an alarm. Samsung Freecess holds a frozen app's alarms (wakeup ones
+     * too) until a tap or screen change, but a job start unfreezes it ([UiTickWorker]).
+     */
+    private fun scheduleTickWork(delayMillis: Long) {
+        val workManager = androidx.work.WorkManager.getInstance(context)
+        val states = runCatching {
+            workManager.getWorkInfosForUniqueWork(UI_TICK_WORK_NAME).get().map { it.state }
+        }.getOrElse { e ->
+            Log.w(TAG, "UI tick work state read failed; replacing", e)
+            emptyList()
+        }
+        val policy = UiTick.tickWorkPolicy(states)
+        val request = androidx.work.OneTimeWorkRequestBuilder<UiTickWorker>()
+            .setInitialDelay(delayMillis, java.util.concurrent.TimeUnit.MILLISECONDS)
+            .build()
+        workManager.enqueueUniqueWork(UI_TICK_WORK_NAME, policy, request)
+        // The screen-off alarm would fire as a second tick once the app is unfrozen.
+        cancelAlarm()
+        Log.v(TAG, "UI_TICK_SCHEDULED via=job policy=$policy delayMs=$delayMillis states=$states")
+    }
+
+    private fun scheduleAlarm(delayMillis: Long) {
         val intent = Intent(context, UIUpdateReceiver::class.java)
         val pendingIntent =
             PendingIntent.getBroadcast(
@@ -138,12 +169,18 @@ class UIUpdateScheduler(private val context: Context) {
         }
 
         Log.d(TAG, "UI update alarm scheduled for ${delayMillis / 1000} seconds from now")
+        Log.v(TAG, "UI_TICK_SCHEDULED via=alarm delayMs=$delayMillis")
     }
 
     /**
      * Cancel any pending UI updates.
      */
     fun cancelScheduledUpdates() {
+        androidx.work.WorkManager.getInstance(context).cancelUniqueWork(UI_TICK_WORK_NAME)
+        cancelAlarm()
+    }
+
+    private fun cancelAlarm() {
         val intent = Intent(context, UIUpdateReceiver::class.java)
         val pendingIntent =
             PendingIntent.getBroadcast(
@@ -163,5 +200,6 @@ class UIUpdateScheduler(private val context: Context) {
     companion object {
         private const val TAG = "UIUpdateScheduler"
         private const val UI_UPDATE_REQUEST_CODE = 1001
+        const val UI_TICK_WORK_NAME = "ui_tick"
     }
 }

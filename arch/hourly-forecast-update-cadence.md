@@ -118,6 +118,11 @@ Tomorrow.io's last 23 hours). The armed one-shot notification is the exception. 
 An unplug the app did not hear is placed at the last charging sighting if it is within the screen-off
 charging interval plus 15 minutes (`ChargeHistory.MAX_ESTIMATE_GAP_MS`); a screen-on is a sighting too.
 
+Android's delayed current-temp loop work keeps its `CONNECTED` constraint: JobScheduler lifts the
+background network block (`blockedReasons=0x40`) for a running job only when the job declares one.
+While Samsung Freecess has the app frozen (`blockedReasons=0xc0`, OEM deny), the job cannot become
+ready until something unfreezes the app; the screen-on `UiTickWorker` does that every ~2 minutes.
+
 Android uses charging WorkManager, battery screen-on alarms, and an opportunistic JobScheduler band;
 desktop uses its observation loop. The desktop loop counts each wait from the last observation fetch
 (`CurrentTempCadence.remainingMs`) and re-plans on a wake: the ScreenSaver D-Bus unblank, a screen
@@ -227,6 +232,7 @@ On devices with multiple home-screen widgets (or foldables like Galaxy Z Fold ac
 - **Debounced preemption settlement (`WidgetPreemptionSettler`)**: Preempted widgets are tracked and repainted from memory cache 3 seconds after interactions settle; a later tap restarts the wait (`WIDGET_PREEMPTION_SETTLE widgets=…`), guaranteeing secondary widgets do not remain stranded on stale bitmaps.
 - **Refresh broadcasts release immediately (`WidgetActionReceiver`)**: Every `ACTION_REFRESH` finishes its `goAsync()` result right after launching its work. Android delivers this app's manifest broadcasts one at a time, so holding the result through a repaint queues every tap behind it.
 - **Timed repaints wait for the user (`TimedRepaintGate`, shared)**: `ui_update_alarm`, `clear_refresh_notice`, the Android startup follow-up, and desktop's fallback reload defer during an interaction or user refresh and for 3 seconds after it (`TIMED_REPAINT_DEFERRED`). A trigger deferred for 30 seconds runs anyway (`TIMED_REPAINT_FORCED`). Android hands deferred widgets to `WidgetPreemptionSettler`; desktop retries on its next tick. Resume reloads, location changes, user refreshes, and fetch results are never gated.
+- **UI tick (`UIUpdateScheduler`, `UiTick`)**: the `ui_update_alarm` tick (2 minutes on a charger) is a delayed unique `UiTickWorker` job (`ui_tick`, no constraints) while the screen is on, and an `RTC` `setAndAllowWhileIdle` alarm while it is off (`UI_TICK_SCHEDULED via=job|alarm`, VERBOSE). Samsung Freecess freezes the idle widget process and holds all its alarms, wakeup ones included, until a tap or screen change; a job start unfreezes it. A tick that reschedules itself while running appends a successor rather than replacing itself (`UiTick.tickWorkPolicy`).
 - **One repaint per banner (`FetchBanner.show`)**: A UI repaint paints every widget, so a banner schedules one however many widgets show it.
 
 Android screen-on receivers registered at runtime work only while the process is alive. Manifest

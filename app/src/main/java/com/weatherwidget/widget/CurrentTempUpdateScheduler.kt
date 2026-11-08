@@ -248,7 +248,8 @@ object CurrentTempUpdateScheduler {
         }
     }
 
-    private fun buildCurrentTempRequest(
+    @VisibleForTesting
+    internal fun buildCurrentTempRequest(
         reason: String,
         delayMinutes: Long,
     ) =
@@ -265,6 +266,9 @@ object CurrentTempUpdateScheduler {
                     .putString(WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON, reason)
                     .build(),
             )
+            // Keep CONNECTED. Android's background network restriction (blockedReasons=0x40) is lifted
+            // for a running job only when the job declares a network constraint; an unconstrained loop
+            // ran with no network on the Fold 4 (plans/261108-samsung-freecess-stalls-now-dot.md).
             .setConstraints(
                 Constraints.Builder()
                     .setRequiredNetworkType(NetworkType.CONNECTED)

@@ -523,6 +523,17 @@ class CurrentTempUpdateSchedulerTest {
         org.junit.Assert.assertEquals(active, decision.active)
     }
 
+    @Test
+    fun `delayed loop request keeps its network constraint so the job is granted network`() {
+        // Without CONNECTED, JobScheduler does not lift the background network block for the job:
+        // the Fold 4 loop ran at 12:03:45 with blockedReasons=40 and no network.
+        val request = CurrentTempUpdateScheduler.buildCurrentTempRequest(reason = "charging_loop", delayMinutes = 10)
+        val networkType = request.workSpec.constraints.requiredNetworkType
+        println("loop request networkType=$networkType delayMs=${request.workSpec.initialDelay}")
+        assertEquals(androidx.work.NetworkType.CONNECTED, networkType)
+        assertEquals(TimeUnit.MINUTES.toMillis(10), request.workSpec.initialDelay)
+    }
+
     private companion object {
         const val NOW_MS = 1_779_205_825_000L
     }
