@@ -745,8 +745,9 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
             narrowWidget = com.weatherwidget.widget.HourlyFooterRenderer.isNarrowWidget(numColumns),
         )
 
-        // Footer labels: `:shared` HourlyFooterLabels over the hours drawn (tidy clock hours, or one
-        // date per day on multi-day windows), as the temperature and precip graphs and desktop.
+        // Footer labels: `:shared` HourlyFooterLabels over the hours drawn (the window's first hour then
+        // every labelInterval hours, anchored at windowStartMs so a missing first hour shifts nothing;
+        // or one date per day on multi-day windows), as the temperature and precip graphs and desktop.
         val drawn = series.mapNotNull { point ->
             val entity = entityByTime[point.timeMs] ?: return@mapNotNull null
             val cover = point.forecastCover ?: return@mapNotNull null
@@ -754,7 +755,7 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
         }
         val dateMode = com.weatherwidget.shared.graph.HourlyZoomRules.isDateMode(zoom.totalSpanHours)
         val labelledMillis = com.weatherwidget.shared.graph.HourlyFooterLabels.labelledTimes(
-            drawn.map { it.first.timeMs }, zoom.totalSpanHours, labelInterval, zoneId,
+            drawn.map { it.first.timeMs }, windowStartMs, zoom.totalSpanHours, labelInterval, zoneId,
         )
 
         val hours = mutableListOf<CloudCoverGraphRenderer.CloudHourData>()

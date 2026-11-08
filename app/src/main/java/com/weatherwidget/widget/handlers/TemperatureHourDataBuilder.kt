@@ -225,15 +225,17 @@ internal fun buildHourDataResult(
         narrowWidget = com.weatherwidget.widget.HourlyFooterRenderer.isNarrowWidget(numColumns),
     )
 
-    // Footer labels: `:shared` HourlyFooterLabels over the window's hours — tidy clock hours, or one
-    // date per day once the span reaches HourlyZoomRules.DATE_FOOTER_MIN_SPAN_HOURS — the same
-    // selection the precip and cloud graphs and desktop make.
+    // Footer labels: `:shared` HourlyFooterLabels over the window's hours — the window's first hour
+    // then every labelInterval hours, or one date per day once the span reaches
+    // HourlyZoomRules.DATE_FOOTER_MIN_SPAN_HOURS — the same selection the precip and cloud graphs and
+    // desktop make.
     val dateMode = HourlyZoomRules.isDateMode(zoom.totalSpanHours)
     val labelledMillis = HourlyFooterLabels.labelledTimes(
         generateSequence(startHour) { it.plusHours(1) }
             .takeWhile { !it.isAfter(endHour) }
             .map { it.atZone(zoneId).toInstant().toEpochMilli() }
             .toList(),
+        startHour.atZone(zoneId).toInstant().toEpochMilli(),
         zoom.totalSpanHours,
         labelInterval,
         zoneId,

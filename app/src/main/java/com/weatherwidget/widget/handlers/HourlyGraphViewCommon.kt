@@ -102,7 +102,8 @@ internal object HourlyGraphViewCommon {
     /**
      * One hour's footer label: its text (a date in [dateMode], else the clock hour) and whether it is
      * shown — [labelledMillis], from `:shared` [com.weatherwidget.shared.graph.HourlyFooterLabels]
-     * (tidy clock hours, or one date per day; the same selection desktop draws). [isDateLabel]
+     * (the window's first hour then every interval hours, or one date per day; the same selection
+     * desktop draws). [isDateLabel]
      * downstream drives both the drop-when-clipped and keep-the-last-day-icon behavior in
      * [com.weatherwidget.widget.HourlyFooterRenderer.drawHourLabels].
      */

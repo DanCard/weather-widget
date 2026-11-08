@@ -150,13 +150,14 @@ class HourlyZoomSpanSettingRoboTest {
     }
 
     @Test
-    fun `all three graphs label the same tidy clock hours on an odd-hour window`() {
-        // Centred at 13:00 the 8 h window runs 9a..5p. At the narrow widget's interval 2 Android
-        // counted from the left edge (9a 11a 1p 3p 5p); every graph now labels clock hours, as desktop
-        // (`:shared` HourlyFooterLabels; plans/261024-shared-hourly-footer-labels.md).
+    fun `all three graphs start their footer labels at the window's first hour`() {
+        // Centred at 13:00 the 8 h window runs 9a..5p. At the narrow widget's interval 2 the labels
+        // start at the window's first hour and step 2 h (`:shared` HourlyFooterLabels;
+        // plans/261107-hourly-footer-labels-from-window-start.md). Tidy clock hours read 10a 12p 2p 4p
+        // and left the left corner unlabelled (emulator 2026-11-07: 10:00 window, first label 12p).
         val window = setSpanInSettingsAndResolveNarrowWindow(spanHours = 8)
         val oddCentre = centerTime.plusHours(1)
-        val expected = listOf("10a", "12p", "2p", "4p")
+        val expected = listOf("9a", "11a", "1p", "3p", "5p")
 
         val temperature = buildHourDataList(
             hourlyForecasts = sampleHourlyForecasts(),
@@ -180,7 +181,42 @@ class HourlyZoomSpanSettingRoboTest {
             zoom = window,
         )
 
+        println("footer labels temperature=${temperature.filter { it.showLabel }.map(HourData::label)} " +
+            "precip=${precip.filter { it.showLabel }.map { it.label }} cloud=${cloud.filter { it.showLabel }.map { it.label }}")
+        assertEquals("9a", temperature.first().label)
+        assertEquals(true, temperature.first().showLabel)
         assertEquals(expected, temperature.filter { it.showLabel }.map(HourData::label))
+        assertEquals(expected, precip.filter { it.showLabel }.map(PrecipitationGraphRenderer.PrecipHourData::label))
+        assertEquals(expected, cloud.filter { it.showLabel }.map(CloudCoverGraphRenderer.CloudHourData::label))
+    }
+
+    @Test
+    fun `a missing first forecast hour does not shift the precip and cloud footer labels`() {
+        // Precip and cloud draw only hours with a forecast. The cadence is anchored at the window start
+        // (9a), not at the first drawn hour — anchoring there would relabel 10a 12p 2p 4p.
+        val window = setSpanInSettingsAndResolveNarrowWindow(spanHours = 8)
+        val oddCentre = centerTime.plusHours(1)
+        val firstHourMs = oddCentre.minusHours(4).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val withoutFirstHour = sampleHourlyForecasts().filter { it.dateTime != firstHourMs }
+
+        val precip = PrecipViewHandler.buildPrecipHourDataList(
+            hourlyForecasts = withoutFirstHour,
+            centerTime = oddCentre,
+            numColumns = NARROW_WIDGET_COLUMNS,
+            displaySource = WeatherSource.NWS,
+            zoom = window,
+        )
+        val cloud = CloudCoverViewHandler.buildCloudHourDataList(
+            hourlyForecasts = withoutFirstHour,
+            centerTime = oddCentre,
+            numColumns = NARROW_WIDGET_COLUMNS,
+            displaySource = WeatherSource.NWS,
+            zoom = window,
+        )
+
+        println("missing-first-hour precip first=${precip.first().label} labels=${precip.filter { it.showLabel }.map { it.label }}")
+        assertEquals("10a", precip.first().label)
+        val expected = listOf("11a", "1p", "3p", "5p")
         assertEquals(expected, precip.filter { it.showLabel }.map(PrecipitationGraphRenderer.PrecipHourData::label))
         assertEquals(expected, cloud.filter { it.showLabel }.map(CloudCoverGraphRenderer.CloudHourData::label))
     }

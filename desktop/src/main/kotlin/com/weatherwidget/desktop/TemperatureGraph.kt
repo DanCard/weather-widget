@@ -784,7 +784,7 @@ fun TemperatureGraph(
         }
 
         // Bottom strip (hour/date labels + weather icons) — shared with the precip/cloud graphs.
-        drawHourlyFooterStrip(points, painters, totalSpanHours, latitude, longitude, footer, w, h, textMeasurer, scale, ::xAt)
+        drawHourlyFooterStrip(points, windowStart, painters, totalSpanHours, latitude, longitude, footer, w, h, textMeasurer, scale, ::xAt)
 
         // Draw fetch dot (circle rings) if it exists
         if (fetchDotXVal != null && fetchDotYVal != null && fetchDotPoint != null) {
@@ -1039,7 +1039,7 @@ fun TemperatureGraph(
             // Same width + spacing as the footer strip's own call, so ghost labels land on the very
             // hour marks the footer draws (hasHourLabel below aligns "→ 69.4°" to them).
             val labeledIndices = DesktopGraphUtils
-                .footerLabels(points, totalSpanHours, ZoneId.systemDefault(), w, footerMinLabelSpacingPx(footer, textMeasurer, scale))
+                .footerLabels(points, windowStart, totalSpanHours, ZoneId.systemDefault(), w, footerMinLabelSpacingPx(footer, textMeasurer, scale))
                 .map { it.index }.toSet()
             val ghostCandidates = points.indices.mapNotNull { i ->
                 val coord = expectedCoords[i]

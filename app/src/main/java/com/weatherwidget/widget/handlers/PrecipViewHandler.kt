@@ -561,11 +561,12 @@ object PrecipViewHandler {
             .map { it.atZone(zoneId).toInstant().toEpochMilli() }
             .filter { forecastsByTime[it] != null }
             .toList()
-        // Footer labels: `:shared` HourlyFooterLabels over the hours drawn (tidy clock hours, or one
-        // date per day on multi-day windows), as the temperature and cloud graphs and desktop.
+        // Footer labels: `:shared` HourlyFooterLabels over the hours drawn (the window's first hour then
+        // every labelInterval hours, anchored at startHour so a missing first forecast shifts nothing;
+        // or one date per day on multi-day windows), as the temperature and cloud graphs and desktop.
         val dateMode = com.weatherwidget.shared.graph.HourlyZoomRules.isDateMode(zoom.totalSpanHours)
         val labelledMillis = com.weatherwidget.shared.graph.HourlyFooterLabels.labelledTimes(
-            drawnHours, zoom.totalSpanHours, labelInterval, zoneId,
+            drawnHours, startHour.atZone(zoneId).toInstant().toEpochMilli(), zoom.totalSpanHours, labelInterval, zoneId,
         )
 
         var currentHour = startHour

@@ -230,7 +230,7 @@ class DesktopGraphZoomTest {
         val points = (0..24).map { i -> HourlyForecast(base + i * hourMs, 70f, "Clear") }
 
         val labels = DesktopGraphUtils.footerLabels(
-            points, totalSpanHours = 24, zone = utc, widthPx = 700f, minLabelSpacingPx = 100f,
+            points, windowStartMs = base, totalSpanHours = 24, zone = utc, widthPx = 700f, minLabelSpacingPx = 100f,
         )
 
         assertEquals(listOf(0, 4, 8, 12, 16, 20, 24), labels.map { it.index })
@@ -238,6 +238,25 @@ class DesktopGraphZoomTest {
             listOf("12a", "4a", "8a", "12p", "4p", "8p", "12a"),
             labels.map { it.text },
         )
+    }
+
+    @Test
+    fun `footerLabels starts at the window's first hour, then the pixel-budget cadence`() {
+        // Emulator 2026-11-07: a 10:00..04:00 window read 12p 4p 8p 12a 4a with an empty left corner.
+        // Desktop shares the rule: the first label is the window's first hour.
+        val utc = ZoneId.of("UTC")
+        val windowStart = Instant.parse("2026-11-07T10:00:00Z").toEpochMilli()
+        val hourMs = 3_600_000L
+        val points = (0..18).map { i -> HourlyForecast(windowStart + i * hourMs, 60f, "Clear") }
+
+        // 18 h at 500 px / 100 px per label -> interval 4.
+        val labels = DesktopGraphUtils.footerLabels(
+            points, windowStartMs = windowStart, totalSpanHours = 18, zone = utc, widthPx = 500f, minLabelSpacingPx = 100f,
+        )
+
+        println("desktop window-start labels: ${labels.map { "${it.index}:${it.text}" }}")
+        assertEquals(listOf(0, 4, 8, 12, 16), labels.map { it.index })
+        assertEquals(listOf("10a", "2p", "6p", "10p", "2a"), labels.map { it.text })
     }
 
     @Test
@@ -253,7 +272,7 @@ class DesktopGraphZoomTest {
 
             // Date mode ignores width/spacing; pass arbitrary values.
             val labels = DesktopGraphUtils.footerLabels(
-                points, totalSpanHours = 72, zone = utc, widthPx = 700f, minLabelSpacingPx = 100f,
+                points, windowStartMs = base, totalSpanHours = 72, zone = utc, widthPx = 700f, minLabelSpacingPx = 100f,
             )
 
             assertEquals(listOf(12, 36, 48), labels.map { it.index })

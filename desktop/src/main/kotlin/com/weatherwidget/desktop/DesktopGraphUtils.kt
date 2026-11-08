@@ -235,8 +235,8 @@ internal object DesktopGraphUtils {
     fun labelIntervalFor(totalSpanHours: Int): Int = HourlyZoomRules.labelIntervalForSpan(totalSpanHours)
 
     /**
-     * Clock-friendly hour steps for the width-aware cadence, ascending (densest first). Every value
-     * divides 24 so the `localHour % interval == 0` gate still lands on tidy clock hours. Finer than
+     * Clock-friendly hour steps for the width-aware cadence, ascending (densest first). Labels count
+     * from the window's first hour ([HourlyFooterLabels]), so a step need not divide 24. Finer than
      * [labelIntervalFor]'s ladder (adds 3h and 8h) because the desktop popup is wide enough to use them.
      */
     private val LABEL_INTERVAL_STEPS = intArrayOf(1, 2, 3, 4, 6, 8, 12, 24)
@@ -328,12 +328,13 @@ internal object DesktopGraphUtils {
 
     /**
      * The footer labels for the bottom strip of the temperature, cloud-cover and precipitation
-     * graphs: `:shared` [HourlyFooterLabels.select] at the pixel-budget cadence
-     * ([labelIntervalForWidth], denser on wide windows). [widthPx]/[minLabelSpacingPx] drive only the
+     * graphs: `:shared` [HourlyFooterLabels.select] from the window's first hour ([windowStartMs]) at
+     * the pixel-budget cadence ([labelIntervalForWidth], denser on wide windows). [widthPx]/[minLabelSpacingPx] drive only the
      * clock-hour cadence and are ignored in date mode. Returned sorted by index.
      */
     fun footerLabels(
         points: List<HourlyForecast>,
+        windowStartMs: Long,
         totalSpanHours: Int,
         zone: ZoneId,
         widthPx: Float,
@@ -343,6 +344,7 @@ internal object DesktopGraphUtils {
         // the interval is desktop's own, from the pixel budget.
         HourlyFooterLabels.select(
             pointTimesMs = points.map { it.dateTime },
+            windowStartMs = windowStartMs,
             spanHours = totalSpanHours.toLong(),
             interval = labelIntervalForWidth(totalSpanHours, widthPx, minLabelSpacingPx),
             zone = zone,
@@ -518,6 +520,7 @@ internal fun DrawScope.hourlyGraphCanvasGeometry(
  */
 internal fun DrawScope.drawHourlyFooterStrip(
     points: List<HourlyForecast>,
+    windowStartMs: Long,
     painters: List<Painter?>,
     totalSpanHours: Int,
     latitude: Double,
@@ -531,7 +534,7 @@ internal fun DrawScope.drawHourlyFooterStrip(
 ) {
     val labelStyle = TextStyle(fontSize = footer.labelFontSize, color = Color.Gray)
     val minSpacing = footerMinLabelSpacingPx(footer, textMeasurer, scale)
-    val measured = DesktopGraphUtils.footerLabels(points, totalSpanHours, ZoneId.systemDefault(), widthPx, minSpacing)
+    val measured = DesktopGraphUtils.footerLabels(points, windowStartMs, totalSpanHours, ZoneId.systemDefault(), widthPx, minSpacing)
         .map { it to textMeasurer.measure(it.text, labelStyle) }
 
     // In multi-day date mode the one-label-per-day strip crowds at wide zoom (e.g. a 30-day zoom-out
@@ -602,7 +605,11 @@ internal fun DrawScope.drawHourlyFooterStrip(
                 }
             }
         } else {
-            drawText(textLayout, topLeft = Offset(x - textW / 2f, textY))
+            // Clamped inside the strip: labels count from the window start, so the last one can land
+            // exactly on the right edge (18 h at 3 h: 10a … 4a) and was drawn half off-canvas.
+            val edge = 4f * scale
+            val left = (x - textW / 2f).coerceIn(edge, (widthPx - textW - edge).coerceAtLeast(edge))
+            drawText(textLayout, topLeft = Offset(left, textY))
         }
     }
 }
@@ -825,7 +832,7 @@ internal fun DrawScope.drawDayLabelsFooterAndNow(
             dayLabelFontSp = 10f,
         )
     }
-    drawHourlyFooterStrip(points, painters, totalSpanHours, latitude, longitude, footer, widthPx, heightPx, textMeasurer, scale, xAt)
+    drawHourlyFooterStrip(points, windowStart, painters, totalSpanHours, latitude, longitude, footer, widthPx, heightPx, textMeasurer, scale, xAt)
     if (now in windowStart..windowEnd) {
         drawNowLabel(markerX, graphTop, graphHeight, scale, textMeasurer, drawnLabels)
     }
