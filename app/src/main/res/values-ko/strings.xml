@@ -262,6 +262,8 @@
     <string name="today_overlay_dominant_temp_description">오늘 열은 높이가 4행 이상인 위젯에만 표시됩니다.</string>
     <string name="daily_zoom_out_header_label">헤더에 축소 버튼 표시</string>
     <string name="daily_zoom_out_header_description">일별 예보 헤더에 월별 보기를 여는 버튼을 표시합니다</string>
+    <string name="future_prior_forecast_label">향후 날짜에 24시간 전 예보 표시</string>
+    <string name="future_prior_forecast_description">향후 각 날짜 옆에 하루 전 예보를 보여주는 좁은 막대를 추가합니다</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">언어</string>

@@ -130,6 +130,7 @@ object DailyViewLogic {
         centerLon: Double?,
         use24HourClock: Boolean,
         allowTodayRainChanceLabel: Boolean,
+        showFuturePriorBar: Boolean = false,
     ): Pair<com.weatherwidget.shared.daily.DailyColumn, com.weatherwidget.data.model.DailyForecast?> {
         val shown = if (date.isBefore(today)) null else {
             shownRows[date]
@@ -158,6 +159,7 @@ object DailyViewLogic {
             centerLon = centerLon ?: weatherByDate[date]?.locationLon ?: 0.0,
             use24HourClock = use24HourClock,
             allowTodayRainChanceLabel = allowTodayRainChanceLabel,
+            showFuturePriorBar = showFuturePriorBar,
         )
         Log.d(TAG, "$caller: date=$date shown=${shown != null} older=${olderRows.size} icon=${column.iconName}")
         return column to shown
@@ -481,6 +483,7 @@ object DailyViewLogic {
                 centerLon = request.centerLon,
                 use24HourClock = request.use24HourClock,
                 allowTodayRainChanceLabel = request.allowTodayRainChanceLabel,
+                showFuturePriorBar = request.showFuturePriorBar,
             )
             // Permanent diagnostics, read by DailyCloudCoverSiteParityRoboTest.
             Log.v(
@@ -559,6 +562,7 @@ object DailyViewLogic {
                         snapshotLow = column.snapshotLow,
                         snapshotIconRes = column.snapshotIconName?.let(WeatherIconMapper::fromIconName),
                         snapshotIsStale = column.snapshotIsStale,
+                        futurePriorBarDrawn = column.futurePriorBarDrawn,
                         priorBarRainPercent = column.priorBarRainPercent,
                         forecastIsFallback = column.forecastIsFallback,
                         actualsFromOtherSite = column.actualsFromOtherSite,

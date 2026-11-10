@@ -282,6 +282,13 @@ class SettingsActivity : AppCompatActivity() {
             repaintWidgets()
         }
 
+        val futurePriorSwitch = findViewById<androidx.appcompat.widget.SwitchCompat>(R.id.future_prior_forecast_switch)
+        futurePriorSwitch.isChecked = widgetStateManager.showFuturePriorForecast()
+        futurePriorSwitch.setOnCheckedChangeListener { _, isChecked ->
+            widgetStateManager.setShowFuturePriorForecast(isChecked)
+            repaintWidgets()
+        }
+
         // Notifications — one-shot dominant-station temperature watch.
         notifyDominantTempSwitch = findViewById(R.id.notify_dominant_temp_change_switch)
         notifyDominantTempSwitch.isChecked = widgetStateManager.notifyOnDominantTempChange()

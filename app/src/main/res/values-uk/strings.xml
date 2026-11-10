@@ -258,6 +258,8 @@
     <string name="today_overlay_dominant_temp_description">З\'являється в стовпці «Сьогодні» лише у віджетах заввишки щонайменше 4 рядки.</string>
     <string name="daily_zoom_out_header_label">Показувати кнопку зменшення масштабу в заголовку</string>
     <string name="daily_zoom_out_header_description">Показувати кнопку в заголовку щоденного прогнозу для відкриття перегляду за місяцями</string>
+    <string name="future_prior_forecast_label">Показувати прогноз 24-годинної давнини для майбутніх днів</string>
+    <string name="future_prior_forecast_description">Додає вузьку смугу біля кожного майбутнього дня з прогнозом, зробленим днем раніше</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">Мова</string>

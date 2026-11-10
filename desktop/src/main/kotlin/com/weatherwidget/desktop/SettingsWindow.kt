@@ -381,6 +381,11 @@ internal fun SettingsWindow(
                                 checked = currentConfig.settings.showDailyZoomOutButton,
                                 testTag = "daily_zoom_out_header_switch",
                             ) { updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(showDailyZoomOutButton = it))) }
+                            TodayOverlayToggleRow(
+                                label = "Show forecast from 24 h ago on future days",
+                                checked = currentConfig.settings.showFuturePriorForecast,
+                                testTag = "future_prior_forecast_switch",
+                            ) { updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(showFuturePriorForecast = it))) }
                         }
 
                         // Personal Weather Stations

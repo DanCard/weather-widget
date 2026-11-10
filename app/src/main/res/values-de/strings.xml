@@ -262,6 +262,8 @@
     <string name="today_overlay_dominant_temp_description">Erscheint nur in Widgets mit mindestens 4 Reihen Höhe in der Heute-Spalte.</string>
     <string name="daily_zoom_out_header_label">Schaltfläche zum Verkleinern in der Kopfzeile anzeigen</string>
     <string name="daily_zoom_out_header_description">Schaltfläche in der Kopfzeile der Tagesvorhersage anzeigen, um die Monatsansicht zu öffnen</string>
+    <string name="future_prior_forecast_label">Vorhersage von vor 24 Std. für kommende Tage anzeigen</string>
+    <string name="future_prior_forecast_description">Fügt neben jedem kommenden Tag einen schmalen Balken mit der Vorhersage vom Vortag hinzu</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">Sprache</string>

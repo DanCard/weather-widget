@@ -195,6 +195,13 @@ fun DailyForecastGraph(
             dayWidthPx = dayWidth,
             columnEdgeMarginPx = 2.dp.toPx(),
         )
+        // Opt-in "forecast from 24 h ago" left bar on future columns (shared PriorBarSlot, as Android).
+        val futurePriorWidth = com.weatherwidget.shared.graph.PriorBarSlot.futureWidthPx(barWidths)
+        val futurePriorOffset = com.weatherwidget.shared.graph.PriorBarSlot.futureOffsetPx(
+            widths = barWidths,
+            dayWidthPx = dayWidth,
+            columnEdgeMarginPx = 2.dp.toPx(),
+        )
         val compactTodayTripleOffset = TodayColumnHighlight.tripleBarSpacing(
             centerBarWidthPx = todayBarWidth,
             flankBarWidthPx = todayBarWidth,
@@ -325,6 +332,16 @@ fun DailyForecastGraph(
                     pathEffect = standInDash(pastTripleWidth).takeIf { day.actualsFromOtherSite },
                 )
             } else {
+                if (day.futurePriorBarDrawn) {
+                    // Drawn first so the forecast bar sits over it, as the triple bars do. Its own
+                    // row's icon and rain chance, like today's left bar.
+                    val priorColor = Color(com.weatherwidget.shared.util.WeatherColors.snapshotBarArgb(day.snapshotIconName))
+                    drawAdaptiveBar(
+                        centerX - futurePriorOffset, day.snapshotHigh, day.snapshotLow, ::yAt, futurePriorWidth,
+                        day.cloudCoverRatio, day.snapshotIconName, day.priorBarRainPercent, clearColor = priorColor,
+                        pathEffect = standInDash(futurePriorWidth).takeIf { day.snapshotIsStale },
+                    )
+                }
                 val high = day.solidHigh
                 val low = day.solidLow
                 if (high != null && low != null) {
@@ -518,10 +535,14 @@ fun DailyForecastGraph(
                     rawHighTop = (yAt(singleHigh) - highText.size.height - singleGapScale * scale - singleInkRadiusPx)
                         .also(::noteRawTop)
                     val highTopLeft = Offset(centerX - highText.size.width / 2f, highLabelY)
-                    // History and today get the thin outline (today's headline sits over the triple
-                    // bars, like history's dual labels); future days stay plain.
-                    if (day.isPast || day.isToday) drawOutlinedText(textMeasurer, highText, highTopLeft)
-                    else drawText(highText, topLeft = highTopLeft)
+                    // Outlined whenever the column draws a left bar — history, today, and an opt-in future
+                    // one, whose taller prior bar can run through the label (shared PriorBarSlot, as
+                    // Android); future days without one stay plain.
+                    if (com.weatherwidget.shared.graph.PriorBarSlot.highLabelOutlined(day.isToday, day.isPast, day.futurePriorBarDrawn)) {
+                        drawOutlinedText(textMeasurer, highText, highTopLeft)
+                    } else {
+                        drawText(highText, topLeft = highTopLeft)
+                    }
                     recordTodayObstacle(
                         highTopLeft.x,
                         highTopLeft.y,
@@ -615,10 +636,14 @@ fun DailyForecastGraph(
             // Day rain chance above the high label, peak hour above that: shared rule.
             val rainText = day.dailyRainLabelText
             if (rainText != null) {
-                // Past columns have the same (thinner) left bar as today; the chance clears its cap.
+                // Past (and opt-in future) columns have a thinner left bar than today's; the chance
+                // clears its cap (shared PriorBarSlot, as Android).
                 val snapshotHigh = day.snapshotHigh
-                val snapshotBarTop = if ((day.isToday || day.isPast) && snapshotHigh != null && day.snapshotLow != null) {
-                    yAt(snapshotHigh) - (if (day.isToday) todayBarWidth else pastTripleWidth) / 2f
+                val snapshotBarTop = if (
+                    com.weatherwidget.shared.graph.PriorBarSlot.drawn(day.isToday, day.isPast, day.futurePriorBarDrawn) &&
+                    snapshotHigh != null && day.snapshotLow != null
+                ) {
+                    yAt(snapshotHigh) - com.weatherwidget.shared.graph.PriorBarSlot.widthPx(day.isToday, barWidths) / 2f
                 } else null
                 DailyRainLabelLayout.layoutDay(
                     rainHost,
@@ -1167,6 +1192,7 @@ private fun axisTemps(day: DesktopDailyDay): List<Float> =
         ghostHigh = day.ghostHigh,
         snapshotHigh = day.snapshotHigh,
         snapshotLow = day.snapshotLow,
+        futurePriorBarDrawn = day.futurePriorBarDrawn,
     )
 
 private fun labelSizeFor(dayWidth: Float): Float =

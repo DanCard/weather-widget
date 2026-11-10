@@ -7,6 +7,7 @@ import android.graphics.RectF
 import android.util.Log
 import com.weatherwidget.shared.graph.AdaptiveBarStrokes
 import com.weatherwidget.shared.graph.DualHighLabel
+import com.weatherwidget.shared.graph.PriorBarSlot
 import com.weatherwidget.shared.graph.StandInBarStyle
 import com.weatherwidget.shared.graph.TodayColumnHighlight
 import com.weatherwidget.shared.graph.TodayThermostat
@@ -105,6 +106,18 @@ internal object DailyBarRenderer {
                     layout = layout,
                     paintForColor = paints::pastTripleForColor,
                     barType = "PAST_SNAPSHOT",
+                    onBarDrawn = onBarDrawn,
+                )
+            } else if (day.futurePriorBarDrawn) {
+                // Opt-in "forecast from 24 h ago" (shared PriorBarSlot): the past-day width, touching
+                // the unchanged forecast bar on its left.
+                drawSnapshotBar(
+                    canvas = canvas,
+                    day = day,
+                    snapshotX = centerX - layout.futurePriorBarOffset,
+                    layout = layout,
+                    paintForColor = paints::pastTripleForColor,
+                    barType = "FUTURE_PRIOR",
                     onBarDrawn = onBarDrawn,
                 )
             }
@@ -298,7 +311,8 @@ internal object DailyBarRenderer {
             baselineY = labelBaseline,
             base = basePaint,
             colorOverride = highColorOverride,
-            drawOutline = day.isPast || day.isToday,
+            // Outlined over a left bar (shared PriorBarSlot): today, past, and an opt-in future one.
+            drawOutline = PriorBarSlot.highLabelOutlined(day.isToday, day.isPast, day.futurePriorBarDrawn),
             maxWidthPx = layout.tempLabelMaxWidthPx,
         ))
     }
@@ -309,8 +323,8 @@ internal object DailyBarRenderer {
 
     /**
      * The triple bar's left slot: "yesterday's forecast" ([DayData.snapshotHigh]/[DayData.snapshotLow],
-     * see PriorDayForecast). Shared by today's column and past columns, which differ only in width
-     * (paint), offset, and debug tag. Nothing is drawn unless both ends are known.
+     * see PriorDayForecast). Shared by today's, past and (opt-in) future columns, which differ only in
+     * width (paint), offset, and debug tag. Nothing is drawn unless both ends are known.
      */
     private fun drawSnapshotBar(
         canvas: Canvas,

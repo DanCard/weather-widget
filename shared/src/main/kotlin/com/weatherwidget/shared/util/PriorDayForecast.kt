@@ -79,27 +79,81 @@ object PriorDayForecast {
         fallbackToEarliest: Boolean,
         lastConfirmedAt: (T) -> Long = fetchedAt,
     ): Pick<T> {
-        val usable = candidates.filter {
+        val usable = usable(candidates, high, low)
+        return Pick(
+            highRow = side(usable, highCutoffMs(date, zone), fetchedAt, high, lastConfirmedAt, fallbackToEarliest),
+            lowRow = side(usable, lowCutoffMs(date, zone), fetchedAt, low, lastConfirmedAt, fallbackToEarliest),
+        )
+    }
+
+    /**
+     * How far back a future day's left bar looks: the forecast as it stood this long before now
+     * (plans/261110-future-days-prior-forecast-bar.md).
+     */
+    const val FUTURE_LOOKBACK_HOURS = 24L
+
+    /** The instant a future day's left bar reads its forecast "as of": [FUTURE_LOOKBACK_HOURS] before [nowMs]. */
+    fun futureCutoffMs(nowMs: Long): Long = nowMs - FUTURE_LOOKBACK_HOURS * 3_600_000L
+
+    /**
+     * A future day's left bar ("forecast 24 h ago", opt-in setting): for each side, the forecast
+     * current at [futureCutoffMs] — the newest row first seen before it, last confirmed no more than
+     * [MAX_PICK_AGE_HOURS] before it. Today's fixed anchors (06:00 / 16:00 on D−1) are still ahead
+     * for days after tomorrow, so the anchor slides with now; at midnight tomorrow becomes today and
+     * switches to [select]'s anchors.
+     *
+     * No fallback: a stand-in would repeat the forecast the column already draws. The last horizon
+     * day (first fetched under a day ago) therefore has no bar. Same [usable] filter as [select].
+     */
+    fun <T> selectAsOf(
+        candidates: List<T>,
+        nowMs: Long,
+        fetchedAt: (T) -> Long,
+        high: (T) -> Float?,
+        low: (T) -> Float?,
+        lastConfirmedAt: (T) -> Long = fetchedAt,
+    ): Pick<T> {
+        val usable = usable(candidates, high, low)
+        val cutoffMs = futureCutoffMs(nowMs)
+        return Pick(
+            highRow = side(usable, cutoffMs, fetchedAt, high, lastConfirmedAt, fallbackToEarliest = false),
+            lowRow = side(usable, cutoffMs, fetchedAt, low, lastConfirmedAt, fallbackToEarliest = false),
+        )
+    }
+
+    /** A future pick is drawn dashed when either side was last confirmed over [STALE_SLACK_HOURS] before [futureCutoffMs]. */
+    fun <T> isFuturePickStale(pick: Pick<T>, nowMs: Long, lastConfirmedAt: (T) -> Long): Boolean {
+        val cutoffMs = futureCutoffMs(nowMs)
+        return listOfNotNull(pick.highRow, pick.lowRow).any { isStale(lastConfirmedAt(it), cutoffMs) }
+    }
+
+    /** Rows with a usable shape: not collapsed (high == low draws a zero-height bar). */
+    private fun <T> usable(candidates: List<T>, high: (T) -> Float?, low: (T) -> Float?): List<T> =
+        candidates.filter {
             val h = high(it)
             val l = low(it)
             !(h != null && l != null && h == l)
         }
-        fun side(cutoffMs: Long, valueOf: (T) -> Float?): T? {
-            val withValue = usable.filter { valueOf(it) != null }
-            val firstSeenBefore = withValue.filter { fetchedAt(it) < cutoffMs }
-            return firstSeenBefore.filter { !isTooOld(minOf(lastConfirmedAt(it), cutoffMs), cutoffMs) }
-                .maxByOrNull(fetchedAt)
-                ?: if (fallbackToEarliest) {
-                    withValue.filter { fetchedAt(it) >= cutoffMs }.minByOrNull(fetchedAt)
-                        ?: firstSeenBefore.maxByOrNull(fetchedAt)
-                } else {
-                    null
-                }
-        }
-        return Pick(
-            highRow = side(highCutoffMs(date, zone), high),
-            lowRow = side(lowCutoffMs(date, zone), low),
-        )
+
+    /** One side's pick at [cutoffMs] — see [select] for the qualifying and fallback rules. */
+    private fun <T> side(
+        usable: List<T>,
+        cutoffMs: Long,
+        fetchedAt: (T) -> Long,
+        valueOf: (T) -> Float?,
+        lastConfirmedAt: (T) -> Long,
+        fallbackToEarliest: Boolean,
+    ): T? {
+        val withValue = usable.filter { valueOf(it) != null }
+        val firstSeenBefore = withValue.filter { fetchedAt(it) < cutoffMs }
+        return firstSeenBefore.filter { !isTooOld(minOf(lastConfirmedAt(it), cutoffMs), cutoffMs) }
+            .maxByOrNull(fetchedAt)
+            ?: if (fallbackToEarliest) {
+                withValue.filter { fetchedAt(it) >= cutoffMs }.minByOrNull(fetchedAt)
+                    ?: firstSeenBefore.maxByOrNull(fetchedAt)
+            } else {
+                null
+            }
     }
 
     /** A past day's left bar. [isFallback]: a side was fetched after its anchor — drawn dashed. */

@@ -108,6 +108,17 @@ accuracy scores the raw difference. Display rounds: a daily column prints whole 
 future provider forecast (`DailyColumn.printsWholeDegrees`, `TempUtils.formatDayTemp`); today, past
 days, climate normals and History of Forecasts (graphs and the all-sources table) print the tenth.
 
+A daily column's left slot is the forecast from a day earlier (`:shared` `PriorDayForecast`,
+`PriorBarSlot`). Today and past columns always draw it in their triple bar. The left bar's anchors:
+- today: the newest fetch before 06:00 (low) and 16:00 (high) on D−1;
+- past days: the values frozen into `daily_history`;
+- future columns: only with Settings → "Show forecast from 24 h ago on future days" (default off,
+  both platforms). They use the newest row first seen before now − 24 h, judged per side, with no
+  fallback (`PriorDayForecast.selectAsOf`). The bar is drawn at the past-day width and touches the
+  unmoved forecast bar. It is dashed when that row was last confirmed over 24 h before the cutoff.
+
+The y-axis (`DailyAxisTemps`) and the rain-label cap read the same `PriorBarSlot.drawn` rule.
+
 A failed fetch, quota block, or rate limit shows a failure pill over the graph on both platforms. The pill
 stays until the failure or block ends: there is no dismissal. Clicking it opens the details, worded from
 `:shared` `SourceErrorDetails`, which describes the pill that opened it: headline, explanation, the

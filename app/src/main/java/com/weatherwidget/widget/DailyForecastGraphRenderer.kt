@@ -217,6 +217,8 @@ object DailyForecastGraphRenderer {
          * pick last confirmed over a day before its anchor, or a past day's side fetched after it.
          */
         val snapshotIsStale: Boolean = false,
+        /** Shared DailyColumn.futurePriorBarDrawn: a future column draws its "forecast from 24 h ago" left bar. */
+        val futurePriorBarDrawn: Boolean = false,
         /** A past day's right (settled forecast) bar has a fallback side (PastDayForecastOverlay) — dashed. */
         val forecastIsFallback: Boolean = false,
         /** This past day's actuals were measured at a previous site (PreviousSiteHistory) — drawn dashed. */
@@ -507,6 +509,7 @@ object DailyForecastGraphRenderer {
                             ghostHigh = day.ghostLineHigh,
                             snapshotHigh = day.snapshotHigh,
                             snapshotLow = day.snapshotLow,
+                            futurePriorBarDrawn = day.futurePriorBarDrawn,
                         ).maxOrNull() ?: return@mapNotNull null
                     val topmost =
                         (highBounds.map { it.top } + listOfNotNull(rainTops[day.date])).minOrNull()

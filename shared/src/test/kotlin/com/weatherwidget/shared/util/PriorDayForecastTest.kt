@@ -229,4 +229,57 @@ class PriorDayForecastTest {
         assertNull(resolve(null, null, emptyList()))
         assertNull(resolve(null, null, listOf(Row(prev(20), 90f, null))))
     }
+
+    // ---- Future days: the forecast as it stood 24 h before now (selectAsOf, plans/261110-future-days-prior-forecast-bar.md).
+
+    private data class Seen(val fetchedAt: Long, val high: Float?, val low: Float?, val confirmedAt: Long = fetchedAt)
+
+    private val now = day.atTime(9, 0).atZone(zone).toInstant().toEpochMilli()
+
+    private fun asOf(rows: List<Seen>) =
+        PriorDayForecast.selectAsOf(rows, now, { it.fetchedAt }, { it.high }, { it.low }, { it.confirmedAt })
+
+    @Test
+    fun `future pick is the newest row first seen before now minus 24h`() {
+        // Open-Meteo Nov 13 2026 shape: 74 a day ago, 64 now — the 20 h-old 70 is not "a day ago".
+        val rows = listOf(Seen(now - 30 * hour, 74f, 59f), Seen(now - 20 * hour, 70f, 58f), Seen(now - 2 * hour, 64f, 58f))
+        val pick = asOf(rows)
+        assertEquals(74f, pick.highRow!!.high)
+        assertEquals(59f, pick.lowRow!!.low)
+    }
+
+    @Test
+    fun `future pick has no fallback when nothing is a day old`() {
+        // The last horizon day: first fetched under a day ago, so no left bar rather than a copy of now.
+        val pick = asOf(listOf(Seen(now - 23 * hour, 70f, 50f), Seen(now - 1 * hour, 71f, 51f)))
+        assertTrue(pick.isEmpty)
+    }
+
+    @Test
+    fun `future sides are picked independently and collapsed rows skipped`() {
+        val rows = listOf(
+            Seen(now - 40 * hour, 80f, 55f),
+            Seen(now - 30 * hour, null, 56f), // low only
+            Seen(now - 26 * hour, 60f, 60f), // collapsed
+        )
+        val pick = asOf(rows)
+        assertEquals(80f, pick.highRow!!.high)
+        assertEquals(56f, pick.lowRow!!.low)
+    }
+
+    @Test
+    fun `future pick re-confirmed since first sighting is fresh, an unconfirmed one is stale`() {
+        val reconfirmed = Seen(now - 60 * hour, 70f, 50f, confirmedAt = now - 2 * hour)
+        val fresh = asOf(listOf(reconfirmed))
+        assertEquals(70f, fresh.highRow!!.high)
+        assertFalse(PriorDayForecast.isFuturePickStale(fresh, now) { it.confirmedAt })
+
+        // Last confirmed 30 h before the cutoff (54 h ago): still the version then current, drawn dashed.
+        val old = asOf(listOf(Seen(now - 54 * hour, 70f, 50f)))
+        assertEquals(70f, old.highRow!!.high)
+        assertTrue(PriorDayForecast.isFuturePickStale(old, now) { it.confirmedAt })
+
+        // Over 48 h before the cutoff never qualifies.
+        assertTrue(asOf(listOf(Seen(now - 73 * hour, 70f, 50f))).isEmpty)
+    }
 }

@@ -262,6 +262,8 @@
     <string name="today_overlay_dominant_temp_description">ปรากฏในคอลัมน์วันนี้เฉพาะในวิดเจ็ตที่มีความสูงอย่างน้อย 4 แถว</string>
     <string name="daily_zoom_out_header_label">แสดงปุ่มซูมออกในส่วนหัว</string>
     <string name="daily_zoom_out_header_description">แสดงปุ่มในส่วนหัวของพยากรณ์รายวันเพื่อเปิดมุมมองรายเดือน</string>
+    <string name="future_prior_forecast_label">แสดงพยากรณ์เมื่อ 24 ชม. ก่อนสำหรับวันข้างหน้า</string>
+    <string name="future_prior_forecast_description">เพิ่มแถบแคบข้างวันข้างหน้าแต่ละวัน แสดงพยากรณ์เมื่อหนึ่งวันก่อน</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">ภาษา</string>

@@ -46,6 +46,8 @@ data class DesktopSettings(
     val todayOverlayDelta: Boolean = false,
     val todayOverlayDominantTemp: Boolean = false,
     val showDailyZoomOutButton: Boolean = false,
+    // Future daily columns draw the forecast from 24 h ago beside their own. Off by default, matching Android.
+    val showFuturePriorForecast: Boolean = false,
     // Per-source override for the feed that supplies a forecast-only source's actuals, keyed by
     // WeatherSource.id -> provider WeatherSource.id. Mirrors Android's `actuals_provider_<SOURCE>`
     // SharedPreferences keys. An ABSENT entry means "use the default"
@@ -79,6 +81,7 @@ data class DesktopSettings(
         add("actualsProviders", actualsProviders, other.actualsProviders)
         add("todayOverlayDelta", todayOverlayDelta, other.todayOverlayDelta)
         add("todayOverlayDominantTemp", todayOverlayDominantTemp, other.todayOverlayDominantTemp)
+        add("showFuturePriorForecast", showFuturePriorForecast, other.showFuturePriorForecast)
     }
 }
 

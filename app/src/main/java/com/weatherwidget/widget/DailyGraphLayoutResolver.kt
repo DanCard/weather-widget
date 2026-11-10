@@ -42,6 +42,8 @@ internal data class DailyGraphLayoutInfo(
     val tripleBarOffset: Float,
     /** Centre-to-flank distance of a past day's (thinner) triple bar. */
     val pastTripleBarOffset: Float,
+    /** A future column's forecast bar to its "forecast from 24 h ago" left bar (shared PriorBarSlot). */
+    val futurePriorBarOffset: Float,
     val forecastBarOffset: Float,
     val iconSize: Int,
     /** Icon, low label and day-name geometry under the bars (shared with desktop). */
@@ -126,6 +128,7 @@ internal object DailyGraphLayoutResolver {
                         ghostHigh = day.ghostLineHigh,
                         snapshotHigh = day.snapshotHigh,
                         snapshotLow = day.snapshotLow,
+                        futurePriorBarDrawn = day.futurePriorBarDrawn,
                     )
                 },
             )
@@ -233,6 +236,13 @@ internal object DailyGraphLayoutResolver {
                 columnEdgeMarginPx = COLUMN_EDGE_MARGIN_DP.dp(density),
             )
 
+        val futurePriorBarOffset =
+            com.weatherwidget.shared.graph.PriorBarSlot.futureOffsetPx(
+                widths = barWidths,
+                dayWidthPx = dayWidth,
+                columnEdgeMarginPx = COLUMN_EDGE_MARGIN_DP.dp(density),
+            )
+
         if (dayLabelLayout.scale < 0.999f || dayLabelLayout.shortenedLabels) {
             Log.v(
                 TAG,
@@ -269,6 +279,7 @@ internal object DailyGraphLayoutResolver {
             horizontalPadding = horizontalPadding,
             tripleBarOffset = tripleBarOffset,
             pastTripleBarOffset = pastTripleBarOffset,
+            futurePriorBarOffset = futurePriorBarOffset,
             forecastBarOffset = barWidth * DailyBarRenderer.FORECAST_BAR_OFFSET_SCALE,
             iconSize = iconSize,
             bottomStack = bottomStack,

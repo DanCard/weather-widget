@@ -58,6 +58,8 @@ object DailyParity {
         val history: List<DailyHistory> = emptyList(),
         val hourly: List<HourlyForecast> = emptyList(),
         val currentTemp: Float? = null,
+        /** Settings → "Show forecast from 24 h ago on future days" (plans/261110-future-days-prior-forecast-bar.md). */
+        val showFuturePriorBar: Boolean = false,
     ) {
         val today: LocalDate get() = now.toLocalDate()
 
@@ -112,17 +114,19 @@ object DailyParity {
         val priorStale: Boolean,
         val fcstFallback: Boolean,
         val otherSite: Boolean,
+        /** A future column draws its opt-in "forecast from 24 h ago" left bar. */
+        val futurePrior: Boolean = false,
     )
 
     private fun f(v: Float?) = v?.let { "%.1f".format(it) } ?: "-"
     private fun v(x: Any?) = x?.toString() ?: "-"
 
-    /** Fields only a today / past column draws (the "yesterday's forecast" bar). */
+    /** Fields only a column with a left bar draws: today, past, and an opt-in future one. */
     private val PRIOR_FIELDS = setOf("priorHigh", "priorLow", "priorIcon", "priorRain", "priorStale")
 
     /**
-     * One line per field, `date field=value`, so a line diff names the field. A future column draws
-     * no prior bar, so its prior fields are left out.
+     * One line per field, `date field=value`, so a line diff names the field. A future column without
+     * its opt-in left bar draws no prior bar, so its prior fields are left out.
      */
     fun render(fixture: Fixture, columns: List<Column>): String = buildString {
         val (from, to) = window(fixture)
@@ -138,7 +142,7 @@ object DailyParity {
                 "rainLabel" to v(c.rainLabel), "peakLabel" to v(c.peakLabel), "nightLabel" to v(c.nightLabel),
                 "priorRain" to v(c.priorRain), "climate" to v(c.climate), "promoted" to v(c.promoted),
                 "priorStale" to v(c.priorStale), "fcstFallback" to v(c.fcstFallback), "otherSite" to v(c.otherSite),
-            ).filterNot { future && it.first in PRIOR_FIELDS }
+            ).filterNot { future && !c.futurePrior && it.first in PRIOR_FIELDS }
                 .forEach { (k, value) -> appendLine("$d $k=$value") }
         }
     }
@@ -393,6 +397,22 @@ object DailyParity {
                     currentTemp = 60f,
                 )
             },
+            // Opt-in "forecast from 24 h ago" on future days, at noon: each future column's left bar is
+            // the yesterday-05:00 fetch (the one current at now − 24 h), not yesterday 15:00 (the newest
+            // older fetch, +0.5°). Day +2 was forecast 80° and rainy a day ago; day +8 is past the window.
+            Fixture(
+                name = "future-prior-bar",
+                now = now,
+                displaySource = GOOGLE,
+                rows = week(today, GOOGLE) { d, r ->
+                    if (d == today.plusDays(2) && r.fetchedAt == ms(today.minusDays(1), 5)) {
+                        r.copy(high = 80f, condition = "Rain", precip = 60, dayPrecip = 60, noonCloud = 90)
+                    } else r
+                },
+                history = pastHistory(today, GOOGLE),
+                currentTemp = 58f,
+                showFuturePriorBar = true,
+            ),
             // Early morning: today's actual low still falling, no actual high yet.
             Fixture(
                 name = "early-morning",

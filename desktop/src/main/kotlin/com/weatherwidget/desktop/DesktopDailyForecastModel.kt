@@ -157,6 +157,7 @@ object DesktopDailyForecastModel {
                 displaySourceId = forecast.sourceId,
                 centerLat = config.lat,
                 centerLon = config.lon,
+                showFuturePriorBar = config.settings.showFuturePriorForecast,
             )
         }
         val nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()

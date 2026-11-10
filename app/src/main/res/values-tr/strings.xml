@@ -262,6 +262,8 @@
     <string name="today_overlay_dominant_temp_description">Bugün sütununda yalnızca en az 4 satır yüksekliğinde widget\'larda görünür.</string>
     <string name="daily_zoom_out_header_label">Başlıkta uzaklaştırma düğmesini göster</string>
     <string name="daily_zoom_out_header_description">Aylık görünümü açmak için günlük tahmin başlığında bir düğme göster</string>
+    <string name="future_prior_forecast_label">Gelecek günlerde 24 saat önceki tahmini göster</string>
+    <string name="future_prior_forecast_description">Her gelecek günün yanına bir gün önceki tahmini gösteren dar bir çubuk ekler</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">Dil</string>

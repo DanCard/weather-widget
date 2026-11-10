@@ -74,6 +74,13 @@ data class DailyColumn(
     val actualsFromOtherSite: Boolean = false,
     /** A past day's right (settled forecast) bar has a fallback side (PastDayForecastOverlay) — dashed. */
     val forecastIsFallback: Boolean = false,
+    /**
+     * A future column draws its left "forecast from 24 h ago" bar ([snapshotHigh]/[snapshotLow] are
+     * then that pick): the opt-in setting is on and both sides qualified
+     * ([PriorDayForecast.selectAsOf], [com.weatherwidget.shared.graph.PriorBarSlot]). Always false on
+     * today and past columns, whose left bar is their triple bar's.
+     */
+    val futurePriorBarDrawn: Boolean = false,
 ) {
     /**
      * This column's temperature labels print whole degrees: a day after today showing a provider's
@@ -125,6 +132,11 @@ object DailyColumnBuilder {
         use24HourClock: Boolean = com.weatherwidget.shared.util.DailyRainLabels.localeUses24HourClock(),
         /** Today's rain-chance label; every production caller allows it. */
         allowTodayRainChanceLabel: Boolean = true,
+        /**
+         * The "Show forecast from 24 h ago on future days" setting (default off, both platforms;
+         * plans/261110-future-days-prior-forecast-bar.md).
+         */
+        showFuturePriorBar: Boolean = false,
     ): DailyColumn {
         val isToday = date == today
         val isPast = date.isBefore(today)
@@ -143,9 +155,8 @@ object DailyColumnBuilder {
         // unchanged forecast is stored once and re-stamped (DailyForecastWrite), so one first seen days
         // ago and confirmed since is the shown row, not an older fetch — skipping it left today with no
         // left bar (2026-10-24). One first seen later is today's forecast, never yesterday's.
-        val shownCandidate = forecast?.takeIf { !it.isClimateNormal }?.let { row ->
-            val firstSeen = row.fetchedAt?.takeIf { it < PriorDayForecast.highCutoffMs(date, ZoneId.systemDefault()) }
-                ?: return@let null
+        val shownAsSnapshot = forecast?.takeIf { !it.isClimateNormal }?.let { row ->
+            val firstSeen = row.fetchedAt ?: return@let null
             DailyForecastSnapshot(
                 date = row.date, highTemp = row.highTemp, lowTemp = row.lowTemp, condition = row.condition,
                 iconToken = row.iconToken, precipProbability = row.precipProbability, precipAmountMm = row.precipAmountMm,
@@ -154,6 +165,7 @@ object DailyColumnBuilder {
                 lastConfirmedAt = row.lastConfirmedAt ?: firstSeen,
             )
         }
+        val shownCandidate = shownAsSnapshot?.takeIf { it.fetchedAt < PriorDayForecast.highCutoffMs(date, zone) }
         val todayPick = PriorDayForecast.select(
             snapshots + listOfNotNull(shownCandidate), date, zone,
             fetchedAt = { it.fetchedAt }, high = { it.highTemp }, low = { it.lowTemp },
@@ -172,6 +184,37 @@ object DailyColumnBuilder {
             )
         } else {
             null
+        }
+        // A future day's left bar (opt-in): the forecast as it stood 24 h ago, per side, no fallback
+        // (PriorDayForecast.selectAsOf). Real provider forecasts only — never climate filler. The shown
+        // row is a candidate: an unchanged forecast is stored once and re-stamped, so it may be the
+        // version that was current a day ago.
+        val nowMs = now.atZone(zone).toInstant().toEpochMilli()
+        val futurePick = if (
+            showFuturePriorBar && !isPast && !isToday && forecast != null &&
+            !forecast.isClimateNormal && forecast.source != WeatherSource.GENERIC_GAP.id
+        ) {
+            PriorDayForecast.selectAsOf(
+                snapshots + listOfNotNull(shownAsSnapshot), nowMs,
+                fetchedAt = { it.fetchedAt }, high = { it.highTemp }, low = { it.lowTemp },
+                lastConfirmedAt = { it.lastConfirmedAt },
+            )
+        } else {
+            null
+        }
+        val futurePriorHigh = futurePick?.highRow?.highTemp
+        val futurePriorLow = futurePick?.lowRow?.lowTemp
+        val futurePriorBarDrawn = futurePriorHigh != null && futurePriorLow != null
+        val futurePriorRow = if (futurePriorBarDrawn) futurePick?.highRow ?: futurePick?.lowRow else null
+        val futurePriorStale = futurePriorBarDrawn && futurePick != null &&
+            PriorDayForecast.isFuturePickStale(futurePick, nowMs) { it.lastConfirmedAt }
+        if (showFuturePriorBar && !isPast && !isToday) {
+            com.weatherwidget.shared.util.Log.v(TAG) {
+                "futurePrior date=$date drawn=$futurePriorBarDrawn high=$futurePriorHigh low=$futurePriorLow " +
+                    "highFetchedAt=${futurePick?.highRow?.fetchedAt} lowFetchedAt=${futurePick?.lowRow?.fetchedAt} " +
+                    "stale=$futurePriorStale candidates=${snapshots.size + if (shownAsSnapshot != null) 1 else 0} " +
+                    "now=${forecast?.highTemp}/${forecast?.lowTemp}"
+            }
         }
 
         val solidHigh: Float?
@@ -434,6 +477,19 @@ object DailyColumnBuilder {
             )
             // Only when its bar is drawn (the day's icon, as Android: `snapshotIconRes ?: iconRes` when snapshotHigh != null).
             isPast && pastPrior?.high != null -> gatedIconName
+            // A future day's "forecast from 24 h ago": that row's own icon and chances, as today's left bar.
+            futurePriorRow != null -> com.weatherwidget.shared.util.DailyIconName.resolve(
+                sourceId = displaySourceId,
+                nativeToken = futurePriorRow.iconToken,
+                condition = futurePriorRow.condition,
+                precipProbability = futurePriorRow.precipProbability,
+                targetDate = date,
+                now = now,
+                latitude = centerLat,
+                longitude = centerLon,
+                dayPrecipProbability = futurePriorRow.daytimePrecipProbability ?: futurePriorRow.precipProbability,
+                nightPrecipProbability = futurePriorRow.nighttimePrecipProbability,
+            )
             else -> null
         }
 
@@ -452,11 +508,13 @@ object DailyColumnBuilder {
             snapshotHigh = when {
                 isToday -> todayPick.highRow?.highTemp
                 isPast -> pastPrior?.high
+                futurePriorBarDrawn -> futurePriorHigh
                 else -> displaySnapshot?.highTemp
             },
             snapshotLow = when {
                 isToday -> todayPick.lowRow?.lowTemp
                 isPast -> pastPrior?.low
+                futurePriorBarDrawn -> futurePriorLow
                 else -> displaySnapshot?.lowTemp
             },
             iconCondition = rawCondition,
@@ -464,15 +522,16 @@ object DailyColumnBuilder {
             snapshotIconName = snapshotIconName,
             priorBarRainPercent = com.weatherwidget.shared.graph.AdaptiveBarStrokes.priorBarRainPercent(
                 isPast = isPast,
-                priorRowDaytime = todaySnapshot?.daytimePrecipProbability.takeIf { isToday },
-                priorRowWholeDay = todaySnapshot?.precipProbability.takeIf { isToday },
+                priorRowDaytime = if (isToday) todaySnapshot?.daytimePrecipProbability else futurePriorRow?.daytimePrecipProbability,
+                priorRowWholeDay = if (isToday) todaySnapshot?.precipProbability else futurePriorRow?.precipProbability,
                 dayRainPercent = resolvedPrecip.dayPrecip,
             ),
             isToday = isToday,
             isPast = isPast,
             solidIsForecastFallback = solidIsForecastFallback,
             snapshotIsStale = (isPast && pastPrior?.isFallback == true) ||
-                isToday && PriorDayForecast.isPickStale(todayPick, date, zone) { it.lastConfirmedAt },
+                isToday && PriorDayForecast.isPickStale(todayPick, date, zone) { it.lastConfirmedAt } ||
+                futurePriorStale,
             forecastIsFallback = forecastIsFallback,
             actualsFromOtherSite = isPast && !solidIsForecastFallback && actual?.isActualsBorrowed == true,
             // Null = unknown: the bar falls back to the icon's sky (AdaptiveBarStrokes).
@@ -486,8 +545,11 @@ object DailyColumnBuilder {
             isClimateNormal = forecast?.isClimateNormal == true,
             nowHour = if (isToday) now.hour else null,
             lowSettled = lowSettled,
+            futurePriorBarDrawn = futurePriorBarDrawn,
         )
     }
+
+    private const val TAG = "DailyColumnBuilder"
 }
 
 /** The fields of a daily forecast row the shared daily icon rule reads. */

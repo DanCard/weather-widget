@@ -103,6 +103,7 @@ class DesktopDailyParityTest {
         priorStale = day.snapshotIsStale,
         fcstFallback = day.forecastIsFallback,
         otherSite = day.actualsFromOtherSite,
+        futurePrior = day.futurePriorBarDrawn,
     )
 
     @Test
@@ -115,7 +116,11 @@ class DesktopDailyParityTest {
                 label = "Parity",
                 dateOffset = 0,
                 // Enabled, or displaySource falls back to the first usable source and reads none of the rows.
-                settings = DesktopSettings(weatherSource = fixture.displaySource, visibleSources = listOf(fixture.displaySource)),
+                settings = DesktopSettings(
+                    weatherSource = fixture.displaySource,
+                    visibleSources = listOf(fixture.displaySource),
+                    showFuturePriorForecast = fixture.showFuturePriorBar,
+                ),
             )
             val state = DesktopDailyForecastModel.build(
                 config, snapshotOf(fixture), DesktopDailyForecastModel.dimensions(900, 300),

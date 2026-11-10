@@ -268,6 +268,8 @@
     <string name="today_overlay_dominant_temp_description">Appears in the Today column only on widgets at least 4 rows tall.</string>
     <string name="daily_zoom_out_header_label">Show zoom-out button in header</string>
     <string name="daily_zoom_out_header_description">Show a button in the daily forecast header to open Months view</string>
+    <string name="future_prior_forecast_label">Show forecast from 24 h ago on future days</string>
+    <string name="future_prior_forecast_description">Adds a narrow bar beside each future day showing what was forecast a day earlier</string>
 
     <!-- Notifications section: the one-shot dominant-station temperature watch. -->
     <string name="notifications_title">Notifications</string>

@@ -262,6 +262,8 @@
     <string name="today_overlay_dominant_temp_description">केवल कम से कम 4 पंक्तियों वाले विजेट में आज के कॉलम में दिखाई देता है।</string>
     <string name="daily_zoom_out_header_label">हेडर में ज़ूम-आउट बटन दिखाएं</string>
     <string name="daily_zoom_out_header_description">मासिक दृश्य खोलने के लिए दैनिक पूर्वानुमान हेडर में एक बटन दिखाएं</string>
+    <string name="future_prior_forecast_label">आने वाले दिनों पर 24 घंटे पहले का पूर्वानुमान दिखाएं</string>
+    <string name="future_prior_forecast_description">हर आने वाले दिन के पास एक पतली पट्टी जोड़ता है जो एक दिन पहले का पूर्वानुमान दिखाती है</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">भाषा</string>

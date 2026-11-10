@@ -83,6 +83,7 @@ class AndroidDailyParityTest {
         priorStale = day.snapshotIsStale,
         fcstFallback = day.forecastIsFallback,
         otherSite = day.actualsFromOtherSite,
+        futurePrior = day.futurePriorBarDrawn,
     )
 
     @Test
@@ -109,6 +110,7 @@ class AndroidDailyParityTest {
                 todayLabel = "Today",
                 centerLat = DailyParity.LAT,
                 centerLon = DailyParity.LON,
+                showFuturePriorBar = fixture.showFuturePriorBar,
             )
             val text = DailyParity.render(fixture, DailyViewLogic.prepareGraphDays(request).map(::column))
             DailyParity.write("android", fixture, text)

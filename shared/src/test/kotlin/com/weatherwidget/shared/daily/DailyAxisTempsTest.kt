@@ -17,11 +17,19 @@ class DailyAxisTempsTest {
         forecastHigh: Float? = null,
         snapshotHigh: Float? = 75f,
         snapshotLow: Float? = 58f,
+        futurePriorBarDrawn: Boolean = false,
     ) = DailyAxisTemps.drawn(
         isPast = isPast, isToday = isToday, solidHigh = solidHigh, solidLow = solidLow,
         forecastHigh = forecastHigh, forecastLow = null, ghostHigh = null,
-        snapshotHigh = snapshotHigh, snapshotLow = snapshotLow,
+        snapshotHigh = snapshotHigh, snapshotLow = snapshotLow, futurePriorBarDrawn = futurePriorBarDrawn,
     )
+
+    @Test
+    fun `future day counts the forecast-24h-ago bar when it is drawn`() {
+        // Open-Meteo Nov 13 2026: 74° a day earlier beside today's 64° — the axis must reach the 74.
+        assertEquals(listOf(64f, 58f, 74f, 59f), drawn(solidHigh = 64f, solidLow = 58f, snapshotHigh = 74f, snapshotLow = 59f, futurePriorBarDrawn = true))
+        assertEquals(listOf(64f, 58f), drawn(solidHigh = 64f, solidLow = 58f, snapshotHigh = 74f, snapshotLow = 59f, futurePriorBarDrawn = false))
+    }
 
     @Test
     fun `future day leaves out its undrawn snapshot`() {

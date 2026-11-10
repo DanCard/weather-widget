@@ -75,11 +75,14 @@ internal object DailyForecastRainLabelRenderer {
         val highLabelTop = DailyHighLabelPlanner.resolveHighLabelBaseline(day, layout, paints)?.let { baseline ->
             baseline + textMetrics(tempPaint).ascent * DailyHighLabelPlanner.resolveHighLabelDrawScale(day, layout, paints)
         }
-        // The triple bar's left slot (today's, or a past day's thinner one) can rise above the
-        // high label; the rain % must clear its cap. Drawn only as a pair.
-        val snapshotBarTop = if ((day.isToday || day.isPast) && day.snapshotHigh != null && day.snapshotLow != null) {
+        // The column's left slot (today's, a past day's thinner one, or the opt-in future one — shared
+        // PriorBarSlot) can rise above the high label; the rain % must clear its cap. Drawn only as a pair.
+        val snapshotBarTop = if (
+            com.weatherwidget.shared.graph.PriorBarSlot.drawn(day.isToday, day.isPast, day.futurePriorBarDrawn) &&
+            day.snapshotHigh != null && day.snapshotLow != null
+        ) {
             val capRadius =
-                (if (day.isToday) paints.todaySnapshotYellowPaint else paints.pastTripleBarPaint).strokeWidth / 2f
+                com.weatherwidget.shared.graph.PriorBarSlot.widthPx(day.isToday, layout.barWidths) / 2f
             layout.tempToY(day.snapshotHigh) - capRadius
         } else null
         return DailyRainLabelLayout.layoutDay(

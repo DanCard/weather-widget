@@ -262,6 +262,8 @@
     <string name="today_overlay_dominant_temp_description">শুধুমাত্র কমপক্ষে ৪ সারি উচ্চতার উইজেটে আজকের কলামে দেখা যায়।</string>
     <string name="daily_zoom_out_header_label">হেডারে জুম-আউট বোতাম দেখান</string>
     <string name="daily_zoom_out_header_description">মাসিক দৃশ্য খুলতে দৈনিক পূর্বাভাস হেডারে একটি বোতাম দেখান</string>
+    <string name="future_prior_forecast_label">ভবিষ্যতের দিনগুলিতে ২৪ ঘণ্টা আগের পূর্বাভাস দেখান</string>
+    <string name="future_prior_forecast_description">প্রতিটি ভবিষ্যৎ দিনের পাশে একটি সরু বার যোগ করে, যা এক দিন আগের পূর্বাভাস দেখায়</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">ভাষা</string>

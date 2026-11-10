@@ -262,6 +262,8 @@
     <string name="today_overlay_dominant_temp_description">آج کے کالم میں صرف ان ویجٹس میں ظاہر ہوتا ہے جو کم از کم 4 قطاروں کے اونچائی رکھتے ہوں۔</string>
     <string name="daily_zoom_out_header_label">ہیڈر میں زوم آؤٹ بٹن دکھائیں</string>
     <string name="daily_zoom_out_header_description">ماہانہ منظر کھولنے کے لیے روزانہ پیشگوئی کے ہیڈر میں ایک بٹن دکھائیں</string>
+    <string name="future_prior_forecast_label">آنے والے دنوں پر 24 گھنٹے پہلے کی پیشگوئی دکھائیں</string>
+    <string name="future_prior_forecast_description">ہر آنے والے دن کے ساتھ ایک تنگ بار شامل کرتا ہے جو ایک دن پہلے کی پیشگوئی دکھاتا ہے</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">زبان</string>

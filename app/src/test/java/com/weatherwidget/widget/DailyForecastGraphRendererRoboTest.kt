@@ -244,6 +244,44 @@ class DailyForecastGraphRendererRoboTest {
         assertFalse("A past day's left bar is never dashed", prior.dashed)
     }
 
+    private fun todayAndFuture(futurePrior: Boolean, stale: Boolean = false): List<DailyForecastGraphRenderer.DayData> {
+        val today = LocalDate.of(2026, 2, 1)
+        return listOf(
+            DailyForecastGraphRenderer.DayData(
+                date = today, label = "Today",
+                isToday = true, solidLineHigh = 68f, solidLineLow = 48f,
+                dashedLineHigh = 70f, dashedLineLow = 47f,
+            ),
+            // Open-Meteo Nov 13 2026 shape: 74° forecast a day ago beside today's 64°.
+            DailyForecastGraphRenderer.DayData(
+                date = today.plusDays(1), label = "Mon",
+                solidLineHigh = 64f, solidLineLow = 58f,
+                snapshotHigh = 74f, snapshotLow = 59f,
+                futurePriorBarDrawn = futurePrior,
+                snapshotIsStale = stale,
+            ),
+        )
+    }
+
+    @Test
+    fun futureDay_optInPriorBar_drawsLeftOfTheUnmovedForecastBar() {
+        // plans/261110-future-days-prior-forecast-bar.md
+        val futureDate = LocalDate.of(2026, 2, 2)
+        val off = render(todayAndFuture(futurePrior = false)).filter { it.date == futureDate }
+        val on = render(todayAndFuture(futurePrior = true)).filter { it.date == futureDate }
+        println("futureDay bars off=${off.map { "${it.barType}@${it.centerX}" }} on=${on.map { "${it.barType}@${it.centerX}" }}")
+
+        assertTrue("setting off: no future left bar", off.none { it.barType == "FUTURE_PRIOR" })
+        val forecastOff = off.single { it.barType == "FUTURE" }
+        val forecastOn = on.single { it.barType == "FUTURE" }
+        val prior = on.single { it.barType == "FUTURE_PRIOR" }
+        assertEquals("the forecast bar does not move", forecastOff.centerX, forecastOn.centerX, 0.01f)
+        assertTrue("prior.x=${prior.centerX} forecast.x=${forecastOn.centerX}", prior.centerX < forecastOn.centerX)
+        assertTrue("the 74° prior reaches above the 64° forecast", prior.highY < forecastOn.highY)
+        assertFalse(prior.dashed)
+        assertTrue(render(todayAndFuture(futurePrior = true, stale = true)).single { it.barType == "FUTURE_PRIOR" }.dashed)
+    }
+
     @Test
     fun pastDay_triplePitchIsPastWidthScaleOfToday() {
         // Touching bars: pitch = average width, so the past pitch scales with the past width.

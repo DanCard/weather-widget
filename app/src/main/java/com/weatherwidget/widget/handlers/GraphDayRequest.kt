@@ -40,4 +40,6 @@ data class GraphDayRequest(
     val todayLabel: String,
     val centerLat: Double? = null,
     val centerLon: Double? = null,
+    /** Settings → "Show forecast from 24 h ago on future days" (shared DailyColumnBuilder.showFuturePriorBar). */
+    val showFuturePriorBar: Boolean = stateManager?.showFuturePriorForecast() == true,
 )

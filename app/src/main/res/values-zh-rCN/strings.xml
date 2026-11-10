@@ -262,6 +262,8 @@
     <string name="today_overlay_dominant_temp_description">仅在至少 4 行高的小组件中显示于“今天”列。</string>
     <string name="daily_zoom_out_header_label">在页眉显示缩小按钮</string>
     <string name="daily_zoom_out_header_description">在每日预报页眉中显示打开月视图的按钮</string>
+    <string name="future_prior_forecast_label">在未来日期显示 24 小时前的预报</string>
+    <string name="future_prior_forecast_description">在每个未来日期旁添加一个窄条，显示前一天的预报</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">语言</string>

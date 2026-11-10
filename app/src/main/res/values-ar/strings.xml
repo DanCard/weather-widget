@@ -262,6 +262,8 @@
     <string name="today_overlay_dominant_temp_description">تظهر في عمود اليوم فقط في الأدوات التي يبلغ ارتفاعها 4 صفوف على الأقل.</string>
     <string name="daily_zoom_out_header_label">إظهار زر التصغير في العنوان</string>
     <string name="daily_zoom_out_header_description">إظهار زر في رأس التوقعات اليومية لفتح عرض الأشهر</string>
+    <string name="future_prior_forecast_label">عرض توقعات ما قبل 24 ساعة للأيام القادمة</string>
+    <string name="future_prior_forecast_description">يضيف شريطًا ضيقًا بجانب كل يوم قادم يوضح ما كان متوقعًا قبل يوم</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">اللغة</string>

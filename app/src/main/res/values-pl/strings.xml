@@ -262,6 +262,8 @@
     <string name="today_overlay_dominant_temp_description">Pojawia się w kolumnie dzisiejszej tylko w widżetach o wysokości co najmniej 4 wierszy.</string>
     <string name="daily_zoom_out_header_label">Pokaż przycisk pomniejszania w nagłówku</string>
     <string name="daily_zoom_out_header_description">Pokaż przycisk w nagłówku prognozy dziennej, aby otworzyć widok miesięcy</string>
+    <string name="future_prior_forecast_label">Pokaż prognozę sprzed 24 h dla kolejnych dni</string>
+    <string name="future_prior_forecast_description">Dodaje wąski pasek obok każdego przyszłego dnia z prognozą sprzed doby</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">Język</string>

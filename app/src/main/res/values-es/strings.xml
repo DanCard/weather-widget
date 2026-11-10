@@ -258,6 +258,8 @@
     <string name="today_overlay_dominant_temp_description">Aparece en la columna de hoy solo en widgets de al menos 4 filas de alto.</string>
     <string name="daily_zoom_out_header_label">Mostrar botón de alejar en el encabezado</string>
     <string name="daily_zoom_out_header_description">Mostrar un botón en el encabezado del pronóstico diario para abrir la vista por meses</string>
+    <string name="future_prior_forecast_label">Mostrar el pronóstico de hace 24 h en los próximos días</string>
+    <string name="future_prior_forecast_description">Añade una barra estrecha junto a cada día futuro con lo que se pronosticaba un día antes</string>
 
     <!-- Language section (Android 13+ per-app locale setting) -->
     <string name="language_title">Idioma</string>

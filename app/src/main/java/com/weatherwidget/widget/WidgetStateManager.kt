@@ -131,6 +131,12 @@ class WidgetStateManager internal constructor(
         displayPreferences.setShowDailyZoomOutButton(value)
     }
 
+    fun showFuturePriorForecast(): Boolean = displayPreferences.showFuturePriorForecast()
+
+    fun setShowFuturePriorForecast(value: Boolean) {
+        displayPreferences.setShowFuturePriorForecast(value)
+    }
+
     /**
      * One-shot watch: notify once when the dominant station behind the primary source reports a
      * different temperature, then clear itself. See
