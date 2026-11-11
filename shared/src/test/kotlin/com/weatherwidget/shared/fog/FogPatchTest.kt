@@ -100,27 +100,40 @@ class FogPatchTest {
     }
 
     @Test
-    fun `column fog - past observed only, today observed plus ahead, future the row`() {
+    fun `column fog - observed combined with the whole-morning forecast, whatever the time`() {
         val observed = MorningFog(FogLevel.LIGHT, 50f, 3f)
         val forecast = MorningFog(FogLevel.FOG, 56.9f, 0.5f)
 
-        // Past: never the forecast.
-        assertNull(DailyMorningFog.forColumn(true, false, null, forecast, null, false) { forecast }.fog)
-        assertEquals(observed, DailyMorningFog.forColumn(true, false, observed, forecast, null, false) { null }.fog)
+        // Open-Meteo, Fold 4 2026-11-11 11:00: observations say only "Light Fog" (3 mi stand-in) while
+        // the 11:01 fetch's row holds the morning's 0.0 mi. The old rule read the hours still ahead
+        // (one clear hour) and drew the faint observation; the row's dense fog wins now.
+        val openMeteoRow = MorningFog(FogLevel.DENSE, 55.3f, 0f)
+        val today = DailyMorningFog.forColumn(observed, openMeteoRow) { null }
+        assertEquals(FogLevel.DENSE, today.fog!!.level)
+        assertEquals(55.3f, today.fog!!.topTempF!!, 0f)
+        assertEquals(0f, today.fog!!.visibilityMi!!, 0f)
+        assertEquals("observed+row", today.from)
 
-        // Today, NWS 2026-11-11: observed mist, no forecast fog ahead.
-        val nws = DailyMorningFog.forColumn(false, true, observed, MorningFog.NONE, MorningFog.NONE, true) { null }
-        assertEquals(observed, nws.fog)
-        // Today with fog ahead too: stronger level, higher top, lower visibility.
-        val both = DailyMorningFog.forColumn(false, true, observed, null, forecast, true) { null }.fog!!
+        // Stronger level, higher top, lower visibility.
+        val both = DailyMorningFog.forColumn(observed, forecast) { null }.fog!!
         assertEquals(FogLevel.FOG, both.level)
         assertEquals(56.9f, both.topTempF!!, 0f)
         assertEquals(0.5f, both.visibilityMi!!, 0f)
-        // Today after noon with no observation: the row's forecast.
-        assertEquals(forecast, DailyMorningFog.forColumn(false, true, null, forecast, null, false) { null }.fog)
 
-        // Future: the row, else the stored hours.
-        assertEquals(forecast, DailyMorningFog.forColumn(false, false, observed, forecast, null, true) { null }.fog)
-        assertEquals(forecast, DailyMorningFog.forColumn(false, false, null, null, null, true) { forecast }.fog)
+        // NWS 2026-11-11: observed mist, the row clear: the observation stands.
+        assertEquals(observed, DailyMorningFog.forColumn(observed, MorningFog.NONE) { null }.fog)
+
+        // No row (a past day fetched before the fog columns): the stored hours.
+        val hourly = DailyMorningFog.forColumn(observed, null) { forecast }
+        assertEquals(FogLevel.FOG, hourly.fog!!.level)
+        assertEquals("observed+hourly", hourly.from)
+        // The row beats the stored hours; the hours are not even read.
+        assertEquals(forecast, DailyMorningFog.forColumn(null, forecast) { error("hours read") }.fog)
+
+        // Future: no observation, the row else the hours.
+        assertEquals(forecast, DailyMorningFog.forColumn(null, null) { forecast }.fog)
+        val nothing = DailyMorningFog.forColumn(null, null) { null }
+        assertNull(nothing.fog)
+        assertEquals("none", nothing.from)
     }
 }

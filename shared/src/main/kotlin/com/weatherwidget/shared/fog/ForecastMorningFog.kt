@@ -23,17 +23,6 @@ object ForecastMorningFog {
     fun forDate(rows: List<HourlyForecast>, date: LocalDate, zone: ZoneId): MorningFog? =
         forWindow(rows, MorningFogWindow.startMs(date, zone), MorningFogWindow.endMs(date, zone))
 
-    /**
-     * Today's fog still ahead: the window from the hour containing [nowMs] to noon. Null once the
-     * window has passed or when the rows do not cover what is left of it.
-     */
-    fun aheadOf(rows: List<HourlyForecast>, date: LocalDate, zone: ZoneId, nowMs: Long): MorningFog? {
-        val endMs = MorningFogWindow.endMs(date, zone)
-        val startMs = maxOf(MorningFogWindow.startMs(date, zone), nowMs - nowMs % HOUR_MS)
-        if (startMs >= endMs) return null
-        return forWindow(rows, startMs, endMs)
-    }
-
     fun forWindow(rows: List<HourlyForecast>, startMs: Long, endMs: Long): MorningFog? {
         if (!DailyHourlySummaries.windowCovered(rows, startMs, endMs)) return null
         val ordered = rows.distinctBy { it.dateTime }.sortedBy { it.dateTime }
@@ -61,6 +50,4 @@ object ForecastMorningFog {
         val level = if (visibility != null) FogLevel.fromVisibility(visibility) else wordLevel
         return level to (visibility ?: FogLevel.standInVisibility(wordLevel))
     }
-
-    private const val HOUR_MS = 3_600_000L
 }

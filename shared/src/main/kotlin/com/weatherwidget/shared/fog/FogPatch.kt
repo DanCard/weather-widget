@@ -107,40 +107,30 @@ object FogPatch {
 }
 
 /**
- * Which fog a daily column shows, one rule for both platforms:
- *  - **past**: the provider's observed fog only (frozen in `daily_history`); none when unknown.
- *  - **today**: the observed fog so far combined with the forecast for the hours still ahead
- *    ([MorningFog.combine]); before noon with no hours ahead, the stored forecast row's; with no
- *    observation at all, the row's.
- *  - **future**: the forecast row's, else the stored hours'.
+ * Which fog a daily column shows, one rule for every column on both platforms: the provider's observed
+ * fog ([observed], `daily_history`) combined ([MorningFog.combine]) with its whole-morning forecast
+ * answer, the newest fetch's row, else the stored hours. Future days have no observation, so they
+ * read the forecast alone.
+ *
+ * The forecast side always covers the whole 00–12 window, whatever the time: a fetch made after the
+ * morning is the provider's hindsight (newest fetch wins). Reading only the hours still ahead made
+ * Open-Meteo's dense fog (0.0 mi, 04–08) fade to its word-only "Light Fog" observation as each
+ * foggy hour passed (Fold 4, 2026-11-11: "Meteo earlier today had fog, but it disappeared").
+ * plans/261111-today-fog-whole-morning.md
  */
 object DailyMorningFog {
     data class Resolved(val fog: MorningFog?, val from: String)
 
     fun forColumn(
-        isPast: Boolean,
-        isToday: Boolean,
         observed: MorningFog?,
         row: MorningFog?,
-        ahead: MorningFog?,
-        windowOpen: Boolean,
         fromHourly: () -> MorningFog?,
-    ): Resolved = when {
-        isPast -> Resolved(observed, if (observed != null) "observed" else "none")
-        isToday -> {
-            val forecastAhead = ahead ?: row.takeIf { windowOpen }
-            val combined = MorningFog.combine(observed, forecastAhead)
-            when {
-                combined != null -> Resolved(
-                    combined,
-                    listOfNotNull("observed".takeIf { observed != null }, (if (ahead != null) "stitched" else "row").takeIf { forecastAhead != null })
-                        .joinToString("+"),
-                )
-                row != null -> Resolved(row, "row")
-                else -> Resolved(null, "none")
-            }
-        }
-        row != null -> Resolved(row, "row")
-        else -> fromHourly().let { Resolved(it, if (it != null) "hourly" else "uncovered") }
+    ): Resolved {
+        val forecast = row ?: fromHourly()
+        val from = listOfNotNull(
+            "observed".takeIf { observed != null },
+            (if (row != null) "row" else "hourly").takeIf { forecast != null },
+        ).joinToString("+").ifEmpty { "none" }
+        return Resolved(MorningFog.combine(observed, forecast), from)
     }
 }

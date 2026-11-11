@@ -92,16 +92,6 @@ class ForecastMorningFogTest {
     }
 
     @Test
-    fun `ahead of now reads only the hours still to come`() {
-        // At 08:30 the fog hours 08–09 remain; at 13:00 nothing is ahead.
-        val ahead = ForecastMorningFog.aheadOf(openMeteo, day, zone, at(8) + 30 * 60_000L)!!
-        assertTrue(ahead.isFoggy)
-        assertEquals(55.4f, ahead.topTempF!!, 0.001f)
-        assertNull(ForecastMorningFog.aheadOf(openMeteo, day, zone, at(13)))
-        assertFalse(ForecastMorningFog.aheadOf(openMeteo, day, zone, at(10) + 5 * 60_000L)!!.isFoggy)
-    }
-
-    @Test
     fun `a newer fetch without fog clears an older fetch's fog on the stored row`() {
         val older = DailyHourlySummaries.forDate(openMeteo, day, "OPEN_METEO", zone)
         assertTrue(older.fog!!.isFoggy)

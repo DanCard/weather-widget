@@ -160,10 +160,12 @@ fits; the actuals-source annotation also tries two lines before it is omitted
 
 The daily view's morning fog is a see-through ellipse over each bar's cold end, wider than the bar and
 under the labels (`plans/261111-daily-bar-morning-fog.md`). `DailyColumnBuilder` resolves it through
-`DailyMorningFog`: past days the provider's observed fog (`daily_history.observedFog*`), today the
-observed fog so far combined with the forecast for the hours to noon, future days the forecast row's
-`fogLevel`/`fogTopTemp`/`fogVisibilityMi` (`ForecastMorningFog`, computed at persist time from the
-fetch's hourly visibility and words, carried forward like noon cloud). `FogPatch` plans the nested ovals
+`DailyMorningFog`, one rule for every column: the provider's observed fog (`daily_history.observedFog*`)
+combined with its whole-morning forecast, the forecast row's `fogLevel`/`fogTopTemp`/`fogVisibilityMi`
+(`ForecastMorningFog`, computed at persist time from the fetch's hourly visibility and words over
+00:00–12:00, carried forward like noon cloud) else the stored hours. The forecast side covers the whole
+morning at any time of day, so a fetch made after the fog keeps it on today and past days
+(`plans/261111-today-fog-whole-morning.md`). Future days have no observation and read the forecast alone. `FogPatch` plans the nested ovals
 (height from the low to the burn-off temperature of the fog proper, layers gathered toward the low so
 the top fades, opacity from the lowest visibility on a log scale, 5 % for a saturation-only hint); `DailyBarRenderer` and `DailyForecastGraph` only fill them.
 

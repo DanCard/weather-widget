@@ -110,8 +110,9 @@ Those documents explain prior bugs; the current rules are the shared code descri
 
 ## Observed morning fog
 
-The daily bar's fog ellipse on a past day reads the three `observedFog*` columns
-(`plans/261111-daily-bar-morning-fog.md`). `ObservedMorningFog` reads the readings whose `api` is the
+The daily bar's fog ellipse on today and past days combines the three `observedFog*` columns with the
+provider's whole-morning forecast fog (`DailyMorningFog`; `plans/261111-daily-bar-morning-fog.md`,
+`plans/261111-today-fog-whole-morning.md`). `ObservedMorningFog` reads the readings whose `api` is the
 source's resolved actuals provider over 00:00–12:00 local, using the nearest station that reported in
 each hour. A raw METAR is foggy when the station flags `FG`/`BR`, when its visibility is at or below
 ⅝ SM without precipitation, or (a faint hint only) when temperature equals dewpoint with wind ≤ 5 kt
