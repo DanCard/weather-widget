@@ -352,6 +352,19 @@ fun DailyForecastGraph(
                 }
             }
 
+            // Morning fog: a see-through ellipse over the bars' cold end, under the labels (shared FogPatch,
+            // the same ovals Android fills). plans/261111-daily-bar-morning-fog.md
+            val (fogLow, fogHigh) = com.weatherwidget.shared.daily.DailyColumnBuilder.fogSpan(day)
+            val fogInk = (if (day.isToday) todayBarWidth else if (day.isPast) pastTripleWidth else barWidth) / 2f
+            com.weatherwidget.shared.fog.FogPatch.plan(day.fog, fogLow, fogHigh, ::yAt, centerX, columnWidth, fogInk)
+                .forEach { oval ->
+                    drawOval(
+                        color = Color(oval.argb),
+                        topLeft = Offset(oval.left, oval.top),
+                        size = Size(oval.right - oval.left, oval.bottom - oval.top),
+                    )
+                }
+
             // All columns funnel through the shared resolver (matches Android exactly):
             //   today  -> settle rule (TodayLowSettle): until sunrise + 30 min with a rising 3 h forecast,
             //             or 09:00, min(observed, live forecast); after, the observed

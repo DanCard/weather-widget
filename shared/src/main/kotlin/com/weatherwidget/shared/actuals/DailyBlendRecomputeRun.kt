@@ -44,9 +44,12 @@ object DailyBlendRecomputeRun {
      * Part of every skip signature, so a change to what a recompute writes reaches days whose
      * observations have not changed since. Bump it with such a change. `2` (2026-11-07): the NWS
      * station pull no longer freezes a past day (StoredBlendGuard), and the rows it froze must be
-     * rebuilt from the stored pool even though their readings are unchanged.
+     * rebuilt from the stored pool even though their readings are unchanged. `3` (2026-11-11): each row
+     * now carries its provider's observed morning fog (ObservedMorningFog), which every day still in
+     * reach must gain once (plans/261111-daily-bar-morning-fog.md). `4` (same day): the fog's top is
+     * midway between the last foggy and first clear report, and hints no longer prolong real fog.
      */
-    const val WRITE_RULES_VERSION = 2
+    const val WRITE_RULES_VERSION = 4
 
     private const val DAY_MS = 86_400_000L
 
@@ -166,6 +169,13 @@ object DailyBlendRecomputeRun {
                 personalStationWeight = host.personalStationWeight(),
             )
             .filter { it.date == dateKey }
+            // Each source's observed morning fog, from its own actuals provider's readings.
+            .map { row ->
+                val providerApi = blendInputApi(row.source)
+                row.withObservedFog(
+                    com.weatherwidget.shared.fog.ObservedMorningFog.forDate(dayObs.filter { it.api == providerApi }, date, zone),
+                )
+            }
         val afterExtremesMs = host.elapsedMs()
         logBlendBreakdown(host, date, dayObs, newRows)
         val afterBreakdownMs = host.elapsedMs()

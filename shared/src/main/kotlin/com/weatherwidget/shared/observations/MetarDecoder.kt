@@ -13,6 +13,8 @@ import com.weatherwidget.shared.util.PrecipTrace
  * - Sea level pressure (SLPxxx)
  * - Station automated diagnostics (AO1, AO2, $ maintenance flag)
  * - Body temperature/dewpoint, altimeter, report type, and sky cover
+ * - Prevailing visibility (statute miles), present-weather groups and wind speed — what the daily
+ *   view's observed fog reads ([com.weatherwidget.shared.fog.ObservedMorningFog])
  */
 object MetarDecoder {
 
@@ -36,7 +38,17 @@ object MetarDecoder {
         val altimeterHpa: Float?,
         val skyLayers: List<NwsApi.CloudLayer>,
         val remarks: MetarRemarks?,
-    )
+        /** Prevailing visibility; `M1/4SM` reads 0.125 (below a quarter), `P6SM` 6. Null when absent. */
+        val visibilityStatuteMiles: Float? = null,
+        /** Present-weather groups as written (`BR`, `FG`, `-RA`, `MIFG`, `VCFG`). */
+        val presentWeather: List<String> = emptyList(),
+        /** Sustained wind; calm (`00000KT`) is 0. Null when the group is absent or missing (`/////KT`). */
+        val windSpeedKt: Int? = null,
+    ) {
+        /** Temperature and dewpoint at the best precision reported: the T group's tenths, else whole °C. */
+        val bestTemperatureCelsius: Float? get() = remarks?.preciseTempCelsius ?: bodyTemperatureCelsius
+        val bestDewpointCelsius: Float? get() = remarks?.preciseDewpointCelsius ?: bodyDewpointCelsius
+    }
 
     data class MetarRemarks(
         val rawRemarks: String,
@@ -64,6 +76,13 @@ object MetarDecoder {
     private val BODY_TEMP_DEWP_REGEX = Regex("""\b(M?\d{2})/(M?\d{2}|//)?\b""")
     private val ALTIMETER_INHG_REGEX = Regex("""\bA(\d{4})\b""")
     private val ALTIMETER_HPA_REGEX = Regex("""\bQ(\d{4})\b""")
+    private val WIND_REGEX = Regex("""^(\d{3}|VRB)(\d{2,3})(?:G(\d{2,3}))?(KT|MPS)$""")
+    private val VIS_WHOLE_REGEX = Regex("""^([MP])?(\d{1,2})SM$""")
+    private val VIS_FRACTION_REGEX = Regex("""^([MP])?(\d)/(\d{1,2})SM$""")
+    private val WHOLE_NUMBER_REGEX = Regex("""^\d$""")
+    private val PRESENT_WEATHER_REGEX = Regex(
+        """^(?:-|\+|VC)?(?:MI|PR|BC|DR|BL|SH|TS|FZ)?(?:DZ|RA|SN|SG|IC|PL|GR|GS|UP|BR|FG|FU|VA|DU|SA|HZ|PY|PO|SQ|FC|SS|DS)+$""",
+    )
 
     // Remarks tokens regexes
     private val T_GROUP_REGEX = Regex("""\bT([01])(\d{3})(?:([01])(\d{3}))?\b""")
@@ -120,6 +139,11 @@ object MetarDecoder {
         // Remarks
         val remarks = rmk?.let(::decodeRemarks)
 
+        val windSpeedKt = bodyTokens.firstNotNullOfOrNull { WIND_REGEX.matchEntire(it) }?.let { m ->
+            val speed = m.groupValues[2].toIntOrNull() ?: return@let null
+            if (m.groupValues[4] == "MPS") (speed * 1.94384f).toInt() else speed
+        }
+
         return MetarReport(
             rawReport = clean,
             reportType = reportType,
@@ -131,7 +155,32 @@ object MetarDecoder {
             altimeterHpa = altHpa,
             skyLayers = skyLayers,
             remarks = remarks,
+            visibilityStatuteMiles = parseVisibility(bodyTokens),
+            presentWeather = bodyTokens.filter { PRESENT_WEATHER_REGEX.matches(it) },
+            windSpeedKt = windSpeedKt,
         )
+    }
+
+    /**
+     * The prevailing visibility group: `10SM`, `3SM`, `1/4SM`, `M1/4SM` (less than a quarter, read as
+     * an eighth), `P6SM`, or the two-token `1 1/2SM`. Only the first group counts (a directional
+     * `VIS NW 3/4` lives in the remarks, which [decode] has already cut off).
+     */
+    internal fun parseVisibility(tokens: List<String>): Float? {
+        tokens.forEachIndexed { i, token ->
+            VIS_WHOLE_REGEX.matchEntire(token)?.let { m ->
+                return m.groupValues[2].toFloat()
+            }
+            VIS_FRACTION_REGEX.matchEntire(token)?.let { m ->
+                val denominator = m.groupValues[3].toFloat()
+                if (denominator == 0f) return null
+                var miles = m.groupValues[2].toFloat() / denominator
+                if (m.groupValues[1] == "M") miles /= 2f
+                val whole = tokens.getOrNull(i - 1)?.takeIf { WHOLE_NUMBER_REGEX.matches(it) }?.toFloat() ?: 0f
+                return whole + miles
+            }
+        }
+        return null
     }
 
     /**

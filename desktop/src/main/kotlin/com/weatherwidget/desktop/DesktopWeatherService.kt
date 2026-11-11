@@ -569,6 +569,7 @@ class DesktopWeatherService(
         precipAmountMm = precipAmountMm,
         cloudCover = cloudCover,
         source = "NWS",
+        visibilityMi = visibilityMi,
     )
 
     override suspend fun fetchObservationsOnly(recentOnly: Boolean, userLocationChange: Boolean): RawFetch {

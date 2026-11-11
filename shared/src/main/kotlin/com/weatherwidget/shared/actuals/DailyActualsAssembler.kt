@@ -129,9 +129,20 @@ object DailyActualsAssembler {
             byDate + (today to todayActual.copy(computedLowTemp = null))
         }
 
+        // Today's observed fog, live like today's blend and from the same provider rows (the stored
+        // today row lags the window). plans/261111-daily-bar-morning-fog.md
+        val withTodayFog = gatedLive.mapValues { (source, byDate) ->
+            val todayActual = byDate[today] ?: return@mapValues byDate
+            val providerId = providerIdBySource[source] ?: ActualsProviderResolver.providerIdFor(WeatherSource.fromId(source))
+            val fog = com.weatherwidget.shared.fog.ObservedMorningFog.forDate(
+                observations.filter { it.api == providerId }, today, zone,
+            )
+            byDate + (today to todayActual.withObservedFog(fog))
+        }
+
         // Stored past rows win; the live blend fills only what storage lacks (and today).
-        val merged = (past.keys + gatedLive.keys).associateWith { source ->
-            gatedLive[source].orEmpty() + past[source].orEmpty()
+        val merged = (past.keys + withTodayFog.keys).associateWith { source ->
+            withTodayFog[source].orEmpty() + past[source].orEmpty()
         }
 
         return Result(

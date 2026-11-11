@@ -211,6 +211,7 @@ internal class RoomElapsedHistoryStore(
                     cloudCoverHigh = it.cloudCoverHigh,
                     precipAmountMm = it.precipAmountMm,
                     fetchedAt = nowMs,
+                    visibilityMi = it.visibilityMi,
                 )
             },
         )

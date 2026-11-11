@@ -92,6 +92,10 @@ class DailyHistoryDaoBlendUpdateTest {
             lastWriter = "blend_recompute",
             updatedAt = 2_000L,
             expectedUpdatedAt = 1_000L,
+            // KNUQ 2026-11-11: fog at 3/4 SM, still foggy at 50 °F (plans/261111-daily-bar-morning-fog.md).
+            observedFogLevel = 3,
+            observedFogTopTemp = 50f,
+            observedFogVisibilityMi = 0.75f,
         )
         assertEquals(1, updated)
 
@@ -104,6 +108,9 @@ class DailyHistoryDaoBlendUpdateTest {
         assertEquals(0.5f, stored.precipNightMm)
         assertEquals("blend_recompute", stored.lastWriter)
         assertEquals(2_000L, stored.updatedAt)
+        assertEquals(3, stored.observedFogLevel)
+        assertEquals(50f, stored.observedFogTopTemp)
+        assertEquals(0.75f, stored.observedFogVisibilityMi)
 
         // Provenance columns the recompute must never touch.
         assertEquals("nws_station_pull", stored.actualsSource)
@@ -136,6 +143,9 @@ class DailyHistoryDaoBlendUpdateTest {
             lastWriter = "blend_recompute",
             updatedAt = 4_000L,
             expectedUpdatedAt = 1_000L, // stale: we read 1_000, the row is now at 3_000
+            observedFogLevel = 3,
+            observedFogTopTemp = 50f,
+            observedFogVisibilityMi = 0.75f,
         )
         assertEquals(0, updated)
 
@@ -143,5 +153,6 @@ class DailyHistoryDaoBlendUpdateTest {
         assertEquals(80f, stored.computedHighTemp) // untouched by the stale recompute
         assertEquals("nws_station_pull", stored.actualsSource)
         assertEquals(3_000L, stored.updatedAt)
+        assertEquals(null, stored.observedFogLevel) // the stale write's fog did not land either
     }
 }

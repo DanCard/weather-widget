@@ -31,6 +31,21 @@ object NwsHourlyGridMerge {
         rawHourlyPeriods: List<NwsApi.HourlyForecastPeriod>,
         skyCoverByHour: Map<String, Int>,
         qpfIntervals: List<NwsApi.QuantitativePrecipitationInterval>,
+        /** Grid visibility (statute miles) keyed by the hour's epoch ms; fills `visibilityMi`. */
+        visibilityByHour: Map<Long, Float> = emptyMap(),
+    ): List<NwsApi.HourlyForecastPeriod> =
+        applySkyCoverAndQpf(rawHourlyPeriods, skyCoverByHour, qpfIntervals).let { periods ->
+            if (visibilityByHour.isEmpty()) {
+                periods
+            } else {
+                periods.map { p -> visibilityByHour[p.startTime]?.let { p.copy(visibilityMi = it) } ?: p }
+            }
+        }
+
+    private fun applySkyCoverAndQpf(
+        rawHourlyPeriods: List<NwsApi.HourlyForecastPeriod>,
+        skyCoverByHour: Map<String, Int>,
+        qpfIntervals: List<NwsApi.QuantitativePrecipitationInterval>,
     ): List<NwsApi.HourlyForecastPeriod> {
         val withSkyCover = if (skyCoverByHour.isNotEmpty()) {
             rawHourlyPeriods.map { period ->

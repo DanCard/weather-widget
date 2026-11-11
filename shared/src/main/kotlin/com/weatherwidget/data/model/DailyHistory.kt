@@ -66,6 +66,14 @@ data class DailyHistory(
     val priorForecastHighTemp: Float? = null,
     val priorForecastLowTemp: Float? = null,
     /**
+     * The morning's observed fog from this source's actuals provider (`ObservedMorningFog`, written by
+     * `DailyBlendRecomputeRun`): level code, burn-off °F, lowest visibility. Null = not computed;
+     * level 0 = the provider's stations saw no fog. plans/261111-daily-bar-morning-fog.md
+     */
+    val observedFogLevel: Int? = null,
+    val observedFogTopTemp: Float? = null,
+    val observedFogVisibilityMi: Float? = null,
+    /**
      * Display-only, never persisted: when non-null, [computedHighTemp]/[computedLowTemp] were
      * measured at ANOTHER site this far away (km) because the current site has no measured row
      * for this day — see `PreviousSiteHistory`. Renderers draw such a day's actual bar dashed.
@@ -77,6 +85,15 @@ data class DailyHistory(
      */
     val borrowedWithoutLocalRow: Boolean = false,
 ) {
+    val observedFog: com.weatherwidget.shared.fog.MorningFog?
+        get() = com.weatherwidget.shared.fog.MorningFog.fromColumns(observedFogLevel, observedFogTopTemp, observedFogVisibilityMi)
+
+    fun withObservedFog(fog: com.weatherwidget.shared.fog.MorningFog?): DailyHistory = copy(
+        observedFogLevel = fog?.level,
+        observedFogTopTemp = fog?.topTempF,
+        observedFogVisibilityMi = fog?.visibilityMi,
+    )
+
     fun toLocalDate(): LocalDate =
         LocalDate.ofEpochDay(date / 86_400_000L)
 

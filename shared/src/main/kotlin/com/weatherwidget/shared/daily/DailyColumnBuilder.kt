@@ -5,6 +5,7 @@ import com.weatherwidget.data.model.DailyForecastSnapshot
 import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.util.Log
 import com.weatherwidget.shared.util.PartialForecastDays
 import com.weatherwidget.shared.util.PastDayForecastOverlay
 import com.weatherwidget.shared.util.PriorDayForecast
@@ -81,6 +82,12 @@ data class DailyColumn(
      * today and past columns, whose left bar is their triple bar's.
      */
     val futurePriorBarDrawn: Boolean = false,
+    /**
+     * The morning fog the column's ellipse draws (shared `DailyMorningFog`): past observed, today
+     * observed so far + forecast ahead, future forecast. Null = none known.
+     * plans/261111-daily-bar-morning-fog.md
+     */
+    val fog: com.weatherwidget.shared.fog.MorningFog? = null,
 ) {
     /**
      * This column's temperature labels print whole degrees: a day after today showing a provider's
@@ -111,6 +118,14 @@ object DailyColumnBuilder {
      */
     fun textHigh(c: DailyColumn): Float? =
         if (c.isToday) listOfNotNull(c.solidHigh, c.forecastHigh, c.ghostHigh).maxOrNull() else c.solidHigh
+
+    /**
+     * The temperatures the fog ellipse spans between (shared FogPatch): the column's lowest and highest
+     * drawn bar ends, so a triple bar's cold ends all sit in the same fog.
+     */
+    fun fogSpan(c: DailyColumn): Pair<Float?, Float?> =
+        listOfNotNull(c.solidLow, c.forecastLow, c.snapshotLow).minOrNull() to
+            listOfNotNull(c.barTopHigh, c.solidHigh, c.forecastHigh, c.snapshotHigh, c.ghostHigh).maxOrNull()
 
     /** The low a text-mode column prints: today the tracked low, else the forecast low; otherwise its own. */
     fun textLow(c: DailyColumn): Float? = if (c.isToday) c.solidLow ?: c.forecastLow else c.solidLow
@@ -546,7 +561,41 @@ object DailyColumnBuilder {
             nowHour = if (isToday) now.hour else null,
             lowSettled = lowSettled,
             futurePriorBarDrawn = futurePriorBarDrawn,
+            fog = resolveFog(date, isPast, isToday, actual, forecast, hourly, displaySourceId, now),
         )
+    }
+
+    /** [com.weatherwidget.shared.fog.DailyMorningFog] for this column, logged per render (VERBOSE). */
+    private fun resolveFog(
+        date: LocalDate,
+        isPast: Boolean,
+        isToday: Boolean,
+        actual: DailyHistory?,
+        forecast: DailyForecast?,
+        hourly: List<HourlyForecast>,
+        displaySourceId: String,
+        now: LocalDateTime,
+    ): com.weatherwidget.shared.fog.MorningFog? {
+        val zone = ZoneId.systemDefault()
+        val nowMs = now.atZone(zone).toInstant().toEpochMilli()
+        // The display source's hours only — never another provider's fog.
+        val sourceHours by lazy { hourly.filter { it.source == null || it.source == displaySourceId } }
+        val resolved = com.weatherwidget.shared.fog.DailyMorningFog.forColumn(
+            isPast = isPast,
+            isToday = isToday,
+            observed = actual?.observedFog,
+            row = forecast?.hourlySummary?.fog,
+            ahead = if (isToday) com.weatherwidget.shared.fog.ForecastMorningFog.aheadOf(sourceHours, date, zone, nowMs) else null,
+            windowOpen = nowMs < com.weatherwidget.shared.fog.MorningFogWindow.endMs(date, zone),
+            fromHourly = { com.weatherwidget.shared.fog.ForecastMorningFog.forDate(sourceHours, date, zone) },
+        )
+        resolved.fog?.takeIf { it.isFoggy }?.let { fog ->
+            Log.v(TAG) {
+                "DAILY_FOG date=$date src=$displaySourceId level=${fog.level} top=${fog.topTempF} " +
+                    "vis=${fog.visibilityMi} alpha=${com.weatherwidget.shared.fog.FogOpacity.alpha(fog)} from=${resolved.from}"
+            }
+        }
+        return resolved.fog
     }
 
     private const val TAG = "DailyColumnBuilder"

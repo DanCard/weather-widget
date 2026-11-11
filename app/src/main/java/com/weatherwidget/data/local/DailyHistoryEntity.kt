@@ -66,6 +66,11 @@ data class DailyHistoryEntity(
     // Null when no fetch preceded the cutoff, and for rows written before v73.
     val priorForecastHighTemp: Float? = null,
     val priorForecastLowTemp: Float? = null,
+    // The provider's observed morning fog (ObservedMorningFog): level, burn-off °F, lowest visibility.
+    // Null = not computed; level 0 = no fog. v86. plans/261111-daily-bar-morning-fog.md
+    val observedFogLevel: Int? = null,
+    val observedFogTopTemp: Float? = null,
+    val observedFogVisibilityMi: Float? = null,
 )
 
 fun DailyHistoryEntity.toDailyHistory() = com.weatherwidget.data.model.DailyHistory(
@@ -96,6 +101,9 @@ fun DailyHistoryEntity.toDailyHistory() = com.weatherwidget.data.model.DailyHist
     computedLowAt = computedLowAt,
     priorForecastHighTemp = priorForecastHighTemp,
     priorForecastLowTemp = priorForecastLowTemp,
+    observedFogLevel = observedFogLevel,
+    observedFogTopTemp = observedFogTopTemp,
+    observedFogVisibilityMi = observedFogVisibilityMi,
 )
 
 fun com.weatherwidget.data.model.DailyHistory.toEntity() = DailyHistoryEntity(
@@ -126,4 +134,7 @@ fun com.weatherwidget.data.model.DailyHistory.toEntity() = DailyHistoryEntity(
     computedLowAt = computedLowAt,
     priorForecastHighTemp = priorForecastHighTemp,
     priorForecastLowTemp = priorForecastLowTemp,
+    observedFogLevel = observedFogLevel,
+    observedFogTopTemp = observedFogTopTemp,
+    observedFogVisibilityMi = observedFogVisibilityMi,
 )

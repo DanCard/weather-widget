@@ -1155,4 +1155,54 @@ class WeatherDatabaseMigrationTest {
         }
         db.close()
     }
+
+    /** plans/261111-daily-bar-morning-fog.md: fog columns added, existing rows keep their values and read null fog. */
+    @Test
+    fun migrate85To86AddsFogColumns() {
+        helper.createDatabase(testDb, 85).use { db ->
+            db.execSQL(
+                "INSERT INTO daily_history (date, source, locationLat, locationLon, computedHighTemp, computedLowTemp, " +
+                    "condition, updatedAt) VALUES (1794355200000, 'NWS', 37.417, -122.089, 70.0, 52.0, 'Clear', 1)",
+            )
+            db.execSQL(
+                "INSERT INTO forecasts (targetDate, dateOfPrediction, locationLat, locationLon, highTemp, lowTemp, " +
+                    "condition, isClimateNormal, source, lastConfirmedAt, fetchedAt) " +
+                    "VALUES (1794355200000, 1794355200000, 37.417, -122.089, 70.9, 52.8, 'Light Fog', 0, 'OPEN_METEO', 5, 5)",
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 86, true, WeatherDatabase.MIGRATION_85_86)
+
+        db.query("SELECT computedLowTemp, observedFogLevel FROM daily_history").use { c ->
+            c.moveToFirst()
+            assertEquals(52f, c.getFloat(0), 0f)
+            assertTrue(c.isNull(1))
+        }
+        db.execSQL("UPDATE forecasts SET fogLevel = 2, fogTopTemp = 56.9, fogVisibilityMi = 0.06")
+        db.query("SELECT highTemp, fogLevel, fogTopTemp FROM forecasts").use { c ->
+            c.moveToFirst()
+            assertEquals(70.9f, c.getFloat(0), 0.001f)
+            assertEquals(2, c.getInt(1))
+            assertEquals(56.9f, c.getFloat(2), 0.001f)
+        }
+        db.close()
+    }
+
+    /** Hourly visibility for today's fog ahead (plans/261111-daily-bar-morning-fog.md, change 7). */
+    @Test
+    fun migrate86To87AddsHourlyVisibility() {
+        helper.createDatabase(testDb, 86).use { db ->
+            db.execSQL(
+                "INSERT INTO hourly_forecasts (dateTime, locationLat, locationLon, temperature, condition, source, " +
+                    "timestampToGroupPredictions, fetchedAt) VALUES (100, 37.417, -122.089, 53.2, 'Light Fog', 'OPEN_METEO', 5, 5)",
+            )
+        }
+        val db = helper.runMigrationsAndValidate(testDb, 87, true, WeatherDatabase.MIGRATION_86_87)
+        db.query("SELECT condition, visibilityMi FROM hourly_forecasts").use { c ->
+            c.moveToFirst()
+            assertEquals("Light Fog", c.getString(0))
+            assertTrue(c.isNull(1))
+        }
+        db.close()
+    }
 }

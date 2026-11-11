@@ -43,16 +43,27 @@ data class ForecastEntity(
     val hourlyNightPrecipMax: Int? = null,
     // Epoch ms of the first hour holding hourlyDayPrecipMax (the daily view's peak-hour label).
     val hourlyDayPrecipPeakAt: Long? = null,
+    // The morning's fog from the same hours (ForecastMorningFog): level code, burn-off °F, lowest
+    // visibility (statute miles). Level 0 = covered, no fog. plans/261111-daily-bar-morning-fog.md
+    val fogLevel: Int? = null,
+    val fogTopTemp: Float? = null,
+    val fogVisibilityMi: Float? = null,
 )
 
 val ForecastEntity.hourlySummary: com.weatherwidget.shared.util.DailyHourlySummaries.Summary
-    get() = com.weatherwidget.shared.util.DailyHourlySummaries.Summary(noonCloudPercent, hourlyDayPrecipMax, hourlyNightPrecipMax, hourlyDayPrecipPeakAt)
+    get() = com.weatherwidget.shared.util.DailyHourlySummaries.Summary(
+        noonCloudPercent, hourlyDayPrecipMax, hourlyNightPrecipMax, hourlyDayPrecipPeakAt,
+        fog = com.weatherwidget.shared.fog.MorningFog.fromColumns(fogLevel, fogTopTemp, fogVisibilityMi),
+    )
 
 fun ForecastEntity.withHourlySummary(summary: com.weatherwidget.shared.util.DailyHourlySummaries.Summary): ForecastEntity = copy(
     noonCloudPercent = summary.noonCloudPercent,
     hourlyDayPrecipMax = summary.dayPrecipMax,
     hourlyNightPrecipMax = summary.nightPrecipMax,
     hourlyDayPrecipPeakAt = summary.dayPrecipPeakAt,
+    fogLevel = summary.fog?.level,
+    fogTopTemp = summary.fog?.topTempF,
+    fogVisibilityMi = summary.fog?.visibilityMi,
 )
 
 /** This row as the shared daily model's shown row for [date] (`:shared` DailyColumnBuilder). */
@@ -72,6 +83,9 @@ fun ForecastEntity.toDailyForecast(date: java.time.LocalDate) = com.weatherwidge
     hourlyDayPrecipMax = hourlyDayPrecipMax,
     hourlyNightPrecipMax = hourlyNightPrecipMax,
     hourlyDayPrecipPeakAt = hourlyDayPrecipPeakAt,
+    fogLevel = fogLevel,
+    fogTopTemp = fogTopTemp,
+    fogVisibilityMi = fogVisibilityMi,
     fetchedAt = fetchedAt,
     lastConfirmedAt = lastConfirmedAt,
 )

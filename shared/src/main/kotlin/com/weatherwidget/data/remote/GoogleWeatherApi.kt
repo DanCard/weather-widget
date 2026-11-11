@@ -409,7 +409,18 @@ class GoogleWeatherApi(
             precipAmountMm = obj.precipMm(),
             cloudCover = obj.int("cloudCover"),
             source = WeatherSource.GOOGLE_WEATHER.id,
+            visibilityMi = visibilityMiles(obj),
         )
+    }
+
+    /** `visibility: {distance, unit}`, kilometres or miles by the request's unit system. */
+    internal fun visibilityMiles(obj: JsonObject): Float? {
+        val visibility = obj["visibility"] as? JsonObject ?: return null
+        val distance = (visibility["distance"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toDoubleOrNull() ?: return null
+        return when ((visibility["unit"] as? kotlinx.serialization.json.JsonPrimitive)?.content) {
+            "MILES" -> com.weatherwidget.shared.fog.VisibilityUnits.miles(distance)
+            else -> com.weatherwidget.shared.fog.VisibilityUnits.kilometersToMiles(distance)
+        }
     }
 
     /**

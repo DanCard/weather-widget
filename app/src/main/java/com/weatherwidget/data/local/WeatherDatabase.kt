@@ -13,7 +13,7 @@ import com.weatherwidget.shared.observations.MetarPlausibility
 
 @Database(
     entities = [ForecastEntity::class, HourlyForecastEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, ApiUsageEntity::class, DailyHistoryEntity::class, SourceViewDayEntity::class, SourceViewTrackingEntity::class, SourceLastViewEntity::class, HourlyActualEntity::class],
-    version = 85,
+    version = 87,
     exportSchema = true,
 )
 @TypeConverters(CloudVerticalKindConverters::class, StationTypeConverters::class)
@@ -1094,6 +1094,31 @@ abstract class WeatherDatabase : RoomDatabase() {
         // fragments of one (date, source, site) merged by the shared rule desktop's
         // One hourly table: live rows join the snapshots under their fetch time, then the snapshot table
         // takes the live table's name. `plans/261101-one-hourly-forecast-table.md`; desktop schema v36.
+        // Morning fog: forecasts.fogLevel/fogTopTemp/fogVisibilityMi (ForecastMorningFog) and
+        // daily_history.observedFog* (ObservedMorningFog). ADD COLUMN only. Desktop schema v38.
+        // plans/261111-daily-bar-morning-fog.md
+        // hourly_forecasts.visibilityMi: today's fog still ahead reads the provider's visibility from
+        // stored hours (the 86 build kept it in memory only). Desktop schema v39.
+        val MIGRATION_86_87 = object : Migration(86, 87) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                addColumnIfMissing(
+                    db, "hourly_forecasts",
+                    com.weatherwidget.data.local.desktop.DesktopWeatherDatabase.HOURLY_VISIBILITY_COLUMN, "REAL",
+                )
+            }
+        }
+
+        val MIGRATION_85_86 = object : Migration(85, 86) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                com.weatherwidget.data.local.desktop.DesktopWeatherDatabase.FORECAST_FOG_COLUMNS.forEach { (column, type) ->
+                    addColumnIfMissing(db, "forecasts", column, type)
+                }
+                com.weatherwidget.data.local.desktop.DesktopWeatherDatabase.DAILY_HISTORY_FOG_COLUMNS.forEach { (column, type) ->
+                    addColumnIfMissing(db, "daily_history", column, type)
+                }
+            }
+        }
+
         val MIGRATION_84_85 = object : Migration(84, 85) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(com.weatherwidget.data.local.desktop.DesktopWeatherDatabase.HOURLY_ACTUALS_DDL)
@@ -1252,7 +1277,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                             },
                         )
                         .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
-                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54, MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57, MIGRATION_57_58, MIGRATION_58_59, MIGRATION_59_60, MIGRATION_60_61, MIGRATION_61_62, MIGRATION_62_63, MIGRATION_63_64, MIGRATION_64_65, MIGRATION_65_66, MIGRATION_66_67, MIGRATION_67_68, MIGRATION_68_69, MIGRATION_69_70, MIGRATION_70_71, MIGRATION_71_72, MIGRATION_72_73, MIGRATION_73_74, MIGRATION_74_75, MIGRATION_75_76, MIGRATION_76_77, MIGRATION_77_78, MIGRATION_78_79, MIGRATION_79_80, MIGRATION_80_81, MIGRATION_81_82, MIGRATION_82_83, MIGRATION_83_84, MIGRATION_84_85)
+                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54, MIGRATION_54_55, MIGRATION_55_56, MIGRATION_56_57, MIGRATION_57_58, MIGRATION_58_59, MIGRATION_59_60, MIGRATION_60_61, MIGRATION_61_62, MIGRATION_62_63, MIGRATION_63_64, MIGRATION_64_65, MIGRATION_65_66, MIGRATION_66_67, MIGRATION_67_68, MIGRATION_68_69, MIGRATION_69_70, MIGRATION_70_71, MIGRATION_71_72, MIGRATION_72_73, MIGRATION_73_74, MIGRATION_74_75, MIGRATION_75_76, MIGRATION_76_77, MIGRATION_77_78, MIGRATION_78_79, MIGRATION_79_80, MIGRATION_80_81, MIGRATION_81_82, MIGRATION_82_83, MIGRATION_83_84, MIGRATION_84_85, MIGRATION_85_86, MIGRATION_86_87)
                         .fallbackToDestructiveMigration(dropAllTables = true)
                         .build()
                 INSTANCE = instance

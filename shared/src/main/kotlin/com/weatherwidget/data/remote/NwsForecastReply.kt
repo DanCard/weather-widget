@@ -166,6 +166,7 @@ object NwsForecastReply {
                 cloudCover = period.cloudCover,
                 precipAmountMm = period.precipAmountMm,
                 fetchedAt = nowMs,
+                visibilityMi = period.visibilityMi,
             )
         }
         val elapsedHourly = bundle.elapsedHourlyPeriods.map { period ->
@@ -177,6 +178,7 @@ object NwsForecastReply {
                 precipAmountMm = period.precipAmountMm,
                 cloudCover = period.cloudCover,
                 source = WeatherSource.NWS.id,
+                visibilityMi = period.visibilityMi,
             )
         }
         return hourly to elapsedHourly

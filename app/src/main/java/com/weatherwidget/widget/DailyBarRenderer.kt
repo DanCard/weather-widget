@@ -215,7 +215,39 @@ internal object DailyBarRenderer {
             )
         }
 
+        drawMorningFog(canvas, day, centerX, layout)
         return drawHighLabels(canvas, day, centerX, highY, layout, paints)
+    }
+
+    /**
+     * The see-through fog ellipse over the bars' cold end, after the bars and before the labels — the
+     * shared FogPatch ovals desktop's DailyForecastGraph fills too. plans/261111-daily-bar-morning-fog.md
+     */
+    private fun drawMorningFog(canvas: Canvas, day: DayData, centerX: Float, layout: DailyGraphLayoutInfo) {
+        val fog = day.fog ?: return
+        if (!fog.isFoggy) return
+        val column = layout.columnCenters.indexOfFirst { kotlin.math.abs(it - centerX) < 0.5f }
+        val columnWidth = if (column >= 0) layout.columnWidth(column) else layout.dayWidth
+        val barWidth = when {
+            day.isToday -> layout.barWidths.todayPx
+            day.isPast -> layout.barWidths.pastPx
+            else -> layout.barWidths.forecastPx
+        }
+        val ovals = com.weatherwidget.shared.fog.FogPatch.plan(
+            fog, day.fogLowTemp, day.fogHighTemp, layout::tempToY, centerX, columnWidth, barWidth / 2f,
+        )
+        // Local, not cached on this object: renders for different widgets may run concurrently.
+        val fogPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+        val fogOval = RectF()
+        ovals.forEach { oval ->
+            fogPaint.color = oval.argb
+            fogOval.set(oval.left, oval.top, oval.right, oval.bottom)
+            canvas.drawOval(fogOval, fogPaint)
+        }
+        if (ovals.isNotEmpty()) {
+            Log.v(TAG, "DAILY_FOG_DRAWN date=${day.date} level=${fog.level} top=${fog.topTempF} vis=${fog.visibilityMi} " +
+                "outer=${ovals.first().let { "${it.left},${it.top},${it.right},${it.bottom}" }} layers=${ovals.size}")
+        }
     }
 
     private fun drawHighLabels(

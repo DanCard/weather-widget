@@ -30,6 +30,8 @@ data class HourlyForecastEntity(
     val cloudCoverHigh: Int? = null, // High-layer only (0-100)
     // The fetch time. Rows from before 2026-10-24 carry the start of a 4 h / 12 h window.
     val timestampToGroupPredictions: Long = fetchedAt,
+    // Provider visibility (statute miles): today's fog still ahead (ForecastMorningFog). v87.
+    val visibilityMi: Float? = null,
 )
 
 fun HourlyForecastEntity.toHourlyForecast() = com.weatherwidget.data.model.HourlyForecast(
@@ -46,6 +48,7 @@ fun HourlyForecastEntity.toHourlyForecast() = com.weatherwidget.data.model.Hourl
     fetchedAt = fetchedAt,
     locationLat = locationLat,
     locationLon = locationLon,
+    visibilityMi = visibilityMi,
 )
 
 /**
@@ -76,4 +79,5 @@ fun com.weatherwidget.data.model.HourlyForecast.toEntity(
         cloudCoverHigh = cloudCoverHigh,
         precipAmountMm = precipAmountMm,
         fetchedAt = fetchedAt,
+        visibilityMi = visibilityMi,
     )

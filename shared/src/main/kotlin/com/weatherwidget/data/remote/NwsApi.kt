@@ -466,6 +466,10 @@ class NwsApi
             val temperatureByHour = parseGridTemperatureByHour(properties)
             val precipProbabilityByHour = parseGridHourlySeries(properties["probabilityOfPrecipitation"]?.jsonObject)
                 .mapValues { (_, value) -> value.toInt().coerceIn(0, 100) }
+            // Metres on the grid (uom wmoUnit:m); statute miles for the fog summary.
+            val visibilityByHour = parseGridHourlySeries(properties["visibility"]?.jsonObject)
+                .mapNotNull { (hour, meters) -> com.weatherwidget.shared.fog.VisibilityUnits.metersToMiles(meters)?.let { hour to it } }
+                .toMap()
 
             Log.d(
                 TAG,
@@ -478,6 +482,7 @@ class NwsApi
                 DailyTemperatureExtremes(maxByDate, minByDate, rejectedTemps),
                 temperatureByHour = temperatureByHour,
                 precipProbabilityByHour = precipProbabilityByHour,
+                visibilityByHour = visibilityByHour,
             )
         }
 
@@ -735,6 +740,7 @@ class NwsApi
             val precipProbability: Int? = null,
             val precipAmountMm: Float? = null,
             val cloudCover: Int? = null, // Sky cover percentage (0-100)
+            val visibilityMi: Float? = null, // From the grid's visibility layer (statute miles)
         )
 
         data class QuantitativePrecipitationInterval(
@@ -758,6 +764,8 @@ class NwsApi
             val temperatureByHour: Map<Long, Float> = emptyMap(),
             /** Hourly PoP (0-100) keyed like [temperatureByHour]. */
             val precipProbabilityByHour: Map<Long, Int> = emptyMap(),
+            /** Hourly visibility (statute miles) keyed like [temperatureByHour]. */
+            val visibilityByHour: Map<Long, Float> = emptyMap(),
         )
 
         private fun parseQuantitativePrecipitationMm(obj: JsonObject?): Float? {

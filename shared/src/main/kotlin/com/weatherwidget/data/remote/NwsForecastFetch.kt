@@ -87,6 +87,7 @@ object NwsForecastFetch {
             rawHourlyPeriods,
             gridpoints.skyCoverByHour,
             gridpoints.qpfIntervals,
+            gridpoints.visibilityByHour,
         )
 
         NwsForecastBundle(
@@ -124,6 +125,7 @@ object NwsForecastFetch {
                     shortForecast = NwsSkyCoverCondition.shortForecastFor(cover),
                     precipProbability = gridpoints.precipProbabilityByHour[hourMs],
                     cloudCover = cover,
+                    visibilityMi = gridpoints.visibilityByHour[hourMs],
                 )
             }
     }

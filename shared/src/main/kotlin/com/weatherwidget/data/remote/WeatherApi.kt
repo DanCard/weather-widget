@@ -133,7 +133,8 @@ class WeatherApi(
                         precipProbability = hourObj["chance_of_rain"]?.jsonPrimitive?.intOrNull
                             ?: hourObj["chance_of_snow"]?.jsonPrimitive?.intOrNull,
                         precipAmountMm = hourObj["precip_mm"]?.jsonPrimitive?.floatOrNull,
-                        cloudCover = hourObj["cloud"]?.jsonPrimitive?.intOrNull
+                        cloudCover = hourObj["cloud"]?.jsonPrimitive?.intOrNull,
+                        visibilityMi = com.weatherwidget.shared.fog.VisibilityUnits.miles(hourObj["vis_miles"]?.jsonPrimitive?.content?.toDoubleOrNull()),
                     )
                 )
             }

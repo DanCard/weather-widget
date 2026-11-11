@@ -51,6 +51,7 @@ object DailyBlendWrite {
                 .filter { LocationMatch.sameSite(it.locationLat, it.locationLon, latitude, longitude) }
             if (fragments.isEmpty()) {
                 inserts += new.copy(lastWriter = DailyHistoryWriter.BLEND_RECOMPUTE.storedValue)
+                fogLine(date, new, null)?.let { logs += it }
                 return@forEach
             }
             var changedAny = false
@@ -94,7 +95,11 @@ object DailyBlendWrite {
                     precipDayMm = new.precipDayMm,
                     precipNightMm = new.precipNightMm,
                     lastWriter = DailyHistoryWriter.BLEND_RECOMPUTE.storedValue,
+                ).withObservedFog(
+                    // The trio moves together; a recompute that could not judge fog keeps the stored one.
+                    if (new.observedFogLevel != null) new.observedFog else existing.observedFog,
                 )
+                fogLine(date, merged, existing)?.let { logs += it }
                 if (merged.copy(lastWriter = existing.lastWriter) != existing) {
                     changedAny = true
                     logs += Line(
@@ -117,6 +122,19 @@ object DailyBlendWrite {
             }
         }
         return Plan(inserts, updates, logs)
+    }
+
+    /** A changed observed fog, once per write (DEBUG, so it reaches `app_logs`). */
+    private fun fogLine(date: LocalDate, row: DailyHistory, existing: DailyHistory?): Line? {
+        if (row.observedFog == existing?.observedFog) return null
+        val fog = row.observedFog ?: return null
+        if (existing == null && !fog.isFoggy) return null
+        return Line(
+            "DAILY_FOG_OBSERVED",
+            "date=$date src=${row.source} level=${existing?.observedFogLevel}->${fog.level} " +
+                "top=${fog.topTempF} vis=${fog.visibilityMi}",
+            "DEBUG",
+        )
     }
 
     /** The conditional write found the row changed by a concurrent writer: left alone, next recompute retries. */

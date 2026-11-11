@@ -24,8 +24,10 @@ object DailyHourlySummaries {
         val nightPrecipMax: Int? = null,
         // Epoch-ms start of the first hour holding [dayPrecipMax]; set and carried with it, never alone.
         val dayPrecipPeakAt: Long? = null,
+        // The 00:00–12:00 window's fog (ForecastMorningFog); MorningFog.NONE = covered, no fog.
+        val fog: com.weatherwidget.shared.fog.MorningFog? = null,
     ) {
-        val isEmpty: Boolean get() = noonCloudPercent == null && dayPrecipMax == null && nightPrecipMax == null
+        val isEmpty: Boolean get() = noonCloudPercent == null && dayPrecipMax == null && nightPrecipMax == null && fog == null
     }
 
     /**
@@ -68,6 +70,7 @@ object DailyHourlySummaries {
             dayPrecipMax = maxima.dayMax.takeIf { windowCovered(rows, dayStart, dayEnd) },
             dayPrecipPeakAt = maxima.dayPeakAt.takeIf { windowCovered(rows, dayStart, dayEnd) },
             nightPrecipMax = maxima.nightMax.takeIf { windowCovered(rows, dayEnd, nightEnd) },
+            fog = com.weatherwidget.shared.fog.ForecastMorningFog.forDate(rows, date, zoneId),
         )
     }
 
@@ -98,6 +101,8 @@ object DailyHourlySummaries {
             dayPrecipMax = day.dayPrecipMax,
             nightPrecipMax = incoming.nightPrecipMax ?: prior.nightPrecipMax,
             dayPrecipPeakAt = day.dayPrecipPeakAt,
+            // The level, top and visibility move as one value; NONE (not null) replaces an older fog.
+            fog = incoming.fog ?: prior.fog,
         )
     }
 

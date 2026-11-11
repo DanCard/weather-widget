@@ -57,7 +57,7 @@ class OpenMeteoApi
             const val DAILY_VARIABLES =
                 "temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max,precipitation_sum"
             const val HOURLY_VARIABLES =
-                "temperature_2m,weather_code,precipitation_probability,precipitation,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high"
+                "temperature_2m,weather_code,precipitation_probability,precipitation,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,visibility"
             const val MINUTELY_15_VARIABLES =
                 "temperature_2m,precipitation,weather_code,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high"
 
@@ -266,6 +266,11 @@ class OpenMeteoApi
                 hourly?.get("cloud_cover_high")?.jsonArray?.map {
                     it.jsonPrimitive.content.toIntOrNull()
                 } ?: emptyList()
+            // Metres (Open-Meteo has no length unit parameter for visibility).
+            val hourlyVisibilityMi =
+                hourly?.get("visibility")?.jsonArray?.map {
+                    com.weatherwidget.shared.fog.VisibilityUnits.metersToMiles(it.jsonPrimitive.content.toDoubleOrNull())
+                } ?: emptyList()
 
             val zone = timezone?.let { java.time.ZoneId.of(it) } ?: java.time.ZoneId.systemDefault()
             val hourlyForecasts =
@@ -289,6 +294,7 @@ class OpenMeteoApi
                             cloudCoverLow = hourlyCloudCoverLow.getOrNull(index)?.coerceIn(0, 100),
                             cloudCoverMid = hourlyCloudCoverMid.getOrNull(index)?.coerceIn(0, 100),
                             cloudCoverHigh = hourlyCloudCoverHigh.getOrNull(index)?.coerceIn(0, 100),
+                            visibilityMi = hourlyVisibilityMi.getOrNull(index),
                         )
                     } else {
                         null

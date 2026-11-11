@@ -104,6 +104,8 @@ class OpenWeatherMapApi(
             val rain3h = obj["rain"]?.jsonObject?.get("3h")?.jsonPrimitive?.floatOrNull ?: 0f
             val snow3h = obj["snow"]?.jsonObject?.get("3h")?.jsonPrimitive?.floatOrNull ?: 0f
             val cloudCover = obj["clouds"]?.jsonObject?.get("all")?.jsonPrimitive?.intOrNull
+            // Metres, capped by OWM at 10 km.
+            val visibilityMi = com.weatherwidget.shared.fog.VisibilityUnits.metersToMiles(obj["visibility"]?.jsonPrimitive?.intOrNull)
 
             OwmPeriod(
                 dtMs = dtMs,
@@ -113,6 +115,7 @@ class OpenWeatherMapApi(
                 popPercent = pop,
                 precipMm = rain3h + snow3h,
                 cloudCover = cloudCover,
+                visibilityMi = visibilityMi,
                 localDate = localDate,
                 hourOfDay = hourOfDay,
             )
@@ -147,6 +150,7 @@ class OpenWeatherMapApi(
                     precipAmountMm = current.precipMm / 3f,
                     cloudCover = current.cloudCover,
                     source = WeatherSource.OPEN_WEATHER_MAP.id,
+                    visibilityMi = current.visibilityMi,
                 )
             )
 
@@ -168,6 +172,7 @@ class OpenWeatherMapApi(
                         precipAmountMm = current.precipMm / 3f,
                         cloudCover = cloudDiff?.let { current.cloudCover!! + (it * (1f / 3f)).toInt() } ?: current.cloudCover,
                         source = WeatherSource.OPEN_WEATHER_MAP.id,
+                        visibilityMi = current.visibilityMi,
                     )
                 )
 
@@ -180,6 +185,8 @@ class OpenWeatherMapApi(
                         precipAmountMm = current.precipMm / 3f,
                         cloudCover = cloudDiff?.let { current.cloudCover!! + (it * (2f / 3f)).toInt() } ?: next.cloudCover ?: current.cloudCover,
                         source = WeatherSource.OPEN_WEATHER_MAP.id,
+                        // The lower of its neighbours: interpolating could invent clear air between fog.
+                        visibilityMi = listOfNotNull(current.visibilityMi, next.visibilityMi).minOrNull(),
                     )
                 )
             }
@@ -220,6 +227,7 @@ class OpenWeatherMapApi(
         val popPercent: Int?,
         val precipMm: Float,
         val cloudCover: Int?,
+        val visibilityMi: Float? = null,
         val localDate: String,
         val hourOfDay: Int,
     )

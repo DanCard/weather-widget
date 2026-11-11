@@ -86,7 +86,7 @@ class TomorrowIoApi(
             parameter(
                 "fields",
                 "temperature,temperatureMax,temperatureMin,weatherCode,precipitationProbability," +
-                    "precipitationAccumulation,cloudCover,cloudBase,cloudCeiling",
+                    "precipitationAccumulation,cloudCover,cloudBase,cloudCeiling,visibility",
             )
             if (parts.hourly) url.parameters.append("timesteps", "1h")
             if (parts.daily) url.parameters.append("timesteps", "1d")
@@ -156,6 +156,8 @@ class TomorrowIoApi(
                 cloudCover = cloudCover,
                 cloudEnvelopeBaseMeters = baseMeters,
                 cloudEnvelopeTopMeters = ceilingMeters,
+                // Miles: the request asks for imperial units.
+                visibilityMi = com.weatherwidget.shared.fog.VisibilityUnits.miles(values["visibility"]?.jsonPrimitive?.doubleOrNull),
             )
         }
 

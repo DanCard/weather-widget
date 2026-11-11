@@ -96,7 +96,10 @@ interface DailyHistoryDao {
             precipDayMm = :precipDayMm,
             precipNightMm = :precipNightMm,
             lastWriter = :lastWriter,
-            updatedAt = :updatedAt
+            updatedAt = :updatedAt,
+            observedFogLevel = :observedFogLevel,
+            observedFogTopTemp = :observedFogTopTemp,
+            observedFogVisibilityMi = :observedFogVisibilityMi
         WHERE date = :date
           AND source = :source
           AND locationLat = :locationLat
@@ -120,6 +123,9 @@ interface DailyHistoryDao {
         lastWriter: String?,
         updatedAt: Long,
         expectedUpdatedAt: Long,
+        observedFogLevel: Int?,
+        observedFogTopTemp: Float?,
+        observedFogVisibilityMi: Float?,
     ): Int
 
     @Query(

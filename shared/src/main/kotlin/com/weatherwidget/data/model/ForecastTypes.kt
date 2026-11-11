@@ -36,6 +36,9 @@ data class HourlyForecast(
      */
     val cloudEnvelopeBaseMeters: Int? = null,
     val cloudEnvelopeTopMeters: Int? = null,
+    // Provider visibility (statute miles). Carried in memory from the fetch to the daily fog summary
+    // (ForecastMorningFog); not stored per hour. plans/261111-daily-bar-morning-fog.md
+    val visibilityMi: Float? = null,
 )
 
 data class DailyForecast(
@@ -61,6 +64,10 @@ data class DailyForecast(
     val hourlyNightPrecipMax: Int? = null,
     // Epoch ms of the first hour holding hourlyDayPrecipMax (the daily view's peak-hour label).
     val hourlyDayPrecipPeakAt: Long? = null,
+    // The morning's fog from the same hours (ForecastMorningFog): level, burn-off °F, lowest visibility.
+    val fogLevel: Int? = null,
+    val fogTopTemp: Float? = null,
+    val fogVisibilityMi: Float? = null,
     // NWS only: epoch ms the day's daytime period ends; a row whose period is over is not stored
     // (DailyForecastWrite). Never persisted.
     val periodEndMs: Long? = null,
@@ -71,13 +78,19 @@ data class DailyForecast(
     val lastConfirmedAt: Long? = null,
 ) {
     val hourlySummary: com.weatherwidget.shared.util.DailyHourlySummaries.Summary
-        get() = com.weatherwidget.shared.util.DailyHourlySummaries.Summary(noonCloudPercent, hourlyDayPrecipMax, hourlyNightPrecipMax, hourlyDayPrecipPeakAt)
+        get() = com.weatherwidget.shared.util.DailyHourlySummaries.Summary(
+            noonCloudPercent, hourlyDayPrecipMax, hourlyNightPrecipMax, hourlyDayPrecipPeakAt,
+            fog = com.weatherwidget.shared.fog.MorningFog.fromColumns(fogLevel, fogTopTemp, fogVisibilityMi),
+        )
 
     fun withHourlySummary(summary: com.weatherwidget.shared.util.DailyHourlySummaries.Summary): DailyForecast = copy(
         noonCloudPercent = summary.noonCloudPercent,
         hourlyDayPrecipMax = summary.dayPrecipMax,
         hourlyNightPrecipMax = summary.nightPrecipMax,
         hourlyDayPrecipPeakAt = summary.dayPrecipPeakAt,
+        fogLevel = summary.fog?.level,
+        fogTopTemp = summary.fog?.topTempF,
+        fogVisibilityMi = summary.fog?.visibilityMi,
     )
 }
 

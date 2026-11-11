@@ -12,6 +12,7 @@ interchangeable measurements.
 | `forecastHighTemp` / `forecastLowTemp` | Frozen forecast used for the past-day comparison |
 | `priorForecastHighTemp` / `priorForecastLowTemp` | Previous day's forecast for this date, selected at the shared cutoff rules |
 | `actualsSource`, `apiStationId`, `apiStationDistanceKm`, `lastWriter` | Provenance used for selection and auditing |
+| `observedFogLevel` / `observedFogTopTemp` / `observedFogVisibilityMi` | The morning's observed fog from the source's actuals provider (`ObservedMorningFog`): level code (0 = none, 1 hint … 4 dense), burn-off °F, lowest visibility. Written by `DailyBlendRecomputeRun`; a recompute that cannot judge fog keeps the stored values |
 
 A missing provider actual must remain null rather than being silently replaced with a forecast.
 Display fallbacks and accuracy-baseline fallback are separate decisions with their own shared rules.
@@ -106,3 +107,15 @@ sources must not be graded against their own elapsed forecasts.
 For implementation history and the measurements that motivated these rules, see the dated
 `plans/260808-nws-actuals-forecast-contamination.md` and the later shared-runner investigations.
 Those documents explain prior bugs; the current rules are the shared code described above.
+
+## Observed morning fog
+
+The daily bar's fog ellipse on a past day reads the three `observedFog*` columns
+(`plans/261111-daily-bar-morning-fog.md`). `ObservedMorningFog` reads the readings whose `api` is the
+source's resolved actuals provider over 00:00–12:00 local, using the nearest station that reported in
+each hour. A raw METAR is foggy when the station flags `FG`/`BR`, when its visibility is at or below
+⅝ SM without precipitation, or (a faint hint only) when temperature equals dewpoint with wind ≤ 5 kt
+and visibility under 10 SM or cloud at or below 500 ft. Other rows read their condition word. The top
+is the temperature at the first fog-free report after the last foggy one. Today is computed live from
+the same rows (`DailyActualsAssembler`), like today's blend. Bumping
+`DailyBlendRecomputeRun.WRITE_RULES_VERSION` to 3 backfilled the days still in reach.

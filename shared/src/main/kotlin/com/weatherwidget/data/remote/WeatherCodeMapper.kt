@@ -72,7 +72,9 @@ object WeatherCodeMapper {
             "THUNDER" in type -> "Thunderstorm"
             "SNOW" in type -> "Snow"
             "RAIN" in type || "SHOWER" in type -> "Rain"
-            "FOG" in type || "HAZE" in type -> "Fog"
+            "FOG" in type -> "Fog"
+            // Haze is smoke or dust, not fog: it must not draw the daily fog ellipse (FogLevel).
+            "HAZE" in type -> "Haze"
             else -> "Unknown"
         }
     }

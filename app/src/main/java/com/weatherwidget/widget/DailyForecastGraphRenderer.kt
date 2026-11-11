@@ -209,6 +209,10 @@ object DailyForecastGraphRenderer {
         val priorBarRainPercent: Int? = null,
         val ghostLineHigh: Float? = null,
         override val cloudCoverRatioOverride: Float? = null,
+        /** Morning fog ellipse (shared DailyMorningFog / FogPatch) and the temperatures it spans. */
+        val fog: com.weatherwidget.shared.fog.MorningFog? = null,
+        val fogLowTemp: Float? = null,
+        val fogHighTemp: Float? = null,
         override val daysFromToday: Int = 0,
         /** Local hour-of-day (0–23) for the today column's actual-tracking cutoffs; null = legacy. */
         val nowHour: Int? = null,
@@ -534,6 +538,7 @@ object DailyForecastGraphRenderer {
         override fun drawRoundRect(rect: RectF, rx: Float, ry: Float, paint: Paint) = Unit
         override fun drawRoundRect(left: Float, top: Float, right: Float, bottom: Float, rx: Float, ry: Float, paint: Paint) = Unit
         override fun drawCircle(cx: Float, cy: Float, radius: Float, paint: Paint) = Unit
+        override fun drawOval(oval: RectF, paint: Paint) = Unit
         override fun drawPath(path: Path, paint: Paint) = Unit
         override fun drawText(text: String, x: Float, y: Float, paint: Paint) = Unit
         override fun drawText(text: CharSequence, start: Int, end: Int, x: Float, y: Float, paint: Paint) = Unit

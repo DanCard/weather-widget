@@ -186,6 +186,7 @@ class DesktopWeatherDatabase(
                     addForecastHindcastColumns(stmt)
                     addForecastHourlySummaryColumns(stmt)
                     addColumnIfMissing(stmt, "forecasts", FORECAST_DAY_PRECIP_PEAK_COLUMN, "INTEGER")
+                    addFogColumns(stmt)
                     stmt.execute("PRAGMA user_version = $SCHEMA_VERSION")
                 } else {
                     migrate(conn, currentVersion, SCHEMA_VERSION)
@@ -646,6 +647,17 @@ class DesktopWeatherDatabase(
                 stmt.execute("DROP INDEX IF EXISTS idx_hourly_location")
                 stmt.execute(HOURLY_FORECASTS_INDEX)
             }
+            // v37: hourly_actuals, created by initialize() before migrate() runs. Room MIGRATION_84_85.
+            // v38: morning fog on forecasts (ForecastMorningFog) and observed fog on daily_history
+            // (ObservedMorningFog). Room MIGRATION_85_86. plans/261111-daily-bar-morning-fog.md
+            if (from < 38) {
+                addFogColumns(stmt)
+            }
+            // v39: hourly_forecasts.visibilityMi, so today's fog still ahead reads the provider's
+            // visibility from stored hours (Room MIGRATION_86_87).
+            if (from < 39) {
+                addColumnIfMissing(stmt, "hourly_forecasts", HOURLY_VISIBILITY_COLUMN, "REAL")
+            }
             stmt.execute("PRAGMA user_version = $to")
         }
     }
@@ -687,6 +699,12 @@ class DesktopWeatherDatabase(
 
     private fun addForecastHourlySummaryColumns(stmt: java.sql.Statement) {
         FORECAST_HOURLY_SUMMARY_COLUMNS.forEach { addColumnIfMissing(stmt, "forecasts", it, "INTEGER") }
+    }
+
+    private fun addFogColumns(stmt: java.sql.Statement) {
+        FORECAST_FOG_COLUMNS.forEach { (column, type) -> addColumnIfMissing(stmt, "forecasts", column, type) }
+        DAILY_HISTORY_FOG_COLUMNS.forEach { (column, type) -> addColumnIfMissing(stmt, "daily_history", column, type) }
+        if (hasTable(stmt, "hourly_forecasts")) addColumnIfMissing(stmt, "hourly_forecasts", HOURLY_VISIBILITY_COLUMN, "REAL")
     }
 
     private fun addColumnIfMissing(stmt: java.sql.Statement, table: String, column: String, type: String) {
@@ -796,7 +814,7 @@ class DesktopWeatherDatabase(
          * the v24 bump, even though that test is about the v22 cloud columns and not about the
          * version number at all.
          */
-        const val SCHEMA_VERSION = 37
+        const val SCHEMA_VERSION = 39
         private const val HOURLY_TABLE_MERGE_VERSION = 36
 
         /** Room's `HourlyActualEntity` declares the same columns (MIGRATION_84_85). */
@@ -871,6 +889,21 @@ class DesktopWeatherDatabase(
          */
         val FORECAST_HOURLY_SUMMARY_COLUMNS = listOf("noonCloudPercent", "hourlyDayPrecipMax", "hourlyNightPrecipMax")
         const val FORECAST_DAY_PRECIP_PEAK_COLUMN = "hourlyDayPrecipPeakAt"
+
+        /**
+         * The morning's forecast fog on the daily row (`ForecastMorningFog`) and the provider's
+         * observed fog on `daily_history` (`ObservedMorningFog`): level code, burn-off °F, lowest
+         * visibility (statute miles). Shared by desktop v38 and Room MIGRATION_85_86.
+         */
+        /** Provider visibility per hour (statute miles). Desktop v39, Room MIGRATION_86_87. */
+        const val HOURLY_VISIBILITY_COLUMN = "visibilityMi"
+
+        val FORECAST_FOG_COLUMNS = listOf("fogLevel" to "INTEGER", "fogTopTemp" to "REAL", "fogVisibilityMi" to "REAL")
+        val DAILY_HISTORY_FOG_COLUMNS = listOf(
+            "observedFogLevel" to "INTEGER",
+            "observedFogTopTemp" to "REAL",
+            "observedFogVisibilityMi" to "REAL",
+        )
 
         /**
          * One-time repair matching `GoogleWeatherApi.lowsFiledUnderTheirMorning`: Google's daily low
