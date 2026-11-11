@@ -220,6 +220,8 @@ object WidgetPushDispatcher {
         bodyComplete: Boolean = true,
         origin: Origin = Origin.UNSPECIFIED,
     ) {
+        // Under instrumentation, never paint the user's real launcher widgets (TestModeWidgetGuard).
+        if (!TestModeWidgetGuard.allows(appWidgetId, caller, origin.name)) return
         val hadFull = fullPushedThisProcess.contains(appWidgetId)
         val onPlaceholder = placeholderTree.contains(appWidgetId) && caller !in PLACEHOLDER_CALLERS
         val currentElapsedMs = elapsedRealtimeProvider()

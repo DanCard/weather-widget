@@ -95,6 +95,9 @@ class LocaleSwitchIntegrationTest : IsolatedIntegrationTest("locale_switch") {
                 Intent(context, WidgetActionReceiver::class.java).apply {
                     action = WidgetActions.ACTION_REFRESH
                     putExtra(WidgetActions.EXTRA_UI_ONLY, true)
+                    // Only this test's widget: an untargeted refresh repaints every widget, the
+                    // user's real launcher widget included (plans/261111-tests-never-paint-real-widgets.md).
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
                 }
             context.sendBroadcast(intent)
 

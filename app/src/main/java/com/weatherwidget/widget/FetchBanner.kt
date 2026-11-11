@@ -88,6 +88,7 @@ object FetchBanner {
     }
 
     private fun push(context: Context, appWidgetManager: AppWidgetManager, id: Int, text: String?) {
+        if (!TestModeWidgetGuard.allows(id, caller = "FETCH_BANNER")) return
         runCatching {
             val views = RemoteViews(context.packageName, R.layout.widget_weather)
             if (text != null) {

@@ -329,7 +329,9 @@ object DailyViewHandler : WidgetViewHandler {
             )
             bindTransientMessage(views, stateManager, appWidgetId, callerTag = "DAILY")
             appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=DAILY state=warning thread=${Thread.currentThread().name}")
-            appWidgetManager.updateAppWidget(appWidgetId, views)
+            if (com.weatherwidget.widget.TestModeWidgetGuard.allows(appWidgetId, caller = "DAILY_WARNING")) {
+                appWidgetManager.updateAppWidget(appWidgetId, views)
+            }
             return
         }
 
