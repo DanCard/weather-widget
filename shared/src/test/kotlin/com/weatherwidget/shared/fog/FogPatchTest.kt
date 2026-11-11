@@ -22,12 +22,12 @@ class FogPatchTest {
         fun alpha(v: Float) = FogOpacity.alpha(MorningFog(FogLevel.FOG, 55f, v))
         assertEquals(0.15f, alpha(6f), 0.001f)
         assertEquals(0.15f, alpha(10f), 0.001f)
-        assertEquals(0.240f, alpha(3f), 0.002f)
-        assertEquals(0.381f, alpha(1f), 0.002f)
-        assertEquals(0.419f, alpha(0.75f), 0.002f)
-        assertEquals(0.560f, alpha(0.25f), 0.002f)
-        assertEquals(0.65f, alpha(0.125f), 0.001f)
-        assertEquals(0.65f, alpha(0f), 0.001f)
+        assertEquals(0.284f, alpha(3f), 0.002f)
+        assertEquals(0.497f, alpha(1f), 0.002f)
+        assertEquals(0.553f, alpha(0.75f), 0.002f)
+        assertEquals(0.766f, alpha(0.25f), 0.002f)
+        assertEquals(0.90f, alpha(0.125f), 0.001f)
+        assertEquals(0.90f, alpha(0f), 0.001f)
         // The hint runs on from 15 % at 6 SM down to 5 % at 10 SM: one continuous spectrum.
         assertEquals(0.125f, FogOpacity.alpha(MorningFog(FogLevel.HINT, 55f, 7f)), 0.001f)
         assertEquals(0.05f, FogOpacity.alpha(MorningFog(FogLevel.HINT, 55f, 10f)), 0.001f)
@@ -79,7 +79,8 @@ class FogPatchTest {
         val high = alphaAt(outer.bottom - 0.75f * height)
         println("alpha low=$low high=$high")
         assertTrue(low > 2.5f * high)
-        assertTrue(high < 0.2f)
+        // Relative to the cap: the layers compound, so a higher cap lifts the top proportionally (0.28 of 0.90).
+        assertTrue(high < 0.35f * FogOpacity.MAX_ALPHA)
     }
 
     @Test

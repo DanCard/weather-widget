@@ -125,13 +125,13 @@ object FogLevel {
 
 /**
  * How opaque the fog ellipse is (user, 2026-11-11: dynamic, from visibility): 15 % at 6 SM rising on a
- * log scale to [MAX_ALPHA] at ⅛ SM (raised 35 % → 50 % → 65 % the same day at the user's request).
+ * log scale to [MAX_ALPHA] at ⅛ SM (raised 35 % → 50 % → 65 % → 80 % → 90 % at the user's request: dense fog read as wispy).
  * A [FogLevel.HINT] (saturated air, no fog reported) runs continuously from [HINT_ALPHA] at 10 SM to
  * [MIN_ALPHA] at 6 SM, so the whole range is one spectrum rather than fixed steps.
  */
 object FogOpacity {
     const val MIN_ALPHA = 0.15f
-    const val MAX_ALPHA = 0.65f
+    const val MAX_ALPHA = 0.90f
     const val HINT_ALPHA = 0.05f
     private const val HINT_CLEAR_MI = 10f
     private const val CLEAR_MI = 6f
