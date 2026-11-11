@@ -54,6 +54,25 @@ class ForecastMorningFogTest {
     }
 
     @Test
+    fun `trailing mist hours do not raise the top of a fog morning`() {
+        // Fog by visibility to 07:00, then mist words with 3 SM to 09:00, clear at 10:00.
+        val fogThenMist = openMeteo.map { h ->
+            when {
+                h.dateTime <= at(7) && h.condition == "Light Fog" -> h.copy(condition = "Fog", visibilityMi = 0.2f)
+                h.condition == "Light Fog" -> h.copy(condition = "Mist", visibilityMi = 3f)
+                else -> h.copy(visibilityMi = 9f)
+            }
+        }
+        val fog = ForecastMorningFog.forDate(fogThenMist, day, zone)!!
+        println("fogThenMist fog=$fog")
+        assertEquals(FogLevel.DENSE, fog.level)
+        assertEquals(0.2f, fog.visibilityMi!!, 0f)
+        // Midway 07:00 fog (53.0°) and 08:00 mist (53.0°); the mist to 09:00 and the clear 10:00 (56.9°)
+        // would have made it 55.4°.
+        assertEquals(53.0f, fog.topTempF!!, 0.001f)
+    }
+
+    @Test
     fun `no fog is NONE when covered and null when not`() {
         val clear = openMeteo.map { it.copy(condition = "Clear") }
         assertEquals(MorningFog.NONE, ForecastMorningFog.forDate(clear, day, zone))

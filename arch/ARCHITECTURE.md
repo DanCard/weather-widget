@@ -164,8 +164,8 @@ under the labels (`plans/261111-daily-bar-morning-fog.md`). `DailyColumnBuilder`
 observed fog so far combined with the forecast for the hours to noon, future days the forecast row's
 `fogLevel`/`fogTopTemp`/`fogVisibilityMi` (`ForecastMorningFog`, computed at persist time from the
 fetch's hourly visibility and words, carried forward like noon cloud). `FogPatch` plans the nested ovals
-(height from the low to the burn-off temperature, opacity from the lowest visibility on a log scale,
-5 % for a saturation-only hint); `DailyBarRenderer` and `DailyForecastGraph` only fill them.
+(height from the low to the burn-off temperature of the fog proper, layers gathered toward the low so
+the top fades, opacity from the lowest visibility on a log scale, 5 % for a saturation-only hint); `DailyBarRenderer` and `DailyForecastGraph` only fill them.
 
 Android's `WeatherWidgetProvider` and interaction coordinators route widget actions, serialize
 interactions per widget, load cached state, and paint through the widget render pipeline. RemoteViews

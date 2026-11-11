@@ -12,9 +12,10 @@ import java.time.ZoneId
  *
  * An hour is foggy when its words say fog or mist ([FogLevel.fromCondition]) or its visibility is at
  * most [FogLevel.FOG_VISIBILITY_MI]. Its level comes from the provider's visibility when there is one,
- * else from the words. The top is midway between the last foggy hour's temperature and the first
- * fog-free hour's ([MorningFog.burnOffTemp]): the fog ended between them, and the air warms fast once it
- * has (Open-Meteo 2026-11-11: last fog 09:00 at 53.9°, clear 10:00 at 56.9° → 55.4°).
+ * else from the words. The top is midway between the last hour at the morning's height level
+ * ([MorningFog.heightLevel]: fog proper when there was any, so trailing mist does not raise it) and the
+ * next hour below it ([MorningFog.burnOffTemp]): the fog ended between them, and the air warms fast once
+ * it has (Open-Meteo 2026-11-11: last fog 09:00 at 53.9°, clear 10:00 at 56.9° → 55.4°).
  */
 object ForecastMorningFog {
 
@@ -39,10 +40,13 @@ object ForecastMorningFog {
         val inWindow = ordered.filter { it.dateTime in startMs until endMs }
         val foggy = inWindow.mapNotNull { hour -> hourFog(hour)?.let { hour to it } }
         if (foggy.isEmpty()) return MorningFog.NONE
-        val last = foggy.last().first
-        val firstClear = ordered.firstOrNull { it.dateTime > last.dateTime && hourFog(it) == null }
+        val level = foggy.maxOf { it.second.first }
+        // The top comes from the fog proper; trailing mist hours do not raise it (MorningFog.heightLevel).
+        val heightLevel = MorningFog.heightLevel(level)
+        val last = foggy.last { it.second.first >= heightLevel }.first
+        val firstClear = ordered.firstOrNull { it.dateTime > last.dateTime && (hourFog(it)?.first ?: FogLevel.NONE) < heightLevel }
         return MorningFog(
-            level = foggy.maxOf { it.second.first },
+            level = level,
             topTempF = MorningFog.burnOffTemp(last.temperature, firstClear?.temperature ?: last.temperature),
             visibilityMi = foggy.mapNotNull { it.second.second }.minOrNull(),
         )

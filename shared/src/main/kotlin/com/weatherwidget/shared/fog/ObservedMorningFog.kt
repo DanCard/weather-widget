@@ -22,9 +22,10 @@ import kotlin.math.abs
  *     [FogLevel.HINT].
  * Any other report (a model analysis, an NWS text-only row) is read from its condition word.
  *
- * The top is midway between the last foggy report's temperature and the first fog-free one's
- * ([MorningFog.burnOffTemp]), or the latest report's while the fog has not cleared. A saturation hint
- * never prolongs a morning that had real fog.
+ * The top is midway between the last report at the morning's height level ([MorningFog.heightLevel]:
+ * fog proper when there was any) and the next report below it ([MorningFog.burnOffTemp]), or the latest
+ * report's while the fog has not cleared. A saturation hint never prolongs a morning that had real fog,
+ * and trailing mist never raises a morning that had fog.
  */
 object ObservedMorningFog {
 
@@ -58,11 +59,14 @@ object ObservedMorningFog {
         val judged = if (hasRealFog) raw.map { (r, fog) -> r to fog?.takeIf { it.first > FogLevel.HINT } } else raw
         val foggy = judged.filter { (reading, fog) -> fog != null && reading.timestamp < endMs }
         if (foggy.isEmpty()) return MorningFog.NONE
-        val lastFoggyIndex = judged.indexOfLast { (reading, fog) -> fog != null && reading.timestamp < endMs }
-        val lastFoggy = judged[lastFoggyIndex].first
-        val firstClear = judged.drop(lastFoggyIndex + 1).firstOrNull { it.second == null }?.first
-
         val level = foggy.maxOf { it.second!!.first }
+        // The top comes from the fog proper; trailing mist does not raise it (MorningFog.heightLevel).
+        val heightLevel = MorningFog.heightLevel(level)
+        fun setsHeight(fog: Pair<Int, Float?>?) = fog != null && fog.first >= heightLevel
+        val lastFoggyIndex = judged.indexOfLast { (reading, fog) -> setsHeight(fog) && reading.timestamp < endMs }
+        val lastFoggy = judged[lastFoggyIndex].first
+        val firstClear = judged.drop(lastFoggyIndex + 1).firstOrNull { !setsHeight(it.second) }?.first
+
         val strongest = foggy.filter { it.second!!.first > FogLevel.HINT }.ifEmpty { foggy }
         return MorningFog(
             level = level,

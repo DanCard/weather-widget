@@ -134,9 +134,38 @@ class ObservedMorningFogTest {
         println("nov9 fog=$fog")
         assertEquals(FogLevel.DENSE, fog.level)
         assertEquals(0.125f, fog.visibilityMi!!, 0f)
-        // Midway between 09:55 (14 °C, last mist) and 10:15 (15 °C, first without fog or mist) = 58.1 °F.
-        // The old rule took 10:35's 62.6 °F: the hint at 10:15 kept the fog going, then the jump after it.
-        assertEquals(58.1f, fog.topTempF!!, 0.01f)
+        // The fog proper ended at 09:15 (¼ SM FG, 13 °C); 09:35's 2½ SM mist (13 °C) is the first report
+        // below it, so the top is 55.4 °F. Trailing mist set it to 58.1 °F (midway 09:55 / 10:15) — half
+        // the bar for a few hours of fog (plans/261111-fog-height-dense-top-bottom-weighted.md). Before
+        // that, the hint at 10:15 carried it to 10:35's 62.6 °F.
+        assertEquals(55.4f, fog.topTempF!!, 0.01f)
+    }
+
+    @Test
+    fun `mist-only morning is measured by its mist, and mist before the fog does not matter`() {
+        val day = nov9
+        val mistOnly = listOf(
+            metar("KNUQ", day, 5, 35, "METAR KNUQ 091335Z AUTO 00000KT 3SM BR OVC004 12/11 A3009 RMK AO2"),
+            metar("KNUQ", day, 9, 35, "METAR KNUQ 091735Z AUTO 00000KT 2 1/2SM BR OVC003 13/13 A3013 RMK AO2"),
+            metar("KNUQ", day, 9, 55, "METAR KNUQ 091755Z AUTO 00000KT 5SM BR BKN004 14/14 A3013 RMK AO2"),
+            metar("KNUQ", day, 10, 35, "METAR KNUQ 091835Z AUTO 00000KT 10SM CLR 17/13 A3012 RMK AO2"),
+        )
+        val mist = ObservedMorningFog.forDate(mistOnly, day, zone)!!
+        println("mist-only fog=$mist")
+        assertEquals(FogLevel.LIGHT, mist.level)
+        // Midway 09:55 mist (14 °C = 57.2 °F) and 10:35 clear (17 °C = 62.6 °F): mist is all there was.
+        assertEquals(59.9f, mist.topTempF!!, 0.01f)
+
+        // Mist then fog: the fog's end sets the top, and the mist still sets nothing above it.
+        val mistThenFog = mistOnly.take(1) + listOf(
+            metar("KNUQ", day, 6, 55, "METAR KNUQ 091455Z AUTO 00000KT M1/4SM FG OVC002 12/11 A3009 RMK AO2"),
+        ) + mistOnly.drop(1)
+        val fog = ObservedMorningFog.forDate(mistThenFog, day, zone)!!
+        println("mist-then-fog fog=$fog")
+        assertEquals(FogLevel.DENSE, fog.level)
+        assertEquals(0.125f, fog.visibilityMi!!, 0f)
+        // Midway 06:55 FG (12 °C) and 09:35 mist (13 °C) = 54.5 °F.
+        assertEquals(54.5f, fog.topTempF!!, 0.01f)
     }
 
     @Test

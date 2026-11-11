@@ -10,8 +10,8 @@ import java.time.ZoneId
  * there was no fog"), distinct from a null [MorningFog] ("not known"); a stored NONE is what lets a newer
  * fetch clear an older fetch's fog through `DailyHourlySummaries.carryForward`.
  *
- * [topTempF] is the burn-off temperature (°F): the temperature at the first fog-free hour or report after
- * the morning's last fog, which sets how far up the bar the fog reaches. [visibilityMi] is the lowest
+ * [topTempF] is the burn-off temperature (°F): midway between the morning's last fog and the next hour or
+ * report below it ([heightLevel]), which sets how far up the bar the fog reaches. [visibilityMi] is the lowest
  * visibility while foggy, which sets the opacity ([FogOpacity]). Both are null when [level] is NONE.
  * The three always move together.
  */
@@ -31,6 +31,16 @@ data class MorningFog(
          * minutes after the fog — and the last foggy one alone draws a sliver.
          */
         fun burnOffTemp(lastFoggyF: Float, firstClearF: Float): Float = (lastFoggyF + firstClearF) / 2f
+
+        /**
+         * The least level that sets the fog's top, given the morning's strongest: the fog proper
+         * ([FogLevel.FOG], ≤ 1 SM) on a morning that had it, else whatever the morning had. Trailing mist
+         * still counts for the level and visibility but not the height: KNUQ 2026-11-09 was ¼ SM fog until
+         * 09:15 at 55.4°, then 40 minutes of 2½–5 SM mist warming to 57.2° drew the ellipse to 58.1° —
+         * half the bar for a few hours of fog (user: "Only lasted a couple of hours but the height makes
+         * it look like it last much more"). plans/261111-fog-height-dense-top-bottom-weighted.md
+         */
+        fun heightLevel(strongestLevel: Int): Int = minOf(strongestLevel, FogLevel.FOG)
 
         /** Rebuilds a stored trio; null when nothing was stored (the level column is null). */
         fun fromColumns(level: Int?, topTempF: Float?, visibilityMi: Float?): MorningFog? =

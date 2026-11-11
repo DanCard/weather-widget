@@ -10,9 +10,9 @@ import kotlin.math.roundToInt
  * bar, drawn over it).
  *
  * The ellipse runs from just below the low up past the burn-off temperature, at least a circle so a short
- * patch shows, at most the whole bar. It is [LAYERS] nested translucent ellipses — denser in the middle,
- * soft at the rim — instead of a gradient shader, which Samsung launchers flattened (6deaeece). Their
- * combined alpha at the centre is [FogOpacity.alpha].
+ * patch shows, at most the whole bar. It is [LAYERS] nested translucent ellipses — densest low in the
+ * middle, soft at the rim and fading toward the top ([TOP_SHRINK]) — instead of a gradient shader, which
+ * Samsung launchers flattened (6deaeece). Their combined alpha where all overlap is [FogOpacity.alpha].
  */
 object FogPatch {
 
@@ -26,6 +26,19 @@ object FogPatch {
     // "more of a continuous spectrum, rather than defined steps"). The innermost is 30 % of the outer.
     const val LAYERS = 16
     const val INSET_FRACTION = 0.35f / (LAYERS - 1)
+
+    /**
+     * Vertically the layers shrink mostly from the top: by the innermost layer the top has come down
+     * [TOP_SHRINK] of the height and the bottom up only [BOTTOM_SHRINK], so the fog is densest just above
+     * the low and thins toward the burn-off (user, 2026-11-11, "B + C": a few hours of fog read as half
+     * the bar when the ellipse was equally dense to its outline).
+     * plans/261111-fog-height-dense-top-bottom-weighted.md
+     */
+    const val TOP_SHRINK = 0.75f
+    const val BOTTOM_SHRINK = 0.10f
+
+    /** Layer alphas weight the inner layers by this power of their rank, so the outline is faint. */
+    const val ALPHA_WEIGHT_POWER = 2.0
 
     /** The smallest patch: a circle this many times the ellipse's normal width. */
     const val MIN_PATCH_SCALE = 1.25f
@@ -72,7 +85,7 @@ object FogPatch {
         // to 4/255) does not drift the centre off the target.
         var reached = 0.0
         val alphas = (1..LAYERS).map { k ->
-            val ideal = 1.0 - (1.0 - totalAlpha).pow(k.toDouble() / LAYERS)
+            val ideal = 1.0 - (1.0 - totalAlpha).pow((k.toDouble() / LAYERS).pow(ALPHA_WEIGHT_POWER))
             val needed = 1.0 - (1.0 - ideal) / (1.0 - reached)
             val byte = (needed * 255.0).roundToInt().coerceIn(0, 255)
             reached = 1.0 - (1.0 - reached) * (1.0 - byte / 255.0)
@@ -81,12 +94,12 @@ object FogPatch {
         return (0 until LAYERS).filter { alphas[it] > 0 }.map { i ->
             val argb = (alphas[i] shl 24) or FOG_RGB
             val insetX = width * INSET_FRACTION * i
-            val insetY = height * INSET_FRACTION * i
+            val t = i.toFloat() / (LAYERS - 1)
             Oval(
                 left = centerX - width / 2f + insetX,
-                top = bottomY - height + insetY,
+                top = bottomY - height + height * TOP_SHRINK * t,
                 right = centerX + width / 2f - insetX,
-                bottom = bottomY - insetY,
+                bottom = bottomY - height * BOTTOM_SHRINK * t,
                 argb = argb,
             )
         }

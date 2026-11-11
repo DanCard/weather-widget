@@ -41,13 +41,16 @@ class FogPatchTest {
         println("ovals=$ovals")
         assertTrue(ovals.size in (FogPatch.LAYERS - 2)..FogPatch.LAYERS) // a layer rounding to 0 is skipped
         val outer = ovals.first()
+        // The outermost layers' weighted alpha can round to 0 and be skipped: allow two layers' inset.
+        fun nearWidth(w: Float, expected: Float) =
+            assertTrue("width $w vs $expected", w <= expected + 0.01f && w >= expected * (1f - 4f * FogPatch.INSET_FRACTION))
         // A short fog (top 4° above the low) gets the larger minimum patch, at least 130 % of the column.
-        assertTrue(outer.right - outer.left in 78f..(78f * FogPatch.MIN_PATCH_SCALE))
+        assertTrue(outer.right - outer.left in 78f * (1f - 4f * FogPatch.INSET_FRACTION)..(78f * FogPatch.MIN_PATCH_SCALE))
         // A tall fog is exactly 130 % of the column: it spills into the neighbours.
         val tall = FogPatch.plan(fog.copy(topTempF = 66f), 52.8f, 70.9f, yAt, 100f, 60f, 4.5f).first()
-        assertEquals(78f, tall.right - tall.left, 0.01f)
+        nearWidth(tall.right - tall.left, 78f)
         assertTrue(outer.right - outer.left > 9f) // much wider than the 9 px bar
-        assertEquals(yAt(52.8f) + 4.5f, outer.bottom, 0.01f)
+        assertEquals(yAt(52.8f) + 4.5f, outer.bottom, (outer.bottom - outer.top) * FogPatch.BOTTOM_SHRINK * 2f / (FogPatch.LAYERS - 1))
         // Reaches past y(56.9) by the tip allowance.
         assertTrue(outer.top < yAt(56.9f))
         // Nested: each inside the last.
@@ -60,12 +63,34 @@ class FogPatchTest {
     }
 
     @Test
+    fun `layers gather low in the ellipse, so the top fades`() {
+        val tall = FogPatch.plan(fog.copy(topTempF = 62f, visibilityMi = 0.125f), 52.8f, 70.9f, yAt, 100f, 60f, 4.5f)
+        val outer = tall.first()
+        val inner = tall.last()
+        val height = outer.bottom - outer.top
+        println("outer=$outer inner=$inner")
+        // The innermost (densest) layer sits in the bottom third; its centre well below the outer's.
+        assertTrue(inner.top > outer.top + 0.6f * height)
+        assertTrue(inner.bottom > outer.bottom - 0.15f * height)
+        // Centre-line opacity a quarter of the way up is well over twice that three quarters up.
+        fun alphaAt(y: Float) = 1f - tall.filter { y in it.top..it.bottom }
+            .fold(1f) { clear, o -> clear * (1f - (o.argb ushr 24) / 255f) }
+        val low = alphaAt(outer.bottom - 0.25f * height)
+        val high = alphaAt(outer.bottom - 0.75f * height)
+        println("alpha low=$low high=$high")
+        assertTrue(low > 2.5f * high)
+        assertTrue(high < 0.2f)
+    }
+
+    @Test
     fun `short patch is a circle, long fog stops at the bar top, none draws nothing`() {
-        val atLow = FogPatch.plan(fog.copy(topTempF = 52.9f), 52.8f, 70.9f, yAt, 100f, 60f, 4.5f).first()
+        // Dense, so even the outermost layer's weighted alpha rounds above 0 and is drawn.
+        val dense = fog.copy(visibilityMi = 0.125f)
+        val atLow = FogPatch.plan(dense.copy(topTempF = 52.9f), 52.8f, 70.9f, yAt, 100f, 60f, 4.5f).first()
         assertEquals(atLow.right - atLow.left, atLow.bottom - atLow.top, 0.01f)
         assertEquals(78f * FogPatch.MIN_PATCH_SCALE, atLow.right - atLow.left, 0.01f) // 1.25 × the ellipse width
 
-        val allDay = FogPatch.plan(fog.copy(topTempF = 90f), 52.8f, 70.9f, yAt, 100f, 60f, 4.5f).first()
+        val allDay = FogPatch.plan(dense.copy(topTempF = 90f), 52.8f, 70.9f, yAt, 100f, 60f, 4.5f).first()
         assertEquals(yAt(70.9f) - 4.5f, allDay.top, 0.01f)
 
         assertTrue(FogPatch.plan(MorningFog.NONE, 52.8f, 70.9f, yAt, 100f, 60f, 4.5f).isEmpty())

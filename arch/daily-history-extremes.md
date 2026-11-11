@@ -116,6 +116,9 @@ source's resolved actuals provider over 00:00–12:00 local, using the nearest s
 each hour. A raw METAR is foggy when the station flags `FG`/`BR`, when its visibility is at or below
 ⅝ SM without precipitation, or (a faint hint only) when temperature equals dewpoint with wind ≤ 5 kt
 and visibility under 10 SM or cloud at or below 500 ft. Other rows read their condition word. The top
-is the temperature at the first fog-free report after the last foggy one. Today is computed live from
+is midway between the last report at the morning's height level and the next report below it: on a
+morning with fog proper (`FG` or ≤ 1 SM) trailing mist does not raise it, and hints never prolong real
+fog (`MorningFog.heightLevel`; `plans/261111-fog-height-dense-top-bottom-weighted.md`). Today is computed live from
 the same rows (`DailyActualsAssembler`), like today's blend. Bumping
-`DailyBlendRecomputeRun.WRITE_RULES_VERSION` to 3 backfilled the days still in reach.
+`DailyBlendRecomputeRun.WRITE_RULES_VERSION` to 3 backfilled the days still in reach; 5 rewrote them
+under the height-level rule.
