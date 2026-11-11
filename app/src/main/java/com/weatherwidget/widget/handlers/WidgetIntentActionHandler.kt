@@ -39,6 +39,9 @@ internal object WidgetIntentActionHandler {
     suspend fun renderAllWidgetsFromCache(
         context: Context,
         repository: WeatherRepository?,
+        // Why every widget is repainted; logged on each paint (LOCALE_CHANGE / TIMEZONE_CHANGE from the
+        // provider's system broadcasts, else a refresh request).
+        origin: WidgetPushDispatcher.Origin = WidgetPushDispatcher.Origin.ACTION_REFRESH,
     ): RefreshNotice? {
         val appWidgetManager = AppWidgetManager.getInstance(context)
         val rawIds =
@@ -53,7 +56,7 @@ internal object WidgetIntentActionHandler {
             lastInteractedId = lastInteractedId,
             appWidgetManager = appWidgetManager,
         )
-        return renderWidgetsFromCache(context, ids, repository)
+        return renderWidgetsFromCache(context, ids, repository, origin)
     }
 
     suspend fun renderWidgetFromCache(
@@ -67,6 +70,7 @@ internal object WidgetIntentActionHandler {
         context: Context,
         ids: IntArray,
         repository: WeatherRepository?,
+        origin: WidgetPushDispatcher.Origin = WidgetPushDispatcher.Origin.ACTION_REFRESH,
     ): RefreshNotice? {
         var notice: RefreshNotice? = null
         val appLogDao = WeatherDatabase.getDatabase(context).appLogDao()
@@ -90,7 +94,7 @@ internal object WidgetIntentActionHandler {
                     repository,
                     actionTag = "REFRESH",
                     partialPush = true,
-                    origin = WidgetPushDispatcher.Origin.ACTION_REFRESH,
+                    origin = origin,
                 ))
             }
         }

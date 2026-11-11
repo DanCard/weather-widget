@@ -64,7 +64,8 @@ object WidgetIntentRouter {
     suspend fun renderAllWidgetsFromCache(
         context: Context,
         repository: WeatherRepository? = null,
-    ) = WidgetIntentActionHandler.renderAllWidgetsFromCache(context, repository)
+        origin: com.weatherwidget.widget.WidgetPushDispatcher.Origin = com.weatherwidget.widget.WidgetPushDispatcher.Origin.ACTION_REFRESH,
+    ) = WidgetIntentActionHandler.renderAllWidgetsFromCache(context, repository, origin)
 
     suspend fun renderWidgetFromCache(
         context: Context,

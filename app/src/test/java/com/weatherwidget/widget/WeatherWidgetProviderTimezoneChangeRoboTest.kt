@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.test.category.LongDuration
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -42,5 +43,16 @@ class WeatherWidgetProviderTimezoneChangeRoboTest {
         assertTrue(WeatherWidgetProvider.isCacheRepaintBroadcast(Intent.ACTION_LOCALE_CHANGED))
         assertFalse(WeatherWidgetProvider.isCacheRepaintBroadcast("android.appwidget.action.APPWIDGET_UPDATE"))
         assertFalse(WeatherWidgetProvider.isCacheRepaintBroadcast(null))
+    }
+
+    /**
+     * Each repaint is logged under its real reason. Locale paints were logged origin=ACTION_REFRESH,
+     * which made LocaleSwitchIntegrationTest's locale repaints look like its own refresh
+     * (plans/261111-tests-never-paint-real-widgets.md).
+     */
+    @Test
+    fun `cache repaints carry the broadcast's own origin`() {
+        assertEquals(WidgetPushDispatcher.Origin.LOCALE_CHANGE, WeatherWidgetProvider.cacheRepaintOrigin(Intent.ACTION_LOCALE_CHANGED))
+        assertEquals(WidgetPushDispatcher.Origin.TIMEZONE_CHANGE, WeatherWidgetProvider.cacheRepaintOrigin(Intent.ACTION_TIMEZONE_CHANGED))
     }
 }

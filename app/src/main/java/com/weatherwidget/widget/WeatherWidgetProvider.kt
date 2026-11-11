@@ -142,7 +142,9 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         "INFO",
                     )
                 }
-                WidgetIntentRouter.renderAllWidgetsFromCache(context, repository)
+                // Labelled with the real reason: these paints were logged origin=ACTION_REFRESH, which
+                // hid that a locale change (LocaleSwitchIntegrationTest) repainted every widget.
+                WidgetIntentRouter.renderAllWidgetsFromCache(context, repository, cacheRepaintOrigin(intent.action))
             }
         }
     }
@@ -171,6 +173,14 @@ class WeatherWidgetProvider : AppWidgetProvider() {
          */
         internal fun isCacheRepaintBroadcast(action: String?): Boolean =
             action == Intent.ACTION_LOCALE_CHANGED || action == Intent.ACTION_TIMEZONE_CHANGED
+
+        /** The paint origin a cache-repaint broadcast is logged under. */
+        internal fun cacheRepaintOrigin(action: String?): WidgetPushDispatcher.Origin =
+            if (action == Intent.ACTION_TIMEZONE_CHANGED) {
+                WidgetPushDispatcher.Origin.TIMEZONE_CHANGE
+            } else {
+                WidgetPushDispatcher.Origin.LOCALE_CHANGE
+            }
 
         private val lastUpdateByWidgetId = java.util.concurrent.ConcurrentHashMap<Int, Long>()
         private const val STARTUP_DEBOUNCE_MS = 500L

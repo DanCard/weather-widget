@@ -44,6 +44,7 @@ object WidgetPushDispatcher {
         USER_INTERACTION,
         RESIZE,
         LOCALE_CHANGE,
+        TIMEZONE_CHANGE,
         LOADING,
         ERROR,
         NO_LOCATION,

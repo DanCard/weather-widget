@@ -35,5 +35,15 @@ then a full emulator run with the real widget placed, checking it is untouched a
 - `TestModeWidgetGuardIntegrationTest` and `LocaleSwitchIntegrationTest` pass on the emulator; unit tests pass.
 - The guard blocked widget 69 four times during the fixed `LocaleSwitchIntegrationTest`
   (`TEST_MODE_REAL_WIDGET_BLOCKED widget=69 caller=DAILY origin=ACTION_REFRESH`), so a path other than
-  the test's targeted broadcast still repaints every widget, most likely the app-locale change itself.
-  The guard covers it; finding that path is a follow-up.
+  the test's targeted broadcast still repaints every widget.
+
+## Follow-up: the locale repaint (2026-11-11, user: "track down the locale repaint follow-up")
+- Each `LocaleManager.applicationLocales` switch makes Android send `LOCALE_CHANGED`;
+  `WeatherWidgetProvider.isCacheRepaintBroadcast` then repaints **every** widget from cache. That is right in
+  normal use (the new language must show) and is not a test bug; under tests the guard blocks it.
+- It looked like the test's own refresh because `renderAllWidgetsFromCache` always logged
+  `origin=ACTION_REFRESH`. The provider now passes `LOCALE_CHANGE` / new `TIMEZONE_CHANGE`. Label only:
+  the origin-dependent branches check `USER_INTERACTION` and the background set, which include neither.
+- Verified: the rerun shows `TEST_MODE_REAL_WIDGET_BLOCKED widget=69 caller=DAILY origin=LOCALE_CHANGE`
+  right after each `LOCALE_CHANGED`. The package-update `APPWIDGET_UPDATE` at run start is blocked the same
+  way (`caller=LOADING origin=PROVIDER_ON_UPDATE`).
