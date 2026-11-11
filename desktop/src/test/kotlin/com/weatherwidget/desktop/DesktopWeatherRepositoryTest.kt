@@ -217,7 +217,7 @@ class DesktopWeatherRepositoryTest {
 
     /**
      * Today's high must come from the configured actuals provider (Synoptic) live, not only
-     * from a possibly stale daily_history row — Android DailyActualsLoader parity.
+     * from a possibly stale daily_history row — Android DailyActualsStore parity.
      *
      * `now` is pinned to 14:00 today so the coverage gate below is exercised the same way whatever
      * hour the suite runs (relative stamps used to start at `now-3h`, which only covered the day's

@@ -45,7 +45,6 @@ class HourlyProximityQueryAllowlistTest {
     private val allowlist = mapOf(
         "HourlyForecastDao.kt" to "the DAO itself",
         "GraphDataLoader.kt" to "the sanctioned chokepoint (sameSite filter / stitcher / unifyToNearestSite)",
-        "DailyActualsLoader.kt" to "extracted from WidgetIntentRouter on 2026-07-28; sole call site wrapped in unifyToNearestSite",
         "SourceStalenessProbe.kt" to "extracted from WidgetIntentRouter on 2026-07-28; sole call site wrapped in unifyToNearestSite",
         "HourlyForecastStore.kt" to "write-path dedup filters to the exact quantized site; RoomGoogleHistoryHost.liveHours keeps same-site rows only",
         "RoomForecastPersistHost.kt" to "ForecastPersistRun's stored-hours read filters to the exact quantized key (pinned by ForecastPersistHostContract)",

@@ -8,7 +8,6 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.TestDatabase
 import com.weatherwidget.widget.WidgetConstants
 import com.weatherwidget.widget.WidgetActions
-import com.weatherwidget.widget.DailyActualsLoader
 import com.weatherwidget.widget.ZoomStage
 import com.weatherwidget.widget.ZoomWindow
 import com.weatherwidget.widget.handlers.CurrentTempResolver
@@ -267,73 +266,5 @@ class WidgetIntentRouterRobolectricTest {
         assertNotNull(truncatedResult)
         assertTrue(fullResult!!.temperature < truncatedResult!!.temperature)
         assertEquals(epochMs(now.minusHours(1)), fullResult.observedAt)
-    }
-
-    @Test
-    fun `DailyActualsLoader uses live today actuals instead of persisted today extremes`() = runTest {
-        val db = TestDatabase.create()
-        try {
-            val today = LocalDate.now()
-            val obsTime = today.atTime(16, 55)
-            val obsTimeMs = epochMs(obsTime)
-
-            db.observationDao().insertAll(
-                listOf(
-                    ObservationEntity(
-                        stationId = "KNEAR",
-                        stationName = "Near Station",
-                        timestamp = obsTimeMs,
-                        temperature = 82.56303f,
-                        condition = "Clear",
-                        locationLat = lat,
-                        locationLon = lon,
-                        distanceKm = 1f,
-                        stationType = StationType.UNKNOWN,
-                        api = WeatherSource.NWS.id,
-                        fetchedAt = obsTimeMs,
-                    ),
-                ),
-            )
-            db.hourlyForecastDao().insertAll(
-                listOf(
-                    HourlyForecastEntity(
-                        dateTime = obsTimeMs,
-                        locationLat = lat,
-                        locationLon = lon,
-                        temperature = 80f,
-                        condition = "Clear",
-                        source = WeatherSource.NWS.id,
-                        fetchedAt = obsTimeMs,
-                    )
-                )
-            )
-            db.dailyHistoryDao().insertAll(
-                listOf(
-                    DailyHistoryEntity(
-                        date = today.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
-                        source = WeatherSource.NWS.id,
-                        locationLat = lat,
-                        locationLon = lon,
-                        computedHighTemp = 83.40072f,
-                        computedLowTemp = 62.6f,
-                        condition = "Clear",
-                        updatedAt = obsTimeMs,
-                    ),
-                ),
-            )
-
-            val result = DailyActualsLoader.load(db, lat, lon)
-            val actual = result[WeatherSource.NWS.id]?.get(today)
-
-            assertNotNull("Expected live NWS actual for today", actual)
-            assertEquals(
-                "SET_VIEW daily actuals must ignore persisted daily_history for today",
-                82.56303f,
-                actual!!.computedHighTemp!!,
-                0.001f,
-            )
-        } finally {
-            db.close()
-        }
     }
 }

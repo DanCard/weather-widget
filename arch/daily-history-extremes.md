@@ -119,6 +119,7 @@ and visibility under 10 SM or cloud at or below 500 ft. Other rows read their co
 is midway between the last report at the morning's height level and the next report below it: on a
 morning with fog proper (`FG` or ≤ 1 SM) trailing mist does not raise it, and hints never prolong real
 fog (`MorningFog.heightLevel`; `plans/261111-fog-height-dense-top-bottom-weighted.md`). Today is computed live from
-the same rows (`DailyActualsAssembler`), like today's blend. Bumping
+the same rows (`DailyActualsAssembler`), like today's blend, on every Android paint path including
+widget taps. Bumping
 `DailyBlendRecomputeRun.WRITE_RULES_VERSION` to 3 backfilled the days still in reach; 5 rewrote them
 under the height-level rule.

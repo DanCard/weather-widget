@@ -157,5 +157,20 @@ class DailyActualsStore @Inject constructor(
     companion object {
         /** The widget's daily view: navigation reaches 30 days back. */
         const val DEFAULT_LOOKBACK_DAYS = 30L
+
+        /**
+         * A read-side store over [database], for callers without a repository (the widget's tap
+         * renders, `DailyInteractionRenderer`). Same shared composition as the worker's, so a tap never
+         * paints different actuals — today's fog, gated low, previous-site days — than the refresh
+         * before it. plans/261111-tap-render-today-fog-shared-actuals.md
+         */
+        fun forDatabase(context: android.content.Context, database: com.weatherwidget.data.local.WeatherDatabase) =
+            DailyActualsStore(
+                database.observationDao(),
+                database.dailyHistoryDao(),
+                database.appLogDao(),
+                database.hourlyForecastDao(),
+                WidgetPersonalStationWeightProvider(context),
+            )
     }
 }

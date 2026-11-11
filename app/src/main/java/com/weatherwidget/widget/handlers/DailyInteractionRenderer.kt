@@ -17,7 +17,6 @@ import com.weatherwidget.util.NavigationUtils
 import com.weatherwidget.util.WeatherTimeUtils
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.DailyActualsBySource
-import com.weatherwidget.widget.DailyActualsLoader
 import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.WidgetPerfLogger
 import com.weatherwidget.widget.WidgetPushDispatcher
@@ -414,13 +413,6 @@ internal object DailyInteractionRenderer {
                         lat,
                         lon,
                     )
-                val dailyActuals =
-                    DailyActualsLoader.load(
-                        database,
-                        lat,
-                        lon,
-                        WidgetStateManager(context).getPersonalStationWeight(),
-                    )
                 val forecastSnapshots = if (gapFiller != null) {
                     val pastSnapshots =
                         forecastDao.getLatestForecastsInRange(
@@ -462,6 +454,16 @@ internal object DailyInteractionRenderer {
                         sources = sources,
                     )
                 } else null
+
+                // The worker's own read (DailyActualsStore → :shared DailyActualsAssembler): the
+                // Android-only DailyActualsLoader this replaced had no today's fog, so every tap
+                // repainted Today without it (Fold 4, 2026-11-11).
+                // plans/261111-tap-render-today-fog-shared-actuals.md
+                val actualsHourly = hourlyForecasts ?: actualsHourlyFallback(database, lat, lon, sources)
+                val dailyActuals =
+                    repository?.getDailyActualsWithLiveToday(lat, lon, actualsHourly, sources)
+                        ?: com.weatherwidget.data.repository.DailyActualsStore.forDatabase(context, database)
+                            .getDailyActualsWithLiveToday(lat, lon, actualsHourly, sources)
 
                 val currentTemps = if (timeBounds != null) {
                     repository?.getMainObservationsWithComputedNwsBlend(
@@ -506,6 +508,28 @@ internal object DailyInteractionRenderer {
      * consumer on this path accepts. Restricting in SQL rather than in memory: unfiltered, the
      * hourly queries returned every source the app has ever fetched.
      */
+    /**
+     * Hourly rows for today's live blend when the caller loaded none (navigation's metadata-only
+     * load): the window around now, through the same stitched read the tap render uses.
+     */
+    private suspend fun actualsHourlyFallback(
+        database: com.weatherwidget.data.local.WeatherDatabase,
+        lat: Double,
+        lon: Double,
+        sources: List<String>,
+    ): List<HourlyForecastEntity> {
+        val now = LocalDateTime.now()
+        val zone = ZoneId.systemDefault()
+        return com.weatherwidget.widget.HourlyForecastLoader.withHistory(
+            database = database,
+            startMs = now.minusHours(WidgetQueryWindows.HOURLY_LOOKBACK_HOURS).atZone(zone).toInstant().toEpochMilli(),
+            endMs = now.plusHours(WidgetQueryWindows.HOURLY_GRAPH_LOOKAHEAD_HOURS).atZone(zone).toInstant().toEpochMilli(),
+            lat = lat,
+            lon = lon,
+            sources = sources,
+        )
+    }
+
     private fun hourlySourceIds(context: Context): List<String> {
         val stateManager = WidgetStateManager(context)
         val ids = runCatching {
