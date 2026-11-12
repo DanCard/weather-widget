@@ -99,6 +99,7 @@
     <string name="source_compare_col_high">अधिकतम</string>
     <string name="source_compare_col_low">न्यूनतम</string>
     <string name="source_compare_col_rain">बारिश</string>
+    <string name="source_compare_col_peak">चरम</string>
     <string name="source_compare_col_night">रात</string>
     <string name="source_compare_col_amount">मात्रा</string>
     <string name="source_compare_col_cloud">बादल</string>

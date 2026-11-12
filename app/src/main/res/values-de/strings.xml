@@ -99,6 +99,7 @@
     <string name="source_compare_col_high">Hoch</string>
     <string name="source_compare_col_low">Tief</string>
     <string name="source_compare_col_rain">Regen</string>
+    <string name="source_compare_col_peak">Spitze</string>
     <string name="source_compare_col_night">Nacht</string>
     <string name="source_compare_col_amount">Menge</string>
     <string name="source_compare_col_cloud">Wolken</string>

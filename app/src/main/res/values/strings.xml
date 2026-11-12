@@ -99,6 +99,7 @@
     <string name="source_compare_col_high">High</string>
     <string name="source_compare_col_low">Low</string>
     <string name="source_compare_col_rain">Rain</string>
+    <string name="source_compare_col_peak">Peak</string>
     <string name="source_compare_col_night">Night</string>
     <string name="source_compare_col_amount">Amount</string>
     <string name="source_compare_col_cloud">Cloud</string>

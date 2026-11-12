@@ -99,6 +99,7 @@
     <string name="source_compare_col_high">最高</string>
     <string name="source_compare_col_low">最低</string>
     <string name="source_compare_col_rain">降雨</string>
+    <string name="source_compare_col_peak">峰值</string>
     <string name="source_compare_col_night">夜间</string>
     <string name="source_compare_col_amount">雨量</string>
     <string name="source_compare_col_cloud">云量</string>

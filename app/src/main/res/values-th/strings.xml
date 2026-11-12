@@ -99,6 +99,7 @@
     <string name="source_compare_col_high">สูงสุด</string>
     <string name="source_compare_col_low">ต่ำสุด</string>
     <string name="source_compare_col_rain">ฝน</string>
+    <string name="source_compare_col_peak">สูงสุด</string>
     <string name="source_compare_col_night">กลางคืน</string>
     <string name="source_compare_col_amount">ปริมาณ</string>
     <string name="source_compare_col_cloud">เมฆ</string>

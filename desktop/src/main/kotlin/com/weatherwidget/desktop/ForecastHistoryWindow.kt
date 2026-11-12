@@ -156,6 +156,7 @@ internal fun ForecastHistoryWindow(
             isRefreshing = isRefreshing,
             onRefreshSource = onRefreshSource,
             onOpenSettings = onOpenSettings,
+            onSourceCompareSort = { sort -> onConfigUpdate(config.copy(sourceCompareSort = sort.encode())) },
         )
     }
 }
@@ -176,6 +177,8 @@ internal fun ForecastHistoryContent(
     isRefreshing: Boolean = false,
     onRefreshSource: (WeatherSource) -> Unit = {},
     onOpenSettings: () -> Unit = {},
+    /** Persists a header-tap sort (the window writes it to [DesktopConfig.sourceCompareSort]). */
+    onSourceCompareSort: (DaySourceComparison.Sort) -> Unit = {},
 ) {
     val visibleSources = remember(config.effectiveSources) {
         config.effectiveSources.map { WeatherSource.fromId(it) }.ifEmpty { listOf(WeatherSource.NWS) }
@@ -190,6 +193,7 @@ internal fun ForecastHistoryContent(
         )
     }
     var graphMode by remember { mutableStateOf(GraphMode.EVOLUTION) }
+    var sourceCompareSort by remember { mutableStateOf(DaySourceComparison.Sort.decode(config.sourceCompareSort)) }
     var loading by remember { mutableStateOf(true) }
     var data by remember { mutableStateOf<HistoryData?>(null) }
 
@@ -227,7 +231,15 @@ internal fun ForecastHistoryContent(
             when {
                 loading -> Text("Loading…", color = ObsStyle.textSecondary)
                 d == null -> Text("No data.", color = ObsStyle.textSecondary)
-                else -> Content(d, graphMode, source, config.settings.useCelsius, targetDate)
+                else -> Content(
+                    d, graphMode, source, config.settings.useCelsius, targetDate, sourceCompareSort,
+                    onSortTap = { column ->
+                        val next = sourceCompareSort.tapped(column)
+                        sourceCompareSort = next
+                        DaySourceComparison.logSortTap(targetDate, next, DaySourceComparison.sort(d.sourceComparison, next))
+                        onSourceCompareSort(next)
+                    },
+                )
             }
             }
             RefreshNoticePill(RefreshNoticeSurface.HISTORY, Modifier.align(Alignment.BottomCenter))
@@ -294,7 +306,15 @@ private fun Header(
 }
 
 @Composable
-private fun Content(d: HistoryData, graphMode: GraphMode, source: WeatherSource, useCelsius: Boolean, targetDate: LocalDate) {
+private fun Content(
+    d: HistoryData,
+    graphMode: GraphMode,
+    source: WeatherSource,
+    useCelsius: Boolean,
+    targetDate: LocalDate,
+    sourceCompareSort: DaySourceComparison.Sort,
+    onSortTap: (DaySourceComparison.SortColumn) -> Unit,
+) {
     val textMeasurer = rememberTextMeasurer()
     val isError = graphMode == GraphMode.ERROR
     val hasPoints = d.points.isNotEmpty()
@@ -344,7 +364,9 @@ private fun Content(d: HistoryData, graphMode: GraphMode, source: WeatherSource,
     Spacer(Modifier.height(12.dp))
 
     if (d.sourceComparison.isNotEmpty()) {
-        DaySourceComparisonTable(targetDate, d.sourceComparison, source, useCelsius, System.currentTimeMillis())
+        DaySourceComparisonTable(
+            targetDate, d.sourceComparison, source, useCelsius, System.currentTimeMillis(), sourceCompareSort, onSortTap,
+        )
         Spacer(Modifier.height(12.dp))
     }
 

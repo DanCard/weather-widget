@@ -99,6 +99,7 @@
     <string name="source_compare_col_high">Maks</string>
     <string name="source_compare_col_low">Min</string>
     <string name="source_compare_col_rain">Deszcz</string>
+    <string name="source_compare_col_peak">Szczyt</string>
     <string name="source_compare_col_night">Noc</string>
     <string name="source_compare_col_amount">Ilość</string>
     <string name="source_compare_col_cloud">Chmury</string>

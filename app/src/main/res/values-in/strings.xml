@@ -99,6 +99,7 @@
     <string name="source_compare_col_high">Maks</string>
     <string name="source_compare_col_low">Min</string>
     <string name="source_compare_col_rain">Hujan</string>
+    <string name="source_compare_col_peak">Puncak</string>
     <string name="source_compare_col_night">Malam</string>
     <string name="source_compare_col_amount">Jumlah</string>
     <string name="source_compare_col_cloud">Awan</string>

@@ -99,6 +99,7 @@
     <string name="source_compare_col_high">زیادہ</string>
     <string name="source_compare_col_low">کم</string>
     <string name="source_compare_col_rain">بارش</string>
+    <string name="source_compare_col_peak">عروج</string>
     <string name="source_compare_col_night">رات</string>
     <string name="source_compare_col_amount">مقدار</string>
     <string name="source_compare_col_cloud">بادل</string>

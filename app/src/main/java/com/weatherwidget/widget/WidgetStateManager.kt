@@ -113,6 +113,12 @@ class WidgetStateManager internal constructor(
         displayPreferences.setMultiDayZoomEnabled(value)
     }
 
+    fun sourceCompareSort(): String? = displayPreferences.sourceCompareSort()
+
+    fun setSourceCompareSort(value: String) {
+        displayPreferences.setSourceCompareSort(value)
+    }
+
     fun showTodayOverlayDelta(): Boolean = displayPreferences.showTodayOverlayDelta()
 
     fun setShowTodayOverlayDelta(value: Boolean) {

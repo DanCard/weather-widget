@@ -26,6 +26,9 @@ import kotlin.math.roundToInt
  * the display source, so a row shows the same high, rain % and noon cloud the widget's daily view
  * shows for that source. This object owns the whole rule (source scope, site choice, today's row,
  * sort, cell text and the log line). Platforms supply rows through [Host].
+ *
+ * Tapping a column header sorts by that column ([Sort.tapped], [sort]; plans/261112-all-sources-column-sort.md).
+ * The choice is remembered across opens on both platforms as [Sort.encode] text.
  */
 object DaySourceComparison {
     private const val TAG = "DaySourceComparison"
@@ -55,12 +58,16 @@ object DaySourceComparison {
         val nightRainPercent: Int?,
         /** "2pm" when the widget draws the peak hour above the day %; else null. */
         val dayPeakLabel: String?,
+        /** The instant [dayPeakLabel] names (sorts the Peak column); null whenever that label is. */
+        val dayPeakAt: Long? = null,
         val amountMm: Float?,
         val noonCloudPercent: Int?,
         /** 30-day high bias in °F, forecast − actual (+ = runs warm); null with no accuracy history. */
         val highBias: Double?,
         /** When a fetch last confirmed this source's forecast for the day; null = no row. */
         val lastConfirmedAt: Long?,
+        /** Position in the user's visible-source order; every sort breaks ties by it. */
+        val sourceOrder: Int = 0,
     ) {
         val hasForecast: Boolean get() = lastConfirmedAt != null
     }
@@ -71,13 +78,18 @@ object DaySourceComparison {
         val high: String,
         val low: String,
         val dayRain: String,
+        val peak: String,
         val nightRain: String,
         val amount: String,
         val cloud: String,
         val bias: String,
         val age: String,
         val ageIsStale: Boolean,
-    )
+    ) {
+        /** The cells in column order ([SortColumn]), blanks as "—". */
+        fun values(): List<String> =
+            listOf(source, high, low, dayRain, peak, nightRain, amount, cloud, bias, age).map { it.ifEmpty { "—" } }
+    }
 
     interface Host {
         /** The user's visible sources in their order (ties in the sort keep it). */
@@ -147,14 +159,89 @@ object DaySourceComparison {
         zone: ZoneId = ZoneId.systemDefault(),
     ): List<Row> {
         val today = now.toLocalDate()
-        val rows = sources.filter { it != WeatherSource.GENERIC_GAP }.map { source ->
+        val rows = sources.filter { it != WeatherSource.GENERIC_GAP }.mapIndexed { index, source ->
             // Stored as actual − forecast; the table shows forecast − actual ("+2.1°" = runs warm),
             // the reading the accuracy card's "(2.1° high)" gives.
             val bias = highBias[source.id]?.let { -it }
             rowFor(source, date, today, now, lat, lon, stored, history, hourly, bias, use24HourClock, zone)
+                .copy(sourceOrder = index)
         }
-        // Highest high first; no high last; ties keep the user's source order (stable sort).
-        return rows.sortedWith(compareBy<Row> { it.high == null }.thenByDescending { it.high ?: 0f })
+        // Highest high first; no high last; ties keep the user's source order.
+        return sort(rows, Sort.DEFAULT)
+    }
+
+    /** The table's columns, in display order: [ordinal] is the column index. */
+    enum class SortColumn(
+        /** Direction of the first tap on this column. */
+        val firstDescending: Boolean,
+    ) {
+        SOURCE(false), HIGH(true), LOW(true), DAY_RAIN(true), PEAK(false), NIGHT_RAIN(true),
+        AMOUNT(true), CLOUD(true), BIAS(true), AGE(false),
+    }
+
+    data class Sort(val column: SortColumn, val descending: Boolean) {
+        /** The sort after a tap on [tapped]'s header: the same column flips, another starts in its first direction. */
+        fun tapped(tapped: SortColumn): Sort =
+            if (tapped == column) copy(descending = !descending) else Sort(tapped, tapped.firstDescending)
+
+        /** Stored form, both platforms: `DAY_RAIN:desc`. */
+        fun encode(): String = "${column.name}:${if (descending) "desc" else "asc"}"
+
+        companion object {
+            /** Highest high first, as the table opened before sorting existed. */
+            val DEFAULT = Sort(SortColumn.HIGH, descending = true)
+
+            /** [encode]'s text back; null, blank or unknown text reads as [DEFAULT]. */
+            fun decode(text: String?): Sort {
+                val parts = text?.split(':') ?: return DEFAULT
+                val column = SortColumn.entries.firstOrNull { it.name == parts.getOrNull(0) } ?: return DEFAULT
+                return when (parts.getOrNull(1)) {
+                    "desc" -> Sort(column, true)
+                    "asc" -> Sort(column, false)
+                    else -> DEFAULT
+                }
+            }
+        }
+    }
+
+    /** The value a row sorts on for [column]; null = blank cell. */
+    private fun sortKey(row: Row, column: SortColumn): Comparable<*>? = when (column) {
+        SortColumn.SOURCE -> row.source.shortDisplayName.lowercase(Locale.ROOT)
+        SortColumn.HIGH -> row.high
+        SortColumn.LOW -> row.low
+        SortColumn.DAY_RAIN -> row.dayRainPercent
+        // Earliest peak first on the first tap.
+        SortColumn.PEAK -> row.dayPeakAt
+        SortColumn.NIGHT_RAIN -> row.nightRainPercent
+        // The cell is blank for a zero amount, so a zero sorts with the blanks.
+        SortColumn.AMOUNT -> row.amountMm?.takeIf { it > 0f }
+        SortColumn.CLOUD -> row.noonCloudPercent
+        SortColumn.BIAS -> row.highBias
+        // Newest confirmation = youngest age.
+        SortColumn.AGE -> row.lastConfirmedAt?.let { -it }
+    }
+
+    /**
+     * [rows] ordered by [sort]. Blank cells go last in either direction; ties keep the user's
+     * source order ([Row.sourceOrder]).
+     */
+    fun sort(rows: List<Row>, sort: Sort): List<Row> {
+        val (valued, blank) = rows.partition { sortKey(it, sort.column) != null }
+        val byValue = if (sort.descending) {
+            compareByDescending<Row> { sortKey(it, sort.column) }
+        } else {
+            compareBy<Row> { sortKey(it, sort.column) }
+        }
+        return valued.sortedWith(byValue.thenBy { it.sourceOrder }) + blank.sortedBy { it.sourceOrder }
+    }
+
+    /** A header's text with the sort arrow on the sorted column: "Rain ▾" (descending) or "Rain ▴". */
+    fun headerLabel(base: String, column: SortColumn, sort: Sort): String =
+        if (column != sort.column) base else "$base ${if (sort.descending) "▾" else "▴"}"
+
+    /** The sparse log line for a header tap, both platforms. */
+    fun logSortTap(date: LocalDate, sort: Sort, rows: List<Row>) {
+        Log.d(TAG, "DAY_SOURCE_SORT date=$date sort=${sort.encode()} order=${rows.joinToString(",") { it.source.id }}")
     }
 
     private fun rowFor(
@@ -220,6 +307,7 @@ object DaySourceComparison {
             dayRainPercent = column.dayPrecipProbability,
             nightRainPercent = column.nightPrecipProbability,
             dayPeakLabel = column.dailyRainPeakLabelText,
+            dayPeakAt = column.dailyRainPeakAt,
             amountMm = amount,
             noonCloudPercent = column.cloudCoverRatio?.let { (it * 100f).roundToInt() },
             highBias = highBias,
@@ -262,7 +350,8 @@ object DaySourceComparison {
             source = row.source.shortDisplayName,
             high = TempUtils.formatTemp(row.high, useCelsius).orEmpty(),
             low = TempUtils.formatTemp(row.low, useCelsius).orEmpty(),
-            dayRain = row.dayRainPercent?.let { pct -> "$pct%" + (row.dayPeakLabel?.let { " $it" } ?: "") }.orEmpty(),
+            dayRain = row.dayRainPercent?.let { "$it%" }.orEmpty(),
+            peak = row.dayPeakLabel.orEmpty(),
             nightRain = row.nightRainPercent?.let { "$it%" }.orEmpty(),
             amount = row.amountMm?.takeIf { it > 0f }?.let { DailyRainLabels.formatPrecipAmount(it) }.orEmpty(),
             cloud = row.noonCloudPercent?.let { "$it%" }.orEmpty(),
@@ -272,11 +361,11 @@ object DaySourceComparison {
         )
     }
 
-    /** Index of the Amount column in the shared column order (Source, High, Low, Rain, Night, Amount, Cloud, Bias, Age). */
-    const val AMOUNT_COLUMN = 5
+    /** Index of the Amount column in the shared column order ([SortColumn]). */
+    val AMOUNT_COLUMN = SortColumn.AMOUNT.ordinal
 
     /** Relative column widths, both platforms, in the shared column order. */
-    val COLUMN_WEIGHTS = listOf(1.25f, 0.8f, 0.8f, 1.3f, 0.85f, 1.1f, 0.85f, 0.95f, 0.75f)
+    val COLUMN_WEIGHTS = listOf(1.25f, 0.8f, 0.8f, 0.85f, 0.85f, 0.85f, 1.1f, 0.85f, 0.95f, 0.75f)
 
     /** Narrowest table (dp) that still fits the Amount column on one line at 12sp. */
     const val AMOUNT_MIN_WIDTH_DP = 380f

@@ -99,6 +99,7 @@
     <string name="source_compare_col_high">최고</string>
     <string name="source_compare_col_low">최저</string>
     <string name="source_compare_col_rain">비</string>
+    <string name="source_compare_col_peak">최고</string>
     <string name="source_compare_col_night">밤</string>
     <string name="source_compare_col_amount">강수량</string>
     <string name="source_compare_col_cloud">구름</string>

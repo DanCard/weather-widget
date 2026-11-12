@@ -99,6 +99,7 @@
     <string name="source_compare_col_high">Máx</string>
     <string name="source_compare_col_low">Mín</string>
     <string name="source_compare_col_rain">Chuva</string>
+    <string name="source_compare_col_peak">Pico</string>
     <string name="source_compare_col_night">Noite</string>
     <string name="source_compare_col_amount">Quant.</string>
     <string name="source_compare_col_cloud">Nuvens</string>

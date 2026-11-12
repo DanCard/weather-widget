@@ -44,10 +44,14 @@ Examples include:
 - `DaySourceComparison`: the Forecast History screen's "All sources for <day>" table. Each visible
   source's newest forecast for the day at the nearest site, run through `DailyColumnBuilder` with that
   source as the display source (so the high, rain %, peak hour and noon cloud match the widget's daily
-  view), sorted by high; a source with no row is listed last. Columns: short name, high, low, day rain
-  (+ peak hour), night rain, amount (dropped below 380 dp or when no row has one), noon cloud, 30-day
+  view), sorted by high by default; a source with no row is listed last. Columns: short name, high, low, day rain %,
+  peak hour, night rain, amount (dropped below 380 dp or when no row has one), noon cloud, 30-day
   high bias, and age since `lastConfirmedAt` (dimmed past 24 h). Hosts: `RoomDaySourceComparisonHost`,
   `DesktopDaySourceComparisonHost`; `DAY_SOURCE_COMPARE` logs each build.
+  Clicking a column header sorts by it (`Sort.tapped`: same column flips, a new column starts
+  descending except Source A–Z, Peak earliest-first and Age freshest-first); blanks stay last and ties keep the source
+  order. The sort is remembered (`source_compare_sort` pref / `DesktopConfig.sourceCompareSort`);
+  `DAY_SOURCE_SORT` logs each tap.
 
 A shared planner that leaves ordering or policy in platform glue is not equivalent; that arrangement
 previously allowed Android and desktop to drift. Host contract tests exercise the same runner against

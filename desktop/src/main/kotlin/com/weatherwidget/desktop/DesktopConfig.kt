@@ -147,6 +147,9 @@ data class DesktopConfig(
     val historyWindowY: Float? = null,
     val historyWindowWidth: Float? = null,
     val historyWindowHeight: Float? = null,
+    // History of Forecasts "All sources" column sort, DaySourceComparison.Sort.encode() text
+    // (Android: `source_compare_sort` pref). null = the default high sort.
+    val sourceCompareSort: String? = null,
     // Settings window bounds, mirroring the popup/observations/history windows. Popup-owned, NOT
     // settings-owned: they are written by dragging the window, so withSettingsFrom must leave them
     // on the newer baseline or moving the Settings window while editing would rewind itself.

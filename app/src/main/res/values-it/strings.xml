@@ -99,6 +99,7 @@
     <string name="source_compare_col_high">Max</string>
     <string name="source_compare_col_low">Min</string>
     <string name="source_compare_col_rain">Pioggia</string>
+    <string name="source_compare_col_peak">Picco</string>
     <string name="source_compare_col_night">Notte</string>
     <string name="source_compare_col_amount">Quant.</string>
     <string name="source_compare_col_cloud">Nubi</string>

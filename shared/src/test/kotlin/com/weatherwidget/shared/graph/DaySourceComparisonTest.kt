@@ -5,6 +5,7 @@ import com.weatherwidget.data.model.DailyForecastSnapshot
 import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.graph.DaySourceComparison.SortColumn
 import com.weatherwidget.test.category.ShortDuration
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -151,9 +152,11 @@ class DaySourceComparisonTest {
         assertEquals(60, meteo.dayRainPercent)
         assertEquals(25, meteo.nightRainPercent)
         assertEquals("2pm", meteo.dayPeakLabel)
+        assertEquals("the Peak column sorts on the instant the label names", peak, meteo.dayPeakAt)
         val google = rows.first { it.source == WeatherSource.GOOGLE_WEATHER }
         assertEquals(10, google.dayRainPercent)
         assertNull("10% is not above the peak-hour gate", google.dayPeakLabel)
+        assertNull("no label, no peak to sort on", google.dayPeakAt)
     }
 
     @Test
@@ -200,7 +203,7 @@ class DaySourceComparisonTest {
     }
 
     @Test
-    fun `cells print short names, rain with peak hour, and blank for a zero amount`() {
+    fun `cells print short names, rain and its peak hour in separate columns, and blank for a zero amount`() {
         val peak = tomorrow.atTime(13, 0).atZone(zone).toInstant().toEpochMilli()
         val rows = build(
             listOf(WeatherSource.SILURIAN),
@@ -209,7 +212,9 @@ class DaySourceComparisonTest {
         val c = DaySourceComparison.cells(rows.single(), nowMs, useCelsius = false)
         assertEquals("Silur", c.source)
         assertEquals("49°", c.low)
-        assertEquals("30% 1pm", c.dayRain)
+        assertEquals("30%", c.dayRain)
+        assertEquals("1pm", c.peak)
+        assertEquals(listOf("Silur", "65°", "49°", "30%", "1pm", "20%", "—", "45%", "—", "30m"), c.values())
         assertEquals("20%", c.nightRain)
         assertEquals("45%", c.cloud)
         assertEquals("", c.amount)
@@ -247,7 +252,7 @@ class DaySourceComparisonTest {
 
     @Test
     fun `amount column only when wide enough and some row has an amount`() {
-        val withAmount = DaySourceComparison.Cells("A", "", "", "", "", "0.02in", "", "", "", false)
+        val withAmount = DaySourceComparison.Cells("A", "", "", "", "", "", "0.02in", "", "", "", false)
         val without = withAmount.copy(amount = "")
         assertTrue(DaySourceComparison.showAmountColumn(400f, listOf(withAmount, without)))
         assertFalse(DaySourceComparison.showAmountColumn(340f, listOf(withAmount)))
@@ -282,5 +287,96 @@ class DaySourceComparisonTest {
         val end = tomorrow.plusDays(1).atTime(9, 0).atZone(zone).toInstant().toEpochMilli()
         assertEquals("hourly $start $end [NWS, Generic]", calls[1])
         assertEquals("bias [NWS]", calls[2])
+    }
+
+    // --- Column sort (plans/261112-all-sources-column-sort.md) ---
+
+    private fun row(
+        source: WeatherSource, order: Int, high: Float? = null, low: Float? = null, day: Int? = null,
+        night: Int? = null, peakAt: Long? = null, amount: Float? = null, cloud: Int? = null, bias: Double? = null, confirmed: Long? = null,
+    ) = DaySourceComparison.Row(
+        source, high, low, day, night, peakAt?.let { "${it}h" }, peakAt, amount, cloud, bias, confirmed, sourceOrder = order,
+    )
+
+    private val sortRows = listOf(
+        row(WeatherSource.NWS, 0, high = 66f, low = 50f, day = 20, night = 70, peakAt = 15L, amount = 0f, cloud = 90, bias = -1.0, confirmed = 3_000L),
+        row(WeatherSource.OPEN_METEO, 1, high = 68f, low = 48f, day = 60, night = null, peakAt = 9L, amount = 2.5f, cloud = 30, bias = 2.0, confirmed = 1_000L),
+        row(WeatherSource.GOOGLE_WEATHER, 2, high = 66f, low = 52f, day = 60, night = 10, amount = 1.0f, cloud = null, bias = null, confirmed = 2_000L),
+        row(WeatherSource.SILURIAN, 3),
+    )
+
+    private fun ids(sort: DaySourceComparison.Sort) =
+        DaySourceComparison.sort(sortRows.shuffled(java.util.Random(7)), sort).map { it.source.id }
+            .also { println("DaySourceComparisonTest sort ${sort.encode()}: $it") }
+
+    @Test
+    fun `each column sorts both ways with blanks last and ties in source order`() {
+        fun s(col: DaySourceComparison.SortColumn, desc: Boolean) = DaySourceComparison.Sort(col, desc)
+        assertEquals(listOf("OPEN_METEO", "NWS", "GOOGLE_WEATHER", "SILURIAN"), ids(s(SortColumn.HIGH, true)))
+        assertEquals(listOf("NWS", "GOOGLE_WEATHER", "OPEN_METEO", "SILURIAN"), ids(s(SortColumn.HIGH, false)))
+        assertEquals(listOf("GOOGLE_WEATHER", "NWS", "OPEN_METEO", "SILURIAN"), ids(s(SortColumn.LOW, true)))
+        // Day rain: Meteo and Google tie at 60 and keep the source order in both directions.
+        assertEquals(listOf("OPEN_METEO", "GOOGLE_WEATHER", "NWS", "SILURIAN"), ids(s(SortColumn.DAY_RAIN, true)))
+        assertEquals(listOf("NWS", "OPEN_METEO", "GOOGLE_WEATHER", "SILURIAN"), ids(s(SortColumn.DAY_RAIN, false)))
+        // Peak: earliest first; no peak hour last both ways.
+        assertEquals(listOf("OPEN_METEO", "NWS", "GOOGLE_WEATHER", "SILURIAN"), ids(s(SortColumn.PEAK, false)))
+        assertEquals(listOf("NWS", "OPEN_METEO", "GOOGLE_WEATHER", "SILURIAN"), ids(s(SortColumn.PEAK, true)))
+        assertEquals(listOf("NWS", "GOOGLE_WEATHER", "OPEN_METEO", "SILURIAN"), ids(s(SortColumn.NIGHT_RAIN, true)))
+        assertEquals(listOf("GOOGLE_WEATHER", "NWS", "OPEN_METEO", "SILURIAN"), ids(s(SortColumn.NIGHT_RAIN, false)))
+        // A zero amount prints blank, so it sorts with the blanks.
+        assertEquals(listOf("OPEN_METEO", "GOOGLE_WEATHER", "NWS", "SILURIAN"), ids(s(SortColumn.AMOUNT, true)))
+        assertEquals(listOf("GOOGLE_WEATHER", "OPEN_METEO", "NWS", "SILURIAN"), ids(s(SortColumn.AMOUNT, false)))
+        assertEquals(listOf("NWS", "OPEN_METEO", "GOOGLE_WEATHER", "SILURIAN"), ids(s(SortColumn.CLOUD, true)))
+        assertEquals(listOf("OPEN_METEO", "NWS", "GOOGLE_WEATHER", "SILURIAN"), ids(s(SortColumn.BIAS, true)))
+        // Age ascending = freshest (newest lastConfirmedAt) first.
+        assertEquals(listOf("NWS", "GOOGLE_WEATHER", "OPEN_METEO", "SILURIAN"), ids(s(SortColumn.AGE, false)))
+        assertEquals(listOf("OPEN_METEO", "GOOGLE_WEATHER", "NWS", "SILURIAN"), ids(s(SortColumn.AGE, true)))
+        // Source: by short name (Google, Meteo, NWS, Silur), never blank.
+        assertEquals(listOf("GOOGLE_WEATHER", "OPEN_METEO", "NWS", "SILURIAN"), ids(s(SortColumn.SOURCE, false)))
+        assertEquals(listOf("SILURIAN", "NWS", "OPEN_METEO", "GOOGLE_WEATHER"), ids(s(SortColumn.SOURCE, true)))
+    }
+
+    @Test
+    fun `build keeps the default high sort and numbers rows in source order`() {
+        val sources = listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN)
+        val rows = build(sources, listOf(stored(WeatherSource.NWS, 66f), stored(WeatherSource.OPEN_METEO, 68f)))
+        assertEquals(listOf(WeatherSource.OPEN_METEO, WeatherSource.NWS, WeatherSource.SILURIAN), rows.map { it.source })
+        assertEquals(listOf(1, 0, 2), rows.map { it.sourceOrder })
+    }
+
+    @Test
+    fun `a tap flips the sorted column and starts another in its first direction`() {
+        val start = DaySourceComparison.Sort.DEFAULT
+        assertEquals(DaySourceComparison.Sort(SortColumn.HIGH, true), start)
+        assertEquals(DaySourceComparison.Sort(SortColumn.HIGH, false), start.tapped(SortColumn.HIGH))
+        assertEquals(DaySourceComparison.Sort(SortColumn.DAY_RAIN, true), start.tapped(SortColumn.DAY_RAIN))
+        assertEquals(DaySourceComparison.Sort(SortColumn.DAY_RAIN, false), start.tapped(SortColumn.DAY_RAIN).tapped(SortColumn.DAY_RAIN))
+        assertEquals(DaySourceComparison.Sort(SortColumn.AGE, false), start.tapped(SortColumn.AGE))
+        assertEquals(DaySourceComparison.Sort(SortColumn.SOURCE, false), start.tapped(SortColumn.SOURCE))
+        assertEquals("earliest peak first", DaySourceComparison.Sort(SortColumn.PEAK, false), start.tapped(SortColumn.PEAK))
+    }
+
+    @Test
+    fun `stored sort text round-trips and anything unknown reads as the default`() {
+        for (col in SortColumn.entries) for (desc in listOf(true, false)) {
+            val sort = DaySourceComparison.Sort(col, desc)
+            assertEquals(sort, DaySourceComparison.Sort.decode(sort.encode()))
+        }
+        assertEquals("DAY_RAIN:desc", DaySourceComparison.Sort(SortColumn.DAY_RAIN, true).encode())
+        listOf(null, "", "RAIN:desc", "HIGH", "HIGH:up").forEach {
+            assertEquals(it.toString(), DaySourceComparison.Sort.DEFAULT, DaySourceComparison.Sort.decode(it))
+        }
+    }
+
+    @Test
+    fun `header arrow marks only the sorted column`() {
+        val sort = DaySourceComparison.Sort(SortColumn.DAY_RAIN, true)
+        assertEquals("Rain ▾", DaySourceComparison.headerLabel("Rain", SortColumn.DAY_RAIN, sort))
+        assertEquals("Rain ▴", DaySourceComparison.headerLabel("Rain", SortColumn.DAY_RAIN, sort.tapped(SortColumn.DAY_RAIN)))
+        assertEquals("High", DaySourceComparison.headerLabel("High", SortColumn.HIGH, sort))
+        assertEquals(10, SortColumn.entries.size)
+        assertEquals(6, DaySourceComparison.AMOUNT_COLUMN)
+        assertEquals(DaySourceComparison.AMOUNT_COLUMN, SortColumn.AMOUNT.ordinal)
+        assertEquals(DaySourceComparison.COLUMN_WEIGHTS.size, SortColumn.entries.size)
     }
 }

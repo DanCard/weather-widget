@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -51,7 +52,8 @@ internal class DesktopDaySourceComparisonHost(
 /**
  * "All sources for <day>": the [DaySourceComparison] rows, with Android's columns and short names
  * (`ForecastHistoryActivity.renderSourceComparison`). The viewed source is bold; an age past
- * [DaySourceComparison.STALE_AGE_MS] is dimmed.
+ * [DaySourceComparison.STALE_AGE_MS] is dimmed. Clicking a header sorts by that column
+ * ([DaySourceComparison.Sort.tapped]); the sorted header carries the arrow.
  */
 @Composable
 internal fun DaySourceComparisonTable(
@@ -60,29 +62,34 @@ internal fun DaySourceComparisonTable(
     viewedSource: WeatherSource,
     useCelsius: Boolean,
     nowMs: Long,
+    sort: DaySourceComparison.Sort = DaySourceComparison.Sort.DEFAULT,
+    onSortTap: (DaySourceComparison.SortColumn) -> Unit = {},
 ) {
     val dayName = date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
     val monthName = date.month.getDisplayName(TextStyle.SHORT, Locale.getDefault())
     Text("All sources for $dayName $monthName ${date.dayOfMonth}", fontWeight = FontWeight.Bold, fontSize = 14.sp)
     Spacer(Modifier.height(4.dp))
+    val sorted = DaySourceComparison.sort(rows, sort)
     DataCard(Modifier.fillMaxWidth()) {
         BoxWithConstraints(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
-            val cells = rows.map { DaySourceComparison.cells(it, nowMs, useCelsius) }
+            val cells = sorted.map { DaySourceComparison.cells(it, nowMs, useCelsius) }
             val showAmount = DaySourceComparison.showAmountColumn(maxWidth.value, cells)
             Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 TableRow(
                     "source_compare_header",
-                    listOf("Source", "High", "Low", "Rain", "Night", "Amount", "Cloud", "Bias", "Age"),
+                    HEADERS.mapIndexed { i, h ->
+                        DaySourceComparison.headerLabel(h, DaySourceComparison.SortColumn.entries[i], sort)
+                    },
                     showAmount, color = ObsStyle.textSecondary, bold = false, staleAge = false,
+                    onCellClick = { i -> onSortTap(DaySourceComparison.SortColumn.entries[i]) },
                 )
                 cells.forEachIndexed { i, c ->
                     TableRow(
                         "source_compare_row_$i",
-                        listOf(c.source, c.high, c.low, c.dayRain, c.nightRain, c.amount, c.cloud, c.bias, c.age)
-                            .map { it.ifEmpty { "—" } },
+                        c.values(),
                         showAmount,
                         color = Color.White,
-                        bold = rows[i].source == viewedSource,
+                        bold = sorted[i].source == viewedSource,
                         staleAge = c.ageIsStale,
                     )
                 }
@@ -91,15 +98,26 @@ internal fun DaySourceComparisonTable(
     }
 }
 
+private val HEADERS = listOf("Source", "High", "Low", "Rain", "Peak", "Night", "Amount", "Cloud", "Bias", "Age")
+
 @Composable
-private fun TableRow(tag: String, values: List<String>, showAmount: Boolean, color: Color, bold: Boolean, staleAge: Boolean) {
+private fun TableRow(
+    tag: String,
+    values: List<String>,
+    showAmount: Boolean,
+    color: Color,
+    bold: Boolean,
+    staleAge: Boolean,
+    onCellClick: ((Int) -> Unit)? = null,
+) {
     Row(Modifier.fillMaxWidth().testTag(tag)) {
         values.forEachIndexed { i, v ->
             if (i == DaySourceComparison.AMOUNT_COLUMN && !showAmount) return@forEachIndexed
             val isAge = i == values.lastIndex
             Text(
                 v,
-                modifier = Modifier.weight(DaySourceComparison.COLUMN_WEIGHTS[i]),
+                modifier = Modifier.weight(DaySourceComparison.COLUMN_WEIGHTS[i])
+                    .then(if (onCellClick != null) Modifier.clickable { onCellClick(i) }.testTag("${tag}_$i") else Modifier),
                 color = if (isAge && staleAge) ObsStyle.textSecondary else color,
                 fontSize = 12.sp,
                 fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,

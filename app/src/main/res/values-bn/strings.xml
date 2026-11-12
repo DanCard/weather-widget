@@ -99,6 +99,7 @@
     <string name="source_compare_col_high">সর্বোচ্চ</string>
     <string name="source_compare_col_low">সর্বনিম্ন</string>
     <string name="source_compare_col_rain">বৃষ্টি</string>
+    <string name="source_compare_col_peak">শীর্ষ</string>
     <string name="source_compare_col_night">রাত</string>
     <string name="source_compare_col_amount">পরিমাণ</string>
     <string name="source_compare_col_cloud">মেঘ</string>

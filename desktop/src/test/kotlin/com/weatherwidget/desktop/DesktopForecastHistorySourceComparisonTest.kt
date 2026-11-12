@@ -4,6 +4,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.semantics.SemanticsProperties
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
@@ -95,12 +96,71 @@ class DesktopForecastHistorySourceComparisonTest {
         val rows = (0..2).map { rowTexts(it) }
         println("DesktopForecastHistorySourceComparisonTest rows: $rows")
         assertEquals(listOf("Meteo", "NWS", "Silur"), rows.map { it.first() })
-        assertEquals(listOf("Meteo", "68°", "52°", "15%", "—", "40%", "—", "2h"), rows[0])
+        assertEquals(listOf("Meteo", "68°", "52°", "15%", "—", "—", "40%", "—", "2h"), rows[0])
         assertEquals("1h", rows[1].last())
-        assertEquals(List(7) { "—" }, rows[2].drop(1))
+        assertEquals(List(8) { "—" }, rows[2].drop(1))
         assertTrue(composeTestRule.onAllNodesWithText("68°").fetchSemanticsNodes().isNotEmpty())
         assertTrue(composeTestRule.onAllNodesWithText("40%").fetchSemanticsNodes().isNotEmpty())
         assertTrue(composeTestRule.onAllNodesWithText("2h").fetchSemanticsNodes().isNotEmpty())
         assertTrue(composeTestRule.onAllNodesWithText("1h").fetchSemanticsNodes().isNotEmpty())
+    }
+
+    @Test
+    fun `clicking a header sorts by that column, again reverses it, and the sort is reported for saving`() {
+        // NWS: hotter but drier; Open-Meteo: cooler but wetter. Default (high) puts NWS first.
+        seed("NWS", 70f, 50f, ageMs = 3_600_000L, dayMax = 10)
+        seed("OPEN_METEO", 68f, 52f, ageMs = 2 * 3_600_000L, dayMax = 60)
+        val tomorrow = LocalDate.now().plusDays(1)
+        val saved = mutableListOf<String>()
+
+        composeTestRule.setContent {
+            ForecastHistoryContent(
+                weatherDao = DesktopWeatherDao(db), config = config, initialDate = tomorrow, onClose = {},
+                onSourceCompareSort = { saved += it.encode() },
+            )
+        }
+        composeTestRule.waitUntil(timeoutMillis = 10_000) {
+            composeTestRule.onAllNodesWithText("Silur").fetchSemanticsNodes().isNotEmpty()
+        }
+        fun sourcesInOrder(): List<String> = (0..2).map {
+            composeTestRule.onNodeWithTag("source_compare_row_$it", useUnmergedTree = true)
+                .fetchSemanticsNode().children.first().config[SemanticsProperties.Text].joinToString()
+        }.also { println("DesktopForecastHistorySourceComparisonTest order: $it saved=$saved") }
+
+        assertEquals(listOf("NWS", "Meteo", "Silur"), sourcesInOrder())
+        composeTestRule.onNodeWithText("High ▾").assertExists()
+
+        composeTestRule.onNodeWithTag("source_compare_header_3", useUnmergedTree = true).performClick()
+        composeTestRule.waitForIdle()
+        assertEquals(listOf("Meteo", "NWS", "Silur"), sourcesInOrder())
+        composeTestRule.onNodeWithText("Rain ▾").assertExists()
+        composeTestRule.onNodeWithText("High").assertExists()
+
+        composeTestRule.onNodeWithTag("source_compare_header_3", useUnmergedTree = true).performClick()
+        composeTestRule.waitForIdle()
+        assertEquals("blank stays last when reversed", listOf("NWS", "Meteo", "Silur"), sourcesInOrder())
+        composeTestRule.onNodeWithText("Rain ▴").assertExists()
+        assertEquals(listOf("DAY_RAIN:desc", "DAY_RAIN:asc"), saved)
+    }
+
+    @Test
+    fun `a saved sort is applied when the window opens`() {
+        seed("NWS", 70f, 50f, ageMs = 3_600_000L, dayMax = 10)
+        seed("OPEN_METEO", 68f, 52f, ageMs = 2 * 3_600_000L, dayMax = 60)
+        val tomorrow = LocalDate.now().plusDays(1)
+        composeTestRule.setContent {
+            ForecastHistoryContent(
+                weatherDao = DesktopWeatherDao(db), config = config.copy(sourceCompareSort = "DAY_RAIN:desc"),
+                initialDate = tomorrow, onClose = {},
+            )
+        }
+        composeTestRule.waitUntil(timeoutMillis = 10_000) {
+            composeTestRule.onAllNodesWithText("Silur").fetchSemanticsNodes().isNotEmpty()
+        }
+        val first = composeTestRule.onNodeWithTag("source_compare_row_0", useUnmergedTree = true)
+            .fetchSemanticsNode().children.first().config[SemanticsProperties.Text].joinToString()
+        println("DesktopForecastHistorySourceComparisonTest saved-sort first row: $first")
+        assertEquals("Meteo", first)
+        composeTestRule.onNodeWithText("Rain ▾").assertExists()
     }
 }

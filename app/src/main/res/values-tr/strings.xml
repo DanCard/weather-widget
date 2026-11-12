@@ -99,6 +99,7 @@
     <string name="source_compare_col_high">Yüksek</string>
     <string name="source_compare_col_low">Düşük</string>
     <string name="source_compare_col_rain">Yağmur</string>
+    <string name="source_compare_col_peak">Zirve</string>
     <string name="source_compare_col_night">Gece</string>
     <string name="source_compare_col_amount">Miktar</string>
     <string name="source_compare_col_cloud">Bulut</string>

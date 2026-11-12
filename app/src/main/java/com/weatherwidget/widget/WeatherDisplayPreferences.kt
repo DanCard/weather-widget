@@ -89,6 +89,13 @@ internal class WeatherDisplayPreferences(
         prefs.edit().putBoolean(KEY_SHOW_FUTURE_PRIOR_FORECAST, value).apply()
     }
 
+    /** History of Forecasts "All sources" column sort, `DaySourceComparison.Sort.encode()` text; null = default. */
+    fun sourceCompareSort(): String? = prefs.getString(KEY_SOURCE_COMPARE_SORT, null)
+
+    fun setSourceCompareSort(value: String) {
+        prefs.edit().putString(KEY_SOURCE_COMPARE_SORT, value).apply()
+    }
+
     private companion object {
         const val TAG = "UNIT_DEFAULT"
         const val KEY_USE_CELSIUS = "use_celsius"
@@ -99,5 +106,7 @@ internal class WeatherDisplayPreferences(
         const val KEY_SHOW_TODAY_OVERLAY_DOMINANT_TEMP = "show_today_overlay_dominant_temp"
         const val KEY_SHOW_DAILY_ZOOM_OUT_BUTTON = "show_daily_zoom_out_button"
         const val KEY_SHOW_FUTURE_PRIOR_FORECAST = "show_future_prior_forecast"
+        // Desktop: DesktopConfig.sourceCompareSort.
+        const val KEY_SOURCE_COMPARE_SORT = "source_compare_sort"
     }
 }

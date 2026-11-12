@@ -99,6 +99,7 @@
     <string name="source_compare_col_high">Cao</string>
     <string name="source_compare_col_low">Thấp</string>
     <string name="source_compare_col_rain">Mưa</string>
+    <string name="source_compare_col_peak">Đỉnh</string>
     <string name="source_compare_col_night">Đêm</string>
     <string name="source_compare_col_amount">Lượng</string>
     <string name="source_compare_col_cloud">Mây</string>

@@ -99,6 +99,7 @@
     <string name="source_compare_col_high">العظمى</string>
     <string name="source_compare_col_low">الصغرى</string>
     <string name="source_compare_col_rain">المطر</string>
+    <string name="source_compare_col_peak">ذروة</string>
     <string name="source_compare_col_night">الليل</string>
     <string name="source_compare_col_amount">الكمية</string>
     <string name="source_compare_col_cloud">الغيوم</string>

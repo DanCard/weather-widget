@@ -57,6 +57,8 @@ data class DailyColumn(
     val dailyRainLabelText: String?,
     /** When the daytime chance peaks ("1pm"), drawn above [dailyRainLabelText]; null = none. */
     val dailyRainPeakLabelText: String? = null,
+    /** The instant [dailyRainPeakLabelText] names; null whenever that label is. */
+    val dailyRainPeakAt: Long? = null,
     /** Nighttime rain label tucked between columns (observed amount or prob%). */
     val nightRainLabelText: String?,
     /** Resolved day/night precip chance driving the rain-label FONT SIZE (shared scaling rule). */
@@ -553,6 +555,7 @@ object DailyColumnBuilder {
             cloudCoverRatio = measuredNoonCloudPercent?.let { it / 100f },
             dailyRainLabelText = dailyRainLabelText,
             dailyRainPeakLabelText = dailyRainPeakLabelText,
+            dailyRainPeakAt = resolvedPrecip.dayPeakAt.takeIf { dailyRainPeakLabelText != null },
             nightRainLabelText = nightRainLabelText,
             dayPrecipProbability = resolvedPrecip.dayPrecip,
             nightPrecipProbability = resolvedPrecip.nightPrecip,

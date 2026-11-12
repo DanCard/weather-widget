@@ -150,6 +150,8 @@ class ForecastHistoryActivity : AppCompatActivity() {
     private var cachedLocationActuals = ForecastHistoryViewLogic.LocationActuals.NONE
     private var cachedDate: LocalDate? = null
     private var cachedRequestedSource: WeatherSource? = null
+    /** The last "All sources" rows, re-sorted in place on a header tap without reloading. */
+    private var sourceCompareRows: Pair<LocalDate, List<DaySourceComparison.Row>>? = null
     private lateinit var targetDate: String
     private var targetLat: Double = 0.0
     private var targetLon: Double = 0.0
@@ -717,8 +719,8 @@ class ForecastHistoryActivity : AppCompatActivity() {
     }
 
     /**
-     * "All sources for <day>": every visible source's forecast for [date], sorted by high
-     * (shared [DaySourceComparison]; desktop draws the same rows in `DaySourceComparisonTable`).
+     * "All sources for <day>": every visible source's forecast for [date], sorted by the remembered
+     * column (shared [DaySourceComparison]; desktop draws the same rows in `DaySourceComparisonTable`).
      */
     private fun loadSourceComparison(date: LocalDate, lat: Double, lon: Double) {
         val sources = effectiveVisibleSources()
@@ -755,6 +757,9 @@ class ForecastHistoryActivity : AppCompatActivity() {
             return
         }
         card.visibility = View.VISIBLE
+        sourceCompareRows = date to rows
+        val sort = DaySourceComparison.Sort.decode(widgetStateManager.sourceCompareSort())
+        val sorted = DaySourceComparison.sort(rows, sort)
         val locale = java.util.Locale.getDefault()
         val dayText = "${date.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, locale)} " +
             "${date.month.getDisplayName(java.time.format.TextStyle.SHORT, locale)} ${date.dayOfMonth}"
@@ -762,7 +767,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
 
         val useCelsius = widgetStateManager.useCelsius()
         val nowMs = System.currentTimeMillis()
-        val cells = rows.map { DaySourceComparison.cells(it, nowMs, useCelsius) }
+        val cells = sorted.map { DaySourceComparison.cells(it, nowMs, useCelsius) }
         // Card margins (12 + 12) and padding (12 + 12) around the table.
         val tableWidthDp = resources.displayMetrics.widthPixels / resources.displayMetrics.density - 48f
         val showAmount = DaySourceComparison.showAmountColumn(tableWidthDp, cells)
@@ -770,18 +775,37 @@ class ForecastHistoryActivity : AppCompatActivity() {
         val secondary = DataScreenStyler.color(com.weatherwidget.shared.graph.DataScreenStyle.TEXT_SECONDARY)
         val header = listOf(
             R.string.source_compare_col_source, R.string.source_compare_col_high, R.string.source_compare_col_low,
-            R.string.source_compare_col_rain, R.string.source_compare_col_night, R.string.source_compare_col_amount,
+            R.string.source_compare_col_rain, R.string.source_compare_col_peak, R.string.source_compare_col_night,
+            R.string.source_compare_col_amount,
             R.string.source_compare_col_cloud, R.string.source_compare_col_bias, R.string.source_compare_col_age,
-        ).map { getString(it) }
-        table.addView(comparisonRow(header, showAmount, secondary, bold = false, staleAge = false))
+        ).mapIndexed { i, id -> DaySourceComparison.headerLabel(getString(id), DaySourceComparison.SortColumn.entries[i], sort) }
+        table.addView(
+            comparisonRow(header, showAmount, secondary, bold = false, staleAge = false) { i ->
+                onSourceCompareHeaderTap(DaySourceComparison.SortColumn.entries[i])
+            },
+        )
         cells.forEachIndexed { i, c ->
-            val values = listOf(c.source, c.high, c.low, c.dayRain, c.nightRain, c.amount, c.cloud, c.bias, c.age)
-                .map { it.ifEmpty { "—" } }
-            table.addView(comparisonRow(values, showAmount, primary, bold = rows[i].source == cachedRequestedSource, staleAge = c.ageIsStale))
+            table.addView(comparisonRow(c.values(), showAmount, primary, bold = sorted[i].source == cachedRequestedSource, staleAge = c.ageIsStale))
         }
     }
 
-    private fun comparisonRow(values: List<String>, showAmount: Boolean, color: Int, bold: Boolean, staleAge: Boolean): View {
+    /** A header tap: flip or switch the sort, remember it, and redraw the loaded rows. */
+    private fun onSourceCompareHeaderTap(column: DaySourceComparison.SortColumn) {
+        val (date, rows) = sourceCompareRows ?: return
+        val next = DaySourceComparison.Sort.decode(widgetStateManager.sourceCompareSort()).tapped(column)
+        widgetStateManager.setSourceCompareSort(next.encode())
+        DaySourceComparison.logSortTap(date, next, DaySourceComparison.sort(rows, next))
+        renderSourceComparison(date, rows)
+    }
+
+    private fun comparisonRow(
+        values: List<String>,
+        showAmount: Boolean,
+        color: Int,
+        bold: Boolean,
+        staleAge: Boolean,
+        onCellClick: ((Int) -> Unit)? = null,
+    ): View {
         val row = android.widget.LinearLayout(this).apply {
             orientation = android.widget.LinearLayout.HORIZONTAL
             setPadding(0, dpToPx(2), 0, dpToPx(2))
@@ -799,6 +823,12 @@ class ForecastHistoryActivity : AppCompatActivity() {
                     gravity = if (i == 0) android.view.Gravity.START else android.view.Gravity.END
                     maxLines = 1
                     layoutParams = android.widget.LinearLayout.LayoutParams(0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, DaySourceComparison.COLUMN_WEIGHTS[i])
+                    if (onCellClick != null) {
+                        setOnClickListener { onCellClick(i) }
+                        val ripple = TypedValue()
+                        context.theme.resolveAttribute(android.R.attr.selectableItemBackground, ripple, true)
+                        setBackgroundResource(ripple.resourceId)
+                    }
                 },
             )
         }

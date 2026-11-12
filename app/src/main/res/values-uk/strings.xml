@@ -99,6 +99,7 @@
     <string name="source_compare_col_high">Макс</string>
     <string name="source_compare_col_low">Мін</string>
     <string name="source_compare_col_rain">Дощ</string>
+    <string name="source_compare_col_peak">Пік</string>
     <string name="source_compare_col_night">Ніч</string>
     <string name="source_compare_col_amount">К-сть</string>
     <string name="source_compare_col_cloud">Хмари</string>
