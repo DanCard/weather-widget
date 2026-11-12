@@ -14,7 +14,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -93,10 +97,38 @@ internal fun DaySourceComparisonTable(
                         staleAge = c.ageIsStale,
                     )
                 }
+                Text(
+                    legendText(showAmount),
+                    modifier = Modifier.padding(top = 5.dp).testTag("source_compare_legend"),
+                    color = ObsStyle.textSecondary,
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp,
+                )
             }
         }
     }
 }
+
+/** One line per column, "Rain highest hourly chance, 8am–8pm", names bold (Android: `sourceComparisonLegend`). */
+private fun legendText(showAmount: Boolean): AnnotatedString = buildAnnotatedString {
+    DaySourceComparison.legendColumns(showAmount).forEachIndexed { i, column ->
+        if (i > 0) append("\n")
+        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(HEADERS[column.ordinal]) }
+        append(" ")
+        append(LEGEND_TEXT.getValue(column))
+    }
+}
+
+/** Desktop legend wording; Android carries the same in its `source_compare_legend_*` strings. */
+internal val LEGEND_TEXT: Map<DaySourceComparison.SortColumn, String> = mapOf(
+    DaySourceComparison.SortColumn.DAY_RAIN to "highest hourly chance, 8am–8pm",
+    DaySourceComparison.SortColumn.PEAK to "hour of the highest daytime chance",
+    DaySourceComparison.SortColumn.NIGHT_RAIN to "highest hourly chance, 8pm–8am",
+    DaySourceComparison.SortColumn.AMOUNT to "forecast total, midnight to midnight",
+    DaySourceComparison.SortColumn.CLOUD to "cloud cover at noon",
+    DaySourceComparison.SortColumn.BIAS to "average forecast high minus actual, last 30 days (+ = ran warm)",
+    DaySourceComparison.SortColumn.AGE to "time since the source last confirmed this forecast; grey after 24 h",
+)
 
 private val HEADERS = listOf("Source", "High", "Low", "Rain", "Peak", "Night", "Amount", "Cloud", "Bias", "Age")
 

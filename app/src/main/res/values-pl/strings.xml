@@ -105,6 +105,13 @@
     <string name="source_compare_col_cloud">Chmury</string>
     <string name="source_compare_col_bias">Odchył.</string>
     <string name="source_compare_col_age">Wiek</string>
+    <string name="source_compare_legend_rain">najwyższe godzinowe prawdopodobieństwo, 8–20</string>
+    <string name="source_compare_legend_peak">godzina najwyższego prawdopodobieństwa w dzień</string>
+    <string name="source_compare_legend_night">najwyższe godzinowe prawdopodobieństwo, 20–8</string>
+    <string name="source_compare_legend_amount">suma prognozy, od północy do północy</string>
+    <string name="source_compare_legend_cloud">zachmurzenie w południe</string>
+    <string name="source_compare_legend_bias">średnia prognozowana maks. minus rzeczywista, ostatnie 30 dni (+ = za ciepło)</string>
+    <string name="source_compare_legend_age">od ostatniego potwierdzenia tej prognozy przez źródło; szare po 24 h</string>
     <string name="loading_accuracy_summary">Ładowanie trafności prognoz...</string>
     <string name="error_loading_accuracy_summary">Nie można teraz wczytać trafności prognoz.</string>
     <string name="data_freshness_unknown">Aktualność danych: nieznana</string>

@@ -105,6 +105,13 @@
     <string name="source_compare_col_cloud">Nuvens</string>
     <string name="source_compare_col_bias">Viés</string>
     <string name="source_compare_col_age">Idade</string>
+    <string name="source_compare_legend_rain">maior probabilidade horária, 8h–20h</string>
+    <string name="source_compare_legend_peak">hora da maior probabilidade diurna</string>
+    <string name="source_compare_legend_night">maior probabilidade horária, 20h–8h</string>
+    <string name="source_compare_legend_amount">total previsto, de meia-noite a meia-noite</string>
+    <string name="source_compare_legend_cloud">nebulosidade ao meio-dia</string>
+    <string name="source_compare_legend_bias">máxima prevista média menos a real, últimos 30 dias (+ = mais quente)</string>
+    <string name="source_compare_legend_age">desde que a fonte confirmou esta previsão; cinza após 24 h</string>
     <string name="loading_accuracy_summary">Carregando precisão da previsão...</string>
     <string name="error_loading_accuracy_summary">Não foi possível carregar a precisão da previsão agora.</string>
     <string name="data_freshness_unknown">Atualidade dos dados: desconhecida</string>

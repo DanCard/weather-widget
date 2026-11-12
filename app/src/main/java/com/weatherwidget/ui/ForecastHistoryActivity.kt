@@ -773,12 +773,13 @@ class ForecastHistoryActivity : AppCompatActivity() {
         val showAmount = DaySourceComparison.showAmountColumn(tableWidthDp, cells)
         val primary = DataScreenStyler.color(com.weatherwidget.shared.graph.DataScreenStyle.TEXT_PRIMARY)
         val secondary = DataScreenStyler.color(com.weatherwidget.shared.graph.DataScreenStyle.TEXT_SECONDARY)
-        val header = listOf(
+        val names = listOf(
             R.string.source_compare_col_source, R.string.source_compare_col_high, R.string.source_compare_col_low,
             R.string.source_compare_col_rain, R.string.source_compare_col_peak, R.string.source_compare_col_night,
             R.string.source_compare_col_amount,
             R.string.source_compare_col_cloud, R.string.source_compare_col_bias, R.string.source_compare_col_age,
-        ).mapIndexed { i, id -> DaySourceComparison.headerLabel(getString(id), DaySourceComparison.SortColumn.entries[i], sort) }
+        ).map { getString(it) }
+        val header = names.mapIndexed { i, name -> DaySourceComparison.headerLabel(name, DaySourceComparison.SortColumn.entries[i], sort) }
         table.addView(
             comparisonRow(header, showAmount, secondary, bold = false, staleAge = false) { i ->
                 onSourceCompareHeaderTap(DaySourceComparison.SortColumn.entries[i])
@@ -787,6 +788,27 @@ class ForecastHistoryActivity : AppCompatActivity() {
         cells.forEachIndexed { i, c ->
             table.addView(comparisonRow(c.values(), showAmount, primary, bold = sorted[i].source == cachedRequestedSource, staleAge = c.ageIsStale))
         }
+        findViewById<TextView>(R.id.source_comparison_legend).text = sourceComparisonLegend(names, showAmount)
+    }
+
+    /** One line per column, "Rain highest hourly chance, 8am–8pm": shared column choice, bold names, localized notes. */
+    private fun sourceComparisonLegend(names: List<String>, showAmount: Boolean): CharSequence {
+        val notes = mapOf(
+            DaySourceComparison.SortColumn.DAY_RAIN to R.string.source_compare_legend_rain,
+            DaySourceComparison.SortColumn.PEAK to R.string.source_compare_legend_peak,
+            DaySourceComparison.SortColumn.NIGHT_RAIN to R.string.source_compare_legend_night,
+            DaySourceComparison.SortColumn.AMOUNT to R.string.source_compare_legend_amount,
+            DaySourceComparison.SortColumn.CLOUD to R.string.source_compare_legend_cloud,
+            DaySourceComparison.SortColumn.BIAS to R.string.source_compare_legend_bias,
+            DaySourceComparison.SortColumn.AGE to R.string.source_compare_legend_age,
+        )
+        val text = android.text.SpannableStringBuilder()
+        DaySourceComparison.legendColumns(showAmount).forEachIndexed { i, column ->
+            if (i > 0) text.append("\n")
+            text.append(names[column.ordinal], android.text.style.StyleSpan(android.graphics.Typeface.BOLD), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            text.append(" ").append(getString(notes.getValue(column)))
+        }
+        return text
     }
 
     /** A header tap: flip or switch the sort, remember it, and redraw the loaded rows. */

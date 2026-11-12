@@ -105,6 +105,13 @@
     <string name="source_compare_col_cloud">মেঘ</string>
     <string name="source_compare_col_bias">পক্ষপাত</string>
     <string name="source_compare_col_age">বয়স</string>
+    <string name="source_compare_legend_rain">প্রতি ঘণ্টার সর্বোচ্চ সম্ভাবনা, 8–20</string>
+    <string name="source_compare_legend_peak">দিনের সর্বোচ্চ সম্ভাবনার সময়</string>
+    <string name="source_compare_legend_night">প্রতি ঘণ্টার সর্বোচ্চ সম্ভাবনা, 20–8</string>
+    <string name="source_compare_legend_amount">পূর্বাভাসের মোট, মধ্যরাত থেকে মধ্যরাত</string>
+    <string name="source_compare_legend_cloud">দুপুর 12টায় মেঘের আবরণ</string>
+    <string name="source_compare_legend_bias">গড় পূর্বাভাসিত সর্বোচ্চ বিয়োগ প্রকৃত, গত 30 দিন (+ = বেশি উষ্ণ)</string>
+    <string name="source_compare_legend_age">উৎস শেষবার এই পূর্বাভাস নিশ্চিত করার পর থেকে; 24 ঘণ্টা পরে ধূসর</string>
     <string name="loading_accuracy_summary">পূর্বাভাসের নির্ভুলতা লোড হচ্ছে...</string>
     <string name="error_loading_accuracy_summary">এখন পূর্বাভাসের নির্ভুলতা লোড করা যাচ্ছে না।</string>
     <string name="data_freshness_unknown">ডেটার সতেজতা: অজানা</string>

@@ -106,3 +106,19 @@ not the start. User chose "peak only".
 - "Peak" header string added in all 20 locale files.
 - The saved sort text uses column names, so stored sorts such as `DAY_RAIN:desc` stay valid.
 - Emulator, 1080 px: "Peak ▴" and "12pm" fit with Amount dropped.
+
+## Follow-up: legend under the table (2026-11-12)
+
+User: "Should we add a legend for All sources? Like cloud is cloud cover at noon. Peak = time of peak
+rain chance during the day?" Then: "yes" (always visible), and "Increase the font size of the text.
+New line for each column explained."
+
+- Shared `DaySourceComparison.legendColumns(showAmount)` sets which columns get a line: Rain, Peak, Night,
+  Amount (only while shown), Cloud, Bias and Age. Source, High and Low need none.
+- The wording is per platform, because `HardcodedUserFacingStringTest` keeps prose out of `:shared`:
+  desktop `LEGEND_TEXT` (English) and Android `source_compare_legend_*` in all 20 locales. Each line
+  states what the cell holds, checked in code: Rain and Night are the windowed hourly max, Amount the
+  stored midnight-to-midnight row total, Bias the 30-day mean high error (forecast − actual).
+- One line per column, bold name, 12sp secondary colour on both platforms.
+- Noted, not changed: the table's Amount is the midnight-to-midnight total. The widget's day label
+  sums only 8am–8pm (plans/261106-day-rain-amount-daytime-window.md).

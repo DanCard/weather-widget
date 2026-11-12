@@ -12,6 +12,8 @@ import com.weatherwidget.R
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.graph.DaySourceComparison
+import com.weatherwidget.shared.graph.DaySourceComparison.SortColumn
 import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.widget.WidgetStateManager
 import kotlinx.coroutines.runBlocking
@@ -117,6 +119,18 @@ class ForecastHistorySourceComparisonRoboTest {
         assertTrue("viewed source is bold", nwsSource.typeface?.style?.and(Typeface.BOLD) == Typeface.BOLD)
         val meteoSource = (table.getChildAt(1) as LinearLayout).getChildAt(0) as TextView
         assertTrue("other sources are not bold", (meteoSource.typeface?.style ?: 0) and Typeface.BOLD == 0)
+        // Legend: the shared column choice (no Amount: its column is dropped here), desktop's wording.
+        val legend = activity.findViewById<TextView>(R.id.source_comparison_legend).text.toString()
+        println("ForecastHistorySourceComparisonRoboTest legend: $legend")
+        assertEquals(listOf(SortColumn.DAY_RAIN, SortColumn.PEAK, SortColumn.NIGHT_RAIN, SortColumn.CLOUD, SortColumn.BIAS, SortColumn.AGE),
+            DaySourceComparison.legendColumns(showAmount = false))
+        assertEquals(
+            "Rain highest hourly chance, 8am–8pm\nPeak hour of the highest daytime chance\n" +
+                "Night highest hourly chance, 8pm–8am\nCloud cloud cover at noon\n" +
+                "Bias average forecast high minus actual, last 30 days (+ = ran warm)\n" +
+                "Age time since the source last confirmed this forecast; grey after 24 h",
+            legend,
+        )
     }
 
     @Test

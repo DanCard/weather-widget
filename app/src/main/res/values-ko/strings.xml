@@ -105,6 +105,13 @@
     <string name="source_compare_col_cloud">구름</string>
     <string name="source_compare_col_bias">편향</string>
     <string name="source_compare_col_age">경과</string>
+    <string name="source_compare_legend_rain">시간별 최고 확률, 8–20시</string>
+    <string name="source_compare_legend_peak">주간 최고 확률 시각</string>
+    <string name="source_compare_legend_night">시간별 최고 확률, 20–8시</string>
+    <string name="source_compare_legend_amount">예보 총량, 자정부터 자정까지</string>
+    <string name="source_compare_legend_cloud">정오 구름량</string>
+    <string name="source_compare_legend_bias">평균 예보 최고기온 − 실제, 최근 30일 (+ = 높게 예보)</string>
+    <string name="source_compare_legend_age">출처가 이 예보를 마지막으로 확인한 후 경과 시간; 24시간 후 회색</string>
     <string name="loading_accuracy_summary">예보 정확도 불러오는 중...</string>
     <string name="error_loading_accuracy_summary">지금은 예보 정확도를 불러올 수 없습니다.</string>
     <string name="data_freshness_unknown">데이터 최신 상태: 알 수 없음</string>

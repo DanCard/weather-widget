@@ -105,6 +105,13 @@
     <string name="source_compare_col_cloud">Cloud</string>
     <string name="source_compare_col_bias">Bias</string>
     <string name="source_compare_col_age">Age</string>
+    <string name="source_compare_legend_rain">highest hourly chance, 8am–8pm</string>
+    <string name="source_compare_legend_peak">hour of the highest daytime chance</string>
+    <string name="source_compare_legend_night">highest hourly chance, 8pm–8am</string>
+    <string name="source_compare_legend_amount">forecast total, midnight to midnight</string>
+    <string name="source_compare_legend_cloud">cloud cover at noon</string>
+    <string name="source_compare_legend_bias">average forecast high minus actual, last 30 days (+ = ran warm)</string>
+    <string name="source_compare_legend_age">time since the source last confirmed this forecast; grey after 24 h</string>
     <string name="loading_accuracy_summary">Loading forecast accuracy...</string>
     <string name="error_loading_accuracy_summary">Unable to load forecast accuracy right now.</string>
     <string name="data_freshness_unknown">Data freshness: Unknown</string>

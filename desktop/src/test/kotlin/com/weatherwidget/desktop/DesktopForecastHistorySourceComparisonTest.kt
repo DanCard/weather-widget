@@ -8,6 +8,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.semantics.SemanticsProperties
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
+import com.weatherwidget.shared.graph.DaySourceComparison
 import com.weatherwidget.test.category.LongDuration
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -103,6 +104,13 @@ class DesktopForecastHistorySourceComparisonTest {
         assertTrue(composeTestRule.onAllNodesWithText("40%").fetchSemanticsNodes().isNotEmpty())
         assertTrue(composeTestRule.onAllNodesWithText("2h").fetchSemanticsNodes().isNotEmpty())
         assertTrue(composeTestRule.onAllNodesWithText("1h").fetchSemanticsNodes().isNotEmpty())
+        val legend = composeTestRule.onNodeWithTag("source_compare_legend", useUnmergedTree = true)
+            .fetchSemanticsNode().config[SemanticsProperties.Text].joinToString()
+        println("DesktopForecastHistorySourceComparisonTest legend: $legend")
+        assertTrue(legend, legend.startsWith("Rain highest hourly chance, 8am–8pm\nPeak hour of the highest daytime chance\n"))
+        assertTrue(legend, legend.contains("\nCloud cloud cover at noon\n"))
+        assertTrue(legend, legend.endsWith("Age time since the source last confirmed this forecast; grey after 24 h"))
+        assertEquals("every legend column has text", DaySourceComparison.legendColumns(true).toSet(), LEGEND_TEXT.keys)
     }
 
     @Test

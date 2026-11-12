@@ -105,6 +105,13 @@
     <string name="source_compare_col_cloud">Nubi</string>
     <string name="source_compare_col_bias">Scarto</string>
     <string name="source_compare_col_age">Età</string>
+    <string name="source_compare_legend_rain">massima probabilità oraria, 8–20</string>
+    <string name="source_compare_legend_peak">ora della massima probabilità diurna</string>
+    <string name="source_compare_legend_night">massima probabilità oraria, 20–8</string>
+    <string name="source_compare_legend_amount">totale previsto, da mezzanotte a mezzanotte</string>
+    <string name="source_compare_legend_cloud">copertura nuvolosa a mezzogiorno</string>
+    <string name="source_compare_legend_bias">massima prevista media meno reale, ultimi 30 giorni (+ = più calda)</string>
+    <string name="source_compare_legend_age">da quando la fonte ha confermato questa previsione; grigio dopo 24 h</string>
     <string name="loading_accuracy_summary">Caricamento accuratezza previsioni...</string>
     <string name="error_loading_accuracy_summary">Impossibile caricare l\'accuratezza delle previsioni al momento.</string>
     <string name="data_freshness_unknown">Aggiornamento dati: sconosciuto</string>

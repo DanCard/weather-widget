@@ -105,6 +105,13 @@
     <string name="source_compare_col_cloud">Хмари</string>
     <string name="source_compare_col_bias">Зміщ.</string>
     <string name="source_compare_col_age">Вік</string>
+    <string name="source_compare_legend_rain">найвища погодинна ймовірність, 8–20</string>
+    <string name="source_compare_legend_peak">година найвищої денної ймовірності</string>
+    <string name="source_compare_legend_night">найвища погодинна ймовірність, 20–8</string>
+    <string name="source_compare_legend_amount">прогноз за добу, від півночі до півночі</string>
+    <string name="source_compare_legend_cloud">хмарність опівдні</string>
+    <string name="source_compare_legend_bias">середній прогноз максимуму мінус факт, 30 днів (+ = тепліше)</string>
+    <string name="source_compare_legend_age">від останнього підтвердження прогнозу джерелом; сірим після 24 год</string>
     <string name="loading_accuracy_summary">Завантаження точності прогнозів...</string>
     <string name="error_loading_accuracy_summary">Наразі не вдається завантажити точність прогнозів.</string>
     <string name="data_freshness_unknown">Свіжість даних: невідомо</string>

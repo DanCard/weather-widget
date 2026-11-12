@@ -105,6 +105,13 @@
     <string name="source_compare_col_cloud">Mây</string>
     <string name="source_compare_col_bias">Lệch</string>
     <string name="source_compare_col_age">Tuổi</string>
+    <string name="source_compare_legend_rain">khả năng theo giờ cao nhất, 8–20 giờ</string>
+    <string name="source_compare_legend_peak">giờ có khả năng cao nhất ban ngày</string>
+    <string name="source_compare_legend_night">khả năng theo giờ cao nhất, 20–8 giờ</string>
+    <string name="source_compare_legend_amount">tổng dự báo, từ nửa đêm đến nửa đêm</string>
+    <string name="source_compare_legend_cloud">mây che phủ lúc trưa</string>
+    <string name="source_compare_legend_bias">trung bình cao nhất dự báo trừ thực tế, 30 ngày qua (+ = ấm hơn)</string>
+    <string name="source_compare_legend_age">kể từ lần nguồn xác nhận dự báo này gần nhất; xám sau 24 giờ</string>
     <string name="loading_accuracy_summary">Đang tải độ chính xác dự báo...</string>
     <string name="error_loading_accuracy_summary">Hiện không thể tải độ chính xác dự báo.</string>
     <string name="data_freshness_unknown">Độ mới của dữ liệu: Không rõ</string>

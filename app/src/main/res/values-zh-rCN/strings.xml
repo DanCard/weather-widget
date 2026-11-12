@@ -105,6 +105,13 @@
     <string name="source_compare_col_cloud">云量</string>
     <string name="source_compare_col_bias">偏差</string>
     <string name="source_compare_col_age">时长</string>
+    <string name="source_compare_legend_rain">每小时最高概率，8–20时</string>
+    <string name="source_compare_legend_peak">白天最高概率的时刻</string>
+    <string name="source_compare_legend_night">每小时最高概率，20–8时</string>
+    <string name="source_compare_legend_amount">预报总量，午夜至午夜</string>
+    <string name="source_compare_legend_cloud">正午云量</string>
+    <string name="source_compare_legend_bias">预报最高温平均减实测，近30天（+ = 偏暖）</string>
+    <string name="source_compare_legend_age">距来源上次确认此预报的时间；超过24小时显示为灰色</string>
     <string name="loading_accuracy_summary">正在加载预报准确度...</string>
     <string name="error_loading_accuracy_summary">目前无法加载预报准确度。</string>
     <string name="data_freshness_unknown">数据新鲜度：未知</string>

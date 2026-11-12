@@ -379,4 +379,18 @@ class DaySourceComparisonTest {
         assertEquals(DaySourceComparison.AMOUNT_COLUMN, SortColumn.AMOUNT.ordinal)
         assertEquals(DaySourceComparison.COLUMN_WEIGHTS.size, SortColumn.entries.size)
     }
+
+    @Test
+    fun `legend explains the ambiguous columns in column order, Amount only while shown`() {
+        val all = DaySourceComparison.legendColumns(showAmount = true)
+        println("DaySourceComparisonTest legend: $all")
+        assertEquals(
+            listOf(
+                SortColumn.DAY_RAIN, SortColumn.PEAK, SortColumn.NIGHT_RAIN, SortColumn.AMOUNT,
+                SortColumn.CLOUD, SortColumn.BIAS, SortColumn.AGE,
+            ),
+            all,
+        )
+        assertEquals(all - SortColumn.AMOUNT, DaySourceComparison.legendColumns(showAmount = false))
+    }
 }

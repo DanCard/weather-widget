@@ -105,6 +105,13 @@
     <string name="source_compare_col_cloud">Bulut</string>
     <string name="source_compare_col_bias">Sapma</string>
     <string name="source_compare_col_age">Yaş</string>
+    <string name="source_compare_legend_rain">en yüksek saatlik olasılık, 08–20</string>
+    <string name="source_compare_legend_peak">gündüz en yüksek olasılığın saati</string>
+    <string name="source_compare_legend_night">en yüksek saatlik olasılık, 20–08</string>
+    <string name="source_compare_legend_amount">tahmini toplam, gece yarısından gece yarısına</string>
+    <string name="source_compare_legend_cloud">öğlen bulut örtüsü</string>
+    <string name="source_compare_legend_bias">ortalama tahmini yüksek eksi gerçek, son 30 gün (+ = sıcak)</string>
+    <string name="source_compare_legend_age">kaynağın bu tahmini son onaylamasından beri; 24 sa sonra gri</string>
     <string name="loading_accuracy_summary">Tahmin doğruluğu yükleniyor...</string>
     <string name="error_loading_accuracy_summary">Tahmin doğruluğu şu anda yüklenemiyor.</string>
     <string name="data_freshness_unknown">Veri güncelliği: Bilinmiyor</string>

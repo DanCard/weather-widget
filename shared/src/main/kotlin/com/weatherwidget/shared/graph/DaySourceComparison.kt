@@ -377,6 +377,21 @@ object DaySourceComparison {
     fun showAmountColumn(tableWidthDp: Float, cells: List<Cells>): Boolean =
         tableWidthDp >= AMOUNT_MIN_WIDTH_DP && cells.any { it.amount.isNotEmpty() }
 
+    /**
+     * The legend under the table, both platforms: the columns whose header alone is ambiguous, in
+     * column order. Amount only while its column is shown. Source, High and Low need no note.
+     * The wording is per platform (desktop `LEGEND_TEXT`, Android `source_compare_legend_*`) and says
+     * exactly what each cell holds: Rain/Night are the windowed hourly max ([DailyRainLabels]), Amount
+     * the stored midnight-to-midnight row total, Bias the 30-day mean high error as forecast − actual.
+     */
+    fun legendColumns(showAmount: Boolean): List<SortColumn> =
+        LEGEND_COLUMNS.filter { showAmount || it != SortColumn.AMOUNT }
+
+    private val LEGEND_COLUMNS = listOf(
+        SortColumn.DAY_RAIN, SortColumn.PEAK, SortColumn.NIGHT_RAIN, SortColumn.AMOUNT,
+        SortColumn.CLOUD, SortColumn.BIAS, SortColumn.AGE,
+    )
+
     /** Signed bias in display units: "+2.1°", "−1.2°" (true minus), "0.0°". */
     fun formatBias(biasF: Double, useCelsius: Boolean): String {
         val v = TempUtils.displayDelta(biasF, useCelsius)

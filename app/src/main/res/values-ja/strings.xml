@@ -105,6 +105,13 @@
     <string name="source_compare_col_cloud">雲</string>
     <string name="source_compare_col_bias">偏り</string>
     <string name="source_compare_col_age">経過</string>
+    <string name="source_compare_legend_rain">1時間ごとの最高確率、8〜20時</string>
+    <string name="source_compare_legend_peak">日中の最高確率の時刻</string>
+    <string name="source_compare_legend_night">1時間ごとの最高確率、20〜8時</string>
+    <string name="source_compare_legend_amount">予報合計、0時から24時</string>
+    <string name="source_compare_legend_cloud">正午の雲量</string>
+    <string name="source_compare_legend_bias">予報最高気温の平均から実測を引いた値、過去30日（+ = 高め）</string>
+    <string name="source_compare_legend_age">提供元がこの予報を最後に確認してからの時間。24時間超は灰色</string>
     <string name="loading_accuracy_summary">予報精度を読み込み中...</string>
     <string name="error_loading_accuracy_summary">予報精度を現在読み込めません。</string>
     <string name="data_freshness_unknown">データの鮮度：不明</string>

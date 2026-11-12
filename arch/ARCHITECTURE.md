@@ -51,7 +51,8 @@ Examples include:
   Clicking a column header sorts by it (`Sort.tapped`: same column flips, a new column starts
   descending except Source A–Z, Peak earliest-first and Age freshest-first); blanks stay last and ties keep the source
   order. The sort is remembered (`source_compare_sort` pref / `DesktopConfig.sourceCompareSort`);
-  `DAY_SOURCE_SORT` logs each tap.
+  `DAY_SOURCE_SORT` logs each tap. A legend under the table gives one line per ambiguous column
+  (`legendColumns`; wording per platform: desktop `LEGEND_TEXT`, Android `source_compare_legend_*`).
 
 A shared planner that leaves ordering or policy in platform glue is not equivalent; that arrangement
 previously allowed Android and desktop to drift. Host contract tests exercise the same runner against

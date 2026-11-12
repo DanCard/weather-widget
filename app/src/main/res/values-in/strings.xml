@@ -105,6 +105,13 @@
     <string name="source_compare_col_cloud">Awan</string>
     <string name="source_compare_col_bias">Bias</string>
     <string name="source_compare_col_age">Usia</string>
+    <string name="source_compare_legend_rain">peluang per jam tertinggi, 08–20</string>
+    <string name="source_compare_legend_peak">jam peluang tertinggi siang hari</string>
+    <string name="source_compare_legend_night">peluang per jam tertinggi, 20–08</string>
+    <string name="source_compare_legend_amount">total prakiraan, tengah malam ke tengah malam</string>
+    <string name="source_compare_legend_cloud">tutupan awan pukul 12 siang</string>
+    <string name="source_compare_legend_bias">rata-rata prakiraan maks dikurangi aktual, 30 hari terakhir (+ = lebih hangat)</string>
+    <string name="source_compare_legend_age">sejak sumber terakhir mengonfirmasi prakiraan ini; abu-abu setelah 24 jam</string>
     <string name="loading_accuracy_summary">Memuat akurasi prakiraan...</string>
     <string name="error_loading_accuracy_summary">Tidak dapat memuat akurasi prakiraan saat ini.</string>
     <string name="data_freshness_unknown">Kesegaran data: Tidak diketahui</string>

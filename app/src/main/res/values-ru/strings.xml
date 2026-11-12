@@ -105,6 +105,13 @@
     <string name="source_compare_col_cloud">Облака</string>
     <string name="source_compare_col_bias">Смещ.</string>
     <string name="source_compare_col_age">Возраст</string>
+    <string name="source_compare_legend_rain">наибольшая почасовая вероятность, 8–20</string>
+    <string name="source_compare_legend_peak">час наибольшей дневной вероятности</string>
+    <string name="source_compare_legend_night">наибольшая почасовая вероятность, 20–8</string>
+    <string name="source_compare_legend_amount">прогноз за сутки, от полуночи до полуночи</string>
+    <string name="source_compare_legend_cloud">облачность в полдень</string>
+    <string name="source_compare_legend_bias">средний прогноз максимума минус факт, 30 дней (+ = теплее)</string>
+    <string name="source_compare_legend_age">с последнего подтверждения прогноза источником; серым после 24 ч</string>
     <string name="loading_accuracy_summary">Загрузка точности прогнозов...</string>
     <string name="error_loading_accuracy_summary">Не удаётся загрузить точность прогнозов.</string>
     <string name="data_freshness_unknown">Свежесть данных: неизвестно</string>

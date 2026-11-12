@@ -105,6 +105,13 @@
     <string name="source_compare_col_cloud">الغيوم</string>
     <string name="source_compare_col_bias">الانحياز</string>
     <string name="source_compare_col_age">العمر</string>
+    <string name="source_compare_legend_rain">أعلى احتمال لكل ساعة، 8–20</string>
+    <string name="source_compare_legend_peak">ساعة أعلى احتمال نهارًا</string>
+    <string name="source_compare_legend_night">أعلى احتمال لكل ساعة، 20–8</string>
+    <string name="source_compare_legend_amount">إجمالي التوقع، من منتصف الليل إلى منتصف الليل</string>
+    <string name="source_compare_legend_cloud">الغطاء السحابي عند الظهر</string>
+    <string name="source_compare_legend_bias">متوسط العظمى المتوقعة ناقص الفعلية، آخر 30 يومًا (+ = أدفأ)</string>
+    <string name="source_compare_legend_age">منذ آخر تأكيد للمصدر لهذا التوقع؛ رمادي بعد 24 ساعة</string>
     <string name="loading_accuracy_summary">جارٍ تحميل دقة التوقعات...</string>
     <string name="error_loading_accuracy_summary">يتعذر تحميل دقة التوقعات حاليًا.</string>
     <string name="data_freshness_unknown">حداثة البيانات: غير معروفة</string>
