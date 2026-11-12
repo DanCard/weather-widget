@@ -601,14 +601,14 @@ internal class DaemonRuntime(
                     // installed at all, and a watch that stayed armed on a failed delivery would
                     // re-fire on every poll — the opposite of what "one time" promises.
                     dominantTempWatchStore.save(decision.state)
-                    notifyDesktop(
+                    val delivery = notifyDesktop(
                         summary = decision.title,
                         body = decision.body,
                         soundResource = "/sounds/temperature_change.ogg",
                     )
                     weatherDao.log(
                         DOMINANT_TEMP_WATCH_TAG,
-                        "fired body=\"${decision.body}\" origin=$origin",
+                        "fired body=\"${decision.body}\" origin=$origin $delivery",
                         "INFO",
                     )
                 }

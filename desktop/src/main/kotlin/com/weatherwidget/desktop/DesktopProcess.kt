@@ -517,13 +517,16 @@ fun notifyDesktop(
     body: String,
     urgency: String = "normal",
     soundResource: String? = null,
-) {
-    runCatching {
+): String {
+    val notify = runCatching {
         ProcessBuilder("notify-send", "-u", urgency, "-a", "Weather Widget", summary, body).start()
-    }.onFailure { Log.w("DesktopProcess", "notify-send failed: ${it.message}") }
-    if (soundResource != null) {
-        playDesktopSound(soundResource)
+        "started"
+    }.getOrElse {
+        Log.w("DesktopProcess", "notify-send failed: ${it.message}")
+        "failed"
     }
+    val sound = soundResource?.let { playDesktopSound(it) } ?: "none"
+    return "notify=$notify sound=$sound"
 }
 
 internal fun extractSoundResource(
@@ -540,14 +543,27 @@ internal fun extractSoundResource(
     return dest
 }
 
-private fun playDesktopSound(resourcePath: String) {
+/**
+ * Plays a bundled sound and returns a short outcome for the caller's log row: the player that
+ * started, `missing_resource`, `no_player`, or `error`. Every failure is also logged here, so a
+ * silent notification is never silent in the logs.
+ */
+private fun playDesktopSound(resourcePath: String): String =
     runCatching {
-        val file = extractSoundResource(resourcePath) ?: return
+        val file = extractSoundResource(resourcePath)
+        if (file == null) {
+            Log.w("DesktopProcess", "Sound resource $resourcePath not found on the classpath; notification will be silent")
+            return@runCatching "missing_resource"
+        }
         val pathStr = file.toAbsolutePath().toString()
         for (player in listOf("pw-play", "paplay")) {
-            val started = runCatching { ProcessBuilder(player, pathStr).start() }.isSuccess
-            if (started) return
+            val failure = runCatching { ProcessBuilder(player, pathStr).start() }.exceptionOrNull()
+                ?: return@runCatching player.also { Log.i("DesktopProcess", "Playing $pathStr via $it") }
+            Log.w("DesktopProcess", "$player could not start for $pathStr: ${failure.message}")
         }
         Log.w("DesktopProcess", "No desktop audio player (pw-play/paplay) available for $resourcePath")
-    }.onFailure { Log.w("DesktopProcess", "Desktop sound playback failed ($resourcePath): ${it.message}") }
-}
+        "no_player"
+    }.getOrElse {
+        Log.w("DesktopProcess", "Desktop sound playback failed ($resourcePath): ${it.message}")
+        "error"
+    }
