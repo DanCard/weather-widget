@@ -561,7 +561,7 @@ object DailyColumnBuilder {
             nowHour = if (isToday) now.hour else null,
             lowSettled = lowSettled,
             futurePriorBarDrawn = futurePriorBarDrawn,
-            fog = resolveFog(date, actual, forecast, hourly, displaySourceId),
+            fog = resolveFog(date, actual, forecast, hourly, displaySourceId, now, centerLat, centerLon),
         )
     }
 
@@ -572,19 +572,37 @@ object DailyColumnBuilder {
         forecast: DailyForecast?,
         hourly: List<HourlyForecast>,
         displaySourceId: String,
+        now: LocalDateTime,
+        centerLat: Double,
+        centerLon: Double,
     ): com.weatherwidget.shared.fog.MorningFog? {
         val zone = ZoneId.systemDefault()
+        val sunriseMs by lazy { com.weatherwidget.shared.fog.MorningFogWindow.sunriseMs(date, centerLat, centerLon) }
         // The display source's hours only — never another provider's fog.
         val sourceHours by lazy { hourly.filter { it.source == null || it.source == displaySourceId } }
         val resolved = com.weatherwidget.shared.fog.DailyMorningFog.forColumn(
             observed = actual?.observedFog,
             row = forecast?.hourlySummary?.fog,
-            fromHourly = { com.weatherwidget.shared.fog.ForecastMorningFog.forDate(sourceHours, date, zone) },
+            aheadOfNow = {
+                // From the start of the current hour: it is not over yet, and stations may not have reported it.
+                val startMs = maxOf(
+                    now.truncatedTo(java.time.temporal.ChronoUnit.HOURS).atZone(zone).toInstant().toEpochMilli(),
+                    com.weatherwidget.shared.fog.MorningFogWindow.startMs(date, zone),
+                )
+                val endMs = com.weatherwidget.shared.fog.MorningFogWindow.endMs(date, zone)
+                if (startMs >= endMs) {
+                    com.weatherwidget.shared.fog.MorningFog.NONE
+                } else {
+                    com.weatherwidget.shared.fog.ForecastMorningFog.forWindow(sourceHours, startMs, endMs, sunriseMs)
+                }
+            },
+            fromHourly = { com.weatherwidget.shared.fog.ForecastMorningFog.forDate(sourceHours, date, zone, sunriseMs) },
         )
         resolved.fog?.takeIf { it.isFoggy }?.let { fog ->
             Log.v(TAG) {
                 "DAILY_FOG date=$date src=$displaySourceId level=${fog.level} top=${fog.topTempF} " +
-                    "vis=${fog.visibilityMi} alpha=${com.weatherwidget.shared.fog.FogOpacity.alpha(fog)} from=${resolved.from}"
+                    "vis=${fog.visibilityMi} alpha=${com.weatherwidget.shared.fog.FogOpacity.alpha(fog)} predawn=${fog.predawn} " +
+                    "from=${resolved.from}"
             }
         }
         return resolved.fog

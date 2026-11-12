@@ -132,7 +132,7 @@ object DailyBlendWrite {
         return Line(
             "DAILY_FOG_OBSERVED",
             "date=$date src=${row.source} level=${existing?.observedFogLevel}->${fog.level} " +
-                "top=${fog.topTempF} vis=${fog.visibilityMi}",
+                "top=${fog.topTempF} vis=${fog.visibilityMi} predawn=${fog.predawn}",
             "DEBUG",
         )
     }

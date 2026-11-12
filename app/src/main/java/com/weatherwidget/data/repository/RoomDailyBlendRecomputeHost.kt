@@ -78,6 +78,7 @@ class RoomDailyBlendRecomputeHost(
             observedFogLevel = merged.observedFogLevel,
             observedFogTopTemp = merged.observedFogTopTemp,
             observedFogVisibilityMi = merged.observedFogVisibilityMi,
+            observedFogPredawn = merged.observedFogPredawn,
         )
 
     override suspend fun log(tag: String, message: String, level: String) = appLogDao.log(tag, message, level)

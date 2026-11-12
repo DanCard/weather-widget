@@ -68,6 +68,8 @@ data class DailyForecast(
     val fogLevel: Int? = null,
     val fogTopTemp: Float? = null,
     val fogVisibilityMi: Float? = null,
+    // True when every foggy hour came before sunrise (MorningFog.predawn, drawn petite).
+    val fogPredawn: Boolean? = null,
     // NWS only: epoch ms the day's daytime period ends; a row whose period is over is not stored
     // (DailyForecastWrite). Never persisted.
     val periodEndMs: Long? = null,
@@ -80,7 +82,7 @@ data class DailyForecast(
     val hourlySummary: com.weatherwidget.shared.util.DailyHourlySummaries.Summary
         get() = com.weatherwidget.shared.util.DailyHourlySummaries.Summary(
             noonCloudPercent, hourlyDayPrecipMax, hourlyNightPrecipMax, hourlyDayPrecipPeakAt,
-            fog = com.weatherwidget.shared.fog.MorningFog.fromColumns(fogLevel, fogTopTemp, fogVisibilityMi),
+            fog = com.weatherwidget.shared.fog.MorningFog.fromColumns(fogLevel, fogTopTemp, fogVisibilityMi, fogPredawn),
         )
 
     fun withHourlySummary(summary: com.weatherwidget.shared.util.DailyHourlySummaries.Summary): DailyForecast = copy(
@@ -91,6 +93,7 @@ data class DailyForecast(
         fogLevel = summary.fog?.level,
         fogTopTemp = summary.fog?.topTempF,
         fogVisibilityMi = summary.fog?.visibilityMi,
+        fogPredawn = com.weatherwidget.shared.fog.MorningFog.predawnColumn(summary.fog),
     )
 }
 

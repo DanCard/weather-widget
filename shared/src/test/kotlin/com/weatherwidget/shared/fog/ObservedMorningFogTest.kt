@@ -139,6 +139,16 @@ class ObservedMorningFogTest {
         // the bar for a few hours of fog (plans/261111-fog-height-dense-top-bottom-weighted.md). Before
         // that, the hint at 10:15 carried it to 10:35's 62.6 °F.
         assertEquals(55.4f, fog.topTempF!!, 0.01f)
+        // Fog to 09:15, well after sunrise: full size.
+        assertFalse(fog.predawn)
+
+        // The same station with only its 05:55 fog: gone before the ~06:40 sunrise, so petite.
+        val dawnOnly = readings.filter { it.timestamp <= at(day, 5, 55) } +
+            metar("KNUQ", day, 6, 55, "METAR KNUQ 091455Z AUTO 00000KT 10SM CLR 12/09 A3009 RMK AO2")
+        val dawnFog = ObservedMorningFog.forDate(dawnOnly, day, zone)!!
+        println("nov9 dawn-only fog=$dawnFog")
+        assertEquals(FogLevel.DENSE, dawnFog.level)
+        assertTrue(dawnFog.predawn)
     }
 
     @Test

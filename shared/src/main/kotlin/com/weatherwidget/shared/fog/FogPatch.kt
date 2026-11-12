@@ -46,6 +46,14 @@ object FogPatch {
     /** Extra height past the fog's span, so the narrow tips do not cut it short. */
     const val TIP_EXTRA_FRACTION = 0.15f
 
+    /**
+     * Pre-dawn fog ([MorningFog.predawn]) is petite: this share of the height and [PREDAWN_WIDTH_SCALE]
+     * of the width it would otherwise draw, still sitting on the low (user, 2026-11-12: "Not very tall.
+     * Maybe a third height? Not very wide either."). plans/261112-observed-no-fog-vetoes-forecast.md
+     */
+    const val PREDAWN_HEIGHT_SCALE = 1f / 3f
+    const val PREDAWN_WIDTH_SCALE = 0.5f
+
     /** Fog white (#E6EBEF); the alpha is per layer. */
     const val FOG_RGB = 0xE6EBEF
 
@@ -78,8 +86,10 @@ object FogPatch {
         val bottomY = yAt(lowTempF) + inkRadius
         val barTopY = yAt(high) - inkRadius
         val span = bottomY - yAt(top)
-        val height = minOf(maxOf(span * (1f + TIP_EXTRA_FRACTION), minSize), maxOf(bottomY - barTopY, minSize))
-        val width = maxOf(baseWidth, minSize * minSize / height)
+        val fullHeight = minOf(maxOf(span * (1f + TIP_EXTRA_FRACTION), minSize), maxOf(bottomY - barTopY, minSize))
+        val fullWidth = maxOf(baseWidth, minSize * minSize / fullHeight)
+        val height = if (fog.predawn) fullHeight * PREDAWN_HEIGHT_SCALE else fullHeight
+        val width = if (fog.predawn) fullWidth * PREDAWN_WIDTH_SCALE else fullWidth
 
         // Each layer's 8-bit alpha tracks the ideal running total, so rounding (≈1.5 % layers round
         // to 4/255) does not drift the centre off the target.
@@ -107,16 +117,20 @@ object FogPatch {
 }
 
 /**
- * Which fog a daily column shows, one rule for every column on both platforms: the provider's observed
- * fog ([observed], `daily_history`) combined ([MorningFog.combine]) with its whole-morning forecast
- * answer, the newest fetch's row, else the stored hours. Future days have no observation, so they
- * read the forecast alone.
- *
- * The forecast side always covers the whole 00–12 window, whatever the time: a fetch made after the
- * morning is the provider's hindsight (newest fetch wins). Reading only the hours still ahead made
- * Open-Meteo's dense fog (0.0 mi, 04–08) fade to its word-only "Light Fog" observation as each
- * foggy hour passed (Fold 4, 2026-11-11: "Meteo earlier today had fog, but it disappeared").
- * plans/261111-today-fog-whole-morning.md
+ * Which fog a daily column shows, one rule for every column on both platforms
+ * (plans/261112-observed-no-fog-vetoes-forecast.md):
+ *  1. Observed fog ([observed] foggy, `daily_history`): combined ([MorningFog.combine]) with the
+ *     provider's whole-morning forecast answer, the newest fetch's row, else the stored hours. A fetch
+ *     made after the morning is the provider's hindsight: reading only the hours still ahead made
+ *     Open-Meteo's dense fog (0.0 mi, 04–08) fade to its word-only "Light Fog" observation as each
+ *     foggy hour passed (Fold 4, 2026-11-11). plans/261111-today-fog-whole-morning.md
+ *  2. Observed no fog ([MorningFog.NONE]) or only a saturation hint ([FogLevel.HINT]: saturated, calm
+ *     air, no fog or mist reported): the stations win for the hours already gone; only forecast
+ *     fog still ahead of now counts ([aheadOfNow]: NONE once the window has passed). NWS 2026-11-12
+ *     forecast 0.24 mi at 04:00 while KNUQ read `10SM CLR` all morning, and the combine drew a 77 %
+ *     dense ellipse on a clear day (user: "has fog indicator this morning, but there is no fog"). A hint
+ *     combines with the fog still ahead, so a hint-only morning draws only the hint's faint haze.
+ *  3. Nothing observed (future days, no station that can speak to fog): the forecast alone.
  */
 object DailyMorningFog {
     data class Resolved(val fog: MorningFog?, val from: String)
@@ -124,8 +138,15 @@ object DailyMorningFog {
     fun forColumn(
         observed: MorningFog?,
         row: MorningFog?,
+        aheadOfNow: () -> MorningFog?,
         fromHourly: () -> MorningFog?,
     ): Resolved {
+        // A saturation hint is not fog seen: like NONE, it never lets past-hour forecast fog through.
+        if (observed != null && observed.level <= FogLevel.HINT) {
+            val ahead = aheadOfNow()
+            val from = if (ahead != null) "observed+ahead" else "observed"
+            return Resolved(MorningFog.combine(observed, ahead), from)
+        }
         val forecast = row ?: fromHourly()
         val from = listOfNotNull(
             "observed".takeIf { observed != null },

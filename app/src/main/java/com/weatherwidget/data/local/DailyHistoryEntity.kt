@@ -71,6 +71,8 @@ data class DailyHistoryEntity(
     val observedFogLevel: Int? = null,
     val observedFogTopTemp: Float? = null,
     val observedFogVisibilityMi: Float? = null,
+    // True when every foggy report came before sunrise (drawn petite). v88.
+    val observedFogPredawn: Boolean? = null,
 )
 
 fun DailyHistoryEntity.toDailyHistory() = com.weatherwidget.data.model.DailyHistory(
@@ -104,6 +106,7 @@ fun DailyHistoryEntity.toDailyHistory() = com.weatherwidget.data.model.DailyHist
     observedFogLevel = observedFogLevel,
     observedFogTopTemp = observedFogTopTemp,
     observedFogVisibilityMi = observedFogVisibilityMi,
+    observedFogPredawn = observedFogPredawn,
 )
 
 fun com.weatherwidget.data.model.DailyHistory.toEntity() = DailyHistoryEntity(
@@ -137,4 +140,5 @@ fun com.weatherwidget.data.model.DailyHistory.toEntity() = DailyHistoryEntity(
     observedFogLevel = observedFogLevel,
     observedFogTopTemp = observedFogTopTemp,
     observedFogVisibilityMi = observedFogVisibilityMi,
+    observedFogPredawn = observedFogPredawn,
 )

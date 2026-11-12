@@ -429,6 +429,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                                     dayPrecipPeakAt = rs.getNullableLong("hourlyDayPrecipPeakAt"),
                                     fog = com.weatherwidget.shared.fog.MorningFog.fromColumns(
                                         rs.getNullableInt("fogLevel"), rs.getNullableFloat("fogTopTemp"), rs.getNullableFloat("fogVisibilityMi"),
+                                        rs.getNullableInt("fogPredawn")?.let { it != 0 },
                                     ),
                                 ),
                             ),
@@ -509,8 +510,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
              nativeDailyIconToken, isClimateNormal, source, precipProbability, precipAmountMm,
              daytimePrecipProbability, nighttimePrecipProbability, lastConfirmedAt, fetchedAt,
              hindcastHighTemp, hindcastLowTemp, noonCloudPercent, hourlyDayPrecipMax, hourlyNightPrecipMax,
-             hourlyDayPrecipPeakAt, fogLevel, fogTopTemp, fogVisibilityMi)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             hourlyDayPrecipPeakAt, fogLevel, fogTopTemp, fogVisibilityMi, fogPredawn)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """.trimIndent()
         conn.prepareStatement(sql).use { stmt ->
             // The local date of this write (shared with Android), never the UTC date.
@@ -544,6 +545,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 stmt.setNullableInt(23, v.summary.fog?.level)
                 stmt.setNullableFloat(24, v.summary.fog?.topTempF)
                 stmt.setNullableFloat(25, v.summary.fog?.visibilityMi)
+                stmt.setNullableInt(26, com.weatherwidget.shared.fog.MorningFog.predawnColumn(v.summary.fog)?.let { if (it) 1 else 0 })
                 stmt.addBatch()
             }
             stmt.executeBatch()
@@ -854,7 +856,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                     computedHighTemp = ?, computedLowTemp = ?, computedHighAt = ?, computedLowAt = ?,
                     condition = ?, precipAmountMm = ?, precipDayMm = ?, precipNightMm = ?,
                     lastWriter = ?, updatedAt = ?,
-                    observedFogLevel = ?, observedFogTopTemp = ?, observedFogVisibilityMi = ?
+                    observedFogLevel = ?, observedFogTopTemp = ?, observedFogVisibilityMi = ?, observedFogPredawn = ?
                 WHERE date = ? AND source = ? AND locationLat = ? AND locationLon = ? AND updatedAt = ?
                 """.trimIndent(),
             ).use { stmt ->
@@ -871,11 +873,12 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 stmt.setNullableInt(11, merged.observedFogLevel)
                 stmt.setNullableFloat(12, merged.observedFogTopTemp)
                 stmt.setNullableFloat(13, merged.observedFogVisibilityMi)
-                stmt.setLong(14, merged.date)
-                stmt.setString(15, merged.source)
-                stmt.setDouble(16, merged.locationLat)
-                stmt.setDouble(17, merged.locationLon)
-                stmt.setLong(18, expectedUpdatedAt)
+                stmt.setNullableInt(14, merged.observedFogPredawn?.let { if (it) 1 else 0 })
+                stmt.setLong(15, merged.date)
+                stmt.setString(16, merged.source)
+                stmt.setDouble(17, merged.locationLat)
+                stmt.setDouble(18, merged.locationLon)
+                stmt.setLong(19, expectedUpdatedAt)
                 stmt.executeUpdate()
             }
         }
@@ -926,8 +929,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
     private fun insertDailyHistory(conn: java.sql.Connection, extremes: List<DailyHistory>) {
         val sql = """
             INSERT OR REPLACE INTO daily_history
-            (date, source, locationLat, locationLon, computedHighTemp, computedLowTemp, condition, updatedAt, precipAmountMm, precipDayMm, precipNightMm, forecastDayPrecipChance, forecastNightPrecipChance, forecastHighTemp, forecastLowTemp, forecastPrecipAmountMm, noonCloudPercent, apiHighTemp, apiLowTemp, apiStationId, apiStationDistanceKm, actualsSource, lastWriter, computedHighAt, computedLowAt, priorForecastHighTemp, priorForecastLowTemp, observedFogLevel, observedFogTopTemp, observedFogVisibilityMi)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (date, source, locationLat, locationLon, computedHighTemp, computedLowTemp, condition, updatedAt, precipAmountMm, precipDayMm, precipNightMm, forecastDayPrecipChance, forecastNightPrecipChance, forecastHighTemp, forecastLowTemp, forecastPrecipAmountMm, noonCloudPercent, apiHighTemp, apiLowTemp, apiStationId, apiStationDistanceKm, actualsSource, lastWriter, computedHighAt, computedLowAt, priorForecastHighTemp, priorForecastLowTemp, observedFogLevel, observedFogTopTemp, observedFogVisibilityMi, observedFogPredawn)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """.trimIndent()
         conn.prepareStatement(sql).use { stmt ->
             for (ex in extremes) {
@@ -961,6 +964,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 stmt.setNullableInt(28, ex.observedFogLevel)
                 stmt.setNullableFloat(29, ex.observedFogTopTemp)
                 stmt.setNullableFloat(30, ex.observedFogVisibilityMi)
+                stmt.setNullableInt(31, ex.observedFogPredawn?.let { if (it) 1 else 0 })
                 stmt.addBatch()
             }
             stmt.executeBatch()
@@ -2068,6 +2072,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         fogLevel = rs.getNullableInt("fogLevel"),
                         fogTopTemp = rs.getNullableFloat("fogTopTemp"),
                         fogVisibilityMi = rs.getNullableFloat("fogVisibilityMi"),
+                        fogPredawn = rs.getNullableInt("fogPredawn")?.let { it != 0 },
                         fetchedAt = rs.getLong("fetchedAt"),
                         lastConfirmedAt = rs.getLong("lastConfirmedAt"),
                     ))
@@ -2484,6 +2489,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             observedFogLevel = rs.getNullableInt("observedFogLevel"),
             observedFogTopTemp = rs.getNullableFloat("observedFogTopTemp"),
             observedFogVisibilityMi = rs.getNullableFloat("observedFogVisibilityMi"),
+            observedFogPredawn = rs.getNullableInt("observedFogPredawn")?.let { it != 0 },
         )
 
     fun getDailyActuals(startEpoch: Long, endEpoch: Long, locationLat: Double, locationLon: Double, source: String): Map<String, DailyHistory> {
@@ -2678,6 +2684,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         fogLevel = rs.getNullableInt("fogLevel"),
                         fogTopTemp = rs.getNullableFloat("fogTopTemp"),
                         fogVisibilityMi = rs.getNullableFloat("fogVisibilityMi"),
+                        fogPredawn = rs.getNullableInt("fogPredawn")?.let { it != 0 },
                         fetchedAt = fetchedAt,
                         lastConfirmedAt = lastConfirmedAt,
                     )

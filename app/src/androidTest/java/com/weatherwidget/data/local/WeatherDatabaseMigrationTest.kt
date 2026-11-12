@@ -1205,4 +1205,35 @@ class WeatherDatabaseMigrationTest {
         }
         db.close()
     }
+
+    /** plans/261112-observed-no-fog-vetoes-forecast.md: pre-dawn columns added; stored fog kept, flag null. */
+    @Test
+    fun migrate87To88AddsFogPredawn() {
+        helper.createDatabase(testDb, 87).use { db ->
+            db.execSQL(
+                "INSERT INTO daily_history (date, source, locationLat, locationLon, computedHighTemp, computedLowTemp, " +
+                    "condition, updatedAt, observedFogLevel, observedFogTopTemp, observedFogVisibilityMi) " +
+                    "VALUES (1794441600000, 'NWS', 37.417, -122.089, 70.0, 50.0, 'Clear', 1, 3, 53.0, 0.5)",
+            )
+            db.execSQL(
+                "INSERT INTO forecasts (targetDate, dateOfPrediction, locationLat, locationLon, highTemp, lowTemp, " +
+                    "condition, isClimateNormal, source, lastConfirmedAt, fetchedAt, fogLevel, fogTopTemp, fogVisibilityMi) " +
+                    "VALUES (1794441600000, 1794441600000, 37.417, -122.089, 72.0, 52.0, 'Mostly Sunny', 0, 'NWS', 5, 5, 4, 52.0, 0.24)",
+            )
+        }
+        val db = helper.runMigrationsAndValidate(testDb, 88, true, WeatherDatabase.MIGRATION_87_88)
+        db.query("SELECT observedFogLevel, observedFogPredawn FROM daily_history").use { c ->
+            c.moveToFirst()
+            assertEquals(3, c.getInt(0))
+            assertTrue(c.isNull(1))
+        }
+        db.execSQL("UPDATE forecasts SET fogPredawn = 1")
+        db.query("SELECT fogLevel, fogVisibilityMi, fogPredawn FROM forecasts").use { c ->
+            c.moveToFirst()
+            assertEquals(4, c.getInt(0))
+            assertEquals(0.24f, c.getFloat(1), 0.001f)
+            assertEquals(1, c.getInt(2))
+        }
+        db.close()
+    }
 }

@@ -96,6 +96,7 @@ class DailyHistoryDaoBlendUpdateTest {
             observedFogLevel = 3,
             observedFogTopTemp = 50f,
             observedFogVisibilityMi = 0.75f,
+            observedFogPredawn = true,
         )
         assertEquals(1, updated)
 
@@ -111,6 +112,7 @@ class DailyHistoryDaoBlendUpdateTest {
         assertEquals(3, stored.observedFogLevel)
         assertEquals(50f, stored.observedFogTopTemp)
         assertEquals(0.75f, stored.observedFogVisibilityMi)
+        assertEquals(true, stored.observedFogPredawn)
 
         // Provenance columns the recompute must never touch.
         assertEquals("nws_station_pull", stored.actualsSource)
@@ -146,6 +148,7 @@ class DailyHistoryDaoBlendUpdateTest {
             observedFogLevel = 3,
             observedFogTopTemp = 50f,
             observedFogVisibilityMi = 0.75f,
+            observedFogPredawn = null,
         )
         assertEquals(0, updated)
 

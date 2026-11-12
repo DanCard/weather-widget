@@ -13,12 +13,16 @@ import java.time.ZoneId
  * [topTempF] is the burn-off temperature (°F): midway between the morning's last fog and the next hour or
  * report below it ([heightLevel]), which sets how far up the bar the fog reaches. [visibilityMi] is the lowest
  * visibility while foggy, which sets the opacity ([FogOpacity]). Both are null when [level] is NONE.
- * The three always move together.
+ * [predawn] is true when every foggy hour or report came before that day's sunrise: the fog was gone
+ * before anyone saw it, so the ellipse draws petite ([FogPatch.PREDAWN_HEIGHT_SCALE]; user 2026-11-12,
+ * "predawn fog [should be] petite. Not very tall. Maybe a third height? Not very wide either").
+ * The four always move together.
  */
 data class MorningFog(
     val level: Int,
     val topTempF: Float?,
     val visibilityMi: Float?,
+    val predawn: Boolean = false,
 ) {
     val isFoggy: Boolean get() = level > FogLevel.NONE
 
@@ -42,14 +46,20 @@ data class MorningFog(
          */
         fun heightLevel(strongestLevel: Int): Int = minOf(strongestLevel, FogLevel.FOG)
 
-        /** Rebuilds a stored trio; null when nothing was stored (the level column is null). */
-        fun fromColumns(level: Int?, topTempF: Float?, visibilityMi: Float?): MorningFog? =
-            level?.let { if (it <= FogLevel.NONE) NONE else MorningFog(it, topTempF, visibilityMi) }
+        /**
+         * Rebuilds the stored columns; null when nothing was stored (the level column is null). A null
+         * [predawn] (rows written before the column) reads as daylight fog, the size those rows drew at.
+         */
+        fun fromColumns(level: Int?, topTempF: Float?, visibilityMi: Float?, predawn: Boolean?): MorningFog? =
+            level?.let { if (it <= FogLevel.NONE) NONE else MorningFog(it, topTempF, visibilityMi, predawn == true) }
+
+        /** The stored predawn column: null when there is no fog to size. */
+        fun predawnColumn(fog: MorningFog?): Boolean? = fog?.takeIf { it.isFoggy }?.predawn
 
         /**
-         * Today on screen: the observed fog so far and the forecast for the hours still ahead. The
-         * stronger level wins, the top is the higher burn-off and the visibility the lower; either side
-         * missing leaves the other.
+         * Observed and forecast fog for one column. The stronger level wins, the top is the higher
+         * burn-off and the visibility the lower; either side missing leaves the other. Pre-dawn only
+         * when both sides are: any daylight fog draws full size.
          */
         fun combine(a: MorningFog?, b: MorningFog?): MorningFog? {
             if (a == null) return b
@@ -60,6 +70,7 @@ data class MorningFog(
                 level = maxOf(a.level, b.level),
                 topTempF = listOfNotNull(a.topTempF, b.topTempF).maxOrNull(),
                 visibilityMi = listOfNotNull(a.visibilityMi, b.visibilityMi).minOrNull(),
+                predawn = a.predawn && b.predawn,
             )
         }
     }
@@ -72,6 +83,16 @@ object MorningFogWindow {
     fun startMs(date: LocalDate, zone: ZoneId): Long = date.atStartOfDay(zone).toInstant().toEpochMilli()
 
     fun endMs(date: LocalDate, zone: ZoneId): Long = date.atTime(END_HOUR, 0).atZone(zone).toInstant().toEpochMilli()
+
+    /**
+     * [date]'s sunrise at ([lat], [lon]) in epoch ms; null without a usable site (missing, NaN before the
+     * first location fix, out of range) or with no sunrise (polar). Null leaves fog full size.
+     */
+    fun sunriseMs(date: LocalDate, lat: Double?, lon: Double?): Long? {
+        if (lat == null || lon == null || !lat.isFinite() || !lon.isFinite()) return null
+        if (lat !in -90.0..90.0 || lon !in -180.0..180.0) return null
+        return com.weatherwidget.util.SunPositionUtils.sunriseInstant(date, lat, lon)?.toEpochMilli()
+    }
 }
 
 /**

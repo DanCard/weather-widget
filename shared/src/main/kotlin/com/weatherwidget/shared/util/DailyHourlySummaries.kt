@@ -54,6 +54,9 @@ object DailyHourlySummaries {
         date: LocalDate,
         sourceId: String,
         zoneId: ZoneId = ZoneId.systemDefault(),
+        // The site, for the fog's sunrise (MorningFog.predawn); null leaves fog full size.
+        lat: Double? = null,
+        lon: Double? = null,
     ): Summary {
         val dayStart = date.atTime(8, 0).atZone(zoneId).toInstant().toEpochMilli()
         val dayEnd = date.atTime(20, 0).atZone(zoneId).toInstant().toEpochMilli()
@@ -70,7 +73,7 @@ object DailyHourlySummaries {
             dayPrecipMax = maxima.dayMax.takeIf { windowCovered(rows, dayStart, dayEnd) },
             dayPrecipPeakAt = maxima.dayPeakAt.takeIf { windowCovered(rows, dayStart, dayEnd) },
             nightPrecipMax = maxima.nightMax.takeIf { windowCovered(rows, dayEnd, nightEnd) },
-            fog = com.weatherwidget.shared.fog.ForecastMorningFog.forDate(rows, date, zoneId),
+            fog = com.weatherwidget.shared.fog.ForecastMorningFog.forDate(rows, date, zoneId, com.weatherwidget.shared.fog.MorningFogWindow.sunriseMs(date, lat, lon)),
         )
     }
 

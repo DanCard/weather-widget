@@ -73,6 +73,8 @@ data class DailyHistory(
     val observedFogLevel: Int? = null,
     val observedFogTopTemp: Float? = null,
     val observedFogVisibilityMi: Float? = null,
+    /** True when every foggy report came before sunrise (`MorningFog.predawn`, drawn petite). */
+    val observedFogPredawn: Boolean? = null,
     /**
      * Display-only, never persisted: when non-null, [computedHighTemp]/[computedLowTemp] were
      * measured at ANOTHER site this far away (km) because the current site has no measured row
@@ -86,12 +88,13 @@ data class DailyHistory(
     val borrowedWithoutLocalRow: Boolean = false,
 ) {
     val observedFog: com.weatherwidget.shared.fog.MorningFog?
-        get() = com.weatherwidget.shared.fog.MorningFog.fromColumns(observedFogLevel, observedFogTopTemp, observedFogVisibilityMi)
+        get() = com.weatherwidget.shared.fog.MorningFog.fromColumns(observedFogLevel, observedFogTopTemp, observedFogVisibilityMi, observedFogPredawn)
 
     fun withObservedFog(fog: com.weatherwidget.shared.fog.MorningFog?): DailyHistory = copy(
         observedFogLevel = fog?.level,
         observedFogTopTemp = fog?.topTempF,
         observedFogVisibilityMi = fog?.visibilityMi,
+        observedFogPredawn = com.weatherwidget.shared.fog.MorningFog.predawnColumn(fog),
     )
 
     fun toLocalDate(): LocalDate =

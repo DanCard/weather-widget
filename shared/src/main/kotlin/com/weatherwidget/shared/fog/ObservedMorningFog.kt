@@ -26,6 +26,9 @@ import kotlin.math.abs
  * fog proper when there was any) and the next report below it ([MorningFog.burnOffTemp]), or the latest
  * report's while the fog has not cleared. A saturation hint never prolongs a morning that had real fog,
  * and trailing mist never raises a morning that had fog.
+ *
+ * Pre-dawn ([MorningFog.predawn]) when every foggy report is before sunrise at the nearest station
+ * that reported fog.
  */
 object ObservedMorningFog {
 
@@ -68,10 +71,13 @@ object ObservedMorningFog {
         val firstClear = judged.drop(lastFoggyIndex + 1).firstOrNull { !setsHeight(it.second) }?.first
 
         val strongest = foggy.filter { it.second!!.first > FogLevel.HINT }.ifEmpty { foggy }
+        val site = foggy.minBy { it.first.distanceKm }.first
+        val sunriseMs = MorningFogWindow.sunriseMs(date, site.locationLat, site.locationLon)
         return MorningFog(
             level = level,
             topTempF = MorningFog.burnOffTemp(lastFoggy.temperature, firstClear?.temperature ?: judged.last().first.temperature),
             visibilityMi = strongest.mapNotNull { it.second!!.second }.minOrNull(),
+            predawn = sunriseMs != null && foggy.all { it.first.timestamp < sunriseMs },
         )
     }
 

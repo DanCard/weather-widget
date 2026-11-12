@@ -17,6 +17,9 @@ class FogPatchTest {
     private val yAt: (Float) -> Float = { t -> (80f - t) * 10f }
     private val fog = MorningFog(FogLevel.LIGHT, topTempF = 56.9f, visibilityMi = 3f)
 
+    /** Observed fog (or none observed) never reads the hours ahead. */
+    private val noAhead: () -> MorningFog? = { error("ahead read") }
+
     @Test
     fun `opacity follows visibility on a log scale with a faint hint`() {
         fun alpha(v: Float) = FogOpacity.alpha(MorningFog(FogLevel.FOG, 55f, v))
@@ -108,32 +111,101 @@ class FogPatchTest {
         // the 11:01 fetch's row holds the morning's 0.0 mi. The old rule read the hours still ahead
         // (one clear hour) and drew the faint observation; the row's dense fog wins now.
         val openMeteoRow = MorningFog(FogLevel.DENSE, 55.3f, 0f)
-        val today = DailyMorningFog.forColumn(observed, openMeteoRow) { null }
+        val today = DailyMorningFog.forColumn(observed, openMeteoRow, aheadOfNow = noAhead) { null }
         assertEquals(FogLevel.DENSE, today.fog!!.level)
         assertEquals(55.3f, today.fog!!.topTempF!!, 0f)
         assertEquals(0f, today.fog!!.visibilityMi!!, 0f)
         assertEquals("observed+row", today.from)
 
         // Stronger level, higher top, lower visibility.
-        val both = DailyMorningFog.forColumn(observed, forecast) { null }.fog!!
+        val both = DailyMorningFog.forColumn(observed, forecast, aheadOfNow = noAhead) { null }.fog!!
         assertEquals(FogLevel.FOG, both.level)
         assertEquals(56.9f, both.topTempF!!, 0f)
         assertEquals(0.5f, both.visibilityMi!!, 0f)
 
         // NWS 2026-11-11: observed mist, the row clear: the observation stands.
-        assertEquals(observed, DailyMorningFog.forColumn(observed, MorningFog.NONE) { null }.fog)
+        assertEquals(observed, DailyMorningFog.forColumn(observed, MorningFog.NONE, aheadOfNow = noAhead) { null }.fog)
 
         // No row (a past day fetched before the fog columns): the stored hours.
-        val hourly = DailyMorningFog.forColumn(observed, null) { forecast }
+        val hourly = DailyMorningFog.forColumn(observed, null, aheadOfNow = noAhead) { forecast }
         assertEquals(FogLevel.FOG, hourly.fog!!.level)
         assertEquals("observed+hourly", hourly.from)
         // The row beats the stored hours; the hours are not even read.
-        assertEquals(forecast, DailyMorningFog.forColumn(null, forecast) { error("hours read") }.fog)
+        assertEquals(forecast, DailyMorningFog.forColumn(null, forecast, aheadOfNow = noAhead) { error("hours read") }.fog)
 
         // Future: no observation, the row else the hours.
-        assertEquals(forecast, DailyMorningFog.forColumn(null, null) { forecast }.fog)
-        val nothing = DailyMorningFog.forColumn(null, null) { null }
+        assertEquals(forecast, DailyMorningFog.forColumn(null, null, aheadOfNow = noAhead) { forecast }.fog)
+        val nothing = DailyMorningFog.forColumn(null, null, aheadOfNow = noAhead) { null }
         assertNull(nothing.fog)
         assertEquals("none", nothing.from)
+    }
+
+    @Test
+    fun `pre-dawn fog is a third the height and half the width, still on the low`() {
+        // User 2026-11-12: "predawn fog [should be] petite. Not very tall. Maybe a third height? Not very wide either."
+        val dense = fog.copy(visibilityMi = 0.125f) // dense so no outer layer rounds away
+        for (top in listOf(52.9f, 56.9f, 66f)) {
+            val day = FogPatch.plan(dense.copy(topTempF = top), 52.8f, 70.9f, yAt, 100f, 60f, 4.5f).first()
+            val dawn = FogPatch.plan(dense.copy(topTempF = top, predawn = true), 52.8f, 70.9f, yAt, 100f, 60f, 4.5f).first()
+            println("top=$top day=$day predawn=$dawn")
+            assertEquals((day.bottom - day.top) / 3f, dawn.bottom - dawn.top, 0.01f)
+            assertEquals((day.right - day.left) / 2f, dawn.right - dawn.left, 0.01f)
+            assertEquals(day.bottom, dawn.bottom, 0.01f)
+            assertEquals((day.left + day.right) / 2f, (dawn.left + dawn.right) / 2f, 0.01f)
+        }
+        // Same opacity: the size says when, the visibility says how thick.
+        val dawnLayers = FogPatch.plan(dense.copy(predawn = true), 52.8f, 70.9f, yAt, 100f, 60f, 4.5f)
+        val combined = 1f - dawnLayers.fold(1f) { clear, o -> clear * (1f - (o.argb ushr 24) / 255f) }
+        assertEquals(FogOpacity.alpha(dense), combined, 0.004f)
+    }
+
+    @Test
+    fun `combine is pre-dawn only when both sides are`() {
+        val dawn = MorningFog(FogLevel.FOG, 53f, 0.5f, predawn = true)
+        val daylight = MorningFog(FogLevel.LIGHT, 55f, 3f, predawn = false)
+        assertTrue(MorningFog.combine(dawn, dawn.copy(level = FogLevel.DENSE))!!.predawn)
+        assertEquals(false, MorningFog.combine(dawn, daylight)!!.predawn)
+        assertEquals(false, MorningFog.combine(daylight, dawn)!!.predawn)
+        // A clear side leaves the other as it is.
+        assertTrue(MorningFog.combine(MorningFog.NONE, dawn)!!.predawn)
+        // Stored columns: null predawn (rows before v88) reads as daylight; NONE stores null.
+        assertEquals(false, MorningFog.fromColumns(FogLevel.FOG, 53f, 0.5f, null)!!.predawn)
+        assertTrue(MorningFog.fromColumns(FogLevel.FOG, 53f, 0.5f, true)!!.predawn)
+        assertNull(MorningFog.predawnColumn(MorningFog.NONE))
+        assertEquals(true, MorningFog.predawnColumn(dawn))
+        // No usable site (NaN before the first fix): no sunrise, never a crash.
+        val day = java.time.LocalDate.of(2026, 11, 12)
+        assertNull(MorningFogWindow.sunriseMs(day, Double.NaN, Double.NaN))
+        assertNull(MorningFogWindow.sunriseMs(day, null, -122.0))
+        assertNull(MorningFogWindow.sunriseMs(day, 120.0, -122.0))
+    }
+
+    @Test
+    fun `column fog - stations that saw no fog cancel forecast fog for the hours gone`() {
+        // NWS, Pixel 2026-11-12 07:28: the 00:14 fetch's row holds DENSE 0.24 mi (03-05 visibility only,
+        // "Mostly Cloudy"); KNUQ read 10SM CLR all morning, so observed is NONE. The old combine drew it
+        // at 77 %. User: "has fog indicator this morning, but there is no fog".
+        val nwsRow = MorningFog(FogLevel.DENSE, 52f, 0.24f, predawn = true)
+        val rowNeverRead: () -> MorningFog? = { error("hours read") }
+        val gone = DailyMorningFog.forColumn(MorningFog.NONE, nwsRow, aheadOfNow = { MorningFog.NONE }, fromHourly = rowNeverRead)
+        assertEquals(MorningFog.NONE, gone.fog)
+        assertEquals("observed+ahead", gone.from)
+
+        // 02:00, the same morning: nothing foggy observed yet, the forecast fog is still ahead.
+        val stillAhead = MorningFog(FogLevel.DENSE, 52f, 0.24f, predawn = true)
+        val early = DailyMorningFog.forColumn(MorningFog.NONE, nwsRow, aheadOfNow = { stillAhead }, fromHourly = rowNeverRead)
+        assertEquals(stillAhead, early.fog)
+
+        // A saturation hint is not fog seen: past-hour forecast fog stays out, and the hint draws as a hint.
+        val hint = MorningFog(FogLevel.HINT, 52f, 8f)
+        val hintOnly = DailyMorningFog.forColumn(hint, nwsRow, aheadOfNow = { MorningFog.NONE }, fromHourly = rowNeverRead)
+        println("hint-only 07:30: ${hintOnly.fog} alpha=${FogOpacity.alpha(hintOnly.fog!!)}")
+        assertEquals(hint, hintOnly.fog)
+        assertTrue(FogOpacity.alpha(hintOnly.fog!!) < FogOpacity.MIN_ALPHA)
+        // Before the forecast fog's hours, the fog ahead still shows.
+        assertEquals(FogLevel.DENSE, DailyMorningFog.forColumn(hint, nwsRow, aheadOfNow = { stillAhead }, fromHourly = rowNeverRead).fog!!.level)
+
+        // Hours ahead not covered (null): the stations' answer stands.
+        assertEquals(MorningFog.NONE, DailyMorningFog.forColumn(MorningFog.NONE, nwsRow, aheadOfNow = { null }, fromHourly = rowNeverRead).fog)
     }
 }

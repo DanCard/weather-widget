@@ -31,7 +31,7 @@ class ForecastMorningFogTest {
 
     @Test
     fun `top is midway between the last fog hour and the first clear one`() {
-        val fog = ForecastMorningFog.forDate(openMeteo, day, zone)!!
+        val fog = ForecastMorningFog.forDate(openMeteo, day, zone, sunriseMs = null)!!
         println("openMeteo fog=$fog")
         assertEquals(FogLevel.LIGHT, fog.level)
         assertEquals(55.4f, fog.topTempF!!, 0.001f) // midway: last fog 09:00 53.9°, clear 10:00 56.9°
@@ -47,7 +47,7 @@ class ForecastMorningFogTest {
                 else -> h.copy(visibilityMi = if (h.condition == "Light Fog") 0.06f else 7.6f)
             }
         }
-        val fog = ForecastMorningFog.forDate(withVisibility, day, zone)!!
+        val fog = ForecastMorningFog.forDate(withVisibility, day, zone, sunriseMs = null)!!
         assertEquals(FogLevel.DENSE, fog.level)
         assertEquals(0f, fog.visibilityMi!!, 0f)
         assertEquals(58.95f, fog.topTempF!!, 0.001f) // fog ran to 10:00 (56.9°), clear at 11:00 (61.0°)
@@ -63,7 +63,7 @@ class ForecastMorningFogTest {
                 else -> h.copy(visibilityMi = 9f)
             }
         }
-        val fog = ForecastMorningFog.forDate(fogThenMist, day, zone)!!
+        val fog = ForecastMorningFog.forDate(fogThenMist, day, zone, sunriseMs = null)!!
         println("fogThenMist fog=$fog")
         assertEquals(FogLevel.DENSE, fog.level)
         assertEquals(0.2f, fog.visibilityMi!!, 0f)
@@ -75,9 +75,9 @@ class ForecastMorningFogTest {
     @Test
     fun `no fog is NONE when covered and null when not`() {
         val clear = openMeteo.map { it.copy(condition = "Clear") }
-        assertEquals(MorningFog.NONE, ForecastMorningFog.forDate(clear, day, zone))
+        assertEquals(MorningFog.NONE, ForecastMorningFog.forDate(clear, day, zone, sunriseMs = null))
         // Starts mid-window (a download from 05:00): not covered.
-        assertNull(ForecastMorningFog.forDate(clear.drop(5), day, zone))
+        assertNull(ForecastMorningFog.forDate(clear.drop(5), day, zone, sunriseMs = null))
     }
 
     @Test
@@ -101,5 +101,50 @@ class ForecastMorningFogTest {
         // A newer fetch that does not reach the window keeps the older fog.
         val partial = DailyHourlySummaries.forDate(openMeteo.drop(5), day, "OPEN_METEO", zone)
         assertEquals(older.fog, DailyHourlySummaries.carryForward(partial, older).fog)
+    }
+
+    /**
+     * NWS 2026-11-12 00:14 fetch at 37.417,-122.089 (Pixel backup 20261112_072826): fog by grid
+     * visibility only, 03:00-05:00, words "Mostly Cloudy". Sunrise there was about 06:45.
+     */
+    private val nov12 = LocalDate.of(2026, 11, 12)
+    private val nwsLat = 37.417
+    private val nwsLon = -122.089
+    private val nws: List<HourlyForecast> = run {
+        val temps = listOf(55f, 54f, 53f, 52f, 52f, 52f, 52f, 52f, 56f, 60f, 65f, 68f, 70f, 72f)
+        val vis = listOf(10f, 10f, 10f, 0.48f, 0.24f, 0.48f, 1.64f, 2.04f, 10f, 10f, 10f, 10f, 10f, 10f)
+        val words = listOf("Mostly Clear", "Partly Cloudy", "Partly Cloudy", "Mostly Cloudy", "Mostly Cloudy", "Mostly Cloudy",
+            "Partly Sunny", "Mostly Sunny", "Mostly Sunny", "Mostly Sunny", "Mostly Sunny", "Mostly Sunny", "Sunny", "Sunny")
+        temps.indices.map { h ->
+            HourlyForecast(
+                dateTime = nov12.atTime(h, 0).atZone(zone).toInstant().toEpochMilli(),
+                temperature = temps[h], condition = words[h], source = "NWS", visibilityMi = vis[h],
+            )
+        }
+    }
+    private fun nov12At(h: Int) = nov12.atTime(h, 0).atZone(zone).toInstant().toEpochMilli()
+
+    @Test
+    fun `nws nov 12 fog gone by sunrise is pre-dawn, and none of it is ahead at 07`() {
+        val sunrise = MorningFogWindow.sunriseMs(nov12, nwsLat, nwsLon)!!
+        println("sunrise=${java.time.Instant.ofEpochMilli(sunrise).atZone(zone)}")
+        assertTrue(sunrise in nov12At(6)..nov12At(7))
+
+        val fog = ForecastMorningFog.forDate(nws, nov12, zone, sunrise)!!
+        println("nws fog=$fog")
+        assertEquals(FogLevel.DENSE, fog.level)
+        assertEquals(0.24f, fog.visibilityMi!!, 0f)
+        assertTrue(fog.predawn)
+
+        // What the column reads once the stations have spoken: the hours from 07:00 hold no fog.
+        assertEquals(MorningFog.NONE, ForecastMorningFog.forWindow(nws, nov12At(7), MorningFogWindow.endMs(nov12, zone), sunrise))
+
+        // Fog that lasts past sunrise is daylight fog.
+        val lingering = nws.map { if (it.dateTime == nov12At(7)) it.copy(visibilityMi = 0.3f) else it }
+        assertFalse(ForecastMorningFog.forDate(lingering, nov12, zone, sunrise)!!.predawn)
+        // No site, no sunrise: full size.
+        assertFalse(ForecastMorningFog.forDate(nws, nov12, zone, sunriseMs = null)!!.predawn)
+        // The stored summary carries it when the site is known.
+        assertTrue(DailyHourlySummaries.forDate(nws, nov12, "NWS", zone, nwsLat, nwsLon).fog!!.predawn)
     }
 }

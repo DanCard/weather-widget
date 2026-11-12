@@ -137,10 +137,10 @@ class ForecastPersistRun<K>(
             DailyPrecipPeriods.readEndMs(dated.maxOf { it.second }),
         )
         val incoming = dated.map { (day, date) ->
-            val fromPayload = DailyHourlySummaries.forDate(payload, date, source, zone)
+            val fromPayload = DailyHourlySummaries.forDate(payload, date, source, zone, host.latitude, host.longitude)
             val summary = DailyHourlySummaries.carryForward(
                 DailyHourlySummaries.carryForward(fromPayload, day.hourlySummary),
-                if (stored.isEmpty()) null else DailyHourlySummaries.forDate(stored, date, source, zone),
+                if (stored.isEmpty()) null else DailyHourlySummaries.forDate(stored, date, source, zone, host.latitude, host.longitude),
             )
             DailyForecastWrite.Incoming(
                 date = date,

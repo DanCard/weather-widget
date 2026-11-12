@@ -187,6 +187,7 @@ class DesktopWeatherDatabase(
                     addForecastHourlySummaryColumns(stmt)
                     addColumnIfMissing(stmt, "forecasts", FORECAST_DAY_PRECIP_PEAK_COLUMN, "INTEGER")
                     addFogColumns(stmt)
+                    addFogPredawnColumns(stmt)
                     stmt.execute("PRAGMA user_version = $SCHEMA_VERSION")
                 } else {
                     migrate(conn, currentVersion, SCHEMA_VERSION)
@@ -658,6 +659,11 @@ class DesktopWeatherDatabase(
             if (from < 39) {
                 addColumnIfMissing(stmt, "hourly_forecasts", HOURLY_VISIBILITY_COLUMN, "REAL")
             }
+            // v40: fog that ended before sunrise draws petite (MorningFog.predawn). Room MIGRATION_87_88.
+            // plans/261112-observed-no-fog-vetoes-forecast.md
+            if (from < 40) {
+                addFogPredawnColumns(stmt)
+            }
             stmt.execute("PRAGMA user_version = $to")
         }
     }
@@ -705,6 +711,11 @@ class DesktopWeatherDatabase(
         FORECAST_FOG_COLUMNS.forEach { (column, type) -> addColumnIfMissing(stmt, "forecasts", column, type) }
         DAILY_HISTORY_FOG_COLUMNS.forEach { (column, type) -> addColumnIfMissing(stmt, "daily_history", column, type) }
         if (hasTable(stmt, "hourly_forecasts")) addColumnIfMissing(stmt, "hourly_forecasts", HOURLY_VISIBILITY_COLUMN, "REAL")
+    }
+
+    private fun addFogPredawnColumns(stmt: java.sql.Statement) {
+        addColumnIfMissing(stmt, "forecasts", FORECAST_FOG_PREDAWN_COLUMN, "INTEGER")
+        addColumnIfMissing(stmt, "daily_history", DAILY_HISTORY_FOG_PREDAWN_COLUMN, "INTEGER")
     }
 
     private fun addColumnIfMissing(stmt: java.sql.Statement, table: String, column: String, type: String) {
@@ -814,7 +825,7 @@ class DesktopWeatherDatabase(
          * the v24 bump, even though that test is about the v22 cloud columns and not about the
          * version number at all.
          */
-        const val SCHEMA_VERSION = 39
+        const val SCHEMA_VERSION = 40
         private const val HOURLY_TABLE_MERGE_VERSION = 36
 
         /** Room's `HourlyActualEntity` declares the same columns (MIGRATION_84_85). */
@@ -904,6 +915,14 @@ class DesktopWeatherDatabase(
             "observedFogTopTemp" to "REAL",
             "observedFogVisibilityMi" to "REAL",
         )
+
+        /**
+         * Fog whose every hour or report came before sunrise (`MorningFog.predawn`, drawn petite):
+         * nullable INTEGER 0/1 on `forecasts` and `daily_history`. Shared by desktop v40 and Room
+         * MIGRATION_87_88. plans/261112-observed-no-fog-vetoes-forecast.md
+         */
+        const val FORECAST_FOG_PREDAWN_COLUMN = "fogPredawn"
+        const val DAILY_HISTORY_FOG_PREDAWN_COLUMN = "observedFogPredawn"
 
         /**
          * One-time repair matching `GoogleWeatherApi.lowsFiledUnderTheirMorning`: Google's daily low

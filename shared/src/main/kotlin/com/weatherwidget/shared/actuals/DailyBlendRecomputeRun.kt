@@ -49,9 +49,11 @@ object DailyBlendRecomputeRun {
      * reach must gain once (plans/261111-daily-bar-morning-fog.md). `4` (same day): the fog's top is
      * midway between the last foggy and first clear report, and hints no longer prolong real fog.
      * `5` (same day): trailing mist no longer raises the top of a morning that had fog
-     * (MorningFog.heightLevel, plans/261111-fog-height-dense-top-bottom-weighted.md).
+     * (MorningFog.heightLevel, plans/261111-fog-height-dense-top-bottom-weighted.md). `6`: observed fog
+     * records whether it was gone before sunrise (MorningFog.predawn, drawn petite;
+     * plans/261112-observed-no-fog-vetoes-forecast.md).
      */
-    const val WRITE_RULES_VERSION = 5
+    const val WRITE_RULES_VERSION = 6
 
     private const val DAY_MS = 86_400_000L
 

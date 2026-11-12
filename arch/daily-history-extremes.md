@@ -12,7 +12,7 @@ interchangeable measurements.
 | `forecastHighTemp` / `forecastLowTemp` | Frozen forecast used for the past-day comparison |
 | `priorForecastHighTemp` / `priorForecastLowTemp` | Previous day's forecast for this date, selected at the shared cutoff rules |
 | `actualsSource`, `apiStationId`, `apiStationDistanceKm`, `lastWriter` | Provenance used for selection and auditing |
-| `observedFogLevel` / `observedFogTopTemp` / `observedFogVisibilityMi` | The morning's observed fog from the source's actuals provider (`ObservedMorningFog`): level code (0 = none, 1 hint … 4 dense), burn-off °F, lowest visibility. Written by `DailyBlendRecomputeRun`; a recompute that cannot judge fog keeps the stored values |
+| `observedFogLevel` / `observedFogTopTemp` / `observedFogVisibilityMi` / `observedFogPredawn` | The morning's observed fog from the source's actuals provider (`ObservedMorningFog`): level code (0 = none, 1 hint … 4 dense), burn-off °F, lowest visibility, and whether every foggy report came before sunrise (drawn petite; null on rows written before the column reads as daylight fog). Written by `DailyBlendRecomputeRun`; a recompute that cannot judge fog keeps the stored values |
 
 A missing provider actual must remain null rather than being silently replaced with a forecast.
 Display fallbacks and accuracy-baseline fallback are separate decisions with their own shared rules.
@@ -110,9 +110,11 @@ Those documents explain prior bugs; the current rules are the shared code descri
 
 ## Observed morning fog
 
-The daily bar's fog ellipse on today and past days combines the three `observedFog*` columns with the
-provider's whole-morning forecast fog (`DailyMorningFog`; `plans/261111-daily-bar-morning-fog.md`,
-`plans/261111-today-fog-whole-morning.md`). `ObservedMorningFog` reads the readings whose `api` is the
+The daily bar's fog ellipse on today and past days combines observed fog with the provider's
+whole-morning forecast fog (`DailyMorningFog`; `plans/261111-daily-bar-morning-fog.md`,
+`plans/261111-today-fog-whole-morning.md`). When the stations saw no fog (level 0) or only a
+saturation hint (level 1), forecast fog counts only from the current hour to noon. Forecast fog for hours already observed clear is dropped
+(`plans/261112-observed-no-fog-vetoes-forecast.md`). `ObservedMorningFog` reads the readings whose `api` is the
 source's resolved actuals provider over 00:00–12:00 local, using the nearest station that reported in
 each hour. A raw METAR is foggy when the station flags `FG`/`BR`, when its visibility is at or below
 ⅝ SM without precipitation, or (a faint hint only) when temperature equals dewpoint with wind ≤ 5 kt
@@ -123,4 +125,4 @@ fog (`MorningFog.heightLevel`; `plans/261111-fog-height-dense-top-bottom-weighte
 the same rows (`DailyActualsAssembler`), like today's blend, on every Android paint path including
 widget taps. Bumping
 `DailyBlendRecomputeRun.WRITE_RULES_VERSION` to 3 backfilled the days still in reach; 5 rewrote them
-under the height-level rule.
+under the height-level rule; 6 added the pre-dawn flag.

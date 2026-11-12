@@ -118,4 +118,67 @@ class DesktopFogStorageTest {
         println("read=${read.map { it.dateTime to it.visibilityMi }}")
         assertEquals(listOf(0f, 0.06f), read.sortedBy { it.dateTime }.map { it.visibilityMi })
     }
+
+    /** plans/261112-observed-no-fog-vetoes-forecast.md: pre-dawn fog draws petite, so the flag is stored. */
+    @Test
+    fun `pre-dawn flag round-trips on the daily row, daily_history and the blend update`() {
+        val dao = DesktopWeatherDao(DesktopWeatherDatabase(path).apply { initialize() })
+        val today = LocalDate.now()
+        val dawn = MorningFog(FogLevel.DENSE, topTempF = 52f, visibilityMi = 0.24f, predawn = true)
+        val daylight = dawn.copy(predawn = false)
+        dao.upsertForecasts(
+            lat, lon, "NWS",
+            listOf(
+                DailyForecast(today.plusDays(1).toString(), 72f, 52f, "Mostly Sunny", source = "NWS")
+                    .let { it.withHourlySummary(it.hourlySummary.copy(fog = dawn)) },
+                DailyForecast(today.plusDays(2).toString(), 72f, 52f, "Mostly Sunny", source = "NWS")
+                    .let { it.withHourlySummary(it.hourlySummary.copy(fog = daylight)) },
+            ),
+        )
+        val rows = dao.getDailyForecasts(lat, lon, "NWS").associateBy { it.date }
+        println("rows=${rows.mapValues { it.value.hourlySummary.fog }}")
+        assertEquals(dawn, rows.getValue(today.plusDays(1).toString()).hourlySummary.fog)
+        assertEquals(daylight, rows.getValue(today.plusDays(2).toString()).hourlySummary.fog)
+
+        val date = LocalDate.of(2026, 11, 12).toEpochDay() * 86_400_000L
+        val row = DailyHistory(date, "NWS", lat, lon, null, 50f, "Clear", updatedAt = 1_000L).withObservedFog(daylight)
+        dao.upsertDailyHistory(listOf(row))
+        assertEquals(daylight, dao.getExtremesInRange(date, date, lat, lon).single().observedFog)
+        assertEquals(1, dao.updateBlendIfUnchanged(row.withObservedFog(dawn), newUpdatedAt = 2_000L, expectedUpdatedAt = 1_000L))
+        assertEquals(dawn, dao.getExtremesInRange(date, date, lat, lon).single().observedFog)
+    }
+
+    @Test
+    fun `a v39 database gains the pre-dawn columns and keeps its fog`() {
+        DesktopWeatherDatabase(path).initialize()
+        DriverManager.getConnection("jdbc:sqlite:$path").use { conn ->
+            conn.createStatement().use { st ->
+                st.execute(
+                    "INSERT INTO daily_history (date, source, locationLat, locationLon, computedHighTemp, computedLowTemp, condition, updatedAt, " +
+                        "observedFogLevel, observedFogTopTemp, observedFogVisibilityMi) " +
+                        "VALUES (1794441600000, 'NWS', $lat, $lon, 70.0, 50.0, 'Clear', 1, 3, 53.0, 0.5)",
+                )
+                st.execute("ALTER TABLE daily_history DROP COLUMN ${DesktopWeatherDatabase.DAILY_HISTORY_FOG_PREDAWN_COLUMN}")
+                st.execute("ALTER TABLE forecasts DROP COLUMN ${DesktopWeatherDatabase.FORECAST_FOG_PREDAWN_COLUMN}")
+                st.execute("PRAGMA user_version = 39")
+            }
+        }
+
+        val dao = DesktopWeatherDao(DesktopWeatherDatabase(path).apply { initialize() })
+
+        DriverManager.getConnection("jdbc:sqlite:$path").use { conn ->
+            conn.createStatement().use { st ->
+                st.executeQuery("PRAGMA user_version").use { assertEquals(DesktopWeatherDatabase.SCHEMA_VERSION, it.getInt(1)) }
+                val columns = mutableSetOf<String>()
+                st.executeQuery("PRAGMA table_info(forecasts)").use { while (it.next()) columns += it.getString("name") }
+                st.executeQuery("PRAGMA table_info(daily_history)").use { while (it.next()) columns += it.getString("name") }
+                assertTrue(columns.containsAll(listOf("fogPredawn", "observedFogPredawn")))
+            }
+        }
+        // The old row's fog is kept and reads as daylight fog (the size it drew at before).
+        val kept = dao.getExtremesInRange(1794441600000L, 1794441600000L, lat, lon).single().observedFog!!
+        println("kept=$kept")
+        assertEquals(FogLevel.FOG, kept.level)
+        assertEquals(false, kept.predawn)
+    }
 }

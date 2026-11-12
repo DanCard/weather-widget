@@ -99,7 +99,8 @@ interface DailyHistoryDao {
             updatedAt = :updatedAt,
             observedFogLevel = :observedFogLevel,
             observedFogTopTemp = :observedFogTopTemp,
-            observedFogVisibilityMi = :observedFogVisibilityMi
+            observedFogVisibilityMi = :observedFogVisibilityMi,
+            observedFogPredawn = :observedFogPredawn
         WHERE date = :date
           AND source = :source
           AND locationLat = :locationLat
@@ -126,6 +127,7 @@ interface DailyHistoryDao {
         observedFogLevel: Int?,
         observedFogTopTemp: Float?,
         observedFogVisibilityMi: Float?,
+        observedFogPredawn: Boolean?,
     ): Int
 
     @Query(

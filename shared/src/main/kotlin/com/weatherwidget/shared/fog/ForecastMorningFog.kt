@@ -16,14 +16,17 @@ import java.time.ZoneId
  * ([MorningFog.heightLevel]: fog proper when there was any, so trailing mist does not raise it) and the
  * next hour below it ([MorningFog.burnOffTemp]): the fog ended between them, and the air warms fast once
  * it has (Open-Meteo 2026-11-11: last fog 09:00 at 53.9°, clear 10:00 at 56.9° → 55.4°).
+ *
+ * Pre-dawn ([MorningFog.predawn]) when every foggy hour's middle is before [sunriseMs]: NWS 2026-11-12
+ * forecast fog 03:00–05:00 only, gone before the 06:45 sunrise.
  */
 object ForecastMorningFog {
 
     /** [date]'s 00:00–12:00 window. Null when the rows do not cover it. */
-    fun forDate(rows: List<HourlyForecast>, date: LocalDate, zone: ZoneId): MorningFog? =
-        forWindow(rows, MorningFogWindow.startMs(date, zone), MorningFogWindow.endMs(date, zone))
+    fun forDate(rows: List<HourlyForecast>, date: LocalDate, zone: ZoneId, sunriseMs: Long?): MorningFog? =
+        forWindow(rows, MorningFogWindow.startMs(date, zone), MorningFogWindow.endMs(date, zone), sunriseMs)
 
-    fun forWindow(rows: List<HourlyForecast>, startMs: Long, endMs: Long): MorningFog? {
+    fun forWindow(rows: List<HourlyForecast>, startMs: Long, endMs: Long, sunriseMs: Long?): MorningFog? {
         if (!DailyHourlySummaries.windowCovered(rows, startMs, endMs)) return null
         val ordered = rows.distinctBy { it.dateTime }.sortedBy { it.dateTime }
         val inWindow = ordered.filter { it.dateTime in startMs until endMs }
@@ -38,8 +41,11 @@ object ForecastMorningFog {
             level = level,
             topTempF = MorningFog.burnOffTemp(last.temperature, firstClear?.temperature ?: last.temperature),
             visibilityMi = foggy.mapNotNull { it.second.second }.minOrNull(),
+            predawn = sunriseMs != null && foggy.all { (hour, _) -> hour.dateTime + HALF_HOUR_MS < sunriseMs },
         )
     }
+
+    private const val HALF_HOUR_MS = 1_800_000L
 
     /** The hour's (level, visibility) when foggy, else null. */
     internal fun hourFog(hour: HourlyForecast): Pair<Int, Float?>? {

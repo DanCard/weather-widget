@@ -160,14 +160,24 @@ fits; the actuals-source annotation also tries two lines before it is omitted
 
 The daily view's morning fog is a see-through ellipse over each bar's cold end, wider than the bar and
 under the labels (`plans/261111-daily-bar-morning-fog.md`). `DailyColumnBuilder` resolves it through
-`DailyMorningFog`, one rule for every column: the provider's observed fog (`daily_history.observedFog*`)
-combined with its whole-morning forecast, the forecast row's `fogLevel`/`fogTopTemp`/`fogVisibilityMi`
-(`ForecastMorningFog`, computed at persist time from the fetch's hourly visibility and words over
-00:00–12:00, carried forward like noon cloud) else the stored hours. The forecast side covers the whole
-morning at any time of day, so a fetch made after the fog keeps it on today and past days
-(`plans/261111-today-fog-whole-morning.md`). Future days have no observation and read the forecast alone. `FogPatch` plans the nested ovals
-(height from the low to the burn-off temperature of the fog proper, layers gathered toward the low so
-the top fades, opacity from the lowest visibility on a log scale, 5 % for a saturation-only hint); `DailyBarRenderer` and `DailyForecastGraph` only fill them.
+`DailyMorningFog`, one rule for every column:
+
+- **Observed fog** (`daily_history.observedFog*`) combines with the provider's whole-morning forecast:
+  the forecast row's `fogLevel`/`fogTopTemp`/`fogVisibilityMi`/`fogPredawn` (`ForecastMorningFog`,
+  computed at persist time from the fetch's hourly visibility and words over 00:00–12:00, carried
+  forward like noon cloud), else the stored hours. A fetch made after the fog keeps it on today and
+  past days (`plans/261111-today-fog-whole-morning.md`).
+- **Observed no fog** (level 0) **or only a saturation hint** (level 1, no fog or mist reported): the
+  stations win for the hours already gone. Only forecast fog from the current hour to noon counts,
+  combined with the hint, so after noon and on past days at most the hint's faint haze draws
+  (`plans/261112-observed-no-fog-vetoes-forecast.md`).
+- **No observation** (future days): the forecast alone.
+
+`FogPatch` plans the nested ovals (height from the low to the burn-off temperature of the fog proper,
+layers gathered toward the low so the top fades, opacity from the lowest visibility on a log scale, 5 %
+for a saturation-only hint). Fog whose every hour or report came before that day's sunrise at the site
+(`MorningFog.predawn`) draws petite: ⅓ the height and ½ the width, opacity unchanged. Combined fog is
+pre-dawn only when both sides are. `DailyBarRenderer` and `DailyForecastGraph` only fill the ovals.
 
 Android's `WeatherWidgetProvider` and interaction coordinators route widget actions, serialize
 interactions per widget, load cached state, and paint through the widget render pipeline. RemoteViews

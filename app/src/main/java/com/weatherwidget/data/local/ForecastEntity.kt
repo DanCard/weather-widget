@@ -48,12 +48,14 @@ data class ForecastEntity(
     val fogLevel: Int? = null,
     val fogTopTemp: Float? = null,
     val fogVisibilityMi: Float? = null,
+    // True when every foggy hour came before sunrise (drawn petite). Null = no fog, or written before v88.
+    val fogPredawn: Boolean? = null,
 )
 
 val ForecastEntity.hourlySummary: com.weatherwidget.shared.util.DailyHourlySummaries.Summary
     get() = com.weatherwidget.shared.util.DailyHourlySummaries.Summary(
         noonCloudPercent, hourlyDayPrecipMax, hourlyNightPrecipMax, hourlyDayPrecipPeakAt,
-        fog = com.weatherwidget.shared.fog.MorningFog.fromColumns(fogLevel, fogTopTemp, fogVisibilityMi),
+        fog = com.weatherwidget.shared.fog.MorningFog.fromColumns(fogLevel, fogTopTemp, fogVisibilityMi, fogPredawn),
     )
 
 fun ForecastEntity.withHourlySummary(summary: com.weatherwidget.shared.util.DailyHourlySummaries.Summary): ForecastEntity = copy(
@@ -64,6 +66,7 @@ fun ForecastEntity.withHourlySummary(summary: com.weatherwidget.shared.util.Dail
     fogLevel = summary.fog?.level,
     fogTopTemp = summary.fog?.topTempF,
     fogVisibilityMi = summary.fog?.visibilityMi,
+    fogPredawn = com.weatherwidget.shared.fog.MorningFog.predawnColumn(summary.fog),
 )
 
 /** This row as the shared daily model's shown row for [date] (`:shared` DailyColumnBuilder). */
@@ -86,6 +89,7 @@ fun ForecastEntity.toDailyForecast(date: java.time.LocalDate) = com.weatherwidge
     fogLevel = fogLevel,
     fogTopTemp = fogTopTemp,
     fogVisibilityMi = fogVisibilityMi,
+    fogPredawn = fogPredawn,
     fetchedAt = fetchedAt,
     lastConfirmedAt = lastConfirmedAt,
 )
