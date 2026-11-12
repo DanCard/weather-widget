@@ -1,0 +1,1 @@
+Show morning fog as a semi-transparent ellipse on daily forecast bars; add optional 24-hour-prior forecast bars on future days; refine hourly graph clock and footer labels; protect screen-on UI ticks from freezer delays; and sum daytime rain over 8am-8pm hours.
