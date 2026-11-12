@@ -7,6 +7,8 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.AudioAttributes
+import android.net.Uri
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -41,7 +43,8 @@ import java.time.ZoneId
 object DominantTempChangeNotifier {
 
     private const val TAG = "DOMINANT_TEMP_WATCH"
-    private const val CHANNEL_ID = "dominant_temp_change"
+    private const val LEGACY_CHANNEL_ID = "dominant_temp_change"
+    internal const val CHANNEL_ID = "dominant_temp_change_v2"
     private const val NOTIFICATION_ID = 4201
 
     /**
@@ -175,11 +178,13 @@ object DominantTempChangeNotifier {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
+        val sound = soundUri(context)
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_thermometer)
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setSound(sound)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
             .setContentIntent(contentIntent)
@@ -191,10 +196,22 @@ object DominantTempChangeNotifier {
         }.getOrDefault(false)
     }
 
-    private fun ensureChannel(context: Context) {
+    internal fun soundUri(context: Context): Uri =
+        Uri.parse("android.resource://${context.packageName}/${R.raw.temperature_change}")
+
+    internal fun ensureChannel(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
+        // Android O+ channel sounds are immutable once created, so drop the legacy default-sound
+        // channel and register a v2 channel bound to our custom "temperature change" audio.
+        if (manager.getNotificationChannel(LEGACY_CHANNEL_ID) != null) {
+            manager.deleteNotificationChannel(LEGACY_CHANNEL_ID)
+        }
         if (manager.getNotificationChannel(CHANNEL_ID) != null) return
+        val audioAttributes = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+            .build()
         manager.createNotificationChannel(
             NotificationChannel(
                 CHANNEL_ID,
@@ -202,6 +219,7 @@ object DominantTempChangeNotifier {
                 NotificationManager.IMPORTANCE_DEFAULT,
             ).apply {
                 description = context.getString(R.string.notify_dominant_temp_channel_description)
+                setSound(soundUri(context), audioAttributes)
             },
         )
     }

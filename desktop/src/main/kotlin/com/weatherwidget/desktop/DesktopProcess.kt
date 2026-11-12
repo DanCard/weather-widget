@@ -507,12 +507,47 @@ fun isUiLauncherMissing(): Boolean {
 }
 
 /**
- * Best-effort desktop notification via `notify-send` (XFCE's notifyd). Fire-and-forget: never throws
- * and is a no-op when `notify-send` is absent, matching the project's best-effort/interrupt-driven
- * preference — a missing notifier must never take down the daemon.
+ * Best-effort desktop notification via `notify-send` (XFCE's notifyd), with optional bundled
+ * audio playback via `pw-play` / `paplay`. Fire-and-forget: never throws and is a no-op when
+ * `notify-send` or the audio player is absent, matching the project's best-effort/interrupt-driven
+ * preference — a missing notifier or audio tool must never take down the daemon.
  */
-fun notifyDesktop(summary: String, body: String, urgency: String = "normal") {
+fun notifyDesktop(
+    summary: String,
+    body: String,
+    urgency: String = "normal",
+    soundResource: String? = null,
+) {
     runCatching {
         ProcessBuilder("notify-send", "-u", urgency, "-a", "Weather Widget", summary, body).start()
     }.onFailure { Log.w("DesktopProcess", "notify-send failed: ${it.message}") }
+    if (soundResource != null) {
+        playDesktopSound(soundResource)
+    }
+}
+
+internal fun extractSoundResource(
+    resourcePath: String,
+    targetDir: Path = appDataDir().resolve("sounds"),
+): Path? {
+    val fileName = resourcePath.substringAfterLast('/').takeIf { it.isNotBlank() } ?: return null
+    val dest = targetDir.resolve(fileName)
+    val bytes = object {}.javaClass.getResourceAsStream(resourcePath)?.use { it.readBytes() } ?: return null
+    if (!Files.exists(dest) || Files.size(dest) != bytes.size.toLong()) {
+        Files.createDirectories(targetDir)
+        Files.write(dest, bytes)
+    }
+    return dest
+}
+
+private fun playDesktopSound(resourcePath: String) {
+    runCatching {
+        val file = extractSoundResource(resourcePath) ?: return
+        val pathStr = file.toAbsolutePath().toString()
+        for (player in listOf("pw-play", "paplay")) {
+            val started = runCatching { ProcessBuilder(player, pathStr).start() }.isSuccess
+            if (started) return
+        }
+        Log.w("DesktopProcess", "No desktop audio player (pw-play/paplay) available for $resourcePath")
+    }.onFailure { Log.w("DesktopProcess", "Desktop sound playback failed ($resourcePath): ${it.message}") }
 }
