@@ -1,0 +1,1 @@
+Let observed clear station reports cancel forecast fog for elapsed morning hours, and render pre-dawn morning fog at compact scale when clear before sunrise.
