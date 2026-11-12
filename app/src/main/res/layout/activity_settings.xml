@@ -230,6 +230,55 @@
                     android:orientation="vertical" />
             </LinearLayout>
 
+            <!-- Notifications -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="8dp"
+                android:text="@string/notifications_title"
+                android:tag="settings_section"
+                android:textColor="@color/widget_text_primary"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="24dp"
+                android:background="@drawable/bg_surface_card"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="wrap_content"
+                        android:text="@string/notify_dominant_temp_change_label"
+                        android:textColor="@color/widget_text_primary"
+                        android:textSize="15sp" />
+
+                    <androidx.appcompat.widget.SwitchCompat
+                        android:id="@+id/notify_dominant_temp_change_switch"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="@string/notify_dominant_temp_change_description"
+                    android:textColor="@color/widget_text_secondary"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
             <!-- Hourly Zoom Section -->
             <TextView
                 android:layout_width="wrap_content"
@@ -253,6 +302,7 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginBottom="24dp"
                 android:background="@drawable/bg_surface_card"
                 android:orientation="vertical"
                 android:padding="16dp">
@@ -343,55 +393,6 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content" />
                 </LinearLayout>
-            </LinearLayout>
-
-            <!-- Notifications -->
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="24dp"
-                android:layout_marginBottom="8dp"
-                android:text="@string/notifications_title"
-                android:tag="settings_section"
-                android:textColor="@color/widget_text_primary"
-                android:textSize="16sp"
-                android:textStyle="bold" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="24dp"
-                android:background="@drawable/bg_surface_card"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical">
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_weight="1"
-                        android:layout_height="wrap_content"
-                        android:text="@string/notify_dominant_temp_change_label"
-                        android:textColor="@color/widget_text_primary"
-                        android:textSize="15sp" />
-
-                    <androidx.appcompat.widget.SwitchCompat
-                        android:id="@+id/notify_dominant_temp_change_switch"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" />
-                </LinearLayout>
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="@string/notify_dominant_temp_change_description"
-                    android:textColor="@color/widget_text_secondary"
-                    android:textSize="13sp" />
             </LinearLayout>
 
             <!-- Daily View — Today Column Section -->
