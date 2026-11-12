@@ -41,10 +41,10 @@ class DesktopDaySourceComparisonHostContractTest : DaySourceComparisonHostContra
         )
 
         override fun hourly(row: HourlyForecast) = insert(
-            "INSERT OR REPLACE INTO hourly_forecasts (dateTime, locationLat, locationLon, temperature, condition, source, precipProbability, cloudCover, fetchedAt, timestampToGroupPredictions) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT OR REPLACE INTO hourly_forecasts (dateTime, locationLat, locationLon, temperature, condition, source, precipProbability, precipAmountMm, cloudCover, fetchedAt, timestampToGroupPredictions) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             row.dateTime, row.locationLat, row.locationLon, row.temperature, row.condition, row.source, row.precipProbability,
-            row.cloudCover, row.fetchedAt, row.fetchedAt,
+            row.precipAmountMm, row.cloudCover, row.fetchedAt, row.fetchedAt,
         )
 
         private fun insert(sql: String, vararg args: Any?) {

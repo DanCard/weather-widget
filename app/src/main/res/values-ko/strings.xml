@@ -108,7 +108,7 @@
     <string name="source_compare_legend_rain">시간별 최고 확률, 8–20시</string>
     <string name="source_compare_legend_peak">주간 최고 확률 시각</string>
     <string name="source_compare_legend_night">시간별 최고 확률, 20–8시</string>
-    <string name="source_compare_legend_amount">예보 총량, 자정부터 자정까지</string>
+    <string name="source_compare_legend_amount">예보 총량, 8–20시</string>
     <string name="source_compare_legend_cloud">정오 구름량</string>
     <string name="source_compare_legend_bias">평균 예보 최고기온 − 실제, 최근 30일 (+ = 높게 예보)</string>
     <string name="source_compare_legend_age">출처가 이 예보를 마지막으로 확인한 후 경과 시간; 24시간 후 회색</string>

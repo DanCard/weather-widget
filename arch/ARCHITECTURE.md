@@ -45,7 +45,8 @@ Examples include:
   source's newest forecast for the day at the nearest site, run through `DailyColumnBuilder` with that
   source as the display source (so the high, rain %, peak hour and noon cloud match the widget's daily
   view), sorted by high by default; a source with no row is listed last. Columns: short name, high, low, day rain %,
-  peak hour, night rain, amount (dropped below 380 dp or when no row has one), noon cloud, 30-day
+  peak hour, night rain, amount (8am–8pm hourly sum as on the widget; dropped below 380 dp or when no
+  row has one), noon cloud, 30-day
   high bias, and age since `lastConfirmedAt` (dimmed past 24 h). Hosts: `RoomDaySourceComparisonHost`,
   `DesktopDaySourceComparisonHost`; `DAY_SOURCE_COMPARE` logs each build.
   Clicking a column header sorts by it (`Sort.tapped`: same column flips, a new column starts

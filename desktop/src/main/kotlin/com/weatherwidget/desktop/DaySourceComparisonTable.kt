@@ -124,7 +124,7 @@ internal val LEGEND_TEXT: Map<DaySourceComparison.SortColumn, String> = mapOf(
     DaySourceComparison.SortColumn.DAY_RAIN to "highest hourly chance, 8am–8pm",
     DaySourceComparison.SortColumn.PEAK to "hour of the highest daytime chance",
     DaySourceComparison.SortColumn.NIGHT_RAIN to "highest hourly chance, 8pm–8am",
-    DaySourceComparison.SortColumn.AMOUNT to "forecast total, midnight to midnight",
+    DaySourceComparison.SortColumn.AMOUNT to "forecast total, 8am–8pm",
     DaySourceComparison.SortColumn.CLOUD to "cloud cover at noon",
     DaySourceComparison.SortColumn.BIAS to "average forecast high minus actual, last 30 days (+ = ran warm)",
     DaySourceComparison.SortColumn.AGE to "time since the source last confirmed this forecast; grey after 24 h",

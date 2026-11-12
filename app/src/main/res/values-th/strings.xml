@@ -108,7 +108,7 @@
     <string name="source_compare_legend_rain">โอกาสรายชั่วโมงสูงสุด 08–20 น.</string>
     <string name="source_compare_legend_peak">เวลาที่มีโอกาสสูงสุดช่วงกลางวัน</string>
     <string name="source_compare_legend_night">โอกาสรายชั่วโมงสูงสุด 20–08 น.</string>
-    <string name="source_compare_legend_amount">ยอดรวมพยากรณ์ เที่ยงคืนถึงเที่ยงคืน</string>
+    <string name="source_compare_legend_amount">ยอดรวมพยากรณ์ 08–20 น.</string>
     <string name="source_compare_legend_cloud">เมฆปกคลุมตอนเที่ยง</string>
     <string name="source_compare_legend_bias">ค่าเฉลี่ยสูงสุดที่พยากรณ์ลบค่าจริง 30 วันล่าสุด (+ = อุ่นกว่า)</string>
     <string name="source_compare_legend_age">นับจากแหล่งข้อมูลยืนยันพยากรณ์นี้ครั้งล่าสุด เป็นสีเทาหลัง 24 ชม.</string>

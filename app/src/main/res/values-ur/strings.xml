@@ -108,7 +108,7 @@
     <string name="source_compare_legend_rain">فی گھنٹہ سب سے زیادہ امکان، 8–20</string>
     <string name="source_compare_legend_peak">دن میں سب سے زیادہ امکان کا وقت</string>
     <string name="source_compare_legend_night">فی گھنٹہ سب سے زیادہ امکان، 20–8</string>
-    <string name="source_compare_legend_amount">پیشگوئی کا مجموعہ، آدھی رات سے آدھی رات</string>
+    <string name="source_compare_legend_amount">پیشگوئی کا مجموعہ، 8–20</string>
     <string name="source_compare_legend_cloud">دوپہر 12 بجے بادل</string>
     <string name="source_compare_legend_bias">اوسط پیشگوئی شدہ زیادہ سے زیادہ منفی اصل، پچھلے 30 دن (+ = زیادہ گرم)</string>
     <string name="source_compare_legend_age">ماخذ کی اس پیشگوئی کی آخری تصدیق سے؛ 24 گھنٹے بعد سرمئی</string>

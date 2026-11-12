@@ -108,7 +108,7 @@
     <string name="source_compare_legend_rain">أعلى احتمال لكل ساعة، 8–20</string>
     <string name="source_compare_legend_peak">ساعة أعلى احتمال نهارًا</string>
     <string name="source_compare_legend_night">أعلى احتمال لكل ساعة، 20–8</string>
-    <string name="source_compare_legend_amount">إجمالي التوقع، من منتصف الليل إلى منتصف الليل</string>
+    <string name="source_compare_legend_amount">إجمالي التوقع، 8–20</string>
     <string name="source_compare_legend_cloud">الغطاء السحابي عند الظهر</string>
     <string name="source_compare_legend_bias">متوسط العظمى المتوقعة ناقص الفعلية، آخر 30 يومًا (+ = أدفأ)</string>
     <string name="source_compare_legend_age">منذ آخر تأكيد للمصدر لهذا التوقع؛ رمادي بعد 24 ساعة</string>

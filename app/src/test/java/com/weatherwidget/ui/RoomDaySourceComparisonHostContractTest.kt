@@ -56,7 +56,8 @@ class RoomDaySourceComparisonHostContractTest : DaySourceComparisonHostContract(
                     HourlyForecastEntity(
                         dateTime = row.dateTime, locationLat = row.locationLat!!, locationLon = row.locationLon!!,
                         temperature = row.temperature, condition = row.condition, source = row.source!!,
-                        precipProbability = row.precipProbability, cloudCover = row.cloudCover, fetchedAt = row.fetchedAt,
+                        precipProbability = row.precipProbability, precipAmountMm = row.precipAmountMm, cloudCover = row.cloudCover,
+                        fetchedAt = row.fetchedAt,
                     ),
                 ),
             )

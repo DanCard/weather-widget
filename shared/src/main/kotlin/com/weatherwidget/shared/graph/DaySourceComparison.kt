@@ -298,7 +298,13 @@ object DaySourceComparison {
         // The forecast, never the observed line: future days' bar, today's and past days' forecast bar.
         val high = if (isFuture) column.solidHigh else column.forecastHigh
         val low = if (isFuture) column.solidLow else column.forecastLow
-        val amount = if (isPast) actual?.forecastPrecipAmountMm ?: column.snapshot?.precipAmountMm else shown?.forecast?.precipAmountMm
+        // The widget's day amount: the source's hourly forecast summed over 8am–8pm, null unless every
+        // hour is covered. Not the row's midnight-to-midnight total, which also holds 8pm–midnight.
+        // Past days read the same stored hours; past their hourly retention the cell is blank.
+        val amount = DailyRainLabels.dayForecastAmountMm(
+            hourly = sourceHourly, displaySourceId = source.id, centerLat = lat, centerLon = lon,
+            targetDate = date, zoneId = zone,
+        )
         val lastConfirmed = sited.maxOfOrNull { it.forecast.lastConfirmedAt ?: it.forecast.fetchedAt ?: 0L }?.takeIf { it > 0L }
         return Row(
             source = source,
@@ -382,7 +388,7 @@ object DaySourceComparison {
      * column order. Amount only while its column is shown. Source, High and Low need no note.
      * The wording is per platform (desktop `LEGEND_TEXT`, Android `source_compare_legend_*`) and says
      * exactly what each cell holds: Rain/Night are the windowed hourly max ([DailyRainLabels]), Amount
-     * the stored midnight-to-midnight row total, Bias the 30-day mean high error as forecast − actual.
+     * the 8am–8pm hourly sum (as the widget's day label), Bias the 30-day mean high error as forecast − actual.
      */
     fun legendColumns(showAmount: Boolean): List<SortColumn> =
         LEGEND_COLUMNS.filter { showAmount || it != SortColumn.AMOUNT }

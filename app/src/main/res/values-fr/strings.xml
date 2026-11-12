@@ -108,7 +108,7 @@
     <string name="source_compare_legend_rain">plus forte probabilité horaire, 8 h–20 h</string>
     <string name="source_compare_legend_peak">heure de la plus forte probabilité en journée</string>
     <string name="source_compare_legend_night">plus forte probabilité horaire, 20 h–8 h</string>
-    <string name="source_compare_legend_amount">total prévu, de minuit à minuit</string>
+    <string name="source_compare_legend_amount">total prévu, 8 h–20 h</string>
     <string name="source_compare_legend_cloud">couverture nuageuse à midi</string>
     <string name="source_compare_legend_bias">max prévu moyen moins le réel, 30 derniers jours (+ = trop chaud)</string>
     <string name="source_compare_legend_age">depuis la dernière confirmation de cette prévision par la source ; gris après 24 h</string>

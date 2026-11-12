@@ -122,3 +122,14 @@ New line for each column explained."
 - One line per column, bold name, 12sp secondary colour on both platforms.
 - Noted, not changed: the table's Amount is the midnight-to-midnight total. The widget's day label
   sums only 8am–8pm (plans/261106-day-rain-amount-daytime-window.md).
+
+## Follow-up: Amount matches the widget (2026-11-12)
+
+User agreed ("yes") to make the table's Amount match the widget's day label.
+
+- Amount is now `DailyRainLabels.dayForecastAmountMm` (the source's stored hourly amounts summed 8am–8pm,
+  null unless every hour is covered), the widget's own rule. It was the row's midnight-to-midnight total.
+  Every date uses it, so past days beyond hourly retention (~8 days) show a blank.
+- The legend line is now "forecast total, 8am–8pm" in all 20 locales.
+- The contract seeders on both platforms now store hourly `precipAmountMm`. The contract tells the
+  two values apart (1.2 mm window vs 2.5 mm row total).

@@ -108,7 +108,7 @@
     <string name="source_compare_legend_rain">mayor probabilidad horaria, 8–20 h</string>
     <string name="source_compare_legend_peak">hora de la mayor probabilidad diurna</string>
     <string name="source_compare_legend_night">mayor probabilidad horaria, 20–8 h</string>
-    <string name="source_compare_legend_amount">total previsto, de medianoche a medianoche</string>
+    <string name="source_compare_legend_amount">total previsto, 8–20 h</string>
     <string name="source_compare_legend_cloud">nubosidad al mediodía</string>
     <string name="source_compare_legend_bias">máxima prevista media menos la real, últimos 30 días (+ = más cálida)</string>
     <string name="source_compare_legend_age">desde que la fuente confirmó este pronóstico; gris tras 24 h</string>

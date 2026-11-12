@@ -72,13 +72,18 @@ abstract class DaySourceComparisonHostContract {
                 dayMax = 60, nightMax = 25, peakAt = peak, noonCloud = 30, amountMm = 2.5f,
             ),
         )
-        // Open-Meteo's own noon hour overrides the row's noon cloud, as on the widget.
-        seed.hourly(
-            HourlyForecast(
-                DAY.atTime(12, 0).atZone(ZONE).toInstant().toEpochMilli(), 64f, "Cloudy", precipProbability = 50,
-                cloudCover = 80, source = "OPEN_METEO", fetchedAt = NOW_MS - 2 * HOUR, locationLat = LAT, locationLon = LON,
-            ),
-        )
+        // Open-Meteo's stored hours, 8am to midnight: 0.1 mm each, so 8am–8pm sums to 1.2 mm while the
+        // row's midnight-to-midnight total is 2.5 mm. The noon hour's cloud overrides the row's, as on the widget.
+        for (h in 8..23) {
+            seed.hourly(
+                HourlyForecast(
+                    DAY.atTime(h, 0).atZone(ZONE).toInstant().toEpochMilli(), 64f, "Cloudy",
+                    precipProbability = when { h == 14 -> 60; h >= 20 -> 25; else -> 30 },
+                    precipAmountMm = 0.1f, cloudCover = if (h == 12) 80 else 50, source = "OPEN_METEO",
+                    fetchedAt = NOW_MS - 2 * HOUR, locationLat = LAT, locationLon = LON,
+                ),
+            )
+        }
         // Silurian has only a climate normal: listed, with no forecast.
         forecast(ForecastSeed("SILURIAN", 61f, 45f, fetchedAt = NOW_MS - HOUR, isClimateNormal = true))
 
@@ -92,9 +97,11 @@ abstract class DaySourceComparisonHostContract {
         assertEquals(25, meteo.nightRainPercent)
         assertEquals("2pm", meteo.dayPeakLabel)
         assertEquals(80, meteo.noonCloudPercent)
-        assertEquals(2.5f, meteo.amountMm)
+        // The widget's 8am–8pm day amount, not the row's midnight-to-midnight 2.5 mm.
+        assertEquals(1.2f, meteo.amountMm!!, 1e-4f)
         assertEquals(NOW_MS - 2 * HOUR, meteo.lastConfirmedAt)
         val nws = rows[1]
+        assertEquals("no stored hours: no amount", null, nws.amountMm)
         assertEquals(66f, nws.high)
         assertEquals(50f, nws.low)
         assertEquals(NOW_MS - 40 * MINUTE, nws.lastConfirmedAt)

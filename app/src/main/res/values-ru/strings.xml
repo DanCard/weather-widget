@@ -108,7 +108,7 @@
     <string name="source_compare_legend_rain">наибольшая почасовая вероятность, 8–20</string>
     <string name="source_compare_legend_peak">час наибольшей дневной вероятности</string>
     <string name="source_compare_legend_night">наибольшая почасовая вероятность, 20–8</string>
-    <string name="source_compare_legend_amount">прогноз за сутки, от полуночи до полуночи</string>
+    <string name="source_compare_legend_amount">прогноз суммы, 8–20</string>
     <string name="source_compare_legend_cloud">облачность в полдень</string>
     <string name="source_compare_legend_bias">средний прогноз максимума минус факт, 30 дней (+ = теплее)</string>
     <string name="source_compare_legend_age">с последнего подтверждения прогноза источником; серым после 24 ч</string>

@@ -108,7 +108,7 @@
     <string name="source_compare_legend_rain">प्रति घंटे सबसे अधिक संभावना, 8–20</string>
     <string name="source_compare_legend_peak">दिन में सबसे अधिक संभावना का समय</string>
     <string name="source_compare_legend_night">प्रति घंटे सबसे अधिक संभावना, 20–8</string>
-    <string name="source_compare_legend_amount">पूर्वानुमान कुल, आधी रात से आधी रात</string>
+    <string name="source_compare_legend_amount">पूर्वानुमान कुल, 8–20</string>
     <string name="source_compare_legend_cloud">दोपहर 12 बजे बादल</string>
     <string name="source_compare_legend_bias">औसत पूर्वानुमानित अधिकतम घटा वास्तविक, पिछले 30 दिन (+ = अधिक गर्म)</string>
     <string name="source_compare_legend_age">स्रोत द्वारा इस पूर्वानुमान की अंतिम पुष्टि से; 24 घंटे बाद धूसर</string>

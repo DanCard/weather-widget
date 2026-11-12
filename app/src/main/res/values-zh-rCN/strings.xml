@@ -108,7 +108,7 @@
     <string name="source_compare_legend_rain">每小时最高概率，8–20时</string>
     <string name="source_compare_legend_peak">白天最高概率的时刻</string>
     <string name="source_compare_legend_night">每小时最高概率，20–8时</string>
-    <string name="source_compare_legend_amount">预报总量，午夜至午夜</string>
+    <string name="source_compare_legend_amount">预报总量，8–20时</string>
     <string name="source_compare_legend_cloud">正午云量</string>
     <string name="source_compare_legend_bias">预报最高温平均减实测，近30天（+ = 偏暖）</string>
     <string name="source_compare_legend_age">距来源上次确认此预报的时间；超过24小时显示为灰色</string>

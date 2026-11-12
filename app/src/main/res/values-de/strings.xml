@@ -108,7 +108,7 @@
     <string name="source_compare_legend_rain">höchste stündliche Wahrscheinlichkeit, 8–20 Uhr</string>
     <string name="source_compare_legend_peak">Stunde der höchsten Tageswahrscheinlichkeit</string>
     <string name="source_compare_legend_night">höchste stündliche Wahrscheinlichkeit, 20–8 Uhr</string>
-    <string name="source_compare_legend_amount">Prognosesumme, Mitternacht bis Mitternacht</string>
+    <string name="source_compare_legend_amount">Prognosesumme, 8–20 Uhr</string>
     <string name="source_compare_legend_cloud">Bewölkung um 12 Uhr</string>
     <string name="source_compare_legend_bias">mittleres Prognose-Hoch minus Ist-Wert, letzte 30 Tage (+ = zu warm)</string>
     <string name="source_compare_legend_age">seit die Quelle diese Prognose zuletzt bestätigt hat; grau nach 24 h</string>

@@ -393,4 +393,24 @@ class DaySourceComparisonTest {
         )
         assertEquals(all - SortColumn.AMOUNT, DaySourceComparison.legendColumns(showAmount = false))
     }
+
+    @Test
+    fun `amount is the widget's 8am to 8pm hourly sum, not the row's midnight-to-midnight total`() {
+        val hourly = (8..23).map { h ->
+            HourlyForecast(
+                tomorrow.atTime(h, 0).atZone(zone).toInstant().toEpochMilli(), 64f, "Rain", precipProbability = 30,
+                precipAmountMm = 0.1f, source = WeatherSource.OPEN_METEO.id, fetchedAt = nowMs, locationLat = lat, locationLon = lon,
+            )
+        }
+        val rows = build(
+            listOf(WeatherSource.OPEN_METEO, WeatherSource.NWS),
+            listOf(stored(WeatherSource.OPEN_METEO, 67f, amountMm = 2.5f), stored(WeatherSource.NWS, 66f, amountMm = 3.0f)),
+            hourly = hourly,
+        )
+        val meteo = rows.first { it.source == WeatherSource.OPEN_METEO }
+        val nws = rows.first { it.source == WeatherSource.NWS }
+        println("DaySourceComparisonTest amount: meteo=${meteo.amountMm} nws=${nws.amountMm}")
+        assertEquals(1.2f, meteo.amountMm!!, 1e-4f)
+        assertNull("no stored hours cover 8am-8pm: blank, never the row total", nws.amountMm)
+    }
 }
