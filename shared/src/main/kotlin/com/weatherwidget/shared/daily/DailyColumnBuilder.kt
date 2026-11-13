@@ -407,6 +407,7 @@ object DailyColumnBuilder {
             dailyRainLabelText = dailyRainLabelText,
             dayPrecipProbability = resolvedPrecip.dayPrecip,
             dayPeakAt = resolvedPrecip.dayPeakAt,
+            dayPeakEndAt = resolvedPrecip.dayPeakEndAt,
             nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
             use24HourClock = use24HourClock,
         )

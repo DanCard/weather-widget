@@ -32,7 +32,7 @@
 2026-10-23 dayRain=20
 2026-10-23 nightRain=0
 2026-10-23 rainLabel=20%
-2026-10-23 peakLabel=-
+2026-10-23 peakLabel=8am
 2026-10-23 nightLabel=-
 2026-10-23 priorRain=20
 2026-10-23 climate=false

@@ -31,6 +31,7 @@ class DailyRainPeakLabelTest {
         label: String? = "45%",
         probability: Int? = 45,
         peakAt: Long? = at(date, 13),
+        peakEndAt: Long? = null,
         now: Long = at(today, 9),
         use24: Boolean = false,
         isPast: Boolean = false,
@@ -42,6 +43,7 @@ class DailyRainPeakLabelTest {
         dailyRainLabelText = label,
         dayPrecipProbability = probability,
         dayPeakAt = peakAt,
+        dayPeakEndAt = peakEndAt,
         nowMs = now,
         use24HourClock = use24,
         zoneId = zone,
@@ -83,6 +85,23 @@ class DailyRainPeakLabelTest {
         assertEquals("during the peak hour", "1pm", peak(date = today, now = at(today, 13, 59)))
         assertNull("after", peak(date = today, now = at(today, 14, 0)))
         assertEquals("future days are never hidden by the clock", "1pm", peak(now = at(today, 18)))
+    }
+
+    @Test
+    fun `today keeps the first hour while the plateau runs`() {
+        // OWM 2026-11-13: 100% from 10am through 1pm; the label vanished at 11:00 before this fix.
+        val run = { now: Long -> peak(date = today, probability = 100, label = "100%", peakAt = at(today, 10), peakEndAt = at(today, 13), now = now) }
+        assertEquals("first hour of the run", "10am", run(at(today, 11, 0)))
+        assertEquals("still the first hour mid-run", "10am", run(at(today, 12, 12)))
+        assertEquals("during the run's last hour", "10am", run(at(today, 13, 59)))
+        assertNull("after the run ends", run(at(today, 14, 0)))
+    }
+
+    @Test
+    fun `a one-hour peak or a missing end keeps the hour-long window`() {
+        assertEquals("1pm", peak(date = today, peakEndAt = at(today, 13), now = at(today, 13, 59)))
+        assertNull(peak(date = today, peakEndAt = at(today, 13), now = at(today, 14, 0)))
+        assertNull("an end before the start is ignored", peak(date = today, peakEndAt = at(today, 9), now = at(today, 14, 0)))
     }
 
     @Test
@@ -150,5 +169,52 @@ class DailyRainPeakLabelTest {
         )
         assertEquals(40, resolved.dayPrecip)
         assertEquals(at(tomorrow, 11), resolved.dayPeakAt)
+        assertNull("the run's end is only worked out for today", resolved.dayPeakEndAt)
+
+        val todayResolved = DailyRainLabels.resolveDailyLabelPrecip(
+            isPast = false,
+            displaySourceId = WeatherSource.OPEN_METEO.id,
+            daytimePrecipProbability = null,
+            nighttimePrecipProbability = null,
+            precipProbability = null,
+            hourly = hourly.map { it.copy(dateTime = it.dateTime - 86_400_000L) },
+            targetDate = today,
+            zoneId = zone,
+            today = today,
+        )
+        assertEquals(at(today, 11), todayResolved.dayPeakAt)
+        assertEquals("today's run ends at its last 40% hour", at(today, 14), todayResolved.dayPeakEndAt)
+    }
+
+    @Test
+    fun `a later separate hour at the max does not extend the run`() {
+        val chance = mapOf(10 to 100, 11 to 100, 12 to 90, 13 to 100)
+        val hourly = (0 until 36).map { h ->
+            HourlyForecast(
+                dateTime = at(tomorrow, 0) + h * 3_600_000L,
+                temperature = 60f,
+                condition = "Rain",
+                precipProbability = chance[h] ?: 10,
+                source = WeatherSource.OPEN_METEO.id,
+            )
+        }
+        val end = DailyRainLabels.peakPlateauEnd(hourly, at(tomorrow, 10), 100, at(tomorrow, 20))
+        println("split run: end=$end")
+        assertEquals(at(tomorrow, 11), end)
+    }
+
+    @Test
+    fun `a run reaching 8pm stops at the last daytime hour`() {
+        val hourly = (0 until 36).map { h ->
+            HourlyForecast(
+                dateTime = at(tomorrow, 0) + h * 3_600_000L,
+                temperature = 60f,
+                condition = "Rain",
+                precipProbability = if (h >= 18) 80 else 10,
+                source = WeatherSource.OPEN_METEO.id,
+            )
+        }
+        assertEquals(at(tomorrow, 19), DailyRainLabels.peakPlateauEnd(hourly, at(tomorrow, 18), 80, at(tomorrow, 20)))
+        assertNull("a stored peak whose hour is not at the max has no run", DailyRainLabels.peakPlateauEnd(hourly, at(tomorrow, 9), 80, at(tomorrow, 20)))
     }
 }
