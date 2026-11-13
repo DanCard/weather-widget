@@ -129,6 +129,28 @@ class DailyHistoryMaintenanceTest {
     }
 
     @Test
+    fun `snapshot freezes the day chance and its peak hour as a pair`() {
+        // plans/261113-today-rain-peak-never-hidden.md: a past day replays the hour of its frozen %.
+        val snapshotNowMs = yesterday.atTime(12, 0).atZone(zone).toInstant().toEpochMilli()
+        val plan = DailyHistoryMaintenance.planSnapshotDisplayedRainChance(
+            dailyRows = listOf(forecastRow()),
+            hourly = listOf(hourly(yesterday, 11, 30), hourly(yesterday, 13, 42), hourly(yesterday, 14, 42)),
+            existing = listOf(historyRow()),
+            centerLat = lat,
+            centerLon = lon,
+            nowMs = snapshotNowMs,
+            zoneId = zone,
+        )
+        println("freeze pair: ${plan.traces.single()}")
+        assertEquals(42, plan.rows.single().forecastDayPrecipChance)
+        assertEquals(
+            "the plateau's first hour",
+            yesterday.atTime(13, 0).atZone(zone).toInstant().toEpochMilli(),
+            plan.rows.single().forecastDayPrecipPeakAt,
+        )
+    }
+
+    @Test
     fun `snapshot leaves closed windows untouched`() {
         // Noon the day after the forecast day: both of its windows are closed.
         val lateMs = yesterday.plusDays(1).atTime(12, 0).atZone(zone).toInstant().toEpochMilli()

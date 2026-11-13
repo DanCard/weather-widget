@@ -76,6 +76,12 @@ data class DailyHistory(
     /** True when every foggy report came before sunrise (`MorningFog.predawn`, drawn petite). */
     val observedFogPredawn: Boolean? = null,
     /**
+     * The hour (epoch ms) [forecastDayPrecipChance] peaked: frozen with it as a pair, so a past day
+     * keeps its peak-hour label. Null for rows frozen before the column (Room 89 / desktop v41).
+     * plans/261113-today-rain-peak-never-hidden.md
+     */
+    val forecastDayPrecipPeakAt: Long? = null,
+    /**
      * Display-only, never persisted: when non-null, [computedHighTemp]/[computedLowTemp] were
      * measured at ANOTHER site this far away (km) because the current site has no measured row
      * for this day — see `PreviousSiteHistory`. Renderers draw such a day's actual bar dashed.

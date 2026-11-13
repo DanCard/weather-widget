@@ -16,7 +16,8 @@ import java.util.Locale
 /**
  * The hour the daytime rain chance peaks, written above the daily rain % when it is > 10 %
  * (user, 2026-10-18, threshold lowered from 30 % on 2026-11-04;
- * `plans/261018-daily-rain-chance-peak-hour.md`).
+ * `plans/261018-daily-rain-chance-peak-hour.md`). Shown on every day whatever the clock: past days
+ * replay the hour frozen with their chance (`plans/261113-today-rain-peak-never-hidden.md`).
  */
 @Category(ShortDuration::class)
 class DailyRainPeakLabelTest {
@@ -27,24 +28,15 @@ class DailyRainPeakLabelTest {
     private fun at(day: LocalDate, h: Int, m: Int = 0) = day.atTime(h, m).atZone(zone).toInstant().toEpochMilli()
 
     private fun peak(
-        date: LocalDate = tomorrow,
         label: String? = "45%",
         probability: Int? = 45,
-        peakAt: Long? = at(date, 13),
-        peakEndAt: Long? = null,
-        now: Long = at(today, 9),
+        peakAt: Long? = at(tomorrow, 13),
         use24: Boolean = false,
-        isPast: Boolean = false,
         locale: Locale = Locale.US,
     ) = DailyRainLabels.buildDailyRainPeakLabel(
-        date = date,
-        today = today,
-        isPastDate = isPast,
         dailyRainLabelText = label,
         dayPrecipProbability = probability,
         dayPeakAt = peakAt,
-        dayPeakEndAt = peakEndAt,
-        nowMs = now,
         use24HourClock = use24,
         zoneId = zone,
         locale = locale,
@@ -69,39 +61,13 @@ class DailyRainPeakLabelTest {
         assertEquals("≥ 99 % future days showing amount show peak", "1pm", peak(probability = 99, label = ".25in"))
         assertEquals("100% chance forecast at 11am shows 11am", "11am", peak(probability = 100, label = "100%", peakAt = at(tomorrow, 11)))
         assertEquals("100% chance with amount forecast at 11am shows 11am", "11am", peak(probability = 100, label = ".50in", peakAt = at(tomorrow, 11)))
-        assertEquals("95% today showing amount shows peak", "11am", peak(date = today, probability = 95, label = ".15in", peakAt = at(today, 11), now = at(today, 9)))
+        assertEquals("95% today showing amount shows peak", "11am", peak(probability = 95, label = ".15in", peakAt = at(today, 11)))
     }
 
     @Test
-    fun `no label, no peak, or a past day shows none`() {
+    fun `no label or no peak shows none`() {
         assertNull(peak(label = null))
         assertNull(peak(peakAt = null))
-        assertNull(peak(date = today.minusDays(1), isPast = true, peakAt = at(today.minusDays(1), 13)))
-    }
-
-    @Test
-    fun `today hides the hour once it is over`() {
-        assertEquals("before", "1pm", peak(date = today, now = at(today, 12, 59)))
-        assertEquals("during the peak hour", "1pm", peak(date = today, now = at(today, 13, 59)))
-        assertNull("after", peak(date = today, now = at(today, 14, 0)))
-        assertEquals("future days are never hidden by the clock", "1pm", peak(now = at(today, 18)))
-    }
-
-    @Test
-    fun `today keeps the first hour while the plateau runs`() {
-        // OWM 2026-11-13: 100% from 10am through 1pm; the label vanished at 11:00 before this fix.
-        val run = { now: Long -> peak(date = today, probability = 100, label = "100%", peakAt = at(today, 10), peakEndAt = at(today, 13), now = now) }
-        assertEquals("first hour of the run", "10am", run(at(today, 11, 0)))
-        assertEquals("still the first hour mid-run", "10am", run(at(today, 12, 12)))
-        assertEquals("during the run's last hour", "10am", run(at(today, 13, 59)))
-        assertNull("after the run ends", run(at(today, 14, 0)))
-    }
-
-    @Test
-    fun `a one-hour peak or a missing end keeps the hour-long window`() {
-        assertEquals("1pm", peak(date = today, peakEndAt = at(today, 13), now = at(today, 13, 59)))
-        assertNull(peak(date = today, peakEndAt = at(today, 13), now = at(today, 14, 0)))
-        assertNull("an end before the start is ignored", peak(date = today, peakEndAt = at(today, 9), now = at(today, 14, 0)))
     }
 
     @Test
@@ -169,7 +135,6 @@ class DailyRainPeakLabelTest {
         )
         assertEquals(40, resolved.dayPrecip)
         assertEquals(at(tomorrow, 11), resolved.dayPeakAt)
-        assertNull("the run's end is only worked out for today", resolved.dayPeakEndAt)
 
         val todayResolved = DailyRainLabels.resolveDailyLabelPrecip(
             isPast = false,
@@ -183,38 +148,58 @@ class DailyRainPeakLabelTest {
             today = today,
         )
         assertEquals(at(today, 11), todayResolved.dayPeakAt)
-        assertEquals("today's run ends at its last 40% hour", at(today, 14), todayResolved.dayPeakEndAt)
+    }
+
+    private fun hoursOf(day: LocalDate, chance: (Int) -> Int) = (0 until 36).map { h ->
+        HourlyForecast(
+            dateTime = at(day, 0) + h * 3_600_000L,
+            temperature = 60f,
+            condition = "Rain",
+            precipProbability = chance(h),
+            source = WeatherSource.NWS.id,
+        )
+    }
+
+    private fun past(storedChance: Int?, storedPeakAt: Long?, hourly: List<HourlyForecast> = emptyList(), daytime: Int? = null) =
+        DailyRainLabels.resolveDailyLabelPrecip(
+            isPast = true,
+            displaySourceId = WeatherSource.NWS.id,
+            daytimePrecipProbability = daytime,
+            nighttimePrecipProbability = null,
+            precipProbability = null,
+            hourly = hourly,
+            targetDate = today.minusDays(1),
+            zoneId = zone,
+            storedDayPrecipChance = storedChance,
+            storedDayPrecipPeakAt = storedPeakAt,
+        )
+
+    @Test
+    fun `a past day replays the hour frozen with its chance`() {
+        val yesterday = today.minusDays(1)
+        val r = past(storedChance = 99, storedPeakAt = at(yesterday, 12))
+        println("past frozen: day=${r.dayPrecip} peakAt=${r.dayPeakAt}")
+        assertEquals(99, r.dayPrecip)
+        assertEquals(at(yesterday, 12), r.dayPeakAt)
+        assertEquals("12pm", peak(probability = r.dayPrecip, label = "99%", peakAt = r.dayPeakAt))
     }
 
     @Test
-    fun `a later separate hour at the max does not extend the run`() {
-        val chance = mapOf(10 to 100, 11 to 100, 12 to 90, 13 to 100)
-        val hourly = (0 until 36).map { h ->
-            HourlyForecast(
-                dateTime = at(tomorrow, 0) + h * 3_600_000L,
-                temperature = 60f,
-                condition = "Rain",
-                precipProbability = chance[h] ?: 10,
-                source = WeatherSource.OPEN_METEO.id,
-            )
-        }
-        val end = DailyRainLabels.peakPlateauEnd(hourly, at(tomorrow, 10), 100, at(tomorrow, 20))
-        println("split run: end=$end")
-        assertEquals(at(tomorrow, 11), end)
+    fun `a past row frozen before the column borrows the hours' peak only when their max matches`() {
+        val yesterday = today.minusDays(1)
+        // NWS 2026-11-13 shape: 97 at 11am, 99 at noon, 89 at 1pm.
+        val hours = hoursOf(yesterday) { h -> mapOf(11 to 97, 12 to 99, 13 to 89)[h] ?: 30 }
+        val matching = past(storedChance = 99, storedPeakAt = null, hourly = hours)
+        println("past pre-column matching: peakAt=${matching.dayPeakAt}")
+        assertEquals(at(yesterday, 12), matching.dayPeakAt)
+        val different = past(storedChance = 100, storedPeakAt = null, hourly = hours)
+        assertNull("never an hour belonging to a different %", different.dayPeakAt)
     }
 
     @Test
-    fun `a run reaching 8pm stops at the last daytime hour`() {
-        val hourly = (0 until 36).map { h ->
-            HourlyForecast(
-                dateTime = at(tomorrow, 0) + h * 3_600_000L,
-                temperature = 60f,
-                condition = "Rain",
-                precipProbability = if (h >= 18) 80 else 10,
-                source = WeatherSource.OPEN_METEO.id,
-            )
-        }
-        assertEquals(at(tomorrow, 19), DailyRainLabels.peakPlateauEnd(hourly, at(tomorrow, 18), 80, at(tomorrow, 20)))
-        assertNull("a stored peak whose hour is not at the max has no run", DailyRainLabels.peakPlateauEnd(hourly, at(tomorrow, 9), 80, at(tomorrow, 20)))
+    fun `a past provider period value has no hour`() {
+        val r = past(storedChance = null, storedPeakAt = null, daytime = 60)
+        assertEquals(60, r.dayPrecip)
+        assertNull(r.dayPeakAt)
     }
 }

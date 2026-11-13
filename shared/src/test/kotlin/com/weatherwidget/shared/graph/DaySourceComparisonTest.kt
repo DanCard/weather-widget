@@ -159,6 +159,30 @@ class DaySourceComparisonTest {
         assertNull("no label, no peak to sort on", google.dayPeakAt)
     }
 
+    /** plans/261113-today-rain-peak-never-hidden.md: a past date's Peak cell replays the frozen hour. */
+    @Test
+    fun `a past date's peak cell shows the hour frozen with its chance`() {
+        val yesterday = now.toLocalDate().minusDays(1)
+        val peak = yesterday.atTime(15, 0).atZone(zone).toInstant().toEpochMilli()
+        val history = listOf(
+            com.weatherwidget.data.model.DailyHistory(
+                date = yesterday.toEpochDay() * 86_400_000L, source = WeatherSource.NWS.id,
+                locationLat = lat, locationLon = lon, computedHighTemp = 64f, computedLowTemp = 50f,
+                condition = "Rain", updatedAt = 1L, forecastDayPrecipChance = 70, forecastDayPrecipPeakAt = peak,
+            ),
+        )
+        val rows = DaySourceComparison.build(
+            date = yesterday, now = now, lat = lat, lon = lon, sources = listOf(WeatherSource.NWS), stored = emptyList(),
+            history = history, hourly = emptyList(), highBias = emptyMap(), use24HourClock = false, zone = zone,
+        )
+        val nws = rows.single()
+        println("past date row: day=${nws.dayRainPercent} peak=${nws.dayPeakLabel} peakAt=${nws.dayPeakAt}")
+        assertEquals(70, nws.dayRainPercent)
+        assertEquals("3pm", nws.dayPeakLabel)
+        assertEquals(peak, nws.dayPeakAt)
+        assertEquals("3pm", DaySourceComparison.cells(nws, nowMs, useCelsius = false).peak)
+    }
+
     @Test
     fun `noon cloud comes from the source's own hourly noon, else its forecast row`() {
         val noon = tomorrow.atTime(12, 0).atZone(zone).toInstant().toEpochMilli()

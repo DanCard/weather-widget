@@ -110,9 +110,12 @@ internal class DailyHistorySnapshotter(
                 zoneId = zoneId,
             )
             val newDay = rederived.dayPrecip ?: row.forecastDayPrecipChance
+            // The peak travels with the chance it belongs to (plans/261113-today-rain-peak-never-hidden.md).
+            val newDayPeak = if (rederived.dayPrecip != null) rederived.dayPeakAt else row.forecastDayPrecipPeakAt
             val newNight = rederived.nightPrecip ?: row.forecastNightPrecipChance
             if (
                 newDay == row.forecastDayPrecipChance &&
+                newDayPeak == row.forecastDayPrecipPeakAt &&
                 newNight == row.forecastNightPrecipChance
             ) {
                 continue
@@ -121,6 +124,7 @@ internal class DailyHistorySnapshotter(
                 "RAIN_CHANCE_REPAIR",
                 "date=$date src=${row.source} " +
                     "day=${row.forecastDayPrecipChance}->$newDay " +
+                    "dayPeakAt=${row.forecastDayPrecipPeakAt}->$newDayPeak " +
                     "night=${row.forecastNightPrecipChance}->$newNight",
                 "INFO",
             )
@@ -128,6 +132,7 @@ internal class DailyHistorySnapshotter(
                 row.copy(
                     lastWriter = DailyHistoryWriter.FORECAST_FREEZE.storedValue,
                     forecastDayPrecipChance = newDay,
+                    forecastDayPrecipPeakAt = newDayPeak,
                     forecastNightPrecipChance = newNight,
                 ),
             )

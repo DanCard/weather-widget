@@ -1236,4 +1236,28 @@ class WeatherDatabaseMigrationTest {
         }
         db.close()
     }
+    /** plans/261113-today-rain-peak-never-hidden.md: frozen chance kept, its peak hour null until refrozen. */
+    @Test
+    fun migrate88To89AddsFrozenDayPeak() {
+        helper.createDatabase(testDb, 88).use { db ->
+            db.execSQL(
+                "INSERT INTO daily_history (date, source, locationLat, locationLon, computedHighTemp, computedLowTemp, " +
+                    "condition, updatedAt, forecastDayPrecipChance) " +
+                    "VALUES (1794441600000, 'NWS', 37.417, -122.089, 70.0, 50.0, 'Rain', 1, 99)",
+            )
+        }
+        val db = helper.runMigrationsAndValidate(testDb, 89, true, WeatherDatabase.MIGRATION_88_89)
+        db.query("SELECT forecastDayPrecipChance, forecastDayPrecipPeakAt FROM daily_history").use { c ->
+            c.moveToFirst()
+            println("migrate88To89: chance=${c.getInt(0)} peakIsNull=${c.isNull(1)}")
+            assertEquals(99, c.getInt(0))
+            assertTrue(c.isNull(1))
+        }
+        db.execSQL("UPDATE daily_history SET forecastDayPrecipPeakAt = 1794513600000")
+        db.query("SELECT forecastDayPrecipPeakAt FROM daily_history").use { c ->
+            c.moveToFirst()
+            assertEquals(1794513600000L, c.getLong(0))
+        }
+        db.close()
+    }
 }

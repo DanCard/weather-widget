@@ -50,6 +50,7 @@ object FrozenRainChanceRepair {
         return DailyRainLabels.ResolvedDailyPrecip(
             dayPrecip = day?.dayMax,
             nightPrecip = night?.nightMax,
+            dayPeakAt = day?.dayPeakAt.takeIf { day?.dayMax != null },
         )
     }
 

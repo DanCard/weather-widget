@@ -75,8 +75,14 @@ object DailyHistoryKey {
                     actualsSource = other.actualsSource,
                 )
             }
+            // The day chance and its peak hour move as a pair: never one row's % with another's hour.
+            if (merged.forecastDayPrecipChance == null && other.forecastDayPrecipChance != null) {
+                merged = merged.copy(
+                    forecastDayPrecipChance = other.forecastDayPrecipChance,
+                    forecastDayPrecipPeakAt = other.forecastDayPrecipPeakAt,
+                )
+            }
             merged = merged.copy(
-                forecastDayPrecipChance = merged.forecastDayPrecipChance ?: other.forecastDayPrecipChance,
                 forecastNightPrecipChance = merged.forecastNightPrecipChance ?: other.forecastNightPrecipChance,
                 forecastHighTemp = merged.forecastHighTemp ?: other.forecastHighTemp,
                 forecastLowTemp = merged.forecastLowTemp ?: other.forecastLowTemp,

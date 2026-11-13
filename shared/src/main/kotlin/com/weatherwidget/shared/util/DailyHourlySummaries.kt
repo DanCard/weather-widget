@@ -148,20 +148,11 @@ object DailyHourlySummaries {
             dayMax = if (dayCovered) maxima.dayMax else fromRow.dayMax,
             nightMax = if (nightCovered) maxima.nightMax else fromRow.nightMax,
             dayPeakAt = if (dayCovered) maxima.dayPeakAt else fromRow.dayPeakAt,
-        ).let { r ->
-            // Today's peak stays while its run lasts (buildDailyRainPeakLabel); the end comes from the
-            // stitched hours, which hold every hour of today.
-            val end = if (r.dayPeakAt != null && r.dayMax != null) {
-                DailyRainLabels.peakPlateauEnd(withPrecip, r.dayPeakAt, r.dayMax, dayEnd)
-            } else {
-                null
-            }
-            r.copy(dayPeakEndAt = end)
-        }
-        if (result.copy(dayPeakEndAt = null) != fromRow) {
+        )
+        if (result != fromRow) {
             Log.v(TAG) {
                 "TODAY_RAIN_STITCHED date=$date row=${fromRow.dayMax}@${fromRow.dayPeakAt}/${fromRow.nightMax} " +
-                    "stitched=${result.dayMax}@${result.dayPeakAt}..${result.dayPeakEndAt}/${result.nightMax} " +
+                    "stitched=${result.dayMax}@${result.dayPeakAt}/${result.nightMax} " +
                     "dayCovered=$dayCovered nightCovered=$nightCovered rows=${withPrecip.size}"
             }
         }

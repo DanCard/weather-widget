@@ -53,6 +53,17 @@ class DailyHistoryKeyTest {
         assertEquals(37.417, merged.locationLat, 0.0)
     }
 
+    /** plans/261113-today-rain-peak-never-hidden.md: never one fragment's % with another's hour. */
+    @Test
+    fun `the day chance and its peak hour fill as a pair`() {
+        val newer = row(37.417, 200).copy(forecastDayPrecipPeakAt = 5L)
+        val older = row(37.4166014, 100).copy(forecastDayPrecipChance = 99, forecastDayPrecipPeakAt = 7L)
+        val merged = DailyHistoryKey.merge(listOf(older, newer))
+        println("pair merge: chance=${merged.forecastDayPrecipChance} peakAt=${merged.forecastDayPrecipPeakAt}")
+        assertEquals(99, merged.forecastDayPrecipChance)
+        assertEquals(7L, merged.forecastDayPrecipPeakAt)
+    }
+
     @Test
     fun `a half-present group is not mixed with another fragment's`() {
         val newer = row(37.417, 200).copy(apiHighTemp = 70f, apiStationId = "KPAO")

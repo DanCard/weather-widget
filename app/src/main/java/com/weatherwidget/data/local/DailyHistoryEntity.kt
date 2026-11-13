@@ -73,6 +73,12 @@ data class DailyHistoryEntity(
     val observedFogVisibilityMi: Float? = null,
     // True when every foggy report came before sunrise (drawn petite). v88.
     val observedFogPredawn: Boolean? = null,
+    /**
+     * The hour (epoch ms) [forecastDayPrecipChance] peaked: frozen with it as a pair, so a past day
+     * keeps its peak-hour label. Null for rows frozen before the column (Room 89 / desktop v41).
+     * plans/261113-today-rain-peak-never-hidden.md
+     */
+    val forecastDayPrecipPeakAt: Long? = null,
 )
 
 fun DailyHistoryEntity.toDailyHistory() = com.weatherwidget.data.model.DailyHistory(
@@ -107,6 +113,7 @@ fun DailyHistoryEntity.toDailyHistory() = com.weatherwidget.data.model.DailyHist
     observedFogTopTemp = observedFogTopTemp,
     observedFogVisibilityMi = observedFogVisibilityMi,
     observedFogPredawn = observedFogPredawn,
+    forecastDayPrecipPeakAt = forecastDayPrecipPeakAt,
 )
 
 fun com.weatherwidget.data.model.DailyHistory.toEntity() = DailyHistoryEntity(
@@ -141,4 +148,5 @@ fun com.weatherwidget.data.model.DailyHistory.toEntity() = DailyHistoryEntity(
     observedFogTopTemp = observedFogTopTemp,
     observedFogVisibilityMi = observedFogVisibilityMi,
     observedFogPredawn = observedFogPredawn,
+    forecastDayPrecipPeakAt = forecastDayPrecipPeakAt,
 )

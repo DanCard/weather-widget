@@ -188,6 +188,7 @@ class DesktopWeatherDatabase(
                     addColumnIfMissing(stmt, "forecasts", FORECAST_DAY_PRECIP_PEAK_COLUMN, "INTEGER")
                     addFogColumns(stmt)
                     addFogPredawnColumns(stmt)
+                    addColumnIfMissing(stmt, "daily_history", DAILY_HISTORY_DAY_PRECIP_PEAK_COLUMN, "INTEGER")
                     stmt.execute("PRAGMA user_version = $SCHEMA_VERSION")
                 } else {
                     migrate(conn, currentVersion, SCHEMA_VERSION)
@@ -664,6 +665,11 @@ class DesktopWeatherDatabase(
             if (from < 40) {
                 addFogPredawnColumns(stmt)
             }
+            // v41: daily_history.forecastDayPrecipPeakAt, frozen with forecastDayPrecipChance so a past
+            // day keeps its peak hour. Room MIGRATION_88_89. plans/261113-today-rain-peak-never-hidden.md
+            if (from < 41) {
+                addColumnIfMissing(stmt, "daily_history", DAILY_HISTORY_DAY_PRECIP_PEAK_COLUMN, "INTEGER")
+            }
             stmt.execute("PRAGMA user_version = $to")
         }
     }
@@ -825,7 +831,7 @@ class DesktopWeatherDatabase(
          * the v24 bump, even though that test is about the v22 cloud columns and not about the
          * version number at all.
          */
-        const val SCHEMA_VERSION = 40
+        const val SCHEMA_VERSION = 41
         private const val HOURLY_TABLE_MERGE_VERSION = 36
 
         /** Room's `HourlyActualEntity` declares the same columns (MIGRATION_84_85). */
@@ -923,6 +929,13 @@ class DesktopWeatherDatabase(
          */
         const val FORECAST_FOG_PREDAWN_COLUMN = "fogPredawn"
         const val DAILY_HISTORY_FOG_PREDAWN_COLUMN = "observedFogPredawn"
+
+        /**
+         * The hour (epoch ms) the frozen daytime chance peaked, paired with
+         * `daily_history.forecastDayPrecipChance` so past days keep their peak-hour label. Shared by
+         * desktop v41 and Room MIGRATION_88_89. plans/261113-today-rain-peak-never-hidden.md
+         */
+        const val DAILY_HISTORY_DAY_PRECIP_PEAK_COLUMN = "forecastDayPrecipPeakAt"
 
         /**
          * One-time repair matching `GoogleWeatherApi.lowsFiledUnderTheirMorning`: Google's daily low

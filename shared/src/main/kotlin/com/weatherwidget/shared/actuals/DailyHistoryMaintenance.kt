@@ -198,6 +198,13 @@ object DailyHistoryMaintenance {
                     } else {
                         existingRow.forecastDayPrecipChance
                     }
+                    // The hour that chance peaked, frozen as a pair with it: a past day's peak-hour
+                    // label names the hour of the % it sits on (plans/261113-today-rain-peak-never-hidden.md).
+                    val newDayPeak = if (dayWindowOpen) {
+                        resolved.dayPeakAt
+                    } else {
+                        existingRow.forecastDayPrecipPeakAt
+                    }
                     val newNight = if (nightWindowOpen) {
                         resolved.nightPrecip
                     } else {
@@ -220,6 +227,7 @@ object DailyHistoryMaintenance {
                     val updated = existingRow.copy(
                         lastWriter = DailyHistoryWriter.FORECAST_FREEZE.storedValue,
                         forecastDayPrecipChance = newDay,
+                        forecastDayPrecipPeakAt = newDayPeak,
                         forecastNightPrecipChance = newNight,
                         forecastHighTemp = frozen.forecastHighTemp,
                         forecastLowTemp = frozen.forecastLowTemp,
@@ -231,6 +239,7 @@ object DailyHistoryMaintenance {
                         "dayWin=$dayWindowOpen nightWin=$nightWindowOpen " +
                         "dayChance=${existingRow.forecastDayPrecipChance}->$newDay" +
                         "(resolved=${resolved.dayPrecip}) " +
+                        "dayPeakAt=${existingRow.forecastDayPrecipPeakAt}->$newDayPeak " +
                         "nightChance=${existingRow.forecastNightPrecipChance}->$newNight" +
                         "(resolved=${resolved.nightPrecip}) " +
                         "high=${existingRow.forecastHighTemp}->${updated.forecastHighTemp} " +
@@ -381,6 +390,7 @@ object DailyHistoryMaintenance {
             rows += row.copy(
                 lastWriter = DailyHistoryWriter.FORECAST_FREEZE.storedValue,
                 forecastDayPrecipChance = dayNight.dayMax,
+                forecastDayPrecipPeakAt = dayNight.dayPeakAt,
                 forecastNightPrecipChance = dayNight.nightMax,
             )
         }

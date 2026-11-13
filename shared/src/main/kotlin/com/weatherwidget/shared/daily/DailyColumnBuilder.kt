@@ -372,6 +372,7 @@ object DailyColumnBuilder {
             targetDate = date,
             storedDayPrecipChance = actual?.forecastDayPrecipChance,
             storedNightPrecipChance = actual?.forecastNightPrecipChance,
+            storedDayPrecipPeakAt = actual?.forecastDayPrecipPeakAt,
             hourlySummary = forecast?.hourlySummary,
             // Today matches the hourly graph: the stitched rows it draws.
             today = today,
@@ -401,14 +402,9 @@ object DailyColumnBuilder {
                 ),
         )
         val dailyRainPeakLabelText = com.weatherwidget.shared.util.DailyRainLabels.buildDailyRainPeakLabel(
-            date = date,
-            today = today,
-            isPastDate = isPast,
             dailyRainLabelText = dailyRainLabelText,
             dayPrecipProbability = resolvedPrecip.dayPrecip,
             dayPeakAt = resolvedPrecip.dayPeakAt,
-            dayPeakEndAt = resolvedPrecip.dayPeakEndAt,
-            nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
             use24HourClock = use24HourClock,
         )
         val nightRainLabelText = com.weatherwidget.shared.util.DailyRainLabels.buildNightRainLabel(

@@ -188,16 +188,12 @@ object DailyRainLabels {
 
     /**
      * Max precip probability over the daytime (8am–8pm) and nighttime (8pm–8am) windows.
-     * [dayPeakAt] is the epoch-ms start of the first hour holding [dayMax] (a plateau's first hour);
-     * [dayPeakEndAt] is the start of that plateau's last consecutive hour still at [dayMax] (equal to
-     * [dayPeakAt] for a one-hour peak). Set for today only ([DailyHourlySummaries.liveDayNight]), the
-     * one day whose hours are always all stored and the only day the clock can hide a peak on.
+     * [dayPeakAt] is the epoch-ms start of the first hour holding [dayMax] (a plateau's first hour).
      */
     data class DayNightPrecip(
         val dayMax: Int?,
         val nightMax: Int?,
         val dayPeakAt: Long? = null,
-        val dayPeakEndAt: Long? = null,
     )
 
     /**
@@ -307,20 +303,6 @@ object DailyRainLabels {
     }
 
     /**
-     * The start of the last hour of the run at [max] that begins at [peakAt]: each following hour
-     * (before [dayEndMs]) extends it while it holds [max]. Null when [peakAt]'s own hour does not
-     * hold [max] in [rows] (a stored peak with no matching hours). A later, separate hour at [max]
-     * does not extend the run.
-     */
-    fun peakPlateauEnd(rows: List<HourlyForecast>, peakAt: Long, max: Int, dayEndMs: Long): Long? {
-        val atMax = rows.asSequence().filter { it.precipProbability == max }.map { it.dateTime }.toHashSet()
-        if (peakAt !in atMax) return null
-        var end = peakAt
-        while (end + HOUR_MS < dayEndMs && (end + HOUR_MS) in atMax) end += HOUR_MS
-        return end
-    }
-
-    /**
      * Total forecast rain over the 8pm–8am night of [targetDate] for [displaySourceId] at the site
      * centred on ([centerLat], [centerLon]): the same window as the night chance. See
      * [windowForecastAmountMm] for when it is null.
@@ -389,15 +371,13 @@ object DailyRainLabels {
     /**
      * The day/night precip % chosen for the daily label + icon (see [resolveDailyLabelPrecip]).
      * [dayPeakAt] is when [dayPrecip] peaks — set only when [dayPrecip] came from hourly data (the
-     * row's stored max or the stored hours), never for a provider period value or a past day.
-     * [dayPeakEndAt] is the last hour of the run at [dayPrecip] starting at [dayPeakAt]
-     * ([DayNightPrecip.dayPeakEndAt]).
+     * row's stored max or the stored hours, or for a past day the chance frozen into daily_history
+     * with its hour), never for a provider period value.
      */
     data class ResolvedDailyPrecip(
         val dayPrecip: Int?,
         val nightPrecip: Int?,
         val dayPeakAt: Long? = null,
-        val dayPeakEndAt: Long? = null,
     )
 
     /**
@@ -504,7 +484,6 @@ object DailyRainLabels {
             dayPrecip = dayNight.dayMax ?: daytimePrecipProbability ?: precipProbability,
             nightPrecip = dayNight.nightMax ?: nighttimePrecipProbability,
             dayPeakAt = dayNight.dayPeakAt.takeIf { dayNight.dayMax != null },
-            dayPeakEndAt = dayNight.dayPeakEndAt.takeIf { dayNight.dayMax != null },
         )
     }
 
@@ -532,6 +511,8 @@ object DailyRainLabels {
         hourlySummary: DailyHourlySummaries.Summary? = null,
         // Today's day/night max from the stitched hours (DailyHourlySummaries.liveDayNight).
         today: LocalDate? = null,
+        // The hour storedDayPrecipChance peaked (daily_history.forecastDayPrecipPeakAt).
+        storedDayPrecipPeakAt: Long? = null,
     ): ResolvedDailyPrecip {
         if (isPast) {
             // Past days use the raw day/night period split with NO precipProbability→daytime fallback:
@@ -541,6 +522,9 @@ object DailyRainLabels {
             return ResolvedDailyPrecip(
                 dayPrecip = storedDayPrecipChance ?: daytimePrecipProbability,
                 nightPrecip = storedNightPrecipChance ?: nighttimePrecipProbability,
+                dayPeakAt = pastDayPeakAt(
+                    storedDayPrecipChance, storedDayPrecipPeakAt, hourly, displaySourceId, targetDate, zoneId,
+                ),
             )
         }
         return resolveLiveDayNightChance(
@@ -554,6 +538,25 @@ object DailyRainLabels {
             hourlySummary = hourlySummary,
             today = today,
         )
+    }
+
+    /**
+     * A past day's peak hour, paired with the frozen chance it belongs to. A period value (no frozen
+     * chance) has no hour. A row frozen before `forecastDayPrecipPeakAt` existed borrows the stored
+     * hours' peak only when their day max equals the frozen chance — never an hour of a different %.
+     */
+    private fun pastDayPeakAt(
+        storedChance: Int?,
+        storedPeakAt: Long?,
+        hourly: List<HourlyForecast>,
+        displaySourceId: String,
+        targetDate: LocalDate,
+        zoneId: ZoneId,
+    ): Long? {
+        if (storedChance == null) return null
+        if (storedPeakAt != null) return storedPeakAt
+        val fromHours = calculateDayNightPrecipProbabilities(hourly, targetDate, displaySourceId, zoneId = zoneId)
+        return fromHours.dayPeakAt.takeIf { fromHours.dayMax == storedChance }
     }
 
     /**
@@ -577,6 +580,8 @@ object DailyRainLabels {
         hourlySummary: DailyHourlySummaries.Summary? = null,
         // Today's day/night max from the stitched hours (DailyHourlySummaries.liveDayNight).
         today: LocalDate? = null,
+        // The hour storedDayPrecipChance peaked (daily_history.forecastDayPrecipPeakAt).
+        storedDayPrecipPeakAt: Long? = null,
     ): ResolvedDailyPrecip {
         if (isPast) {
             return resolveDailyLabelPrecip(
@@ -585,7 +590,8 @@ object DailyRainLabels {
                 daytimePrecipProbability = daytimePrecipProbability,
                 nighttimePrecipProbability = nighttimePrecipProbability,
                 precipProbability = precipProbability,
-                hourly = hourly,
+                hourly = selectSiteHourly(hourly, displaySourceId, centerLat, centerLon),
+                storedDayPrecipPeakAt = storedDayPrecipPeakAt,
                 targetDate = targetDate,
                 zoneId = zoneId,
                 storedDayPrecipChance = storedDayPrecipChance,
@@ -747,33 +753,24 @@ object DailyRainLabels {
 
     /**
      * The hour the daytime chance peaks ("1pm" / "13:00"), drawn above the day rain label.
-     * Shown when that label shows a percentage or rainfall amount above [PEAK_HOUR_MIN_EXCLUSIVE_PERCENT]
-     * (including at 100%) — never on past days — and, for today, only until the peak is over.
-     * [dayPeakAt] is [ResolvedDailyPrecip.dayPeakAt]: the label always names that first hour of a
-     * plateau (user, 2026-11-13). [dayPeakEndAt] is the plateau's last hour; today's label stays until
-     * it ends, so a 100% run from 10am to 1pm keeps "10am" until 2pm instead of vanishing at 11am
-     * (plans/261113-today-rain-peak-plateau-hide.md). Null falls back to [dayPeakAt].
+     * Shown on every day — past, today and future, whatever the clock — when that label shows a
+     * percentage or rainfall amount above [PEAK_HOUR_MIN_EXCLUSIVE_PERCENT] (including at 100%) and
+     * the % has a peak hour. [dayPeakAt] is [ResolvedDailyPrecip.dayPeakAt]: a plateau's first hour
+     * (user, 2026-11-13). Today used to drop the hour once it passed and past days showed none; both
+     * were Claude's additions, removed (user, 2026-11-13: plans/261113-today-rain-peak-never-hidden.md).
      */
     fun buildDailyRainPeakLabel(
-        date: LocalDate,
-        today: LocalDate,
-        isPastDate: Boolean,
         dailyRainLabelText: String?,
         dayPrecipProbability: Int?,
         dayPeakAt: Long?,
-        dayPeakEndAt: Long? = null,
-        nowMs: Long,
         use24HourClock: Boolean,
         zoneId: ZoneId = ZoneId.systemDefault(),
         locale: Locale = Locale.getDefault(),
     ): String? {
-        if (isPastDate || date.isBefore(today)) return null
         if (dailyRainLabelText == null) return null
         val probability = dayPrecipProbability ?: return null
         if (probability <= PEAK_HOUR_MIN_EXCLUSIVE_PERCENT) return null
         val peakAt = dayPeakAt ?: return null
-        val lastPeakHour = dayPeakEndAt?.takeIf { it >= peakAt } ?: peakAt
-        if (date == today && nowMs >= lastPeakHour + HOUR_MS) return null
         val time = Instant.ofEpochMilli(peakAt).atZone(zoneId).toLocalTime()
         return formatPeakHour(time.hour, use24HourClock, locale)
     }

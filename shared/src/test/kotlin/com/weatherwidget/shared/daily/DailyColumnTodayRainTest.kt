@@ -66,10 +66,11 @@ class DailyColumnTodayRainTest {
     }
 
     @Test
-    fun `after the peak hour the 45 percent stays and the passed hour drops`() {
+    fun `after the peak hour the 45 percent and its hour both stay`() {
         val c = build(today, row, 11, 15)
         println("today column 11:15: rain=${c.dailyRainLabelText} peak=${c.dailyRainPeakLabelText}")
         assertEquals("45%", c.dailyRainLabelText)
-        assertNull("a passed peak hour is not shown (buildDailyRainPeakLabel)", c.dailyRainPeakLabelText)
+        // plans/261113-today-rain-peak-never-hidden.md: the clock never hides the peak hour.
+        assertEquals("10am", c.dailyRainPeakLabelText)
     }
 }

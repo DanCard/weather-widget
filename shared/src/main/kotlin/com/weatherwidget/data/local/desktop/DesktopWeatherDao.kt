@@ -929,8 +929,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
     private fun insertDailyHistory(conn: java.sql.Connection, extremes: List<DailyHistory>) {
         val sql = """
             INSERT OR REPLACE INTO daily_history
-            (date, source, locationLat, locationLon, computedHighTemp, computedLowTemp, condition, updatedAt, precipAmountMm, precipDayMm, precipNightMm, forecastDayPrecipChance, forecastNightPrecipChance, forecastHighTemp, forecastLowTemp, forecastPrecipAmountMm, noonCloudPercent, apiHighTemp, apiLowTemp, apiStationId, apiStationDistanceKm, actualsSource, lastWriter, computedHighAt, computedLowAt, priorForecastHighTemp, priorForecastLowTemp, observedFogLevel, observedFogTopTemp, observedFogVisibilityMi, observedFogPredawn)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (date, source, locationLat, locationLon, computedHighTemp, computedLowTemp, condition, updatedAt, precipAmountMm, precipDayMm, precipNightMm, forecastDayPrecipChance, forecastNightPrecipChance, forecastHighTemp, forecastLowTemp, forecastPrecipAmountMm, noonCloudPercent, apiHighTemp, apiLowTemp, apiStationId, apiStationDistanceKm, actualsSource, lastWriter, computedHighAt, computedLowAt, priorForecastHighTemp, priorForecastLowTemp, observedFogLevel, observedFogTopTemp, observedFogVisibilityMi, observedFogPredawn, forecastDayPrecipPeakAt)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """.trimIndent()
         conn.prepareStatement(sql).use { stmt ->
             for (ex in extremes) {
@@ -965,6 +965,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 stmt.setNullableFloat(29, ex.observedFogTopTemp)
                 stmt.setNullableFloat(30, ex.observedFogVisibilityMi)
                 stmt.setNullableInt(31, ex.observedFogPredawn?.let { if (it) 1 else 0 })
+                stmt.setNullableLong(32, ex.forecastDayPrecipPeakAt)
                 stmt.addBatch()
             }
             stmt.executeBatch()
@@ -2555,6 +2556,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             observedFogTopTemp = rs.getNullableFloat("observedFogTopTemp"),
             observedFogVisibilityMi = rs.getNullableFloat("observedFogVisibilityMi"),
             observedFogPredawn = rs.getNullableInt("observedFogPredawn")?.let { it != 0 },
+            forecastDayPrecipPeakAt = rs.getNullableLong("forecastDayPrecipPeakAt"),
         )
 
     fun getDailyActuals(startEpoch: Long, endEpoch: Long, locationLat: Double, locationLon: Double, source: String): Map<String, DailyHistory> {

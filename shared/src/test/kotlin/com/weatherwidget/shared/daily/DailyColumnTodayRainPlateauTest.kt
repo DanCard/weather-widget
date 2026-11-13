@@ -4,14 +4,13 @@ import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.experimental.categories.Category
 import java.time.LocalDate
 import java.time.ZoneId
 
 /**
- * Today's peak hour stays while a plateau at the day max is still running, naming its first hour.
+ * Today's peak hour names the first hour of a plateau at the day max, and stays all day.
  * Desktop History of Forecasts 2026-11-13 12:12: OWM 100% from 10am to 1pm stored peak 10am, and the
  * Peak cell read "—" from 11:00. (plans/261113-today-rain-peak-plateau-hide.md)
  */
@@ -62,12 +61,13 @@ class DailyColumnTodayRainPlateauTest {
     }
 
     @Test
-    fun `the peak drops once the plateau's last hour is over`() {
-        val during = build(13, 59)
+    fun `the first hour stays after the plateau ends`() {
+        // plans/261113-today-rain-peak-never-hidden.md: the clock never hides the peak hour.
         val after = build(14, 0)
-        println("OWM 13:59 peak=${during.dailyRainPeakLabelText}; 14:00 peak=${after.dailyRainPeakLabelText}")
-        assertEquals("10am", during.dailyRainPeakLabelText)
-        assertNull(after.dailyRainPeakLabelText)
-        assertNull(after.dailyRainPeakAt)
+        val evening = build(23, 0)
+        println("OWM 14:00 peak=${after.dailyRainPeakLabelText}; 23:00 peak=${evening.dailyRainPeakLabelText}")
+        assertEquals("10am", after.dailyRainPeakLabelText)
+        assertEquals(at(today, 10), after.dailyRainPeakAt)
+        assertEquals("10am", evening.dailyRainPeakLabelText)
     }
 }
