@@ -469,3 +469,34 @@ default-argument lambda of `fetchJson`. No product change.
   fallback to the device zone gave the same answer. A Kathmandu (UTC+5:45) case tells them apart.
 - Survivors (12): `return emptyList()` replaced by an empty list (equivalent), two log calls, and
   compiler-generated checks.
+
+### `GoogleWeatherApi` (2026-11-13, uncommitted)
+
+`GoogleWeatherApiTest` 38 → 50 tests; rule mutants killed 209 → 253 of 327 (64% → 77%). No product
+change. The request-flow tests (paging, quotas) were already strong; nothing pinned field values.
+
+- Parsing, from handwritten replies: hour fields (rain in inches or mm, visibility in km or miles,
+  bounded percentages, rounded cloud), dropped hours, the history/forecast boundary hour, day rain
+  chance and day + night rain sum, condition fallback to the night, current conditions, the history
+  window's two edges.
+- Requests: location, units and per-endpoint sizes; the hour-pages log line; a non-429 history
+  failure is retried; history and a blocked product return at the reset instant; with hours blocked
+  a daily-only fetch runs and an hourly-only fetch fails without a request.
+- Survivors (74): log counters and log calls, request-duration arithmetic, coroutine plumbing, and
+  two "forecast missing" branches that no reply can reach.
+
+### `SynopticApi` (2026-11-13, uncommitted)
+
+New `SynopticApiRulesTest` (11 tests); rule mutants killed 139 → 196 of 232 (60% → 84%) before the
+last test. No product change. Pinned: the offset-colon rule, what one station entry becomes (QC flag,
+condition fallback, METAR vs layer series vs summary for the sky), the single-station outcome matrix,
+radius units (miles → km, feet → m) and dropped stations, both requests' parameters and headers, the
+token refetch-and-retry, and a dropped connection.
+
+Product observation, not changed: when Synoptic sends a blank `NAME`, the radius `StationInfo.name`
+falls back to the station id but that station's observations keep the blank name
+(`parseStationObservations` checks only for a missing name). The test does not pin it.
+
+User (2026-11-13): "fix blank station". Fixed: `parseStationObservations` treats a blank `NAME` as
+missing, so the observations use the fallback (the station id on the radius path) as the station
+record already did. `SynopticApiRulesTest` pins it on both paths; the radius case failed before the fix.

@@ -62,7 +62,9 @@ class SynopticApi(
             // Parallel to air_temp_set_1: null = passed QC, array of check IDs = flagged
             // (e.g. [105] = SynopticLabs Spatial Value Check).
             val airTempQcArray = station["QC"]?.jsonObject?.get("air_temp_set_1")?.jsonArray
-            val stationName = station["NAME"]?.jsonPrimitive?.contentOrNull ?: stationNameFallback
+            // Blank counts as missing, as it does for the radius StationInfo: a " " name showed nothing.
+            val stationName = station["NAME"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
+                ?: stationNameFallback
 
             val out = mutableListOf<NwsApi.Observation>()
             for (i in 0 until dateTimeArray.size) {

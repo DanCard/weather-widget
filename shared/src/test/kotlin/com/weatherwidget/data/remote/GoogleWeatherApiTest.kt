@@ -666,4 +666,278 @@ class GoogleWeatherApiTest {
 
         assertEquals(listOf(null, 57.5f), daily.map { it.lowTemp })
     }
+
+    // ---- Field-level parsing: handwritten replies, exact values ----
+
+    private fun obj(text: String) = Json.parseToJsonElement(text).jsonObject
+
+    private fun ms(instant: String) = java.time.Instant.parse(instant).toEpochMilli()
+
+    private fun hour(start: String, temp: Float, rest: String = "") =
+        obj("""{"interval": {"startTime": "$start"}, "temperature": {"degrees": $temp}$rest}""")
+
+    @Test
+    fun `an hour keeps its fields, with rain in mm, visibility in miles and percentages bounded`() {
+        val result = api().parse(
+            current = null,
+            days = null,
+            forecastHours = listOf(
+                hour(
+                    "2026-10-21T15:00:00Z", 61.5f,
+                    """, "weatherCondition": {"type": "RAIN"}, "cloudCover": 54.6,
+                       "precipitation": {"probability": {"percent": 130}, "qpf": {"quantity": 0.1, "unit": "INCHES"}},
+                       "visibility": {"distance": 16.09344, "unit": "KILOMETERS"}""",
+                ),
+                hour(
+                    "2026-10-21T16:00:00Z", 60.0f,
+                    """, "weatherCondition": {"type": "CLEAR"}, "cloudCover": 3,
+                       "precipitation": {"probability": {"percent": -4}, "qpf": {"quantity": 1.5, "unit": "MILLIMETERS"}},
+                       "visibility": {"distance": 6, "unit": "MILES"}""",
+                ),
+            ),
+            historyHours = emptyList(),
+        )
+
+        val (first, second) = result.hourly
+        assertEquals(ms("2026-10-21T15:00:00Z"), first.dateTime)
+        assertEquals(61.5f, first.temperature)
+        assertEquals("Rain", first.condition)
+        assertEquals(100, first.precipProbability)
+        assertEquals(2.54f, first.precipAmountMm!!, 0.0001f)
+        assertEquals(55, first.cloudCover)
+        assertEquals(10.0f, first.visibilityMi!!, 0.0001f)
+        assertEquals("GOOGLE_WEATHER", first.source)
+
+        assertEquals("Clear", second.condition)
+        assertEquals(0, second.precipProbability)
+        assertEquals(1.5f, second.precipAmountMm)
+        assertEquals(3, second.cloudCover)
+        assertEquals(6.0f, second.visibilityMi)
+    }
+
+    @Test
+    fun `an hour without a start, a readable time or a temperature is dropped, and a bare hour has no extras`() {
+        val result = api().parse(
+            current = null,
+            days = null,
+            forecastHours = listOf(
+                obj("""{"temperature": {"degrees": 60.0}}"""),
+                hour("three o'clock", 60.0f),
+                obj("""{"interval": {"startTime": "2026-10-21T15:00:00Z"}}"""),
+                hour("2026-10-21T16:00:00Z", 59.0f, """, "precipitation": {"qpf": {"unit": "INCHES"}}, "visibility": {"unit": "MILES"}"""),
+            ),
+            historyHours = emptyList(),
+        )
+
+        val only = result.hourly.single()
+        assertEquals(ms("2026-10-21T16:00:00Z"), only.dateTime)
+        assertEquals("Unknown", only.condition)
+        assertNull(only.precipProbability)
+        assertNull(only.precipAmountMm)
+        assertNull(only.cloudCover)
+        assertNull(only.visibilityMi)
+    }
+
+    @Test
+    fun `history fills only the hours before the forecast starts, in time order`() {
+        val forecast = listOf(hour("2026-10-21T16:00:00Z", 62f), hour("2026-10-21T15:00:00Z", 61f))
+        val history = listOf(
+            hour("2026-10-21T15:00:00Z", 99f), // the boundary hour: the forecast's copy is kept
+            hour("2026-10-21T14:00:00Z", 58f),
+            hour("2026-10-21T13:00:00Z", 57f),
+        )
+
+        val merged = api().parse(null, null, forecast, history).hourly
+        assertEquals(listOf(57f, 58f, 61f, 62f), merged.map { it.temperature })
+        assertEquals(
+            listOf("13", "14", "15", "16").map { ms("2026-10-21T$it:00:00Z") },
+            merged.map { it.dateTime },
+        )
+
+        // With no forecast hours every history hour is kept.
+        assertEquals(listOf(57f, 58f, 99f), api().parse(null, null, emptyList(), history).hourly.map { it.temperature })
+    }
+
+    @Test
+    fun `a day takes the larger rain chance, the sum of day and night rain, and the daytime condition first`() {
+        val days = obj(
+            """
+            {"forecastDays": [
+              {"displayDate": {"year": 2026, "month": 10, "day": 21},
+               "maxTemperature": {"degrees": 70.5}, "minTemperature": {"degrees": 50.5},
+               "daytimeForecast": {"weatherCondition": {"type": "RAIN"},
+                 "precipitation": {"probability": {"percent": 30}, "qpf": {"quantity": 0.1, "unit": "INCHES"}}},
+               "nighttimeForecast": {"weatherCondition": {"type": "CLEAR"},
+                 "precipitation": {"probability": {"percent": 60}, "qpf": {"quantity": 0.2, "unit": "INCHES"}}}},
+              {"displayDate": {"year": 2026, "month": 10, "day": 22},
+               "maxTemperature": {"degrees": 71.5}, "minTemperature": {"degrees": 51.5},
+               "nighttimeForecast": {"weatherCondition": {"type": "CLOUDY"},
+                 "precipitation": {"qpf": {"quantity": 2.0, "unit": "MILLIMETERS"}}}},
+              {"displayDate": {"year": 2026, "month": 10, "day": 23}, "maxTemperature": {"degrees": 72.5}},
+              {"displayDate": {"year": 2026, "day": 24}, "maxTemperature": {"degrees": 73.5}},
+              {"maxTemperature": {"degrees": 74.5}}
+            ]}
+            """.trimIndent(),
+        )
+
+        val daily = api().parse(null, days, emptyList(), emptyList()).daily
+
+        assertEquals(listOf("2026-10-21", "2026-10-22", "2026-10-23"), daily.map { it.date })
+        assertEquals(listOf(70.5f, 71.5f, 72.5f), daily.map { it.highTemp })
+        // Each low is the previous Google day's minimum; the first day has none.
+        assertEquals(listOf(null, 50.5f, 51.5f), daily.map { it.lowTemp })
+        assertEquals(listOf("Rain", "Cloudy", "Unknown"), daily.map { it.condition })
+        assertEquals(listOf("RAIN", "CLOUDY", null), daily.map { it.iconToken })
+        assertEquals(listOf(60, null, null), daily.map { it.precipProbability })
+        assertEquals(listOf(30, null, null), daily.map { it.daytimePrecipProbability })
+        assertEquals(listOf(60, null, null), daily.map { it.nighttimePrecipProbability })
+        assertEquals(7.62f, daily[0].precipAmountMm!!, 0.0001f)
+        assertEquals(2.0f, daily[1].precipAmountMm)
+        assertNull(daily[2].precipAmountMm)
+        assertEquals(listOf("GOOGLE_WEATHER", "GOOGLE_WEATHER", "GOOGLE_WEATHER"), daily.map { it.source })
+    }
+
+    @Test
+    fun `current conditions keep temperature, condition, time and cloud, and are absent without a reply`() {
+        val current = obj(
+            """{"temperature": {"degrees": 58.4}, "weatherCondition": {"type": "MOSTLY_CLOUDY"},
+                "currentTime": "2026-10-21T15:07:00Z", "cloudCover": 72}""",
+        )
+        val parsed = api().parse(current, null, emptyList(), emptyList())
+        assertEquals(58.4f, parsed.providerCurrentTemp)
+        assertEquals("Mostly Cloudy", parsed.providerCurrentCondition)
+        assertEquals(ms("2026-10-21T15:07:00Z"), parsed.providerCurrentObservedAt)
+        assertEquals(72, parsed.providerCurrentCloudCover)
+
+        val unreadable = api().parse(obj("""{"currentTime": "just now"}"""), null, emptyList(), emptyList())
+        assertNull(unreadable.providerCurrentObservedAt)
+        assertNull(unreadable.providerCurrentTemp)
+        assertNull(unreadable.providerCurrentCondition)
+
+        val none = api().parse(null, null, emptyList(), emptyList())
+        assertNull(none.providerCurrentTemp)
+        assertNull(none.providerCurrentObservedAt)
+        assertNull(none.providerCurrentCloudCover)
+    }
+
+    @Test
+    fun `visibility is absent without a distance and never negative`() {
+        assertNull(api().visibilityMiles(obj("""{}""")))
+        assertNull(api().visibilityMiles(obj("""{"visibility": {"unit": "MILES"}}""")))
+        assertNull(api().visibilityMiles(obj("""{"visibility": {"distance": -1, "unit": "MILES"}}""")))
+        // No unit means kilometres.
+        assertEquals(1.0f, api().visibilityMiles(obj("""{"visibility": {"distance": 1.609344}}"""))!!, 0.0001f)
+    }
+
+    @Test
+    fun `the history window is the last 24 hours up to one hour ago`() {
+        val now = clockMs
+        val hour = 3_600_000L
+        assertEquals((now - 24 * hour)..(now - hour - 1), GoogleWeatherApi.historyWindow(now))
+
+        assertFalse("24 h ago is inside", GoogleWeatherApi.needsHistory(listOf(now - 24 * hour), now))
+        assertTrue("a millisecond older is outside", GoogleWeatherApi.needsHistory(listOf(now - 24 * hour - 1), now))
+        assertTrue("one hour ago is outside", GoogleWeatherApi.needsHistory(listOf(now - hour), now))
+        assertFalse("a millisecond before that is inside", GoogleWeatherApi.needsHistory(listOf(now - hour - 1), now))
+    }
+
+    // ---- Request shape and block boundaries ----
+
+    @Test
+    fun `every request carries the location and imperial units, and each endpoint its own size`() = runBlocking {
+        api().getForecast(37.422, -122.084)
+
+        fun params(endpoint: String) = requests.filter { it.url.encodedPath.endsWith(endpoint) }.map { it.url.parameters }
+        requests.forEach { request ->
+            assertEquals("37.422", request.url.parameters["location.latitude"])
+            assertEquals("-122.084", request.url.parameters["location.longitude"])
+            assertEquals("IMPERIAL", request.url.parameters["unitsSystem"])
+            assertEquals("GET", request.method.value)
+        }
+        val days = params("forecast/days:lookup").single()
+        assertEquals("10", days["days"])
+        assertEquals("10", days["pageSize"])
+        val history = params("history/hours:lookup").single()
+        assertEquals("24", history["hours"])
+        assertEquals("24", history["pageSize"])
+        val hours = params("forecast/hours:lookup")
+        assertEquals(listOf("72", "72", "72"), hours.map { it["hours"] })
+        assertEquals(listOf("24", "24", "24"), hours.map { it["pageSize"] })
+        assertNull(params("currentConditions:lookup").single()["pageSize"])
+    }
+
+    @Test
+    fun `the hour pages line is the last fetch's paging, marked for a tapped day`() = runBlocking {
+        val api = api()
+        assertEquals("", api.hoursPagesLine(onDemandDay = false))
+
+        api.getForecast(37.422, -122.084, includeHistory = false)
+        assertEquals("pages=3 reason=no_stored_hours_given", api.hoursPagesLine(onDemandDay = false))
+        assertEquals("pages=3 reason=no_stored_hours_given trigger=on_demand_day", api.hoursPagesLine(onDemandDay = true))
+
+        api.getForecast(37.422, -122.084, parts = com.weatherwidget.data.model.ForecastParts.DAILY)
+        assertEquals("pages=0 reason=hourly_not_due", api.hoursPagesLine(onDemandDay = false))
+    }
+
+    @Test
+    fun `a history failure that is not a 429 keeps the forecast and is tried again next fetch`() = runBlocking {
+        historyStatus = HttpStatusCode.InternalServerError
+        val api = api()
+
+        val first = api.getForecast(37.422, -122.084)
+        assertEquals(72, first.hourly.size)
+        assertEquals(1, historyCalls())
+
+        requests.clear()
+        api.getForecast(37.422, -122.084)
+        assertEquals("only a 429 blocks history", 1, historyCalls())
+    }
+
+    @Test
+    fun `history and a blocked product come back at the reset instant, not after it`() = runBlocking {
+        historyStatus = HttpStatusCode.TooManyRequests
+        hoursErrorBody = quota429("1/d/{project}", "forecast/hours")
+        val api = api()
+        api.getForecast(37.422, -122.084)
+        assertEquals(1, historyCalls())
+
+        historyStatus = HttpStatusCode.OK
+        hoursErrorBody = null
+        clockMs = resetMs - 1
+        requests.clear()
+        val blocked = api.getForecast(37.422, -122.084)
+        assertEquals(0, hoursCalls())
+        assertEquals(0, historyCalls())
+        assertTrue(blocked.hourly.isEmpty())
+
+        clockMs = resetMs
+        requests.clear()
+        val open = api.getForecast(37.422, -122.084)
+        assertEquals(3, hoursCalls())
+        assertEquals(1, historyCalls())
+        assertTrue(open.quotaRefused.isEmpty())
+        assertTrue("history adds elapsed hours before the 72 forecast hours", open.hourly.size > 72)
+    }
+
+    @Test
+    fun `with hours blocked a daily-only fetch still runs and an hourly-only fetch fails without a request`() = runBlocking {
+        hoursErrorBody = quota429("1/d/{project}", "forecast/hours")
+        val api = api()
+        api.getForecast(37.422, -122.084, includeHistory = false)
+        hoursErrorBody = null
+        requests.clear()
+
+        val dailyOnly = api.getForecast(37.422, -122.084, parts = com.weatherwidget.data.model.ForecastParts.DAILY)
+        assertEquals(10, dailyOnly.daily.size)
+        assertEquals(1, daysCalls())
+        assertEquals(0, hoursCalls())
+
+        requests.clear()
+        val hourlyOnly = runCatching {
+            api.getForecast(37.422, -122.084, parts = com.weatherwidget.data.model.ForecastParts.HOURLY)
+        }.exceptionOrNull()
+        assertTrue("$hourlyOnly", hourlyOnly is GoogleDailyQuotaException)
+        assertEquals(resetMs, (hourlyOnly as GoogleDailyQuotaException).resetAtMs)
+        assertEquals(0, requests.size)
+    }
 }
