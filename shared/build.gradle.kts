@@ -27,6 +27,7 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.ktor.client.mock)
+    testImplementation(libs.coroutines.test)
     // Host contract suites (abstract JUnit classes) run by each platform's test source set.
     testFixturesImplementation(libs.junit)
 }

@@ -242,3 +242,22 @@ stored as zero."
   (logged `OWM_PERIOD_NO_TEMP`) instead of stored as 0 °F. Before the fix the interpolation drew a slope
   through the 0 °F row (60, 40, 20, 0, ...). Both new tests fail on the old code.
 - Full gate 2026-11-13 06:17: 6,875 unit tests and 125 instrumented tests passed.
+
+### API client tests moved to `:shared` (2026-11-13, uncommitted)
+
+- Moved from `app/src/test/.../data/remote/` to `shared/src/test/.../data/remote/`:
+  `NwsApiStationInfoCodecTest`, `NwsApiTest`, `NwsPrecisionTest`, `OpenMeteoApiTest`, `SilurianApiTest`,
+  `TomorrowIoApiTest`. None had an Android dependency. `:shared` gained `kotlinx-coroutines-test` for
+  their `runTest`. `NwsPrecisionTest` and `OpenMeteoApiTest` measured under 0.2 s and are now Short.
+- `WeatherApiTest` stays in `:app`: it mocks the app's `WidgetStateManager`.
+- Unit suite total unchanged at 6,875.
+
+Whole-module mutation run after all Phase 1 work so far:
+
+| | Rule mutants | Killed | Score | Test strength |
+|---|---|---|---|---|
+| Start of Phase 1 | 18,195 | 11,172 | 61% | 73% |
+| Now | 18,173 | 11,751 | 65% | 75% |
+
+`data.remote` went from 56% to 68% score. Per class: `NwsApi` 91% strength, `OpenWeatherMapApi` 89%,
+`TomorrowIoApi` 86%, `NwsForecastReply` 77%, `OpenMeteoApi` 72%, `SilurianApi` 64%.

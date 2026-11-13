@@ -12,12 +12,12 @@ import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import com.weatherwidget.shared.config.ForecastHorizon
-import com.weatherwidget.test.category.MediumDuration
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.experimental.categories.Category
 
 
 
-@Category(MediumDuration::class)
+@Category(ShortDuration::class)
 class OpenMeteoApiTest {
     private lateinit var json: Json
 

@@ -11,12 +11,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
 import kotlin.math.roundToInt
-import com.weatherwidget.test.category.MediumDuration
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.experimental.categories.Category
 
 
 
-@Category(MediumDuration::class)
+@Category(ShortDuration::class)
 class NwsPrecisionTest {
     private lateinit var json: Json
 
