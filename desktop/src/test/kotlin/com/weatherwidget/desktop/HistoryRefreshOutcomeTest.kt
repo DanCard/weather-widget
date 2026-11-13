@@ -83,13 +83,13 @@ class HistoryRefreshOutcomeTest {
 
     @Test
     fun `cleared or expired block - Refreshed`() {
-        dao.log(ProductQuotaLog.TAG, ProductQuotaLog.blocked(source, ForecastProduct.DAILY, now - 1_000L, "{}"))
-        Thread.sleep(2)
-        dao.log(ProductQuotaLog.TAG, ProductQuotaLog.blocked(source, ForecastProduct.HOURLY, now + 3_600_000L, "{}"))
-        Thread.sleep(2)
-        dao.log(ProductQuotaLog.TAG, ProductQuotaLog.cleared(source, ForecastProduct.HOURLY))
+        // Explicit timestamps a millisecond apart: the newest row per product decides.
+        val t = now
+        dao.log(ProductQuotaLog.TAG, ProductQuotaLog.blocked(source, ForecastProduct.DAILY, t - 1_000L, "{}"), timestampMs = t)
+        dao.log(ProductQuotaLog.TAG, ProductQuotaLog.blocked(source, ForecastProduct.HOURLY, t + 3_600_000L, "{}"), timestampMs = t + 1)
+        dao.log(ProductQuotaLog.TAG, ProductQuotaLog.cleared(source, ForecastProduct.HOURLY), timestampMs = t + 2)
 
-        assertEquals(RefreshOutcome.Refreshed, historyRefreshOutcome(dao, source, ok = true, startedAtMs = now))
+        assertEquals(RefreshOutcome.Refreshed, historyRefreshOutcome(dao, source, ok = true, startedAtMs = t + 3))
     }
 
     @Test
@@ -101,13 +101,12 @@ class HistoryRefreshOutcomeTest {
 
     @Test
     fun `partial rate limit counts only after the tap`() {
-        dao.log(RateLimitLog.TAG, RateLimitLog.partial(source, "{}"))
-        Thread.sleep(5)
+        // Explicit timestamps: one row before the tap, one after.
         val tap = now
+        dao.log(RateLimitLog.TAG, RateLimitLog.partial(source, "{}"), timestampMs = tap - 5)
         assertEquals(RefreshOutcome.Refreshed, historyRefreshOutcome(dao, source, ok = true, startedAtMs = tap))
 
-        Thread.sleep(2)
-        dao.log(RateLimitLog.TAG, RateLimitLog.partial(source, "{}"))
+        dao.log(RateLimitLog.TAG, RateLimitLog.partial(source, "{}"), timestampMs = tap + 2)
         assertEquals(RefreshOutcome.HourlyIncomplete, historyRefreshOutcome(dao, source, ok = true, startedAtMs = tap))
     }
 }

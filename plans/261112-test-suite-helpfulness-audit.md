@@ -353,3 +353,35 @@ User (2026-11-13): "Yes delete files that cannot fail. Yes reword. Yes fix weak 
   counted or changed.
 - Product observation, not changed: a `.show` or `.refresh-requested` trigger written in the window
   between daemon start and WatchService registration is lost (`DaemonRuntime.kt:302-323`).
+
+User (2026-11-13): "commit. Work on product observations, and 17 timestamp sleeps".
+
+### Lost startup triggers (desktop daemon, uncommitted)
+
+- Cause: a WatchService reports only changes made after it is registered, and the daemon registers it
+  some time after the process starts. A `.show`, `.refresh-requested` or `.config-changed` written in
+  that window was never seen. `scripts/buildStart-desktop.sh` already worked around it by re-touching
+  `.show` for up to 30 s ("startup can take ~10 s").
+- Fix: `pendingStartupTriggers(appDir, processStartMs)` in `DesktopProcess.kt` lists the consumed
+  triggers last modified at or after this process's OS start time. `DaemonRuntime` handles them right
+  after registering the watch, through the same `handleTrigger` the event loop now uses. A
+  `.refresh-requested` older than the process is still deleted as a leftover; a newer one is kept.
+- Tests: `PendingStartupTriggersTest` (4 cases, explicit file times) and `DesktopStartupTest`
+  "a show trigger written once as the daemon starts is not lost". The latter failed 3 of 3 runs on the
+  old daemon code and passed 3 of 3 on the fix.
+- The build script's re-touch loop is left in place; it is now redundant but harmless.
+
+### The 17 timestamp sleeps (uncommitted)
+
+| File | Sleeps | Change |
+|---|---|---|
+| `DesktopWeatherDaoTest` | 2 | Explicit `timestampMs` on each row |
+| `HistoryRefreshOutcomeTest` | 4 | Explicit `timestampMs` |
+| `DesktopProductQuotaTest` | 1 | Explicit `timestampMs` |
+| `AppLogsContractTest` | 1 | Explicit `timestampMs` |
+| `DesktopForecastHorizonStorageTest` | 3 | Removed: the writes already pass explicit times |
+| `DesktopSnapshotDisplayedRainChanceTest` | 2 | Removed: the writes already pass explicit times |
+| `DesktopSourceRetryHostContractTest` | 2 | Kept: the host writes with the real clock; already commented |
+| `ForecastSnapshotHindcastCutoffTest` | 2 | Kept: `fetchedAt` is the real clock and part of the key; second one now commented |
+
+13 of 17 removed. The four desktop classes ran 8 times in a row (33 tests each) with no failure.

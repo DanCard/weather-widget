@@ -98,8 +98,8 @@ class AppLogsContractTest {
         assertNull(dao.getLatestCurrentTempStatus("SILURIAN"))
 
         // Recovery: a later ok row for the same source supersedes the failure.
-        Thread.sleep(2)
-        dao.log(CurrentTempStatusLog.TAG, CurrentTempStatusLog.ok("NWS"), "INFO")
+        // One millisecond after the rows above: "latest" is decided by timestamp.
+        dao.log(CurrentTempStatusLog.TAG, CurrentTempStatusLog.ok("NWS"), "INFO", timestampMs = System.currentTimeMillis() + 1)
         assertTrue(dao.getLatestCurrentTempStatus("NWS")!!.ok)
     }
 

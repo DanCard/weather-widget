@@ -567,3 +567,18 @@ private fun playDesktopSound(resourcePath: String): String =
         Log.w("DesktopProcess", "Desktop sound playback failed ($resourcePath): ${it.message}")
         "error"
     }
+
+/**
+ * Trigger files the daemon's WatchService missed because they were written after this process
+ * started but before the watch was registered. A WatchService only reports changes made after
+ * registration, so a panel click or a UI refresh request in that window was lost.
+ *
+ * A trigger last modified before [processStartMs] is a leftover from an earlier run and is not
+ * returned. Order is config, then refresh, then show, so a show acts on the reloaded state.
+ */
+fun pendingStartupTriggers(appDir: Path, processStartMs: Long): List<String> =
+    listOf(CONFIG_CHANGED_TRIGGER, REFRESH_REQUESTED_TRIGGER, SHOW_TRIGGER).filter { name ->
+        val file = appDir.resolve(name)
+        runCatching { Files.exists(file) && Files.getLastModifiedTime(file).toMillis() >= processStartMs }
+            .getOrDefault(false)
+    }

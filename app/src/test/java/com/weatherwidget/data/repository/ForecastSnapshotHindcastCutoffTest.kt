@@ -248,7 +248,7 @@ class ForecastSnapshotHindcastCutoffTest {
             // window thinning used to delete this row; every fetch's row is kept since 2026-10-24.
             listOf(withLow.copy(lowTemp = null, fetchedAt = withLow.fetchedAt + 1L, lastConfirmedAt = withLow.lastConfirmedAt + 1L)),
         )
-        Thread.sleep(5)
+        Thread.sleep(5) // fetchedAt is the real clock and part of the key: the next save must not share its millisecond
         repository.saveForecastSnapshot(
             listOf(TestData.forecast(targetDate = todayStr, highTemp = 68f, lowTemp = null, source = "GOOGLE_WEATHER")),
             LAT, LON, "GOOGLE_WEATHER",

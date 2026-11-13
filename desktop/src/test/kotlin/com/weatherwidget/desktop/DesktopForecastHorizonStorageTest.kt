@@ -74,7 +74,6 @@ class DesktopForecastHorizonStorageTest {
     fun `a refresh 4 h later, judged at fetch time, rewrites all 8 days`() = runTest {
         // Was SHORT before 2026-10-25: days 4+ kept the earlier fetch's 70.
         refresh(high = 70f, horizon = Horizon.LONG)
-        Thread.sleep(5)
         refresh(high = 80f, horizon = null, at = now + 4 * hour)
 
         val highs = shownHighs()
@@ -85,7 +84,6 @@ class DesktopForecastHorizonStorageTest {
     @Test
     fun `a newer fetch covering fewer days keeps the later days from the older one`() = runTest {
         refresh(high = 70f, horizon = Horizon.LONG)
-        Thread.sleep(5)
         refresh(high = 80f, horizon = Horizon.LONG, at = now + 4 * hour, days = 3)
 
         val highs = shownHighs()
@@ -106,7 +104,6 @@ class DesktopForecastHorizonStorageTest {
     @Test
     fun `older forecasts are every row but the one shown, per day`() = runTest {
         refresh(high = 70f, horizon = Horizon.LONG)
-        Thread.sleep(5)
         refresh(high = 80f, horizon = Horizon.LONG, at = now + 4 * hour, days = 3)
 
         val start = today.atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli()

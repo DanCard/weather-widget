@@ -145,6 +145,58 @@ label = "Test",
         }
     }
 
+    /**
+     * A WatchService reports only changes made after it is registered, and the daemon registers it
+     * some time after it starts. A `.show` written in that window used to be lost (the build script
+     * re-touched it for up to 30 s). The daemon now handles triggers written since its process started.
+     */
+    @Test
+    fun `a show trigger written once as the daemon starts is not lost`() {
+        val tempDir = Files.createTempDirectory("weather-test-early-show")
+        val appDir = tempDir.resolve("weather-widget")
+        Files.createDirectories(appDir)
+
+        val builder = ProcessBuilder(
+            Path(System.getProperty("java.home"), "bin", "java").toString(),
+            "-cp",
+            System.getProperty("java.class.path"),
+            "com.weatherwidget.desktop.MainKt",
+        ).redirectErrorStream(true)
+        // Isolated data and config dirs: no location, so nothing is fetched (see `test app launch and show`).
+        builder.environment()["XDG_DATA_HOME"] = tempDir.toAbsolutePath().toString()
+        builder.environment()["XDG_CONFIG_HOME"] = tempDir.resolve("config").toAbsolutePath().toString()
+
+        val runningProcess = builder.start()
+        val outputLines = java.util.concurrent.CopyOnWriteArrayList<String>()
+        val readThread = kotlin.concurrent.thread(start = true, isDaemon = true, name = "process-reader") {
+            runCatching { BufferedReader(InputStreamReader(runningProcess.inputStream)).forEachLine { outputLines.add(it) } }
+        }
+        fun waitFor(what: String, vararg needles: String): Boolean {
+            val deadline = System.currentTimeMillis() + 15_000L
+            while (System.currentTimeMillis() < deadline) {
+                if (outputLines.any { line -> needles.any { line.contains(it) } }) return true
+                Thread.sleep(20)
+            }
+            return false
+        }
+
+        try {
+            assertTrue("Daemon failed to start. Output:\n${outputLines.joinToString("\n")}", waitFor("start", "Starting headless WeatherDaemon"))
+            // Written once, the moment the daemon says it is starting, and never again.
+            Files.writeString(appDir.resolve(SHOW_TRIGGER), "", java.nio.charset.StandardCharsets.UTF_8)
+
+            assertTrue(
+                "A single .show written at daemon start did not open the UI. Output:\n${outputLines.joinToString("\n")}",
+                waitFor("spawn", "Spawning a new UI process", "Launching UI process"),
+            )
+        } finally {
+            runningProcess.descendants().forEach { it.destroyForcibly() }
+            runningProcess.destroyForcibly()
+            readThread.interrupt()
+            runCatching { Files.walk(tempDir).sorted(Comparator.reverseOrder()).forEach { Files.deleteIfExists(it) } }
+        }
+    }
+
     @Test
     fun `test daemon reloads on refresh requested trigger but ignores its own data updated trigger`() {
         val tempDir = Files.createTempDirectory("weather-test-data-updated")

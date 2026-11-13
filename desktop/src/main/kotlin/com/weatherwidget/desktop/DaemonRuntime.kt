@@ -299,6 +299,10 @@ internal class DaemonRuntime(
         }
 
         // WatchService loop
+        // The OS's start time for this process (earlier than the JVM's own start stamp), so a trigger
+        // written while the JVM was still booting counts as written during this run.
+        val processStartMs = ProcessHandle.current().info().startInstant().map { it.toEpochMilli() }
+            .orElseGet { java.lang.management.ManagementFactory.getRuntimeMXBean().startTime }
         daemonScope.launch(Dispatchers.IO) {
             // Clean up any old .quit files (except our own signature file)
             if (Files.exists(appDir)) {
@@ -310,7 +314,11 @@ internal class DaemonRuntime(
                         }
                         // A .refresh-requested left over from a previous run would fire spuriously on
                         // the first unrelated directory event; consume it before registering the watch.
-                        if (name == REFRESH_REQUESTED_TRIGGER) {
+                        // One written since this process started is a real request: it stays, and is
+                        // handled once the watch is registered (pendingStartupTriggers).
+                        if (name == REFRESH_REQUESTED_TRIGGER &&
+                            runCatching { Files.getLastModifiedTime(path).toMillis() < processStartMs }.getOrDefault(true)
+                        ) {
                             runCatching { Files.deleteIfExists(path) }
                         }
                     }
@@ -323,101 +331,112 @@ internal class DaemonRuntime(
                 StandardWatchEventKinds.ENTRY_MODIFY
             )
 
+            suspend fun handleTrigger(name: String) {
+                when (name) {
+                    SHOW_TRIGGER -> {
+                        Log.i(TAG, "WatchService: .show trigger detected.")
+                        onPresenceTransition(presence.markPresent("panel"))
+                        kickObservationCatchUp("genmon:click")
+                        runCatching { Files.deleteIfExists(appDir.resolve(SHOW_TRIGGER)) }
+                        if (uiProcess?.isAlive == true) {
+                            Log.i(TAG, "UI process is already alive. Bumping UI via .ui-show...")
+                            val uiShowFile = appDir.resolve(UI_SHOW_TRIGGER)
+                            runCatching {
+                                Files.writeString(uiShowFile, "", java.nio.charset.StandardCharsets.UTF_8)
+                            }
+                        } else {
+                            Log.i(TAG, "UI process is not alive. Spawning a new UI process...")
+                            spawnUi()
+                        }
+                    }
+                    // Note: the daemon deliberately does NOT watch DATA_UPDATED_TRIGGER —
+                    // it is the producer of that trigger (daemon → UI). Reacting to its
+                    // own writes redid a full loadCached() after every fetch and, worse,
+                    // overwrote the Stale status the failure paths had just set with Live.
+                    REFRESH_REQUESTED_TRIGGER -> {
+                        Log.i(TAG, "WatchService: .refresh-requested trigger detected. Reloading cache...")
+                        runCatching { Files.deleteIfExists(appDir.resolve(REFRESH_REQUESTED_TRIGGER)) }
+                        val activeRepo = repo
+                        val activeConfig = currentConfig
+                        if (activeRepo != null && activeConfig != null) {
+                            val cached = activeRepo.loadCached()
+                            if (cached != null) {
+                                panelPublisher.publishForecastState(cached)
+                                // The UI only touches this trigger after a *successful*
+                                // refresh() (exceptions skip the notify), so a
+                                // non-failed derivation is accurate here.
+                                dataStatusState.value = deriveDataStatus(
+                                    cachePresent = true,
+                                    lastFetchMs = weatherDao.getLastSuccessfulFetch(activeConfig.displaySource),
+                                    refreshFailed = false,
+                                    failureIsOffline = false,
+                                )
+                            }
+                        }
+                    }
+                    CONFIG_CHANGED_TRIGGER -> {
+                        Log.i(TAG, "WatchService: .config-changed trigger detected. Reloading config...")
+                        runCatching { Files.deleteIfExists(appDir.resolve(CONFIG_CHANGED_TRIGGER)) }
+                        val newConfig = configStore.load()
+                        if (newConfig == null) {
+                            Log.w(TAG, "Config loaded was null. Stopping loops.")
+                            fetchJob?.cancel()
+                            launchRefreshJobs.cancel()
+                            DesktopActualsPreference.publish(null)
+                            currentConfig = null
+                            configState.value = null
+                            forecastState.value = null
+                        } else {
+                            val localConfig = currentConfig
+                            val restartReason = daemonFetchRestartReason(localConfig, newConfig)
+
+                            // Publish every settings reload before any refresh decision. The
+                            // resolver is process-local; updating only currentConfig left the
+                            // daemon using the provider choice captured at startup.
+                            DesktopActualsPreference.publish(newConfig)
+                            currentConfig = newConfig
+                            configState.value = newConfig
+
+                            if (restartReason != null) {
+                                Log.i(TAG, "Refresh-relevant config changed ($restartReason). Restarting fetch loops...")
+                                startFetchLoops(restartReason)
+                            } else {
+                                Log.i(TAG, "Config changed but fetch inputs are identical. Ignoring loop restart.")
+                            }
+                        }
+                    }
+                    QUIT_TRIGGER -> {
+                        Log.i(TAG, "Script or manual quit trigger detected. Exiting.")
+                        quit()
+                    }
+                    else -> {
+                        if (name.startsWith(QUIT_PREFIX)) {
+                            val suffix = name.substring(QUIT_PREFIX.length)
+                            if (suffix != appLaunchId) {
+                                Log.i(TAG, "Newer instance detected (launchId=$suffix, mine=$appLaunchId). Exiting.")
+                                quit(killUi = zoneRestartInProgress)
+                            } else {
+                                Log.i(TAG, "Ignored quit trigger (launchId=$suffix, mine=$appLaunchId).")
+                            }
+                        }
+                    }
+                }
+            }
+
+            // The watch only reports changes made after registration. A trigger written since this
+            // process started but before that point would be lost, so handle those now.
+            for (name in pendingStartupTriggers(appDir, processStartMs)) {
+                Log.i(TAG, "Startup: $name was written before the watch was registered. Handling it now.")
+                handleTrigger(name)
+            }
+
             try {
                 while (true) {
                     val key = watchService.take()
                     for (event in key.pollEvents()) {
                         val name = (event.context() as? Path)?.toString()
                         if (name != null) {
-                            when (name) {
-                                SHOW_TRIGGER -> {
-                                    Log.i(TAG, "WatchService: .show trigger detected.")
-                                    onPresenceTransition(presence.markPresent("panel"))
-                                    kickObservationCatchUp("genmon:click")
-                                    runCatching { Files.deleteIfExists(appDir.resolve(SHOW_TRIGGER)) }
-                                    if (uiProcess?.isAlive == true) {
-                                        Log.i(TAG, "UI process is already alive. Bumping UI via .ui-show...")
-                                        val uiShowFile = appDir.resolve(UI_SHOW_TRIGGER)
-                                        runCatching {
-                                            Files.writeString(uiShowFile, "", java.nio.charset.StandardCharsets.UTF_8)
-                                        }
-                                    } else {
-                                        Log.i(TAG, "UI process is not alive. Spawning a new UI process...")
-                                        spawnUi()
-                                    }
-                                }
-                                // Note: the daemon deliberately does NOT watch DATA_UPDATED_TRIGGER —
-                                // it is the producer of that trigger (daemon → UI). Reacting to its
-                                // own writes redid a full loadCached() after every fetch and, worse,
-                                // overwrote the Stale status the failure paths had just set with Live.
-                                REFRESH_REQUESTED_TRIGGER -> {
-                                    Log.i(TAG, "WatchService: .refresh-requested trigger detected. Reloading cache...")
-                                    runCatching { Files.deleteIfExists(appDir.resolve(REFRESH_REQUESTED_TRIGGER)) }
-                                    val activeRepo = repo
-                                    val activeConfig = currentConfig
-                                    if (activeRepo != null && activeConfig != null) {
-                                        val cached = activeRepo.loadCached()
-                                        if (cached != null) {
-                                            panelPublisher.publishForecastState(cached)
-                                            // The UI only touches this trigger after a *successful*
-                                            // refresh() (exceptions skip the notify), so a
-                                            // non-failed derivation is accurate here.
-                                            dataStatusState.value = deriveDataStatus(
-                                                cachePresent = true,
-                                                lastFetchMs = weatherDao.getLastSuccessfulFetch(activeConfig.displaySource),
-                                                refreshFailed = false,
-                                                failureIsOffline = false,
-                                            )
-                                        }
-                                    }
-                                }
-                                CONFIG_CHANGED_TRIGGER -> {
-                                    Log.i(TAG, "WatchService: .config-changed trigger detected. Reloading config...")
-                                    runCatching { Files.deleteIfExists(appDir.resolve(CONFIG_CHANGED_TRIGGER)) }
-                                    val newConfig = configStore.load()
-                                    if (newConfig == null) {
-                                        Log.w(TAG, "Config loaded was null. Stopping loops.")
-                                        fetchJob?.cancel()
-                                        launchRefreshJobs.cancel()
-                                        DesktopActualsPreference.publish(null)
-                                        currentConfig = null
-                                        configState.value = null
-                                        forecastState.value = null
-                                    } else {
-                                        val localConfig = currentConfig
-                                        val restartReason = daemonFetchRestartReason(localConfig, newConfig)
-
-                                        // Publish every settings reload before any refresh decision. The
-                                        // resolver is process-local; updating only currentConfig left the
-                                        // daemon using the provider choice captured at startup.
-                                        DesktopActualsPreference.publish(newConfig)
-                                        currentConfig = newConfig
-                                        configState.value = newConfig
-
-                                        if (restartReason != null) {
-                                            Log.i(TAG, "Refresh-relevant config changed ($restartReason). Restarting fetch loops...")
-                                            startFetchLoops(restartReason)
-                                        } else {
-                                            Log.i(TAG, "Config changed but fetch inputs are identical. Ignoring loop restart.")
-                                        }
-                                    }
-                                }
-                                QUIT_TRIGGER -> {
-                                    Log.i(TAG, "Script or manual quit trigger detected. Exiting.")
-                                    quit()
-                                }
-                                else -> {
-                                    if (name.startsWith(QUIT_PREFIX)) {
-                                        val suffix = name.substring(QUIT_PREFIX.length)
-                                        if (suffix != appLaunchId) {
-                                            Log.i(TAG, "Newer instance detected (launchId=$suffix, mine=$appLaunchId). Exiting.")
-                                            quit(killUi = zoneRestartInProgress)
-                                        } else {
-                                            Log.i(TAG, "Ignored quit trigger (launchId=$suffix, mine=$appLaunchId).")
-                                        }
-                                    }
-                                }
-                            }
+                            handleTrigger(name)
                         }
                     }
                     if (!key.reset()) break

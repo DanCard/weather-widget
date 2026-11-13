@@ -52,8 +52,11 @@ class DesktopProductQuotaTest {
         assertEquals(1_791_442_800_000L, ProductQuotaLog.parseUntilMs(hourly.second))
         assertEquals(body, ProductQuotaLog.parseDetail(hourly.second))
 
-        Thread.sleep(2)
-        dao.log(ProductQuotaLog.TAG, ProductQuotaLog.cleared("GOOGLE_WEATHER", ForecastProduct.HOURLY))
+        // One millisecond after the blocked row: the newest row per product is what is read.
+        dao.log(
+            ProductQuotaLog.TAG, ProductQuotaLog.cleared("GOOGLE_WEATHER", ForecastProduct.HOURLY),
+            timestampMs = System.currentTimeMillis() + 1,
+        )
         assertEquals(0L, ProductQuotaLog.parseUntilMs(dao.getLatestProductQuota("GOOGLE_WEATHER", ForecastProduct.HOURLY)!!.second))
     }
 

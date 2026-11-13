@@ -391,11 +391,11 @@ class DesktopWeatherDaoTest {
 
     @Test
     fun `test getLastSuccessfulFetch returns latest REFRESH INFO timestamp`() {
-        dao.log("REFRESH", "first", "INFO")
-        Thread.sleep(10)
-        dao.log("REFRESH_FAIL", "failure", "WARN")
-        Thread.sleep(10)
-        dao.log("REFRESH", "second", "INFO")
+        // Explicit timestamps: the rows are ordered by time, so they must not share a millisecond.
+        val t = System.currentTimeMillis()
+        dao.log("REFRESH", "first", "INFO", timestampMs = t)
+        dao.log("REFRESH_FAIL", "failure", "WARN", timestampMs = t + 10)
+        dao.log("REFRESH", "second", "INFO", timestampMs = t + 20)
 
         val result = dao.getLastSuccessfulFetch()
         assertNotNull(result)
