@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Press "squish" for every raised Button (applied through Theme.WeatherWidget).
+     plans/261113-button-press-feedback.md. Values must equal WeatherThemeTokens.BUTTON_PRESS_*
+     (ButtonPressTokenParityTest); desktop WeatherButtons.kt reads those tokens.
+     The translationZ/elevation animators keep the framework Material button's 2dp rest / 4dp
+     pressed shadow, which this animator replaces. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_enabled="true" android:state_pressed="true">
+        <set>
+            <objectAnimator
+                android:duration="100"
+                android:interpolator="@android:interpolator/fast_out_slow_in"
+                android:propertyName="scaleX"
+                android:valueTo="0.93"
+                android:valueType="floatType" />
+            <objectAnimator
+                android:duration="100"
+                android:interpolator="@android:interpolator/fast_out_slow_in"
+                android:propertyName="scaleY"
+                android:valueTo="0.93"
+                android:valueType="floatType" />
+            <objectAnimator
+                android:duration="100"
+                android:propertyName="translationZ"
+                android:valueTo="4dp"
+                android:valueType="floatType" />
+            <objectAnimator
+                android:duration="0"
+                android:propertyName="elevation"
+                android:valueTo="2dp"
+                android:valueType="floatType" />
+        </set>
+    </item>
+    <item android:state_enabled="true">
+        <set>
+            <objectAnimator
+                android:duration="250"
+                android:interpolator="@android:anim/overshoot_interpolator"
+                android:propertyName="scaleX"
+                android:valueTo="1"
+                android:valueType="floatType" />
+            <objectAnimator
+                android:duration="250"
+                android:interpolator="@android:anim/overshoot_interpolator"
+                android:propertyName="scaleY"
+                android:valueTo="1"
+                android:valueType="floatType" />
+            <objectAnimator
+                android:duration="100"
+                android:propertyName="translationZ"
+                android:valueTo="0"
+                android:valueType="floatType" />
+            <objectAnimator
+                android:duration="0"
+                android:propertyName="elevation"
+                android:valueTo="2dp"
+                android:valueType="floatType" />
+        </set>
+    </item>
+    <item>
+        <set>
+            <objectAnimator
+                android:duration="0"
+                android:propertyName="scaleX"
+                android:valueTo="1"
+                android:valueType="floatType" />
+            <objectAnimator
+                android:duration="0"
+                android:propertyName="scaleY"
+                android:valueTo="1"
+                android:valueType="floatType" />
+            <objectAnimator
+                android:duration="0"
+                android:propertyName="translationZ"
+                android:valueTo="0"
+                android:valueType="floatType" />
+            <objectAnimator
+                android:duration="0"
+                android:propertyName="elevation"
+                android:valueTo="0"
+                android:valueType="floatType" />
+        </set>
+    </item>
+</selector>

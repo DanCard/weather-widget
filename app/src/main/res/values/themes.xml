@@ -4,6 +4,26 @@
         <item name="colorPrimary">@color/primary</item>
         <item name="colorPrimaryDark">@color/primary_dark</item>
         <item name="colorAccent">@color/accent</item>
+        <!-- Press "squish" on every button (plans/261113-button-press-feedback.md). AppCompat
+             widgets read the unprefixed attrs; framework-inflated ones read android:. -->
+        <item name="buttonStyle">@style/Widget.WeatherWidget.Button</item>
+        <item name="android:buttonStyle">@style/Widget.WeatherWidget.Button</item>
+        <item name="imageButtonStyle">@style/Widget.WeatherWidget.ImageButton</item>
+        <item name="android:imageButtonStyle">@style/Widget.WeatherWidget.ImageButton</item>
+        <item name="borderlessButtonStyle">@style/Widget.WeatherWidget.Button.Borderless</item>
+        <item name="android:borderlessButtonStyle">@style/Widget.WeatherWidget.Button.Borderless</item>
+    </style>
+
+    <style name="Widget.WeatherWidget.Button" parent="Widget.AppCompat.Button">
+        <item name="android:stateListAnimator">@animator/button_press_scale</item>
+    </style>
+
+    <style name="Widget.WeatherWidget.ImageButton" parent="Widget.AppCompat.ImageButton">
+        <item name="android:stateListAnimator">@animator/button_press_scale_flat</item>
+    </style>
+
+    <style name="Widget.WeatherWidget.Button.Borderless" parent="Widget.AppCompat.Button.Borderless">
+        <item name="android:stateListAnimator">@animator/button_press_scale_flat</item>
     </style>
 
     <!-- Invisible trampoline activities that are AppCompatActivity. A platform theme

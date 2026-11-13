@@ -1,6 +1,11 @@
 package com.weatherwidget.desktop.theme
 
+import androidx.compose.animation.core.Easing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -10,7 +15,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -39,6 +47,12 @@ import com.weatherwidget.shared.util.WeatherThemeTokens
  * API: each named wrapper takes `text: String` (not a content lambda) so the typography stays
  * pinned inside this file. Call sites that need a non-text child (icon rows etc.) can still use
  * the generic [ActionButton] overload below.
+ *
+ * Press feedback (plans/261113-button-press-feedback.md): on top of Material's ripple, every button
+ * here shrinks to [WeatherThemeTokens.BUTTON_PRESS_SCALE] while pressed and springs back with an
+ * overshoot on release. These are the same tokens Android's `res/animator/button_press_scale.xml`
+ * uses. A disabled color button keeps its own fill at [WeatherThemeTokens.BUTTON_DISABLED_ALPHA]
+ * rather than Material's stock grey, so a running Refresh Data reads as "busy", matching Android.
  */
 
 private val buttonShape = RoundedCornerShape(WeatherThemeTokens.BUTTON_CORNER_DP.dp)
@@ -62,7 +76,47 @@ private fun buttonColors(
 ): ButtonColors = ButtonDefaults.buttonColors(
     containerColor = container,
     contentColor = content,
+    disabledContainerColor = container.copy(alpha = WeatherThemeTokens.BUTTON_DISABLED_ALPHA),
+    disabledContentColor = content,
 )
+
+/** Scale target for a button: shrunk while pressed (and enabled), full size otherwise. */
+internal fun buttonPressScaleTarget(pressed: Boolean, enabled: Boolean): Float =
+    if (pressed && enabled) WeatherThemeTokens.BUTTON_PRESS_SCALE else 1f
+
+/**
+ * Android's `OvershootInterpolator` (`android:anim/overshoot_interpolator`, tension 2): runs past 1
+ * then settles, so the release reads as a small bounce even after a very short tap.
+ */
+internal fun overshoot(tension: Float): Easing = Easing { fraction ->
+    val t = fraction - 1f
+    t * t * ((tension + 1f) * t + tension) + 1f
+}
+
+private val releaseEasing = overshoot(WeatherThemeTokens.BUTTON_PRESS_OUT_OVERSHOOT_TENSION)
+
+/**
+ * Shrinks the button while [interactionSource] reports a press, and springs it back on release.
+ * Scaling uses `graphicsLayer`, so neighbouring views never move.
+ */
+@Composable
+private fun Modifier.pressScale(interactionSource: MutableInteractionSource, enabled: Boolean): Modifier {
+    val pressed by interactionSource.collectIsPressedAsState()
+    val target = buttonPressScaleTarget(pressed, enabled)
+    val scale by animateFloatAsState(
+        targetValue = target,
+        animationSpec = if (target < 1f) {
+            tween(WeatherThemeTokens.BUTTON_PRESS_IN_MS)
+        } else {
+            tween(WeatherThemeTokens.BUTTON_PRESS_OUT_MS, easing = releaseEasing)
+        },
+        label = "buttonPressScale",
+    )
+    return this.graphicsLayer {
+        scaleX = scale
+        scaleY = scale
+    }
+}
 
 @Composable
 private fun ActionButton(
@@ -74,10 +128,12 @@ private fun ActionButton(
     containerColor: Color,
     contentColor: Color,
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
     Button(
         onClick = onClick,
-        modifier = modifier,
+        modifier = modifier.pressScale(interactionSource, enabled),
         enabled = enabled,
+        interactionSource = interactionSource,
         shape = buttonShape,
         colors = buttonColors(containerColor, contentColor),
         contentPadding = if (prominent) prominentButtonPadding else standardButtonPadding,
@@ -222,10 +278,12 @@ fun WeatherOutlinedButton(
     enabled: Boolean = true,
     border: BorderStroke = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
     OutlinedButton(
         onClick = onClick,
-        modifier = modifier,
+        modifier = modifier.pressScale(interactionSource, enabled),
         enabled = enabled,
+        interactionSource = interactionSource,
         shape = buttonShape,
         border = border,
         contentPadding = standardButtonPadding,

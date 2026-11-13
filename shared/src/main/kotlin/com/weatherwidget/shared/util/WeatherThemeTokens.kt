@@ -88,6 +88,25 @@ object WeatherThemeTokens {
     /** Corner radius for color-filled buttons (`rounded_button_*.xml`). */
     const val BUTTON_CORNER_DP: Int = 12
 
+    // --- Button press feedback (plans/261113-button-press-feedback.md) ---
+    // Android: res/animator/button_press_scale.xml + rounded_button_*.xml (XML can't read these
+    // constants, so ButtonPressTokenParityTest pins the XML to them). Desktop: WeatherButtons.kt.
+
+    /** Scale a pressed button shrinks to. Lower = more noticeable (0.95 subtle, 0.90 strong). */
+    const val BUTTON_PRESS_SCALE: Float = 0.93f
+
+    /** Duration of the press-down shrink. Short so it reads as an instant reaction to the finger. */
+    const val BUTTON_PRESS_IN_MS: Int = 100
+
+    /** Duration of the release spring-back (overshoot), so a quick tap still shows visible motion. */
+    const val BUTTON_PRESS_OUT_MS: Int = 250
+
+    /** Overshoot tension for the release, matching Android's default `OvershootInterpolator` (2.0). */
+    const val BUTTON_PRESS_OUT_OVERSHOOT_TENSION: Float = 2.0f
+
+    /** Fill alpha of a disabled color button (e.g. Refresh Data while a refresh runs). */
+    const val BUTTON_DISABLED_ALPHA: Float = 0.5f
+
     /** Inner padding for cards. */
     const val CARD_PADDING_DP: Int = 16
 
