@@ -13,6 +13,7 @@ plugins {
     // Copy-paste detector (PMD CPD). Applied at the root so a single `./gradlew cpdCheck` scans all
     // modules. Report-only — see config below.
     alias(libs.plugins.cpd)
+    alias(libs.plugins.pitest) apply false
 }
 
 // ---------------------------------------------------------------------------------------------

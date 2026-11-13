@@ -11,7 +11,7 @@ import com.weatherwidget.shared.util.Log
  *
  * It is the deduplicated home of logic that previously existed four times (Android precip + cloud
  * renderers, desktop precip + cloud graphs). Per-graph differences (soft-dip thresholds, whether to
- * add zero-run / first-positive candidates, etc.) are expressed via [Config] rather than copies.
+ * add first-positive candidates, etc.) are expressed via [Config] rather than copies.
  *
  * Candidate selection and dense-thinning reuse [GraphLabelPlacementUtils]; vertical placement reuses
  * [GraphLabelPlacementUtils.computeLabelVerticalPlacement]; rects use [GraphRect].
@@ -42,7 +42,6 @@ object ValueLabelEngine {
         val denseDiffThresholds: List<Int> = HourlyGraphDefaults.DENSE_LABEL_DIFF_THRESHOLDS,
         val nearbyWindow: Int = HourlyGraphDefaults.LABEL_FILTER_NEARBY_WINDOW,
         // Candidate sources
-        val includeZeroRunMidpoints: Boolean = true,
         val includeFirstPositive: Boolean = true,
         val requireNonZeroExtrema: Boolean = true,
         val addMidpointWhenOnlyEdges: Boolean = true,
@@ -60,11 +59,10 @@ object ValueLabelEngine {
         val logTag: String = "ValueLabelEngine",
     ) {
         companion object {
-            /** Cloud-cover variant: higher soft-dip ceiling, no zero-run / first-positive candidates. */
+            /** Cloud-cover variant: higher soft-dip ceiling, no first-positive candidates. */
             fun cloud(): Config = Config(
                 softDipMaxValue = 85,
                 softDipMinElevation = 15,
-                includeZeroRunMidpoints = false,
                 includeFirstPositive = false,
                 requireNonZeroExtrema = false,
                 midpointMinColumns = 5,
@@ -189,24 +187,6 @@ object ValueLabelEngine {
         return out
     }
 
-    private fun zeroRunMidpoints(labelSignal: List<Int>): List<Int> {
-        val out = mutableListOf<Int>()
-        var i = 0
-        while (i < labelSignal.size) {
-            if (labelSignal[i] == 0) {
-                val runStart = i
-                while (i < labelSignal.size && labelSignal[i] == 0) i++
-                val runEnd = i - 1
-                if (runStart > 0 && labelSignal[runStart - 1] > 0 &&
-                    runEnd < labelSignal.lastIndex && labelSignal[runEnd + 1] > 0
-                ) {
-                    out.add((runStart + runEnd) / 2)
-                }
-            } else i++
-        }
-        return out
-    }
-
     private fun selectCandidates(labelSignal: List<Int>, config: Config, firstLabeledPositive: Int, numColumns: Int): List<Int> {
         val lastIndex = labelSignal.lastIndex
         val localMaxima = GraphLabelPlacementUtils.findLocalExtremaIndices(labelSignal, isMax = true)
@@ -215,7 +195,6 @@ object ValueLabelEngine {
         val gMin = globalMinIdx(labelSignal)
         val firstPositive = labelSignal.indexOfFirst { it > 0 }
         val softDips = softDipCandidates(labelSignal, config)
-        val zeroRuns = if (config.includeZeroRunMidpoints) zeroRunMidpoints(labelSignal) else emptyList()
 
         fun nonZeroOk(idx: Int) = !config.requireNonZeroExtrema || labelSignal[idx] > 0
 
@@ -234,7 +213,6 @@ object ValueLabelEngine {
 
         val protectedIndices = buildSet {
             addAll(softDips)
-            addAll(zeroRuns)
             if (config.includeFirstPositive) {
                 if (firstPositive != -1) add(firstPositive)
                 if (firstLabeledPositive != -1) add(firstLabeledPositive)

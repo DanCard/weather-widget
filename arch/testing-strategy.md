@@ -13,6 +13,30 @@ A single-component Robolectric test can be a unit test; a multi-component plain-
 
 Test mode redirects the database and preference files, and WorkManager's queue outlives the test process. `WidgetWorkScheduler.enqueueFullSync` therefore queues under `testScopedWorkName` (`<name>_test`), so a leftover test job cannot take a real sync's place. A test that reads one of those names in test mode must use the helper too.
 
+## What makes a test worth keeping
+
+A test earns its place by failing when the behavior it names is wrong. Apply these checks when writing or reviewing one:
+
+1. **It fails on the old code.** A test added with a fix must fail before the fix. A test for a provider-field or rule interpretation must use a case that tells the competing readings apart; a case every reading passes proves nothing.
+2. **It asserts an outcome.** Assert on returned values, stored rows, rendered geometry, or enqueued work. A test that only runs code, or only verifies calls on a relaxed mock, passes whatever the code does. Abstract contract subclasses are the exception: they inherit their assertions.
+3. **It names one behavior.** The backtick name states the rule, and a failure message says which input broke it.
+4. **It is not a copy.** When a rule moves into `:shared`, its rule tests move with it. The platform keeps only tests of its own `Host` and glue.
+5. **Source-reading guard tests back a behavioral test.** A guard that scans `src/main` text enforces a structural rule (a call-site allowlist, a banned SQL form). It does not prove the behavior, so pair it with a test that does.
+
+Delete or merge a test that fails these checks; a test that cannot fail costs run time and gives false confidence. Deleting a test is a reviewed change: say in the commit which other test covers the behavior, or that nothing needs to.
+
+## Time and network in tests
+
+- **No sleeps to wait for work.** Use `runTest` virtual time (`advanceTimeBy`, `advanceUntilIdle`) for coroutines, and a latch or `CompletableDeferred` with a timeout for real threads. `Thread.sleep` is acceptable only where the thing under test is wall-clock time itself, such as two rows needing distinct timestamps, and the sleep says so in a comment.
+- **Tests use fixtures, not the network.** API clients are tested against a mock engine with recorded responses. Parallel fetches need a concurrent capture list.
+- **Liveness tests are the one exception.** A `*LivenessTest` checks that a real provider endpoint still answers in the shape the parser expects; it never tests app logic. It is categorized `LongDuration`, and it calls `assumeTrue` to skip, not fail, when the network or the provider is unreachable. `AviationWeatherLivenessTest` shows the pattern. A skipped liveness test is not evidence that the provider is healthy.
+
+## Mutation testing
+
+`./gradlew :shared:pitest` runs Pitest over `:shared`: it changes the compiled code one small step at a time and reports each change no test noticed. It is manual and report-only; no script or gate runs it, and it takes about four minutes for the module. Use `-PpitestTarget='com.weatherwidget.shared.graph.*'` for one package, then `scripts/pitest_summary.py` (or `--class Name` for one class's survivors). The HTML report is in `shared/build/reports/pitest/`.
+
+Read the score as a floor: only `:shared`'s own tests run, so a mutant killed only by an app or desktop test still counts as surviving. A class with high line coverage and low test strength is run by tests that do not check its result.
+
 ## Shared Host contract tests
 
 Shared runners own cross-platform rules; Android and desktop implement their `Host`/`Store` ports. Test both sides of that boundary:
@@ -47,7 +71,7 @@ Useful Gradle tasks when not using the scripts:
 | `:desktop` | `./gradlew :desktop:testShortDesktop` | `./gradlew :desktop:testByDurationDesktop` |
 | `:shared` | `./gradlew :shared:testShortShared` | `./gradlew :shared:testByDurationShared` |
 
-The Medium/Long tasks in `:shared` are valid no-ops while that module has only Short tests. Whole-module `:shared:test` and `:desktop:test` also run category validation.
+`:shared` is almost entirely Short; its few Medium and Long classes are desktop SQLite tests and liveness tests. Whole-module `:shared:test` and `:desktop:test` also run category validation.
 
 ## Canonical test commands
 

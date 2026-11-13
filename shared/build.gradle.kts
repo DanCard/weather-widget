@@ -3,6 +3,8 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     // Fixtures both app and desktop tests read (DailyParity: one set of days, two builders).
     `java-test-fixtures`
+    // Mutation testing, manual only: `./gradlew :shared:pitest`. Not part of any test script or gate.
+    alias(libs.plugins.pitest)
 }
 
 kotlin {
@@ -37,8 +39,8 @@ dependencies {
 // (it would run in NO bucket) or more than one (it would run, and be counted, twice).
 // Markers live in shared/src/test/kotlin/com/weatherwidget/test/category/.
 //
-// All :shared classes are currently Short — this module is pure JVM logic, ~0.9s for the whole
-// suite. Medium/Long exist for symmetry with the other modules; empty bucket tasks are no-ops.
+// Nearly all :shared classes are Short — this module is pure JVM logic. The few Medium/Long classes
+// are desktop SQLite tests and liveness tests.
 // ---------------------------------------------------------------------------
 val sharedTestCategoryBuckets =
     mapOf(
@@ -160,4 +162,28 @@ tasks.register("testByDurationSharedFresh") {
     description =
         "Runs all :shared unit test category buckets (short, medium, long) without reusing results."
     dependsOn(sharedTestCategoryBuckets.keys.map { "test${it}SharedFresh" })
+}
+
+// ---------------------------------------------------------------------------
+// Mutation testing (Pitest) — measures whether the tests fail when the code is wrong.
+//
+// Manual and report-only: nothing depends on this task and it never fails a build on score.
+//
+// Run one package:  ./gradlew :shared:pitest -PpitestTarget='com.weatherwidget.shared.daily.*'
+// Run the module:   ./gradlew :shared:pitest
+// Report:           shared/build/reports/pitest/index.html (and mutations.xml)
+//
+// Liveness tests are excluded: they call real providers and say nothing about a mutant.
+// ---------------------------------------------------------------------------
+pitest {
+    val target = providers.gradleProperty("pitestTarget").orNull
+    targetClasses.set(listOf(target ?: "com.weatherwidget.*"))
+    targetTests.set(listOf("com.weatherwidget.*"))
+    excludedTestClasses.set(listOf("**.*LivenessTest"))
+    threads.set((Runtime.getRuntime().availableProcessors() / 2).coerceAtLeast(1))
+    outputFormats.set(listOf("HTML", "XML"))
+    timestampedReports.set(false)
+    jvmArgs.set(listOf("-Duser.timezone=America/Los_Angeles", "-Xmx1g"))
+    // Kotlin emits null-check and coroutine bytecode that no source-level test can target.
+    avoidCallsTo.set(listOf("kotlin.jvm.internal", "kotlinx.coroutines"))
 }
