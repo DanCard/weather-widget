@@ -548,4 +548,18 @@
     <string name="rain_map_unit_in">дюйм/ч</string>
     <string name="rain_map_zoom_in">Приблизить</string>
     <string name="rain_map_zoom_out">Отдалить</string>
+    <string name="label_rain_total">Всего:</string>
+    <string name="rain_paired_hours">измерено %1$d/24 ч</string>
+    <string name="accuracy_section_temperature">Температура</string>
+    <string name="accuracy_section_rain">Количество осадков</string>
+    <string name="rain_score_ranked">%1$d. %2$s: средняя ошибка %3$s · %4$s · дождь/без дождя верно %5$s · %6$d дождливых дн.</string>
+    <string name="rain_lean_wet">влажнее %1$s</string>
+    <string name="rain_lean_dry">суше %1$s</string>
+    <string name="rain_lean_even">без смещения</string>
+    <string name="rain_score_too_few">–  %1$s: мало дождливых дней (%2$d)</string>
+    <string name="rain_score_no_days">–  %1$s: пока нет оценённых дней</string>
+    <string name="rain_score_no_data">Пока нет оценённых дождливых дней — нужны измеренные осадки и прогноз за предыдущий день.</string>
+    <string name="rain_day_result">%1$s: факт %2$s\n%3$s</string>
+    <string name="rain_day_insufficient">%1$s: недостаточно измеренных часов (%2$d из 24)</string>
+    <string name="rain_day_today">Сегодня: оценка после полуночи</string>
 </resources>

@@ -23,15 +23,53 @@ data class ComparisonStatistics(
 }
 
 /**
- * Day-by-day predicted-vs-actual rainfall, split into clock-based day (8a-8p) and night (8p-8a)
- * totals (mm). Predicted totals come from the prior day's hourly forecast snapshot; actual totals
- * come from observed rainfall. A bucket is null when no data was available for it.
+ * Day-by-day predicted-vs-measured rainfall for one source (mm). Predicted amounts come from the prior
+ * day's hourly forecast snapshot; measured amounts are the shared gauge series
+ * ([com.weatherwidget.shared.actuals.ObservedPrecip.measuredRows]). Every amount sums only the
+ * source's **paired** hours ([RainScore.pair]); the day (8a-8p) and night (the date's hours outside
+ * it) buckets are null when no paired hour fell in them, and the totals are null with no paired hour.
  */
 data class DailyRainAccuracy(
     val date: String,
-    val source: String,
+    val source: WeatherSource,
     val predDayMm: Float?,
     val actualDayMm: Float?,
     val predNightMm: Float?,
     val actualNightMm: Float?,
+    val predTotalMm: Float? = null,
+    val actualTotalMm: Float? = null,
+    val pairedHours: Int = 0,
+    /** Closest source of the date ([RainScore.compareDay]). */
+    val closest: Boolean = false,
+) {
+    /** Enough paired hours for the day to be scored ([RainScore.MIN_PAIRED_HOURS]). */
+    val counted: Boolean get() = pairedHours >= RainScore.MIN_PAIRED_HOURS
+}
+
+/** A source's rain-amount grade over the window ([RainScore.score]). */
+data class RainSourceScore(
+    val source: WeatherSource,
+    val countedDays: Int,
+    val rainDays: Int,
+    /** Mean |predicted − measured| over rain days; null with none. */
+    val meanAbsErrorMm: Float?,
+    /** Mean predicted − measured over rain days (+ = forecast too wet); null with none. */
+    val biasMm: Float?,
+    /** Share of counted days where rain/no-rain at [RainScore.RAIN_DAY_MM] matched; null with none. */
+    val hitRate: Float?,
+) {
+    val ranked: Boolean get() = rainDays >= RainScore.MIN_RAIN_DAYS && meanAbsErrorMm != null
+}
+
+/** [com.weatherwidget.shared.stats.RainAccuracyRunner]'s result for a site. */
+data class RainAccuracyReport(
+    /** Ranked best first ([RainScore.rank]). */
+    val scores: List<RainSourceScore>,
+    /** Per date (newest first), then sources in the requested order. */
+    val days: List<DailyRainAccuracy>,
+    /** Cross-source comparison per scored date. */
+    val comparisons: Map<java.time.LocalDate, RainScore.DayComparison>,
+    /** Oldest and newest dates the window covers (inclusive). */
+    val firstDate: java.time.LocalDate,
+    val lastDate: java.time.LocalDate,
 )

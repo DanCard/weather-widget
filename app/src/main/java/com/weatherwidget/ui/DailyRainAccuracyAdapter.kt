@@ -35,12 +35,20 @@ class DailyRainAccuracyAdapter : RecyclerView.Adapter<DailyRainAccuracyAdapter.V
         private val sourceText: TextView = itemView.findViewById(R.id.item_rain_source)
         private val dayText: TextView = itemView.findViewById(R.id.item_rain_day)
         private val nightText: TextView = itemView.findViewById(R.id.item_rain_night)
+        private val totalText: TextView = itemView.findViewById(R.id.item_rain_total)
 
         fun bind(item: DailyRainAccuracy) {
             dateText.text = item.date
-            sourceText.text = item.source
+            // ★ = closest of the date's sources on the hours they all share (RainScore.compareDay).
+            sourceText.text = if (item.closest) "★ ${item.source.displayName}" else item.source.displayName
             dayText.text = formatPair(item.predDayMm, item.actualDayMm)
             nightText.text = formatPair(item.predNightMm, item.actualNightMm)
+            // A short day shows how much was measured instead of a total that would not be scored.
+            totalText.text = if (item.counted) {
+                formatPair(item.predTotalMm, item.actualTotalMm)
+            } else {
+                itemView.context.getString(R.string.rain_paired_hours, item.pairedHours)
+            }
         }
 
         private fun formatPair(predMm: Float?, actualMm: Float?): String =

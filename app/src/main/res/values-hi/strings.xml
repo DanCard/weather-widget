@@ -548,4 +548,18 @@
     <string name="rain_map_unit_in">इंच/घंटा</string>
     <string name="rain_map_zoom_in">ज़ूम इन</string>
     <string name="rain_map_zoom_out">ज़ूम आउट</string>
+    <string name="label_rain_total">कुल:</string>
+    <string name="rain_paired_hours">%1$d/24 घं. मापे गए</string>
+    <string name="accuracy_section_temperature">तापमान</string>
+    <string name="accuracy_section_rain">वर्षा की मात्रा</string>
+    <string name="rain_score_ranked">%1$d. %2$s: औसत चूक %3$s · %4$s · बारिश/बिना बारिश सही %5$s · %6$d बारिश के दिन</string>
+    <string name="rain_lean_wet">ज़्यादा गीला %1$s</string>
+    <string name="rain_lean_dry">ज़्यादा सूखा %1$s</string>
+    <string name="rain_lean_even">संतुलित</string>
+    <string name="rain_score_too_few">–  %1$s: बारिश के दिन बहुत कम (%2$d)</string>
+    <string name="rain_score_no_days">–  %1$s: अभी कोई दिन आँका नहीं गया</string>
+    <string name="rain_score_no_data">अभी बारिश का कोई दिन आँका नहीं गया — मापी गई बारिश और पिछले दिन का पूर्वानुमान चाहिए।</string>
+    <string name="rain_day_result">%1$s: वास्तविक %2$s\n%3$s</string>
+    <string name="rain_day_insufficient">%1$s: मापे गए घंटे पर्याप्त नहीं (24 में से %2$d)</string>
+    <string name="rain_day_today">आज: आधी रात के बाद आँका जाएगा</string>
 </resources>

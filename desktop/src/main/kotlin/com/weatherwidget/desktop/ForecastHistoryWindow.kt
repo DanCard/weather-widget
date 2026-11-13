@@ -59,6 +59,9 @@ import com.weatherwidget.stats.desktop.DesktopAccuracyCalculator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
+import com.weatherwidget.shared.stats.RainAccuracyRunner
+import com.weatherwidget.shared.util.Log
+import com.weatherwidget.stats.desktop.DesktopRainAccuracyHost
 import kotlin.math.abs
 import kotlin.math.ceil
 
@@ -76,6 +79,8 @@ private data class HistoryData(
     val snapshotCount: Int,
     val newestFetchAgeMs: Long?,
     val accuracySummary: String,
+    /** The card's "Rain amount" section ([DesktopRainAccuracyText]); null when it failed to load. */
+    val rainSummary: String? = null,
     /** "All sources for <day>" (shared [DaySourceComparison]). */
     val sourceComparison: List<DaySourceComparison.Row> = emptyList(),
 )
@@ -372,7 +377,13 @@ private fun Content(
 
     Text("Accuracy (last 30 days)", fontWeight = FontWeight.Bold, fontSize = 14.sp)
     Spacer(Modifier.height(4.dp))
+    Text("Temperature", fontWeight = FontWeight.Bold, fontSize = 12.sp)
     Text(d.accuracySummary, color = ObsStyle.textSecondary, fontSize = 12.sp)
+    d.rainSummary?.let { rain ->
+        Spacer(Modifier.height(8.dp))
+        Text("Rain amount", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        Text(rain, color = ObsStyle.textSecondary, fontSize = 12.sp)
+    }
 }
 
 @Composable
@@ -706,6 +717,17 @@ private suspend fun loadHistory(
         }
     }.ifBlank { "No accuracy history yet — comparisons build up over the following weeks." }
 
+    // Rain is graded separately so a failure there never blanks the temperature section.
+    val rainSummary = try {
+        val report = RainAccuracyRunner(DesktopRainAccuracyHost(dao)).run(visibleSources, lat, lon, days = 30, zone = zone)
+        DesktopRainAccuracyText.section(report, targetDate, LocalDate.now(zone))
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Log.e("ForecastHistoryWindow", "Error loading rain accuracy", e)
+        null
+    }
+
     val biasBySource = statsBySource.entries
         .filter { (_, stats) -> stats != null && stats.totalForecasts > 0 }
         .associate { (s, stats) -> s.id to stats!!.highBias }
@@ -726,6 +748,7 @@ private suspend fun loadHistory(
         snapshotCount = points.size,
         newestFetchAgeMs = newestAge,
         accuracySummary = summary,
+        rainSummary = rainSummary,
         sourceComparison = sourceComparison,
     )
 }

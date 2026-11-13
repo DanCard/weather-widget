@@ -1988,6 +1988,51 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         return result
     }
 
+    /**
+     * [source]'s precip snapshots for hours in [startMs, endMs) captured in [bucketStartMs, bucketEndMs),
+     * freshest first per hour — Android's `HourlyForecastHistoryDao.getHistoryInRangeForBucketWindow`,
+     * reduced to what `RainAccuracyRunner` reads.
+     */
+    fun getHourlyPrecipSnapshots(
+        locationLat: Double,
+        locationLon: Double,
+        source: String,
+        startMs: Long,
+        endMs: Long,
+        bucketStartMs: Long,
+        bucketEndMs: Long,
+    ): List<com.weatherwidget.shared.stats.RainAccuracyRunner.PrecipSnapshot> = db.getConnection().use { conn ->
+        conn.prepareStatement(
+            """
+            SELECT dateTime, timestampToGroupPredictions, precipAmountMm FROM hourly_forecasts
+            WHERE ${LocationMatch.JDBC_WHERE} AND source = ? AND dateTime >= ? AND dateTime < ?
+              AND timestampToGroupPredictions >= ? AND timestampToGroupPredictions < ?
+            ORDER BY dateTime ASC, timestampToGroupPredictions DESC
+            """.trimIndent(),
+        ).use { st ->
+            st.setDouble(1, locationLat)
+            st.setDouble(2, locationLon)
+            st.setString(3, source)
+            st.setLong(4, startMs)
+            st.setLong(5, endMs)
+            st.setLong(6, bucketStartMs)
+            st.setLong(7, bucketEndMs)
+            st.executeQuery().use { rs ->
+                buildList {
+                    while (rs.next()) {
+                        add(
+                            com.weatherwidget.shared.stats.RainAccuracyRunner.PrecipSnapshot(
+                                dateTime = rs.getLong("dateTime"),
+                                timestampToGroupPredictions = rs.getLong("timestampToGroupPredictions"),
+                                precipAmountMm = rs.getNullableFloat("precipAmountMm"),
+                            ),
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     fun getHourlyHistoryCount(locationLat: Double, locationLon: Double, source: String, startMs: Long, endMs: Long): Int {
         db.getConnection().use { conn ->
             val sql = """

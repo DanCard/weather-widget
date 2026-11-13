@@ -548,4 +548,18 @@
     <string name="rain_map_unit_in">英寸/小时</string>
     <string name="rain_map_zoom_in">放大</string>
     <string name="rain_map_zoom_out">缩小</string>
+    <string name="label_rain_total">合计：</string>
+    <string name="rain_paired_hours">已测 %1$d/24 小时</string>
+    <string name="accuracy_section_temperature">气温</string>
+    <string name="accuracy_section_rain">降雨量</string>
+    <string name="rain_score_ranked">%1$d. %2$s：平均误差 %3$s · %4$s · 有无降雨判断正确 %5$s · 降雨日 %6$d 天</string>
+    <string name="rain_lean_wet">偏湿 %1$s</string>
+    <string name="rain_lean_dry">偏干 %1$s</string>
+    <string name="rain_lean_even">无偏差</string>
+    <string name="rain_score_too_few">–  %1$s：降雨日太少（%2$d）</string>
+    <string name="rain_score_no_days">–  %1$s：尚无已评分的日子</string>
+    <string name="rain_score_no_data">尚无已评分的降雨日 — 需要实测降雨量和前一天的预报。</string>
+    <string name="rain_day_result">%1$s：实测 %2$s\n%3$s</string>
+    <string name="rain_day_insufficient">%1$s：实测小时数不足（24 小时中 %2$d）</string>
+    <string name="rain_day_today">今天：午夜后评分</string>
 </resources>

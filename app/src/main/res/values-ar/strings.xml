@@ -548,4 +548,18 @@
     <string name="rain_map_unit_in">بوصة/ساعة</string>
     <string name="rain_map_zoom_in">تكبير</string>
     <string name="rain_map_zoom_out">تصغير</string>
+    <string name="label_rain_total">الإجمالي:</string>
+    <string name="rain_paired_hours">قيس %1$d/24 ساعة</string>
+    <string name="accuracy_section_temperature">درجة الحرارة</string>
+    <string name="accuracy_section_rain">كمية المطر</string>
+    <string name="rain_score_ranked">%1$d. %2$s: متوسط الخطأ %3$s · %4$s · مطر/لا مطر صحيح %5$s · %6$d أيام ممطرة</string>
+    <string name="rain_lean_wet">أرطب %1$s</string>
+    <string name="rain_lean_dry">أجف %1$s</string>
+    <string name="rain_lean_even">متوازن</string>
+    <string name="rain_score_too_few">–  %1$s: أيام ممطرة قليلة جدًا (%2$d)</string>
+    <string name="rain_score_no_days">–  %1$s: لا أيام مقيّمة بعد</string>
+    <string name="rain_score_no_data">لا أيام ممطرة مقيّمة بعد — يلزم مطر مقيس وتوقع من اليوم السابق.</string>
+    <string name="rain_day_result">%1$s: الفعلي %2$s\n%3$s</string>
+    <string name="rain_day_insufficient">%1$s: ساعات القياس غير كافية (%2$d من 24)</string>
+    <string name="rain_day_today">اليوم: يُقيَّم بعد منتصف الليل</string>
 </resources>

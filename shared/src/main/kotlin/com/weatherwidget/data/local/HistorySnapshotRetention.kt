@@ -21,7 +21,7 @@ import java.time.ZoneId
  * 3. **Prior-day band:** newest bucket at least [BAND_LEAD_MS] before the hour among rows carrying a
  *    mid or high band (`PriorDayBandForecast.select`).
  * 4. **Rain accuracy:** newest bucket captured on the hour's previous local calendar day
- *    (`RainAccuracyCalculator` — "1-day-ahead"). Local = [zone], the device zone at prune time.
+ *    (`RainAccuracyRunner` — "1-day-ahead"). Local = [zone], the device zone at prune time.
  *
  * Rule 1 runs only for hours under [FULL_WINDOW_MS] old: those hindcasts draw nothing past that age.
  * Hours past [RETAINED_WINDOW_MS] keep no row at all.

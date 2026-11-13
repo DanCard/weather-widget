@@ -1,145 +1,70 @@
 package com.weatherwidget.stats
 
-import com.weatherwidget.data.local.HourlyForecastHistoryDao
-import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.HourlyActualDao
+import com.weatherwidget.data.local.HourlyForecastHistoryDao
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.toHourlyActual
-import com.weatherwidget.data.model.HourlyActualsHistory
-import com.weatherwidget.data.local.ObservationEntity
-import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.local.toReading
-import com.weatherwidget.shared.actuals.ObservedPrecip
-import com.weatherwidget.shared.graph.DayNightHours
-import com.weatherwidget.shared.stats.DailyRainAccuracy
-import java.time.Instant
+import com.weatherwidget.data.model.HourlyActual
+import com.weatherwidget.data.model.ObservationReading
+import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.stats.RainAccuracyReport
+import com.weatherwidget.shared.stats.RainAccuracyRunner
 import java.time.LocalDate
-import java.time.LocalDateTime
 import java.time.ZoneId
-import java.time.temporal.ChronoUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/**
- * Builds a day-by-day comparison of predicted vs actual rainfall, split into clock-based day
- * (8a-8p) and night (8p-8a) buckets (see [DayNightHours]).
- *
- * Predicted rainfall is reconstructed from the *prior calendar day's* hourly forecast snapshot
- * (mirroring the 1-day-ahead convention in [AccuracyCalculator]); actual rainfall comes from
- * observed hourly precipitation. Bucketing logic is shared with the widget precip graph so the two
- * surfaces always agree.
- */
+/** Android entry to the shared [RainAccuracyRunner] (plans/261113-per-source-rain-score.md). */
 @Singleton
 class RainAccuracyCalculator
     @Inject
     constructor(
-        private val hourlyForecastHistoryDao: HourlyForecastHistoryDao,
-        private val observationDao: ObservationDao,
-        private val hourlyActualDao: HourlyActualDao,
+        hourlyForecastHistoryDao: HourlyForecastHistoryDao,
+        observationDao: ObservationDao,
+        hourlyActualDao: HourlyActualDao,
     ) {
-        suspend fun getDailyRainAccuracy(
-            source: WeatherSource,
+        private val runner = RainAccuracyRunner(RoomRainAccuracyHost(hourlyForecastHistoryDao, observationDao, hourlyActualDao))
+
+        suspend fun report(
+            sources: List<WeatherSource>,
             lat: Double,
             lon: Double,
             days: Int = 30,
-            zoneId: ZoneId = ZoneId.systemDefault(),
-            today: LocalDate = LocalDate.now(),
-        ): List<DailyRainAccuracy> {
-            val endDate = today.minusDays(1)
-            val startDate = endDate.minusDays(days.toLong() - 1)
-
-            val results = mutableListOf<DailyRainAccuracy>()
-            var date = startDate
-            while (!date.isAfter(endDate)) {
-                val dayStartMs = date.atStartOfDay(zoneId).toInstant().toEpochMilli()
-                val dayEndMs = date.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli()
-                // Forecast captured during the prior calendar day = "1-day-ahead" prediction.
-                val bucketStartMs = date.minusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli()
-                val bucketEndMs = dayStartMs
-
-                val predicted = hourlyForecastHistoryDao.getHistoryInRangeForBucketWindow(
-                    startDateTime = dayStartMs,
-                    endDateTime = dayEndMs,
-                    bucketStart = bucketStartMs,
-                    bucketEnd = bucketEndMs,
-                    lat = lat,
-                    lon = lon,
-                    source = source.id,
-                )
-                val predByHour = latestSnapshotPrecipByHour(predicted, zoneId)
-
-                // Unscoped: rain actuals are a hybrid (measured NWS rows plus provider reports),
-                // so the precip reducer's input set is not the temperature blend's. Not a hot path.
-                val observations =
-                    observationDao.getObservationsInRange(dayStartMs, dayEndMs, lat, lon, apis = null)
-                val archived = hourlyActualDao.getInRange(dayStartMs, dayEndMs, lat, lon, source.id)
-                    .map { it.toHourlyActual() }
-                val actualByHour = HourlyActualsHistory.merge(
-                    actualPrecipByHour(observations, source, zoneId),
-                    HourlyActualsHistory.rainByHour(archived, zoneId),
-                )
-
-                val (predDay, predNight) = bucketDayNight(predByHour)
-                val (actualDay, actualNight) = bucketDayNight(actualByHour)
-
-                if (predDay != null || predNight != null || actualDay != null || actualNight != null) {
-                    results.add(
-                        DailyRainAccuracy(
-                            date = date.toString(),
-                            source = source.displayName,
-                            predDayMm = predDay,
-                            actualDayMm = actualDay,
-                            predNightMm = predNight,
-                            actualNightMm = actualNight,
-                        ),
-                    )
-                }
-                date = date.plusDays(1)
-            }
-            return results
-        }
-
-        // Pure bucketing helpers live in the companion so they're testable without a database
-        // (the project has no mocking framework — see testing strategy notes).
-        companion object {
-            /** Latest-snapshot predicted precip per local hour (rows arrive sorted snapshotBucket DESC). */
-            internal fun latestSnapshotPrecipByHour(
-                rows: List<HourlyForecastEntity>,
-                zoneId: ZoneId = ZoneId.systemDefault(),
-            ): Map<LocalDateTime, Float> =
-                rows
-                    .groupBy { hourOf(it.dateTime, zoneId) }
-                    .mapNotNull { (hour, hourRows) ->
-                        val amount = hourRows.maxByOrNull { it.timestampToGroupPredictions }?.precipAmountMm
-                            ?: return@mapNotNull null
-                        hour to amount
-                    }
-                    .toMap()
-
-            /** Observed precip per local hour for [source]: stations combined, not added ([ObservedPrecip]). */
-            internal fun actualPrecipByHour(
-                observations: List<ObservationEntity>,
-                source: WeatherSource,
-                zoneId: ZoneId = ZoneId.systemDefault(),
-            ): Map<LocalDateTime, Float> =
-                ObservedPrecip.byHour(ObservedPrecip.rowsFor(observations.map { it.toReading() }, source), zoneId)
-
-            /**
-             * Sums [amountByHour] into (day, night) totals. A bucket is null when no hour fell in
-             * it, distinguishing "no data captured" from a genuine 0mm (dry but forecast/observed).
-             */
-            internal fun bucketDayNight(amountByHour: Map<LocalDateTime, Float>): Pair<Float?, Float?> {
-                val day = amountByHour.filterKeys { DayNightHours.isDayHour(it) }
-                val night = amountByHour.filterKeys { !DayNightHours.isDayHour(it) }
-                return day.values.sumOrNull() to night.values.sumOrNull()
-            }
-
-            private fun Collection<Float>.sumOrNull(): Float? = if (isEmpty()) null else sum()
-
-            private fun hourOf(epochMs: Long, zoneId: ZoneId): LocalDateTime =
-                Instant.ofEpochMilli(epochMs)
-                    .atZone(zoneId)
-                    .toLocalDateTime()
-                    .truncatedTo(ChronoUnit.HOURS)
-        }
+            zone: ZoneId = ZoneId.systemDefault(),
+            today: LocalDate = LocalDate.now(zone),
+        ): RainAccuracyReport = runner.run(sources, lat, lon, days, zone, today)
     }
+
+/** Room rows for [RainAccuracyRunner]; reads only. */
+class RoomRainAccuracyHost(
+    private val hourlyForecastHistoryDao: HourlyForecastHistoryDao,
+    private val observationDao: ObservationDao,
+    private val hourlyActualDao: HourlyActualDao,
+) : RainAccuracyRunner.Host {
+    override suspend fun forecastSnapshots(
+        source: WeatherSource,
+        startMs: Long,
+        endMs: Long,
+        bucketStartMs: Long,
+        bucketEndMs: Long,
+        lat: Double,
+        lon: Double,
+    ): List<RainAccuracyRunner.PrecipSnapshot> =
+        hourlyForecastHistoryDao.getHistoryInRangeForBucketWindow(
+            startDateTime = startMs,
+            endDateTime = endMs,
+            bucketStart = bucketStartMs,
+            bucketEnd = bucketEndMs,
+            lat = lat,
+            lon = lon,
+            source = source.id,
+        ).map { RainAccuracyRunner.PrecipSnapshot(it.dateTime, it.timestampToGroupPredictions, it.precipAmountMm) }
+
+    // Unscoped by api: the runner keeps only measured gauge feeds (ObservedPrecip.measuredRows).
+    override suspend fun observations(startMs: Long, endMs: Long, lat: Double, lon: Double): List<ObservationReading> =
+        observationDao.getObservationsInRange(startMs, endMs, lat, lon, apis = null).map { it.toReading() }
+
+    override suspend fun archivedActuals(startMs: Long, endMs: Long, lat: Double, lon: Double, sourceId: String): List<HourlyActual> =
+        hourlyActualDao.getInRange(startMs, endMs, lat, lon, sourceId).map { it.toHourlyActual() }
+}

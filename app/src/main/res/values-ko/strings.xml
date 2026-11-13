@@ -548,4 +548,18 @@
     <string name="rain_map_unit_in">인치/시</string>
     <string name="rain_map_zoom_in">확대</string>
     <string name="rain_map_zoom_out">축소</string>
+    <string name="label_rain_total">합계:</string>
+    <string name="rain_paired_hours">%1$d/24시간 측정</string>
+    <string name="accuracy_section_temperature">기온</string>
+    <string name="accuracy_section_rain">강수량</string>
+    <string name="rain_score_ranked">%1$d. %2$s: 평균 오차 %3$s · %4$s · 비/비 없음 적중 %5$s · 비 온 날 %6$d일</string>
+    <string name="rain_lean_wet">많게 %1$s</string>
+    <string name="rain_lean_dry">적게 %1$s</string>
+    <string name="rain_lean_even">치우침 없음</string>
+    <string name="rain_score_too_few">–  %1$s: 비 온 날이 너무 적음 (%2$d)</string>
+    <string name="rain_score_no_days">–  %1$s: 아직 평가된 날 없음</string>
+    <string name="rain_score_no_data">아직 평가된 비 온 날이 없습니다 — 측정된 강수량과 전날 예보가 필요합니다.</string>
+    <string name="rain_day_result">%1$s: 실측 %2$s\n%3$s</string>
+    <string name="rain_day_insufficient">%1$s: 측정 시간 부족 (24시간 중 %2$d)</string>
+    <string name="rain_day_today">오늘: 자정 이후 평가</string>
 </resources>

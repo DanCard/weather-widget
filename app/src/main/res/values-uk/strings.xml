@@ -533,4 +533,18 @@
     <string name="rain_map_unit_in">дюйм/год</string>
     <string name="rain_map_zoom_in">Наблизити</string>
     <string name="rain_map_zoom_out">Віддалити</string>
+    <string name="label_rain_total">Усього:</string>
+    <string name="rain_paired_hours">виміряно %1$d/24 год</string>
+    <string name="accuracy_section_temperature">Температура</string>
+    <string name="accuracy_section_rain">Кількість опадів</string>
+    <string name="rain_score_ranked">%1$d. %2$s: середня похибка %3$s · %4$s · дощ/без дощу вірно %5$s · %6$d дощових дн.</string>
+    <string name="rain_lean_wet">вологіше %1$s</string>
+    <string name="rain_lean_dry">сухіше %1$s</string>
+    <string name="rain_lean_even">без зміщення</string>
+    <string name="rain_score_too_few">–  %1$s: замало дощових днів (%2$d)</string>
+    <string name="rain_score_no_days">–  %1$s: ще немає оцінених днів</string>
+    <string name="rain_score_no_data">Ще немає оцінених дощових днів — потрібні виміряні опади та прогноз за попередній день.</string>
+    <string name="rain_day_result">%1$s: факт %2$s\n%3$s</string>
+    <string name="rain_day_insufficient">%1$s: замало виміряних годин (%2$d з 24)</string>
+    <string name="rain_day_today">Сьогодні: оцінка після півночі</string>
 </resources>

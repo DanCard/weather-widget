@@ -59,6 +59,19 @@ object ObservedPrecip {
     }
 
     /**
+     * Real gauge reports only, whichever source is being graded: rows from station-observation
+     * feeds (NWS, METAR, Synoptic), without the NWS blend or any re-filed `<SOURCE>_MAIN` provider
+     * series. Rain accuracy grades every source against this one series, not against a model's
+     * own analysis of the past (plans/261113-per-source-rain-score.md).
+     */
+    fun measuredRows(rows: List<ObservationReading>): List<ObservationReading> =
+        rows.filter { row ->
+            WeatherSource.entries.any { it.id == row.api && it.historicalDataKind == HistoricalDataKind.STATION_OBSERVATION } &&
+                row.stationId != NwsBlend.STATION_ID &&
+                !row.stationId.endsWith(SYNTHETIC_SUFFIX)
+        }
+
+    /**
      * The observed amount an hourly rain view shows for [hour]: from [byHour] once the hour has begun
      * before [now], else null — an hour that has not happened has no actual, whatever the rows hold
      * (without it "Actual:" anchored on a future run; plans/260901-share-rain-period-selection.md).

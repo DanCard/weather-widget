@@ -548,4 +548,18 @@
     <string name="rain_map_unit_in">ইঞ্চি/ঘণ্টা</string>
     <string name="rain_map_zoom_in">জুম ইন</string>
     <string name="rain_map_zoom_out">জুম আউট</string>
+    <string name="label_rain_total">মোট:</string>
+    <string name="rain_paired_hours">%1$d/24 ঘ. মাপা হয়েছে</string>
+    <string name="accuracy_section_temperature">তাপমাত্রা</string>
+    <string name="accuracy_section_rain">বৃষ্টির পরিমাণ</string>
+    <string name="rain_score_ranked">%1$d. %2$s: গড় ভুল %3$s · %4$s · বৃষ্টি/বৃষ্টি নেই সঠিক %5$s · %6$d বৃষ্টির দিন</string>
+    <string name="rain_lean_wet">বেশি ভেজা %1$s</string>
+    <string name="rain_lean_dry">বেশি শুকনো %1$s</string>
+    <string name="rain_lean_even">সমান</string>
+    <string name="rain_score_too_few">–  %1$s: বৃষ্টির দিন খুব কম (%2$d)</string>
+    <string name="rain_score_no_days">–  %1$s: এখনও কোনো দিন মূল্যায়ন হয়নি</string>
+    <string name="rain_score_no_data">এখনও বৃষ্টির কোনো দিন মূল্যায়ন হয়নি — মাপা বৃষ্টি এবং আগের দিনের পূর্বাভাস প্রয়োজন।</string>
+    <string name="rain_day_result">%1$s: প্রকৃত %2$s\n%3$s</string>
+    <string name="rain_day_insufficient">%1$s: মাপা ঘণ্টা যথেষ্ট নয় (24-এর মধ্যে %2$d)</string>
+    <string name="rain_day_today">আজ: মধ্যরাতের পরে মূল্যায়ন</string>
 </resources>

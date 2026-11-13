@@ -548,4 +548,18 @@
     <string name="rain_map_unit_in">inch/giờ</string>
     <string name="rain_map_zoom_in">Phóng to</string>
     <string name="rain_map_zoom_out">Thu nhỏ</string>
+    <string name="label_rain_total">Tổng:</string>
+    <string name="rain_paired_hours">đo được %1$d/24 giờ</string>
+    <string name="accuracy_section_temperature">Nhiệt độ</string>
+    <string name="accuracy_section_rain">Lượng mưa</string>
+    <string name="rain_score_ranked">%1$d. %2$s: lệch trung bình %3$s · %4$s · mưa/không mưa đúng %5$s · %6$d ngày mưa</string>
+    <string name="rain_lean_wet">ẩm hơn %1$s</string>
+    <string name="rain_lean_dry">khô hơn %1$s</string>
+    <string name="rain_lean_even">cân bằng</string>
+    <string name="rain_score_too_few">–  %1$s: quá ít ngày mưa (%2$d)</string>
+    <string name="rain_score_no_days">–  %1$s: chưa có ngày được chấm</string>
+    <string name="rain_score_no_data">Chưa có ngày mưa được chấm — cần lượng mưa đo được và dự báo từ ngày hôm trước.</string>
+    <string name="rain_day_result">%1$s: thực tế %2$s\n%3$s</string>
+    <string name="rain_day_insufficient">%1$s: không đủ giờ đo (%2$d trên 24)</string>
+    <string name="rain_day_today">Hôm nay: chấm sau nửa đêm</string>
 </resources>

@@ -43,6 +43,9 @@ import com.weatherwidget.data.repository.FetchMetadata
 import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.shared.util.UserRefreshThrottle
 import com.weatherwidget.stats.AccuracyCalculator
+import com.weatherwidget.stats.RainAccuracyCalculator
+import com.weatherwidget.shared.stats.RainAccuracyReport
+import com.weatherwidget.shared.stats.RainAccuracySummary
 import com.weatherwidget.widget.EvolutionPoint
 import com.weatherwidget.widget.ForecastEvolutionRenderer
 import com.weatherwidget.widget.ViewMode
@@ -72,6 +75,9 @@ class ForecastHistoryActivity : AppCompatActivity() {
 
     @Inject
     lateinit var accuracyCalculator: AccuracyCalculator
+
+    @Inject
+    lateinit var rainAccuracyCalculator: RainAccuracyCalculator
 
     @Inject
     lateinit var weatherRepository: WeatherRepository
@@ -165,6 +171,9 @@ class ForecastHistoryActivity : AppCompatActivity() {
     private var cachedRequestedSource: WeatherSource? = null
     /** The last "All sources" rows, re-sorted in place on a header tap without reloading. */
     private var sourceCompareRows: Pair<LocalDate, List<DaySourceComparison.Row>>? = null
+    /** The accuracy card's last-loaded sections; the rain day line follows [targetLocalDate] without reloading. */
+    private var temperatureSummary: CharSequence? = null
+    private var rainReport: RainAccuracyReport? = null
     private lateinit var targetDate: String
     private var targetLat: Double = 0.0
     private var targetLon: Double = 0.0
@@ -297,6 +306,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
             date = targetLocalDate,
             requestedSource = cachedRequestedSource,
         )
+        renderAccuracySummary()
     }
 
     private fun updateTitle() {
@@ -684,9 +694,27 @@ class ForecastHistoryActivity : AppCompatActivity() {
                             }
                         }
                     }
-                withContext(Dispatchers.Main) {
-                    findViewById<TextView>(R.id.accuracy_summary_text).text = summary
+                // Rain is graded separately so a failure there never blanks the temperature section.
+                val rain = try {
+                    rainAccuracyCalculator.report(
+                        WeatherSourceOrdering.ALL_CONFIGURABLE.filter { it in enabledSources },
+                        lat,
+                        lon,
+                        30,
+                    )
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error loading rain accuracy", e)
+                    null
                 }
+                withContext(Dispatchers.Main) {
+                    temperatureSummary = summary
+                    rainReport = rain
+                    renderAccuracySummary()
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Error loading forecast accuracy summary", e)
                 withContext(Dispatchers.Main) {
@@ -695,6 +723,70 @@ class ForecastHistoryActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    /** Temperature then Rain amount; the rain day line is the viewed date's (main thread). */
+    private fun renderAccuracySummary() {
+        val temperature = temperatureSummary ?: return
+        val text = android.text.SpannableStringBuilder()
+        fun header(resId: Int) {
+            val start = text.length
+            text.append(getString(resId))
+            text.setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD), start, text.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            text.append("\n")
+        }
+        header(R.string.accuracy_section_temperature)
+        text.append(temperature)
+        rainReport?.let { report ->
+            text.append("\n\n")
+            header(R.string.accuracy_section_rain)
+            val lines = RainAccuracySummary.scoreLines(report).map(::rainScoreText)
+                .ifEmpty { listOf(getString(R.string.rain_score_no_data)) }
+            text.append(lines.joinToString("\n"))
+            RainAccuracySummary.dayLine(report, targetLocalDate, LocalDate.now())?.let {
+                text.append("\n\n").append(rainDayText(it))
+            }
+        }
+        findViewById<TextView>(R.id.accuracy_summary_text).text = text
+    }
+
+    private fun rainScoreText(line: RainAccuracySummary.ScoreLine): String = when (line) {
+        is RainAccuracySummary.ScoreLine.Ranked -> {
+            val s = line.score
+            val bias = s.biasMm ?: 0f
+            val lean = when (RainAccuracySummary.lean(bias)) {
+                RainAccuracySummary.Lean.WET -> getString(R.string.rain_lean_wet, RainAccuracySummary.signedAmount(bias))
+                RainAccuracySummary.Lean.DRY -> getString(R.string.rain_lean_dry, RainAccuracySummary.signedAmount(bias))
+                RainAccuracySummary.Lean.EVEN -> getString(R.string.rain_lean_even)
+            }
+            getString(
+                R.string.rain_score_ranked,
+                line.rank,
+                s.source.displayName,
+                RainAccuracySummary.amount(s.meanAbsErrorMm ?: 0f),
+                lean,
+                RainAccuracySummary.percent(s.hitRate ?: 0f),
+                s.rainDays,
+            )
+        }
+        is RainAccuracySummary.ScoreLine.TooFewRainDays ->
+            getString(R.string.rain_score_too_few, line.score.source.displayName, line.score.rainDays)
+        is RainAccuracySummary.ScoreLine.NoScoredDays ->
+            getString(R.string.rain_score_no_days, line.source.displayName)
+    }
+
+    private fun rainDayText(line: RainAccuracySummary.DayLine): String = when (line) {
+        is RainAccuracySummary.DayLine.Result -> getString(
+            R.string.rain_day_result,
+            ForecastHistoryHeader.dateLabel(line.date),
+            RainAccuracySummary.measuredAmount(line.actualMm),
+            line.entries.joinToString(" · ") { e ->
+                (if (e.closest) "★ " else "") + "${e.source.displayName} ${e.predMm?.let(RainAccuracySummary::amount) ?: "—"}"
+            },
+        )
+        is RainAccuracySummary.DayLine.Insufficient ->
+            getString(R.string.rain_day_insufficient, ForecastHistoryHeader.dateLabel(line.date), line.hours)
+        RainAccuracySummary.DayLine.Today -> getString(R.string.rain_day_today)
     }
 
     private fun formatBias(bias: Double, useCelsius: Boolean): String =

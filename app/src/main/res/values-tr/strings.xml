@@ -548,4 +548,18 @@
     <string name="rain_map_unit_in">inç/sa</string>
     <string name="rain_map_zoom_in">Yakınlaştır</string>
     <string name="rain_map_zoom_out">Uzaklaştır</string>
+    <string name="label_rain_total">Toplam:</string>
+    <string name="rain_paired_hours">%1$d/24 sa ölçüldü</string>
+    <string name="accuracy_section_temperature">Sıcaklık</string>
+    <string name="accuracy_section_rain">Yağış miktarı</string>
+    <string name="rain_score_ranked">%1$d. %2$s: ort. sapma %3$s · %4$s · yağış/yağışsız doğru %5$s · %6$d yağışlı gün</string>
+    <string name="rain_lean_wet">fazla yağışlı %1$s</string>
+    <string name="rain_lean_dry">fazla kuru %1$s</string>
+    <string name="rain_lean_even">dengeli</string>
+    <string name="rain_score_too_few">–  %1$s: çok az yağışlı gün (%2$d)</string>
+    <string name="rain_score_no_days">–  %1$s: henüz değerlendirilen gün yok</string>
+    <string name="rain_score_no_data">Henüz değerlendirilen yağışlı gün yok — ölçülen yağış ve önceki günün tahmini gerekir.</string>
+    <string name="rain_day_result">%1$s: gerçek %2$s\n%3$s</string>
+    <string name="rain_day_insufficient">%1$s: yetersiz ölçülen saat (%2$d / 24)</string>
+    <string name="rain_day_today">Bugün: gece yarısından sonra değerlendirilir</string>
 </resources>

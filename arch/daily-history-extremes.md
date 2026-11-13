@@ -108,6 +108,27 @@ For implementation history and the measurements that motivated these rules, see 
 `plans/260808-nws-actuals-forecast-contamination.md` and the later shared-runner investigations.
 Those documents explain prior bugs; the current rules are the shared code described above.
 
+## Rain amount accuracy
+
+`RainAccuracyRunner` (`:shared`) grades each source's rain-amount forecast for History of Forecasts'
+accuracy card ("Rain amount" section) and the Statistics day/night list. Android reads through
+`RoomRainAccuracyHost`, desktop through `DesktopRainAccuracyHost`; `RainAccuracyHostContract` holds
+both to one scenario.
+
+- **Predicted:** for each hour, the newest snapshot captured on the hour's previous local calendar
+  day (1-day-ahead; `HistorySnapshotRetention` rule 4 keeps that row).
+- **Measured:** one series for every source: `ObservedPrecip.measuredRows` (NWS/METAR/Synoptic gauge
+  reports, never the NWS blend or a provider's `<SOURCE>_MAIN` analysis) through `ObservedPrecip.byHour`.
+  Hours past raw-observation retention come from the NWS `hourly_actuals` archive; live hours win.
+- **Paired hours** (`RainScore`): totals sum only hours that have both a forecast and a measured
+  amount. `0` is data and null is not. A day is scored with at least 20 paired hours.
+- **Grade:** mean |error| over rain days (forecast or measured ≥ 0.01"), the lean (mean signed error),
+  and the rain/no-rain hit rate over every scored day. Sources with fewer than 3 rain days are listed
+  but not ranked.
+- **★ per date:** the closest source, compared on the hours every scored source shares; ties within
+  0.01" share it. There is no ★ on dry days or when only one source is scored. Today is scored after
+  midnight.
+
 ## Observed morning fog
 
 The daily bar's fog ellipse on today and past days combines observed fog with the provider's

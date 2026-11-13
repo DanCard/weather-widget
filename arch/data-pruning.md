@@ -78,7 +78,8 @@ conflicts, so a later blend fix or personal-station weight change does not rewri
 
 Archived rows are not observations. They are never read back through `ObservationReading` or
 re-blended. `HourlyActualsHistory` puts them behind the live series, and the live series wins wherever
-raw rows remain. The hourly temperature, rain, and cloud graphs and rain accuracy read them;
+raw rows remain. The hourly temperature, rain, and cloud graphs and rain accuracy (NWS rows, as its
+measured series) read them;
 `daily_history` stays the daily record. Station-level detail ends with the raw rows.
 
 ## When pruning runs

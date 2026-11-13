@@ -16,7 +16,6 @@ import com.weatherwidget.shared.stats.AccuracyBaselineField
 import com.weatherwidget.stats.AccuracyCalculator
 import com.weatherwidget.stats.AccuracyPreferences
 import com.weatherwidget.shared.stats.AccuracyBreakdown.DailyResult
-import com.weatherwidget.shared.stats.DailyRainAccuracy
 import com.weatherwidget.stats.RainAccuracyCalculator
 import com.weatherwidget.widget.WidgetStateManager
 import dagger.hilt.android.AndroidEntryPoint
@@ -131,13 +130,12 @@ class StatisticsActivity : AppCompatActivity() {
                 val allDaily = mutableListOf<DailyResult>()
                 val sourcesToQuery = WeatherSourceOrdering.ALL_CONFIGURABLE.filter { it in enabledSources }
 
-                val allRainDaily = mutableListOf<DailyRainAccuracy>()
                 sourcesToQuery.forEach { source ->
                     allDaily.addAll(accuracyCalculator.getDailyAccuracyBreakdown(source, lat, lon, 30))
-                    allRainDaily.addAll(rainAccuracyCalculator.getDailyRainAccuracy(source, lat, lon, 30))
                 }
                 allDaily.sortByDescending { it.date }
-                allRainDaily.sortByDescending { it.date }
+                // Newest date first, sources in display order; graded against the shared gauge series.
+                val allRainDaily = rainAccuracyCalculator.report(sourcesToQuery, lat, lon, 30).days
 
                 // Check if we have any data
                 val hasAnyData = allDaily.isNotEmpty()

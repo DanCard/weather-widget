@@ -548,4 +548,18 @@
     <string name="rain_map_unit_in">poll/h</string>
     <string name="rain_map_zoom_in">Ingrandisci</string>
     <string name="rain_map_zoom_out">Riduci</string>
+    <string name="label_rain_total">Totale:</string>
+    <string name="rain_paired_hours">%1$d/24 h misurate</string>
+    <string name="accuracy_section_temperature">Temperatura</string>
+    <string name="accuracy_section_rain">Quantità di pioggia</string>
+    <string name="rain_score_ranked">%1$d. %2$s: errore medio %3$s · %4$s · pioggia/niente pioggia corretto %5$s · %6$d giorni di pioggia</string>
+    <string name="rain_lean_wet">troppo umido %1$s</string>
+    <string name="rain_lean_dry">troppo secco %1$s</string>
+    <string name="rain_lean_even">in equilibrio</string>
+    <string name="rain_score_too_few">–  %1$s: troppo pochi giorni di pioggia (%2$d)</string>
+    <string name="rain_score_no_days">–  %1$s: nessun giorno valutato</string>
+    <string name="rain_score_no_data">Nessun giorno di pioggia valutato — servono pioggia misurata e una previsione del giorno prima.</string>
+    <string name="rain_day_result">%1$s: misurato %2$s\n%3$s</string>
+    <string name="rain_day_insufficient">%1$s: ore misurate insufficienti (%2$d su 24)</string>
+    <string name="rain_day_today">Oggi: valutato dopo mezzanotte</string>
 </resources>

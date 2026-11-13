@@ -7,7 +7,7 @@ import com.weatherwidget.data.local.AppLogEntity
 import com.weatherwidget.data.local.HistorySnapshotRetention
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherDatabase
-import com.weatherwidget.stats.RainAccuracyCalculator
+import com.weatherwidget.shared.stats.RainAccuracyRunner
 import com.weatherwidget.test.RobolectricTest
 import com.weatherwidget.test.category.LongDuration
 import kotlinx.coroutines.test.runTest
@@ -140,7 +140,7 @@ class HistorySnapshotPrunerTest : RobolectricTest() {
             val full = generate(seed)
             val keep = HistorySnapshotRetention.keptKeys(full.map { it.toRetentionRow() }, zone, nowMs)
             val kept = full.filter { it.key() in keep }
-            // Exactly RainAccuracyCalculator's query: hours of `date`, snapshots captured the day before.
+            // Exactly RainAccuracyRunner's query: hours of `date`, snapshots captured the day before.
             val dates = full.map { Instant.ofEpochMilli(it.dateTime).atZone(zone).toLocalDate() }.distinct()
             for (source in listOf("OPEN_METEO", "NWS")) for (date in dates) {
                 val dayStart = date.atStartOfDay(zone).toInstant().toEpochMilli()
@@ -152,8 +152,8 @@ class HistorySnapshotPrunerTest : RobolectricTest() {
                 }.sortedByDescending { it.timestampToGroupPredictions }
                 assertEquals(
                     "seed=$seed $source $date",
-                    RainAccuracyCalculator.latestSnapshotPrecipByHour(window(full), zone),
-                    RainAccuracyCalculator.latestSnapshotPrecipByHour(window(kept), zone),
+                    RainAccuracyRunner.latestSnapshotPrecipByHour(window(full).map(::precipSnapshot), zone),
+                    RainAccuracyRunner.latestSnapshotPrecipByHour(window(kept).map(::precipSnapshot), zone),
                 )
             }
         }
@@ -166,4 +166,7 @@ class HistorySnapshotPrunerTest : RobolectricTest() {
         assertEquals(HistoryPruneSchedule.Decision.NOT_DUE, HistoryPruneSchedule.decide(nowMs = 10 * day, lastMs = 10 * day - 1, prerequisitesDone = true))
         assertEquals(HistoryPruneSchedule.Decision.PREREQUISITES_PENDING, HistoryPruneSchedule.decide(nowMs = 10 * day, lastMs = 0, prerequisitesDone = false))
     }
+
+    private fun precipSnapshot(row: HourlyForecastEntity) =
+        RainAccuracyRunner.PrecipSnapshot(row.dateTime, row.timestampToGroupPredictions, row.precipAmountMm)
 }

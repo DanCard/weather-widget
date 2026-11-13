@@ -82,4 +82,29 @@
             tools:text="pred 1mm / act 0mm" />
     </LinearLayout>
 
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textSize="12sp"
+            android:fontFamily="monospace"
+            android:textColor="@color/widget_text_secondary"
+            android:text="@string/label_rain_total" />
+
+        <TextView
+            android:id="@+id/item_rain_total"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="12sp"
+            android:fontFamily="monospace"
+            android:textStyle="bold"
+            android:textColor="@color/widget_text_primary"
+            tools:text="pred .41in / act .37in" />
+    </LinearLayout>
+
 </LinearLayout>
