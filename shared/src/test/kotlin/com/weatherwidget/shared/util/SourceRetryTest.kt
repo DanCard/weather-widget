@@ -124,4 +124,51 @@ class SourceRetryTest {
         assertNull(SourceRetry.retryAtMs(pending, now + minute))
         assertNull(SourceRetry.retryAtMs(null, now))
     }
+
+    // plans/261113-retry-failed-source-in-refresh-all.md: Open-Meteo timed out in Settings → Refresh data
+    // while NWS was displayed, and was never tried again (no SOURCE_RETRY line at all).
+
+    @Test
+    fun `a source no screen shows is retried when the failed fetch was requested`() = runBlocking {
+        val host = FakeHost(displayed = setOf("NWS"))
+        val at = SourceRetry.onFailure(host, "OPEN_METEO", "TIMEOUT", "request:settings", now, requested = true)
+        assertEquals(now + minute, at)
+        assertEquals(SourceRetry.Pending(now + minute, minute, attempt = 1), host.armed["OPEN_METEO"])
+    }
+
+    @Test
+    fun `a source no screen shows is still not retried when the fetch was not requested`() = runBlocking {
+        val host = FakeHost(displayed = setOf("NWS"))
+        assertNull(SourceRetry.onFailure(host, "OPEN_METEO", "TIMEOUT", "forecast_loop", now))
+        assertTrue(host.logs.single().contains("reason=not_displayed"))
+        assertTrue(host.armed.isEmpty())
+    }
+
+    @Test
+    fun `the chain a requested failure started runs 1, 2, 5, 10 min and caps, though the retries are not requested`() = runBlocking {
+        val host = FakeHost(displayed = setOf("NWS"))
+        var t = now
+        val delays = mutableListOf<Long>()
+        SourceRetry.onFailure(host, "OPEN_METEO", "TIMEOUT", "request:settings", t, requested = true)!!.also { delays += it - t }
+        repeat(3) {
+            t = host.armed.getValue("OPEN_METEO").atMs // each retry fails as it comes due
+            SourceRetry.onFailure(host, "OPEN_METEO", "TIMEOUT", SourceRetry.REASON, t)!!.also { delays += it - t }
+        }
+        assertEquals(listOf(minute, 2 * minute, 5 * minute, 10 * minute), delays)
+
+        t = host.armed.getValue("OPEN_METEO").atMs
+        assertNull(SourceRetry.onFailure(host, "OPEN_METEO", "TIMEOUT", SourceRetry.REASON, t))
+        assertTrue(host.logs.last().contains("reason=cap"))
+    }
+
+    @Test
+    fun `a requested failure still gets no retry on battery with the screen off, or for a non-transient code`() = runBlocking {
+        val asleep = FakeHost(displayed = setOf("NWS"), isCharging = false, isScreenOn = false)
+        assertNull(SourceRetry.onFailure(asleep, "OPEN_METEO", "TIMEOUT", "request:settings", now, requested = true))
+        assertTrue(asleep.logs.single().contains("reason=battery_screen_off"))
+
+        val quota = FakeHost(displayed = setOf("NWS"))
+        assertNull(SourceRetry.onFailure(quota, "OPEN_METEO", "QUOTA_DAILY", "request:settings", now, requested = true))
+        assertTrue(quota.logs.single().contains("reason=not_transient"))
+    }
 }

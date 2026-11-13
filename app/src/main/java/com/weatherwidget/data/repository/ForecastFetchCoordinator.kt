@@ -317,7 +317,7 @@ internal class ForecastFetchCoordinator(
         val fetchedBySource = servable.mapNotNull { source ->
             val entry = registry[source] ?: return@mapNotNull null
             async {
-                source to safeFetch(entry.tag, source, latitude, longitude) {
+                source to safeFetch(entry.tag, source, latitude, longitude, requested = fetchContext?.allSources == true) {
                     entry.fetch(latitude, longitude)?.also {
                         persistFetch(source, it, latitude, longitude, fetchContext, horizons[source], plan.getValue(source))
                     }
@@ -456,6 +456,8 @@ internal class ForecastFetchCoordinator(
         source: WeatherSource,
         latitude: Double,
         longitude: Double,
+        /** The fetch is the user's Settings → Refresh data: its failure is retried even for a source no widget shows. */
+        requested: Boolean = false,
         block: suspend () -> T,
     ): T? = try {
         val result = block()
@@ -486,6 +488,7 @@ internal class ForecastFetchCoordinator(
         com.weatherwidget.shared.util.SourceRetry.onFailure(
             com.weatherwidget.widget.AndroidSourceRetryHost(context, widgetStateManager, appLogDao),
             source.id, errorCode, trigger = tag, nowMs = System.currentTimeMillis(),
+            requested = requested,
         )
         null
     }

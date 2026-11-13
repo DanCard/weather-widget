@@ -29,13 +29,15 @@ object SettingsRefreshAllSources {
     /**
      * Every source in [order] after the displayed one, one at a time, through [refresh] (a forced
      * daily + hourly fetch that throws on failure). One source failing is logged and the rest still
-     * run; cancellation propagates.
+     * run; cancellation propagates. [onFailure] hears every failed source, so the platform can arm its
+     * retry ([SourceRetry.onFailure] with `requested = true`): the user asked for this source.
      */
     suspend fun refreshOthers(
         displayedId: String,
         usableIds: List<String>,
         refresh: suspend (sourceId: String) -> Unit,
         log: (tag: String, message: String, level: String) -> Unit,
+        onFailure: suspend (sourceId: String, error: Exception) -> Unit = { _, _ -> },
     ): Outcome {
         val others = order(displayedId, usableIds).drop(1)
         log(TAG, "start displayed=$displayedId others=${others.joinToString(",").ifEmpty { "none" }}", "INFO")
@@ -50,6 +52,7 @@ object SettingsRefreshAllSources {
             } catch (e: Exception) {
                 failed[sourceId] = "${e::class.simpleName}: ${e.message}"
                 log(TAG, "source=$sourceId failed ${e::class.simpleName}: ${e.message}", "WARN")
+                onFailure(sourceId, e)
             }
         }
         log(

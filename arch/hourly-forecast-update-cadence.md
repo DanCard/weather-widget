@@ -231,7 +231,9 @@ refreshes are limited across both platforms to at most once every 10 minutes per
 
 ### Failed-fetch retry (`SourceRetry`, shared)
 
-A forecast fetch of a displayed source that fails with a transient code (`TIMEOUT`, `DNS_ERROR`,
+A forecast fetch of a displayed source — or of any source in Settings → Refresh data, which the user asked
+for (`SourceRetry.onFailure(requested = true)`; the retry chain then runs to its cap even for a source no
+screen shows) — that fails with a transient code (`TIMEOUT`, `DNS_ERROR`,
 `CONN_REFUSED`, `SOCKET_ERROR`, `SSL_ERROR`, `HTTP_5xx`) arms a retry of that source after 1, 2, 5 and
 10 minutes (`SourceRetry.DELAYS_MS`, 4 per failure streak); a success ends the streak, and a failure
 more than an hour after the last retry starts a fresh one. Quotas, rate limits, 4xx and `NO_COVERAGE`
@@ -243,7 +245,8 @@ source that timed out waited for its background cadence (hours).
   forced sync targeted at the source (`weather_widget_source_retry_<id>`, reason `source_retry`,
   silent).
 - Desktop: a `SOURCE_RETRY_ARMED` contract row (`consumed=true` once it came due); the forecast loop sleeps toward it
-  (`FORECAST_LOOP_SLEEP reason=SOURCE_RETRY`) and fetches the displayed source in full when it is due.
+  (`FORECAST_LOOP_SLEEP reason=SOURCE_RETRY next=<source>`, the earliest armed retry of any source) and fetches
+  that source in full when it is due (a refresh-all's failed source is fetched through its own repository).
   The UI's fetches run in the daemon too (`fetch-request.sock`), so their failures arm the same retry.
 - `SOURCE_RETRY scheduled|skip` logs every decision on both platforms. The failure pill's detail reads
   "Timed Out · retrying 9:20 PM" while the retry is ahead, the failure time otherwise.

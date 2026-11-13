@@ -7,7 +7,9 @@ package com.weatherwidget.shared.util
  * down all day must not wake a pocketed phone every hour (user, 2026-11-12). Before this, a
  * tap-stale source that timed out was not fetched again until its background cadence came due, hours
  * later (Fold 4 2026-11-12: `FORECAST_DUE_WAKE sleepMin=261 next=OPEN_METEO`), so a message could not say
- * when it would try again. The rule and its log line live here. The [Host] stores the pending retry
+ * when it would try again. A source nobody is viewing is retried only when the user asked for the fetch
+ * (Settings → Refresh data: [onFailure]'s `requested`) and then for the rest of that chain (user,
+ * 2026-11-13: Open-Meteo timed out in a refresh-all and was never tried again). The rule and its log line live here. The [Host] stores the pending retry
  * and arranges the wake (Android: a delayed targeted sync; desktop: the forecast loop).
  * plans/261112-refresh-failure-reason-and-retry.md
  */
@@ -63,13 +65,22 @@ object SourceRetry {
 
     /**
      * After a failed fetch of [sourceId] with [errorCode]: arms the next retry and returns its time, or
-     * returns null (and says why in the log) when this failure does not get one.
+     * returns null (and says why in the log) when this failure does not get one. A source no screen shows
+     * gets one only when [requested] (the fetch was the user's Settings → Refresh data) or it is already
+     * in a retry chain, so the chain a requested failure started runs to its cap.
      */
-    suspend fun onFailure(host: Host, sourceId: String, errorCode: String?, trigger: String, nowMs: Long): Long? {
+    suspend fun onFailure(
+        host: Host,
+        sourceId: String,
+        errorCode: String?,
+        trigger: String,
+        nowMs: Long,
+        requested: Boolean = false,
+    ): Long? {
         val previous = host.pending(sourceId)?.takeIf { nowMs - it.atMs < STREAK_GAP_MS }
         val skip = when {
             !isTransient(errorCode) -> "not_transient"
-            !host.isDisplayed(sourceId) -> "not_displayed"
+            !requested && previous == null && !host.isDisplayed(sourceId) -> "not_displayed"
             !mayRun(host.isCharging, host.isScreenOn) -> "battery_screen_off"
             (previous?.attempt ?: 0) >= MAX_RETRIES -> "cap"
             else -> null

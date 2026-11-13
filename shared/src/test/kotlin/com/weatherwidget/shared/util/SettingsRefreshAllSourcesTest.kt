@@ -74,6 +74,18 @@ class SettingsRefreshAllSourcesTest {
     }
 
     @Test
+    fun `others - every failed source is reported for its retry, the others are not`() = runBlocking {
+        val host = FakeHost(failing = setOf("OPEN_METEO", "SILURIAN"))
+        val reported = mutableListOf<Pair<String, String?>>()
+        SettingsRefreshAllSources.refreshOthers(
+            "NWS", usable, host::refresh, host::log,
+            onFailure = { id, e -> reported += id to e.message },
+        )
+        assertEquals(listOf("OPEN_METEO", "SILURIAN"), reported.map { it.first })
+        assertEquals("HTTP 500", reported.first().second)
+    }
+
+    @Test
     fun `view gate - bypassed only by an untargeted all-sources refresh`() {
         assertTrue(SettingsRefreshAllSources.bypassesViewGate(allSources = true, targetSourceId = null))
         assertFalse(SettingsRefreshAllSources.bypassesViewGate(allSources = true, targetSourceId = "NWS"))
