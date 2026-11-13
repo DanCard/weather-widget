@@ -21,15 +21,6 @@ class HeaderPrecipitationArchitectureTest {
         assertFalse("Daily graph must not resolve precipitation again", "HeaderPrecipCalculator" in source)
     }
 
-    @Test
-    fun `android adapter does not expose obsolete eight hour contracts`() {
-        val source = sourceRoot
-            .resolve("com/weatherwidget/util/HeaderPrecipCalculator.kt")
-            .readText()
-
-        assertFalse("Obsolete eight-hour header APIs must not return", "Next8Hour" in source)
-    }
-
     private fun findMainSourceRoot(): File {
         val candidates = listOf(File("src/main/java"), File("app/src/main/java"))
         return requireNotNull(candidates.firstOrNull { it.isDirectory }) {

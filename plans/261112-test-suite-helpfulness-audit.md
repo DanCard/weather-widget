@@ -385,3 +385,63 @@ User (2026-11-13): "commit. Work on product observations, and 17 timestamp sleep
 | `ForecastSnapshotHindcastCutoffTest` | 2 | Kept: `fetchedAt` is the real clock and part of the key; second one now commented |
 
 13 of 17 removed. The four desktop classes ran 8 times in a row (33 tests each) with no failure.
+
+## Phase 4b result (2026-11-13, uncommitted): guard tests and their partners
+
+30 test files read `src/main` (29 on 2026-11-12; `ButtonPressTokenParityTest` is new). No test changed.
+
+**Not source-text guards (11 files).** They compare real data or load real resources, so they are
+their own proof: `ButtonPressTokenParityTest`, `RainLoopErrorLineParityTest`,
+`SourceErrorDetailsEnglishParityTest`, `StationsListEnglishParityTest`, `LocaleResourceParityTest`,
+`LocaleStringFormattingRobolectricTest`, `DesktopPainterResourceTest`, `HostContractCoverageTest`
+(requires a behavioral suite per port), and the three whose rule is itself structural
+(`HardcodedUserFacingStringTest`, `CrossPlatformDuplicateNamesTest`, `CrossPlatformDuplicateLogTagsTest`).
+
+**Call-site guards (10 files): each has a partner.**
+
+| Guard | Behavioral partner |
+|---|---|
+| `HourlyProximityQueryAllowlistTest` | `GraphDataLoaderUnifyToNearestSiteTest`, `DailyCloudCoverSiteParityRoboTest` |
+| `HourlyCollapseChokepointTest` | `HourlyForecastStitcherTest`, `HourlyStaleFragmentCollapseTest` |
+| `ObservationProximityQueryAllowlistTest` | `ObservationSiteMergeTest`, `ObservationReadAcrossLocationMoveTest` |
+| `MigrationSqliteCompatGuardTest` | `WeatherDatabaseMigrationTest` (instrumented) |
+| `UserRefreshScopeGuardTest` (app, desktop) | `UserRefreshRunnerTest` (`:shared`), `WeatherObservationsRefreshOutlivesScreenIntegrationTest`, `DaemonFetchTest` |
+| `CurrentConditionsCallSiteGuardTest` (app, desktop) | `CurrentConditionsFetcherTest`, both `*CurrentConditionsHostContractTest` |
+| `ForecastDeltaCallSiteGuardTest` (app, desktop) | `ForecastDeltaViewsIntegrationRoboTest`, `DesktopForecastDeltaViewsIntegrationTest` |
+
+Can each scan still match a violation? The three `:shared` scanners (`UserRefreshCallSites`,
+`CurrentConditionsCallSites`, `ForecastDeltaCallSites`) have their own tests. The other four carry an
+inline regex with no self-test, so a temporary file with one violation of each was added to
+`app/src/main`: all four failed, and the file was removed. Each also guards against a vacuous pass
+(stale-allowlist check, or an assertion that the expected file was scanned).
+
+**Source assertions inside behavioral classes (6 files): partner is in the same class or beside it.**
+`DesktopHeaderDateTest` (+ `DesktopHeaderDateIntegrationTest`), `DesktopHousekeepingLoopTest`
+(+ `DesktopHousekeepingGateTest`), `DesktopSnapshotPublishTest`,
+`DesktopWindowBringToFrontIntegrationTest`, `RefreshNoticeStateTest`, and the two source scans in
+`WidgetActivityPendingIntentFlagsGuardTest` (they check its pinned list is complete).
+
+**Structure-only tests with no behavior to pair (3 files).** `DailyForecastGraphRendererArchitectureTest`,
+`HeaderPrecipitationArchitectureTest`, `DesktopUiArchitectureTest` pin where code lives. Weak points,
+not changed:
+- Their "must not contain `fun X(`" checks only fail if someone re-adds that exact name.
+  `HeaderPrecipitationArchitectureTest`'s `Next8Hour` ban names something that exists nowhere now.
+- `DesktopHeaderDateTest` asserts one exact line of code
+  (`DesktopHeaderDate.dailyDate(nowLocal).format(dateFormatter)`); a rename fails it with no bug.
+
+User (2026-11-13): "proceed with your recommendations and address weak points, delete Next8Hour test".
+
+### Weak points addressed (uncommitted)
+
+- **Correction:** `DesktopHeaderDateIntegrationTest` tested header layout only, not which date is
+  printed, so the exact-line test was the only thing tying the header to today's date. It is replaced
+  by `dailyDateIsTodayWhenTheHourlyViewIsPannedIntoTomorrow`, which renders the popup in the daily
+  view with `hourlyOffset = 27` and reads the date text. It fails when the header formats
+  `targetHour` again (checked, then restored).
+- `HeaderPrecipitationArchitectureTest`: the `Next8Hour` test is deleted.
+- `DailyForecastGraphRendererArchitectureTest`: five bans naming things that exist nowhere in main
+  sources are removed (`fun getPaintSet(`, `fun drawDayColumn(`, `fun drawTempLabel(`, and the calls
+  `DailyForecastGraphRenderer.tempLabelDrawScale` / `.drawTempLabel`). Bans whose name still exists
+  in another file stay, since that code could be moved back.
+- `DesktopUiArchitectureTest`: unchanged; every name it bans from `Main.kt` exists in the file that
+  now owns it.

@@ -35,10 +35,7 @@ class DailyForecastGraphRendererArchitectureTest {
     fun `daily graph facade does not reacquire extracted implementation methods`() {
         listOf(
             "fun computeLayout(",
-            "fun getPaintSet(",
-            "fun drawDayColumn(",
             "fun drawWeatherIcon(",
-            "fun drawTempLabel(",
             "fun formatTempLabel(",
         ).forEach { forbiddenImplementation ->
             assertFalse(
@@ -59,9 +56,7 @@ class DailyForecastGraphRendererArchitectureTest {
             val source =
                 sourceRoot.resolve("com/weatherwidget/widget/$fileName").readText()
             listOf(
-                "DailyForecastGraphRenderer.drawTempLabel",
                 "DailyForecastGraphRenderer.formatTempLabel",
-                "DailyForecastGraphRenderer.tempLabelDrawScale",
                 "DailyForecastGraphRenderer.resolveLowLabelBaseline",
             ).forEach { forbiddenCall ->
                 assertFalse("$fileName must not call $forbiddenCall", forbiddenCall in source)

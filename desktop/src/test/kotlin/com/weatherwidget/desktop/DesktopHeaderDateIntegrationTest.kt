@@ -146,6 +146,25 @@ class DesktopHeaderDateIntegrationTest {
         )
     }
 
+    /**
+     * The daily header prints today's date whatever the saved hourly pan. With `hourlyOffset = 27` it
+     * printed tomorrow ("Thu 22" on Wed 21) because the date came from the hourly target hour.
+     */
+    @Test
+    fun dailyDateIsTodayWhenTheHourlyViewIsPannedIntoTomorrow() {
+        val formatter = java.time.format.DateTimeFormatter.ofPattern("EEE d", java.util.Locale.getDefault())
+        val before = LocalDate.now().format(formatter)
+        renderPopup(baseConfig.copy(viewMode = ViewMode.DAILY, hourlyOffset = 27))
+        val after = LocalDate.now().format(formatter)
+
+        val shown = composeTestRule.onAllNodesWithTag("daily_header_date", useUnmergedTree = true)
+            .fetchSemanticsNodes().single()
+            .config[androidx.compose.ui.semantics.SemanticsProperties.Text].single().text
+        println("DesktopHeaderDate: shown=$shown today=$before")
+        // Two readings of today so a run across midnight cannot fail.
+        assertTrue("daily header shows '$shown', today is '$before'", shown == before || shown == after)
+    }
+
     @Test
     fun dailyDateRemainsVisibleWhenWindowIsMadeTaller() {
         // Taller window where uiScale grows to ~2.28 while width is 778dp
