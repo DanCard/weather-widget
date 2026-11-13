@@ -22,7 +22,7 @@ import org.junit.experimental.categories.Category
 class NavigationPersistenceRoboTest {
     private lateinit var context: Context
     private lateinit var stateManager: WidgetStateManager
-    private val testWidgetId = 99991
+    private val testWidgetId by lazy { com.weatherwidget.test.BoundTestWidget.create() }
 
     @Before
     fun setup() {
@@ -42,27 +42,25 @@ class NavigationPersistenceRoboTest {
     @Test
     fun transitionBetweenHourlyAndPrecip_preservesOffset() {
         runBlocking {
-            try {
-                WidgetIntentRouter.handleSetView(
-                    context,
-                    testWidgetId,
-                    ViewMode.PRECIPITATION,
-                    48
-                )
-            } catch (_: Exception) {}
+            WidgetIntentRouter.handleSetView(
+                context,
+                testWidgetId,
+                ViewMode.PRECIPITATION,
+                48
+            )
+
         }
 
         assertEquals(ViewMode.PRECIPITATION, stateManager.getViewMode(testWidgetId))
         assertEquals(48, stateManager.getHourlyOffset(testWidgetId))
 
         runBlocking {
-            try {
-                WidgetIntentRouter.handleSetView(
-                    context,
-                    testWidgetId,
-                    ViewMode.TEMPERATURE
-                )
-            } catch (_: Exception) {}
+            WidgetIntentRouter.handleSetView(
+                context,
+                testWidgetId,
+                ViewMode.TEMPERATURE
+            )
+
         }
 
         assertEquals("View mode should be HOURLY", ViewMode.TEMPERATURE, stateManager.getViewMode(testWidgetId))
@@ -75,12 +73,14 @@ class NavigationPersistenceRoboTest {
         stateManager.setHourlyOffset(testWidgetId, 24)
 
         runBlocking {
-            try {
-                WidgetIntentRouter.handleTogglePrecip(context, testWidgetId)
-            } catch (_: Exception) {}
+            WidgetIntentRouter.handleTogglePrecip(context, testWidgetId)
+
         }
 
         assertEquals(ViewMode.PRECIPITATION, stateManager.getViewMode(testWidgetId))
         assertEquals("Offset should be preserved when toggling PRECIP from HOURLY", 24, stateManager.getHourlyOffset(testWidgetId))
     }
+
+    @org.junit.After
+    fun noSwallowedInteractionFailure() = com.weatherwidget.test.BoundTestWidget.assertNoInteractionFailures()
 }

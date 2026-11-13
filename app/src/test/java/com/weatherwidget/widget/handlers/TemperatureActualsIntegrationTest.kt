@@ -29,7 +29,7 @@ class TemperatureActualsIntegrationTest {
     private lateinit var context: Context
     private lateinit var db: WeatherDatabase
     private lateinit var stateManager: WidgetStateManager
-    private val appWidgetId = 42
+    private val appWidgetId by lazy { com.weatherwidget.test.BoundTestWidget.create() }
 
     @Before
     fun setup() {
@@ -102,5 +102,6 @@ class TemperatureActualsIntegrationTest {
         assertEquals(ZoomStage.NARROW, stateManager.getZoomStage(appWidgetId))
     }
 
+    @org.junit.After
+    fun noSwallowedInteractionFailure() = com.weatherwidget.test.BoundTestWidget.assertNoInteractionFailures()
 }
-

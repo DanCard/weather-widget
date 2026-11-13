@@ -40,7 +40,7 @@ class SourceViewRecordingRoboTest {
     private lateinit var context: Context
     private lateinit var stateManager: WidgetStateManager
     private lateinit var database: WeatherDatabase
-    private val widgetId = 77
+    private val widgetId by lazy { com.weatherwidget.test.BoundTestWidget.create() }
 
     @Before
     fun setup() {
@@ -140,4 +140,7 @@ class SourceViewRecordingRoboTest {
             dao.getSince(0L).map { it.date }.sorted(),
         )
     }
+
+    @org.junit.After
+    fun noSwallowedInteractionFailure() = com.weatherwidget.test.BoundTestWidget.assertNoInteractionFailures()
 }

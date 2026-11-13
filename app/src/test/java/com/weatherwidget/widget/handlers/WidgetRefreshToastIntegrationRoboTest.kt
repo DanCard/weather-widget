@@ -56,7 +56,7 @@ class WidgetRefreshToastIntegrationRoboTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private lateinit var db: WeatherDatabase
     private lateinit var stateManager: WidgetStateManager
-    private val widgetId = 77
+    private val widgetId by lazy { com.weatherwidget.test.BoundTestWidget.create() }
     private val lat = 37.4220
     private val lon = -122.0841
 
@@ -128,7 +128,7 @@ class WidgetRefreshToastIntegrationRoboTest {
 
     @Test
     fun `toggle onto a source with no data queues a refresh and says so`() = runBlocking {
-        try { WidgetIntentRouter.handleToggleApi(context, widgetId) } catch (_: Exception) {}
+        WidgetIntentRouter.handleToggleApi(context, widgetId)
 
         assertEquals("rows=${rows()}", "Meteo · Forecast and observations refresh queued", banner())
         assertEquals(listOf("origin=widget_toggle_api queued=BOTH source=Meteo shown banner=1"), rows())
@@ -140,7 +140,7 @@ class WidgetRefreshToastIntegrationRoboTest {
         mockkObject(GraphInteractionRenderer)
         coEvery { GraphInteractionRenderer.selectedSourceNeedsRefresh(any(), any(), any(), any(), any(), any()) } returns false
 
-        try { WidgetIntentRouter.handleToggleApi(context, widgetId) } catch (_: Exception) {}
+        WidgetIntentRouter.handleToggleApi(context, widgetId)
 
         assertEquals(null, banner())
         assertTrue(rows().toString(), rows().all { it.startsWith("origin=widget_toggle_api ") && it.endsWith(" silent") })
@@ -155,7 +155,7 @@ class WidgetRefreshToastIntegrationRoboTest {
         mockkObject(GraphInteractionRenderer)
         coEvery { GraphInteractionRenderer.selectedSourceNeedsRefresh(any(), any(), any(), any(), any(), any()) } returns false
 
-        try { WidgetIntentRouter.handleToggleApi(context, widgetId) } catch (_: Exception) {}
+        WidgetIntentRouter.handleToggleApi(context, widgetId)
 
         assertEquals(null, banner())
         assertTrue(rows().toString(), rows().single().contains("none=QUOTA") && rows().single().endsWith(" silent"))
@@ -171,7 +171,7 @@ class WidgetRefreshToastIntegrationRoboTest {
         coEvery { GraphInteractionRenderer.selectedSourceNeedsRefresh(any(), any(), any(), any(), any(), any()) } returns false
         stateManager.setCurrentDisplaySource(widgetId, WeatherSource.OPEN_METEO)
 
-        try { WidgetIntentRouter.handleResetSource(context, widgetId) } catch (_: Exception) {}
+        WidgetIntentRouter.handleResetSource(context, widgetId)
 
         assertEquals(WeatherSource.NWS, stateManager.getCurrentDisplaySource(widgetId))
         assertEquals("rows=${rows()}", null, banner())
@@ -189,7 +189,7 @@ class WidgetRefreshToastIntegrationRoboTest {
         )
         stateManager.setCurrentDisplaySource(widgetId, WeatherSource.OPEN_METEO)
 
-        try { WidgetIntentRouter.handleResetSource(context, widgetId) } catch (_: Exception) {}
+        WidgetIntentRouter.handleResetSource(context, widgetId)
 
         val targets = oneTimeSyncTags().map { tags -> tags.single { it.startsWith("forced_target:") } }
         assertEquals(
@@ -206,7 +206,7 @@ class WidgetRefreshToastIntegrationRoboTest {
         seedFresh(WeatherSource.NWS)
         stateManager.setViewMode(widgetId, ViewMode.TEMPERATURE)
 
-        try { WidgetIntentRouter.handleCycleZoom(context, widgetId) } catch (_: Exception) {}
+        WidgetIntentRouter.handleCycleZoom(context, widgetId)
 
         assertEquals(null, banner())
         assertEquals(emptyList<String>(), rows())
@@ -219,7 +219,7 @@ class WidgetRefreshToastIntegrationRoboTest {
     fun `zoom on stale data queues a refresh and says so`() = runBlocking {
         stateManager.setViewMode(widgetId, ViewMode.TEMPERATURE)
 
-        try { WidgetIntentRouter.handleCycleZoom(context, widgetId) } catch (_: Exception) {}
+        WidgetIntentRouter.handleCycleZoom(context, widgetId)
 
         assertEquals("rows=${rows()}", "NWS · Forecast and observations refresh queued", banner())
         assertEquals(listOf("origin=widget_zoom queued=BOTH source=NWS shown banner=1"), rows())
@@ -227,7 +227,7 @@ class WidgetRefreshToastIntegrationRoboTest {
 
     @Test
     fun `daily arrow on stale data queues a refresh and says so`() = runBlocking {
-        try { WidgetIntentRouter.handleNavigation(context, widgetId, isLeft = false) } catch (_: Exception) {}
+        WidgetIntentRouter.handleNavigation(context, widgetId, isLeft = false)
 
         assertEquals("rows=${rows()}", "NWS · Forecast and observations refresh queued", banner())
         assertEquals(listOf("origin=widget_nav queued=BOTH source=NWS shown banner=1"), rows())
@@ -235,7 +235,7 @@ class WidgetRefreshToastIntegrationRoboTest {
 
     @Test
     fun `view switch on stale data queues a refresh and says so`() = runBlocking {
-        try { WidgetIntentRouter.handleToggleView(context, widgetId) } catch (_: Exception) {}
+        WidgetIntentRouter.handleToggleView(context, widgetId)
 
         assertEquals("rows=${rows()}", "NWS · Forecast and observations refresh queued", banner())
         assertTrue(rows().toString(), rows().isNotEmpty() && rows().all { it.endsWith(" shown banner=1") })
@@ -452,4 +452,7 @@ class WidgetRefreshToastIntegrationRoboTest {
         RefreshToast.showOutcome(context, "widget_tap_to_refresh", com.weatherwidget.shared.util.RefreshOutcome.Refreshed, "NWS refreshed", ids)
         assertEquals("Getting weather for Mountain View…", banner())
     }
+
+    @org.junit.After
+    fun noSwallowedInteractionFailure() = com.weatherwidget.test.BoundTestWidget.assertNoInteractionFailures()
 }

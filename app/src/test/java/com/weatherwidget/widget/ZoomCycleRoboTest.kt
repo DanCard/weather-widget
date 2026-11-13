@@ -26,7 +26,7 @@ import org.junit.experimental.categories.Category
 class ZoomCycleRoboTest {
     private lateinit var context: Context
     private lateinit var stateManager: WidgetStateManager
-    private val testWidgetId = 99992
+    private val testWidgetId by lazy { com.weatherwidget.test.BoundTestWidget.create() }
 
     @Before
     fun setup() {
@@ -136,9 +136,8 @@ class ZoomCycleRoboTest {
         assertEquals(ZoomStage.NARROW, stateManager.getZoomStage(testWidgetId))
 
         runBlocking {
-            try {
-                WidgetIntentRouter.handleSetView(context, testWidgetId, ViewMode.PRECIPITATION)
-            } catch (_: Exception) {}
+            WidgetIntentRouter.handleSetView(context, testWidgetId, ViewMode.PRECIPITATION)
+
         }
 
         assertEquals(ViewMode.PRECIPITATION, stateManager.getViewMode(testWidgetId))
@@ -151,23 +150,20 @@ class ZoomCycleRoboTest {
         assertEquals(ZoomStage.WIDE, stateManager.getZoomStage(testWidgetId))
 
         runBlocking {
-            try {
-                WidgetIntentRouter.handleCycleZoom(context, testWidgetId)
-            } catch (_: Exception) {}
+            WidgetIntentRouter.handleCycleZoom(context, testWidgetId)
+
         }
         assertEquals(ZoomStage.NARROW, stateManager.getZoomStage(testWidgetId))
 
         runBlocking {
-            try {
-                WidgetIntentRouter.handleCycleZoom(context, testWidgetId)
-            } catch (_: Exception) {}
+            WidgetIntentRouter.handleCycleZoom(context, testWidgetId)
+
         }
         assertEquals(ZoomStage.TWO_DAY, stateManager.getZoomStage(testWidgetId))
 
         runBlocking {
-            try {
-                WidgetIntentRouter.handleCycleZoom(context, testWidgetId)
-            } catch (_: Exception) {}
+            WidgetIntentRouter.handleCycleZoom(context, testWidgetId)
+
         }
         assertEquals(ZoomStage.WIDE, stateManager.getZoomStage(testWidgetId))
     }
@@ -178,9 +174,8 @@ class ZoomCycleRoboTest {
         assertEquals(ZoomStage.WIDE, stateManager.getZoomStage(testWidgetId))
 
         runBlocking {
-            try {
-                WidgetIntentRouter.handleCycleZoom(context, testWidgetId, zoomCenterOffset = 9)
-            } catch (_: Exception) {}
+            WidgetIntentRouter.handleCycleZoom(context, testWidgetId, zoomCenterOffset = 9)
+
         }
         assertEquals(ZoomStage.NARROW, stateManager.getZoomStage(testWidgetId))
         assertEquals(9, stateManager.getHourlyOffset(testWidgetId))
@@ -192,9 +187,8 @@ class ZoomCycleRoboTest {
         assertEquals(ZoomStage.WIDE, stateManager.getZoomStage(testWidgetId))
 
         runBlocking {
-            try {
-                WidgetIntentRouter.handleCycleZoom(context, testWidgetId, zoomCenterOffset = null)
-            } catch (_: Exception) {}
+            WidgetIntentRouter.handleCycleZoom(context, testWidgetId, zoomCenterOffset = null)
+
         }
         assertEquals(ZoomStage.NARROW, stateManager.getZoomStage(testWidgetId))
         assertEquals(5, stateManager.getHourlyOffset(testWidgetId))
@@ -208,9 +202,8 @@ class ZoomCycleRoboTest {
         stateManager.setHourlyOffset(testWidgetId, 9)
 
         runBlocking {
-            try {
-                WidgetIntentRouter.handleCycleZoom(context, testWidgetId, zoomCenterOffset = 0)
-            } catch (_: Exception) {}
+            WidgetIntentRouter.handleCycleZoom(context, testWidgetId, zoomCenterOffset = 0)
+
         }
         // Cycle from NARROW now advances to TWO_DAY (WIDE -> NARROW -> TWO_DAY -> WIDE).
         assertEquals(ZoomStage.TWO_DAY, stateManager.getZoomStage(testWidgetId))
@@ -279,9 +272,8 @@ class ZoomCycleRoboTest {
             }
 
             runBlocking {
-                try {
-                    WidgetIntentRouter.handleCycleZoom(context, testWidgetId, extractedOffset)
-                } catch (_: Exception) {}
+                WidgetIntentRouter.handleCycleZoom(context, testWidgetId, extractedOffset)
+
             }
 
             assertEquals("Zone $zoneIndex should zoom to NARROW", ZoomStage.NARROW, stateManager.getZoomStage(testWidgetId))
@@ -304,9 +296,8 @@ class ZoomCycleRoboTest {
         val extractedOffset = intent.getIntExtra(EXTRA_ZOOM_CENTER_OFFSET, 0)
 
         runBlocking {
-            try {
-                WidgetIntentRouter.handleCycleZoom(context, testWidgetId, extractedOffset)
-            } catch (_: Exception) {}
+            WidgetIntentRouter.handleCycleZoom(context, testWidgetId, extractedOffset)
+
         }
 
         assertEquals(ZoomStage.NARROW, stateManager.getZoomStage(testWidgetId))
@@ -330,9 +321,8 @@ class ZoomCycleRoboTest {
         val extractedOffset = intent.getIntExtra(EXTRA_ZOOM_CENTER_OFFSET, 0)
 
         runBlocking {
-            try {
-                WidgetIntentRouter.handleCycleZoom(context, testWidgetId, extractedOffset)
-            } catch (_: Exception) {}
+            WidgetIntentRouter.handleCycleZoom(context, testWidgetId, extractedOffset)
+
         }
 
         // Cycle from NARROW now advances to TWO_DAY; the NARROW-zone offset extra (-3 at the
@@ -340,4 +330,7 @@ class ZoomCycleRoboTest {
         assertEquals(ZoomStage.TWO_DAY, stateManager.getZoomStage(testWidgetId))
         assertEquals(-3, stateManager.getHourlyOffset(testWidgetId))
     }
+
+    @org.junit.After
+    fun noSwallowedInteractionFailure() = com.weatherwidget.test.BoundTestWidget.assertNoInteractionFailures()
 }

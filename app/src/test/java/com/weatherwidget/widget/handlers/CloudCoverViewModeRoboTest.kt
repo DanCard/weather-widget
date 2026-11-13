@@ -27,7 +27,7 @@ import com.weatherwidget.widget.ActiveLocationResolver
 class CloudCoverViewModeRoboTest {
     private lateinit var context: Context
     private lateinit var stateManager: WidgetStateManager
-    private val testWidgetId = 55
+    private val testWidgetId by lazy { com.weatherwidget.test.BoundTestWidget.create() }
 
     @Before
     fun setup() {
@@ -51,7 +51,7 @@ class CloudCoverViewModeRoboTest {
     fun handleSetView_cloudCover_setsViewMode() = runBlocking {
         stateManager.setViewMode(testWidgetId, ViewMode.TEMPERATURE)
 
-        try { WidgetIntentRouter.handleSetView(context, testWidgetId, ViewMode.CLOUD_COVER) } catch (_: Exception) {}
+        WidgetIntentRouter.handleSetView(context, testWidgetId, ViewMode.CLOUD_COVER)
 
         assertEquals(ViewMode.CLOUD_COVER, stateManager.getViewMode(testWidgetId))
     }
@@ -60,7 +60,7 @@ class CloudCoverViewModeRoboTest {
     fun handleSetView_temperatureFromCloudCover_returnsToTemperature() = runBlocking {
         stateManager.setViewMode(testWidgetId, ViewMode.CLOUD_COVER)
 
-        try { WidgetIntentRouter.handleSetView(context, testWidgetId, ViewMode.TEMPERATURE) } catch (_: Exception) {}
+        WidgetIntentRouter.handleSetView(context, testWidgetId, ViewMode.TEMPERATURE)
 
         assertEquals(ViewMode.TEMPERATURE, stateManager.getViewMode(testWidgetId))
     }
@@ -69,7 +69,7 @@ class CloudCoverViewModeRoboTest {
     fun handleSetView_cloudCover_preservesHourlyOffset() = runBlocking {
         stateManager.setHourlyOffset(testWidgetId, 4)
 
-        try { WidgetIntentRouter.handleSetView(context, testWidgetId, ViewMode.CLOUD_COVER, targetOffset = 4) } catch (_: Exception) {}
+        WidgetIntentRouter.handleSetView(context, testWidgetId, ViewMode.CLOUD_COVER, targetOffset = 4)
 
         assertEquals(4, stateManager.getHourlyOffset(testWidgetId))
         assertEquals(ViewMode.CLOUD_COVER, stateManager.getViewMode(testWidgetId))
@@ -79,7 +79,7 @@ class CloudCoverViewModeRoboTest {
     fun handleSetView_cloudCoverWithExplicitOffset_appliesOffset() = runBlocking {
         stateManager.setHourlyOffset(testWidgetId, 0)
 
-        try { WidgetIntentRouter.handleSetView(context, testWidgetId, ViewMode.CLOUD_COVER, targetOffset = 6) } catch (_: Exception) {}
+        WidgetIntentRouter.handleSetView(context, testWidgetId, ViewMode.CLOUD_COVER, targetOffset = 6)
 
         assertEquals(6, stateManager.getHourlyOffset(testWidgetId))
     }
@@ -89,7 +89,7 @@ class CloudCoverViewModeRoboTest {
         stateManager.setViewMode(testWidgetId, ViewMode.TEMPERATURE)
         stateManager.setHourlyOffset(testWidgetId, 21)
 
-        try { WidgetIntentRouter.handleSetView(context, testWidgetId, ViewMode.CLOUD_COVER, targetOffset = 17) } catch (_: Exception) {}
+        WidgetIntentRouter.handleSetView(context, testWidgetId, ViewMode.CLOUD_COVER, targetOffset = 17)
 
         assertEquals(ViewMode.CLOUD_COVER, stateManager.getViewMode(testWidgetId))
         assertEquals(17, stateManager.getHourlyOffset(testWidgetId))
@@ -100,7 +100,7 @@ class CloudCoverViewModeRoboTest {
         stateManager.setViewMode(testWidgetId, ViewMode.CLOUD_COVER)
         stateManager.setZoomLevel(testWidgetId, ZoomStage.NARROW)
 
-        try { WidgetIntentRouter.handleSetView(context, testWidgetId, ViewMode.DAILY) } catch (_: Exception) {}
+        WidgetIntentRouter.handleSetView(context, testWidgetId, ViewMode.DAILY)
 
         assertEquals(ViewMode.DAILY, stateManager.getViewMode(testWidgetId))
         assertEquals(ZoomStage.WIDE, stateManager.getZoomStage(testWidgetId))
@@ -111,7 +111,7 @@ class CloudCoverViewModeRoboTest {
         stateManager.setViewMode(testWidgetId, ViewMode.CLOUD_COVER)
         stateManager.setHourlyOffset(testWidgetId, 0)
 
-        try { WidgetIntentRouter.handleNavigation(context, testWidgetId, isLeft = false) } catch (_: Exception) {}
+        WidgetIntentRouter.handleNavigation(context, testWidgetId, isLeft = false)
 
         assertEquals(ViewMode.CLOUD_COVER, stateManager.getViewMode(testWidgetId))
         val newOffset = stateManager.getHourlyOffset(testWidgetId)
@@ -123,7 +123,7 @@ class CloudCoverViewModeRoboTest {
         stateManager.setViewMode(testWidgetId, ViewMode.CLOUD_COVER)
         stateManager.setHourlyOffset(testWidgetId, 4)
 
-        try { WidgetIntentRouter.handleNavigation(context, testWidgetId, isLeft = true) } catch (_: Exception) {}
+        WidgetIntentRouter.handleNavigation(context, testWidgetId, isLeft = true)
 
         assertEquals(ViewMode.CLOUD_COVER, stateManager.getViewMode(testWidgetId))
         val newOffset = stateManager.getHourlyOffset(testWidgetId)
@@ -136,7 +136,7 @@ class CloudCoverViewModeRoboTest {
         stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO))
         val initialSource = stateManager.getCurrentDisplaySource(testWidgetId)
 
-        try { WidgetIntentRouter.handleToggleApi(context, testWidgetId) } catch (_: Exception) {}
+        WidgetIntentRouter.handleToggleApi(context, testWidgetId)
 
         assertEquals(
             "View mode must remain CLOUD_COVER after API toggle",
@@ -203,8 +203,11 @@ class CloudCoverViewModeRoboTest {
     fun handleResize_inCloudCoverMode_doesNotCrash() = runBlocking {
         stateManager.setViewMode(testWidgetId, ViewMode.CLOUD_COVER)
 
-        try { WidgetIntentRouter.handleResize(context, testWidgetId) } catch (_: Exception) {}
+        WidgetIntentRouter.handleResize(context, testWidgetId)
 
         assertEquals(ViewMode.CLOUD_COVER, stateManager.getViewMode(testWidgetId))
     }
+
+    @org.junit.After
+    fun noSwallowedInteractionFailure() = com.weatherwidget.test.BoundTestWidget.assertNoInteractionFailures()
 }

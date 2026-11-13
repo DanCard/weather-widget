@@ -52,7 +52,7 @@ class WeatherWidgetProviderNoHourlyRoboTest {
     private lateinit var stateManager: WidgetStateManager
     private lateinit var receiver: WidgetActionReceiver
     private lateinit var mockWorkManager: WorkManager
-    private val widgetId = 9112
+    private val widgetId by lazy { com.weatherwidget.test.BoundTestWidget.create() }
     private val lat = 37.42
     private val lon = -122.08
     private var source = WeatherSource.NWS
@@ -459,4 +459,6 @@ class WeatherWidgetProviderNoHourlyRoboTest {
             putExtra(ForecastHistoryActivity.EXTRA_SOURCE, source.displayName)
         }
 
+    @org.junit.After
+    fun noSwallowedInteractionFailure() = com.weatherwidget.test.BoundTestWidget.assertNoInteractionFailures()
 }

@@ -27,7 +27,7 @@ import com.weatherwidget.widget.ActiveLocationResolver
 class DailyViewApiToggleIntegrationRoboTest {
     private lateinit var context: Context
     private lateinit var stateManager: WidgetStateManager
-    private val testWidgetId = 42
+    private val testWidgetId by lazy { com.weatherwidget.test.BoundTestWidget.create() }
 
     @Before
     fun setup() {
@@ -68,15 +68,15 @@ class DailyViewApiToggleIntegrationRoboTest {
         assertEquals("Should start with NWS", WeatherSource.NWS, stateManager.getCurrentDisplaySource(testWidgetId))
         assertEquals("Should start in DAILY mode", ViewMode.DAILY, stateManager.getViewMode(testWidgetId))
 
-        try { WidgetIntentRouter.handleToggleApi(context, testWidgetId) } catch (_: Exception) {}
+        WidgetIntentRouter.handleToggleApi(context, testWidgetId)
         assertEquals("After 1st toggle, should be OPEN_METEO", WeatherSource.OPEN_METEO, stateManager.getCurrentDisplaySource(testWidgetId))
         assertEquals("View mode should still be DAILY after 1st toggle", ViewMode.DAILY, stateManager.getViewMode(testWidgetId))
 
-        try { WidgetIntentRouter.handleToggleApi(context, testWidgetId) } catch (_: Exception) {}
+        WidgetIntentRouter.handleToggleApi(context, testWidgetId)
         assertEquals("After 2nd toggle, should be WEATHER_API", WeatherSource.WEATHER_API, stateManager.getCurrentDisplaySource(testWidgetId))
         assertEquals("View mode should still be DAILY after 2nd toggle", ViewMode.DAILY, stateManager.getViewMode(testWidgetId))
 
-        try { WidgetIntentRouter.handleToggleApi(context, testWidgetId) } catch (_: Exception) {}
+        WidgetIntentRouter.handleToggleApi(context, testWidgetId)
         assertEquals("After 3rd toggle, should return to NWS", WeatherSource.NWS, stateManager.getCurrentDisplaySource(testWidgetId))
         assertEquals("View mode should still be DAILY after 3rd toggle", ViewMode.DAILY, stateManager.getViewMode(testWidgetId))
     }
@@ -88,7 +88,7 @@ class DailyViewApiToggleIntegrationRoboTest {
     @Test
     fun dailyView_apiToggle_refreshesTheNewSourceOnly() = runBlocking {
         RefreshScheduler.lastForcedRefreshForTesting = null
-        try { WidgetIntentRouter.handleToggleApi(context, testWidgetId) } catch (_: Exception) {}
+        WidgetIntentRouter.handleToggleApi(context, testWidgetId)
         val request = RefreshScheduler.lastForcedRefreshForTesting
         assertNotNull("Daily-view toggle should still refresh a source with no data", request)
         assertEquals("toggle_api_stale", request!!.reason)
@@ -108,7 +108,7 @@ class DailyViewApiToggleIntegrationRoboTest {
 
         expectedAfterEachToggle.forEachIndexed { index, expectedSource ->
             RefreshScheduler.lastForcedRefreshForTesting = null
-            try { WidgetIntentRouter.handleToggleApi(context, testWidgetId) } catch (_: Exception) {}
+            WidgetIntentRouter.handleToggleApi(context, testWidgetId)
 
             val request = RefreshScheduler.lastForcedRefreshForTesting
             assertNotNull("Toggle ${index + 1} should enqueue a forced refresh (DB has no data)", request)
@@ -120,4 +120,7 @@ class DailyViewApiToggleIntegrationRoboTest {
             assertEquals("Toggle ${index + 1} should be attributed to the toggle path", "toggle_api_stale", request.reason)
         }
     }
+
+    @org.junit.After
+    fun noSwallowedInteractionFailure() = com.weatherwidget.test.BoundTestWidget.assertNoInteractionFailures()
 }

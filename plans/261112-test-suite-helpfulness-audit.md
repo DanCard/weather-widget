@@ -261,3 +261,28 @@ Whole-module mutation run after all Phase 1 work so far:
 
 `data.remote` went from 56% to 68% score. Per class: `NwsApi` 91% strength, `OpenWeatherMapApi` 89%,
 `TomorrowIoApi` 86%, `NwsForecastReply` 77%, `OpenMeteoApi` 72%, `SilurianApi` 64%.
+
+## Phase 2 result (2026-11-13, uncommitted): the `widgetInfo is null` errors
+
+Cause: Robolectric's `ShadowAppWidgetManager.updateAppWidget` throws `NullPointerException` for a widget
+id it did not create. Nine Robolectric classes used made-up ids (42, 55, 77, 123, 9112, 99991, 99992).
+`WidgetInteractionCoordinator.runInteraction` logs the failure and swallows it, so the handler stopped
+at its first push (`WidgetPushDispatcher.push`) and the tests still passed: they assert state and
+enqueued work that happen before the push. Nothing after the push ran. The comment in
+`DailyViewApiToggleIntegrationRoboTest` records that this already hid one ordering bug.
+
+Changes (tests only):
+- New `app/src/test/java/com/weatherwidget/test/BoundTestWidget.kt`: `create()` makes a widget the
+  shadow knows, and `assertNoInteractionFailures()` fails a test if `runInteraction` swallowed anything.
+- Eight classes now use a bound id and check for swallowed failures in `@After`: `ZoomCycleRoboTest`,
+  `WidgetRefreshToastIntegrationRoboTest`, `DailyViewApiToggleIntegrationRoboTest`,
+  `CloudCoverViewModeRoboTest`, `SourceViewRecordingRoboTest`, `WeatherWidgetProviderNoHourlyRoboTest`,
+  `TemperatureActualsIntegrationTest`, `NavigationPersistenceRoboTest`.
+- 37 empty `try { ... } catch (_: Exception) {}` wrappers removed from those classes and from
+  `WidgetIntentRouterCrashSafetyRoboTest`. That class keeps its invalid id on purpose; without the
+  wrappers its "does not crash" tests can now fail if a handler throws.
+- All pass with the paint path running and no swallowed failure; no defect surfaced. Unit suite 6,875.
+- Fresh results contain the exception only in `WidgetIntentRouterCrashSafetyRoboTest`, by design.
+
+Not done: a general guard. Any other Robolectric test that calls a handler with an unbound id will
+still pass silently; `BoundTestWidget` is opt-in.

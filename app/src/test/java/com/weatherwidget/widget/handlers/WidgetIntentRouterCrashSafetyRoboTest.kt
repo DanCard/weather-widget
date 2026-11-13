@@ -41,46 +41,31 @@ class WidgetIntentRouterCrashSafetyRoboTest {
 
     @Test
     fun handleNavigation_doesNotCrashWithInvalidWidgetId() = runBlocking {
-        try {
-            WidgetIntentRouter.handleNavigation(context, testWidgetId, isLeft = true)
-        } catch (_: Exception) {
-        }
+        WidgetIntentRouter.handleNavigation(context, testWidgetId, isLeft = true)
     }
 
     @Test
     fun handleToggleApi_doesNotCrashWithInvalidWidgetId() = runBlocking {
-        try {
-            WidgetIntentRouter.handleToggleApi(context, testWidgetId)
-        } catch (_: Exception) {
-        }
+        WidgetIntentRouter.handleToggleApi(context, testWidgetId)
     }
 
     @Test
     fun handleToggleView_doesNotCrashWithInvalidWidgetId() = runBlocking {
-        try {
-            WidgetIntentRouter.handleToggleView(context, testWidgetId)
-        } catch (_: Exception) {
-        }
+        WidgetIntentRouter.handleToggleView(context, testWidgetId)
     }
 
     @Test
     fun handleTogglePrecip_doesNotCrashWithInvalidWidgetId() = runBlocking {
-        try {
-            WidgetIntentRouter.handleTogglePrecip(context, testWidgetId)
-        } catch (_: Exception) {
-        }
+        WidgetIntentRouter.handleTogglePrecip(context, testWidgetId)
     }
 
     @Test
     fun handleSetView_doesNotCrashWithInvalidWidgetId() = runBlocking {
-        try {
-            WidgetIntentRouter.handleSetView(
+        WidgetIntentRouter.handleSetView(
                 context,
                 testWidgetId,
                 ViewMode.TEMPERATURE,
             )
-        } catch (_: Exception) {
-        }
     }
 
     @Test
