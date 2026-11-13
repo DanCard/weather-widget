@@ -12,11 +12,11 @@ limits a task to one platform.
    database or logs are not accessible, stop and ask for the exact missing command or data. When the
    user says the widget still looks wrong, the emulator/device screenshot and renderer logcat outrank
    code inspection; add targeted logging before choosing a fix.
-2. **Review significant changes before editing.** Always create a plan for significant changes and
-   write it to `plans/` (`YYMMDD-kebab-title.md`). Present the evidence, root cause, and proposed fix,
-   then wait for approval. Routine releases and explicit single-purpose instructions such as "run
-   tests" or "commit" are exempt. After approval, continue through verification without unnecessary
-   check-ins.
+2. **Review significant changes before editing.** Write a plan file for each significant change
+   (directory and naming rules are under "Documentation and commits"), present the evidence, root
+   cause, and proposed fix, then wait for approval. Routine releases and explicit single-purpose
+   instructions such as "run tests" or "commit" are exempt. After approval, continue through
+   verification without unnecessary check-ins.
 3. **Verify runtime changes on a device/emulator or in the desktop app.** A successful build alone
    does not prove rendering, scheduling, persistence, or interaction behavior.
 4. **Do not commit unless explicitly requested.** Never make mid-task commits.
