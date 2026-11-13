@@ -17,6 +17,7 @@ import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 private const val TAG = "OpenWeatherMapApi"
 
@@ -96,11 +97,17 @@ class OpenWeatherMapApi(
             val hourOfDay = zonedDateTime.hour
 
             val mainObj = obj["main"]?.jsonObject
-            val temp = mainObj?.get("temp")?.jsonPrimitive?.floatOrNull ?: 0f
+            // A period with no temperature is dropped, not stored as 0°: the hours either side of the
+            // gap are then left uninterpolated, like any other gap longer than three hours.
+            val temp = mainObj?.get("temp")?.jsonPrimitive?.floatOrNull
+            if (temp == null) {
+                Log.w(TAG, "OWM_PERIOD_NO_TEMP: dropped period dt=$dtSec")
+                return@mapNotNull null
+            }
             val weatherObj = obj["weather"]?.jsonArray?.firstOrNull()?.jsonObject
             val condition = weatherObj?.get("main")?.jsonPrimitive?.content.orEmpty()
             val icon = weatherObj?.get("icon")?.jsonPrimitive?.content
-            val pop = obj["pop"]?.jsonPrimitive?.floatOrNull?.let { (it * 100).toInt() }
+            val pop = obj["pop"]?.jsonPrimitive?.floatOrNull?.let { (it * 100).roundToInt() }
             val rain3h = obj["rain"]?.jsonObject?.get("3h")?.jsonPrimitive?.floatOrNull ?: 0f
             val snow3h = obj["snow"]?.jsonObject?.get("3h")?.jsonPrimitive?.floatOrNull ?: 0f
             val cloudCover = obj["clouds"]?.jsonObject?.get("all")?.jsonPrimitive?.intOrNull

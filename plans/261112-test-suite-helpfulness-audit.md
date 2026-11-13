@@ -217,3 +217,28 @@ Not started: `LabelSuppression`, `NwsForecastReply`, `OpenWeatherMapApi`.
 User (2026-11-12): "commit. Drop 9 collector tests. proceed". `LabelCandidateCollectorRulesTest` was
 deleted before the commit: its tests added four mutant kills over the existing resolver-level tests.
 Next: the two parsers with no `:shared` test, `NwsForecastReply` and `OpenWeatherMapApi`.
+
+### Phase 1 triage: the two parsers (2026-11-12, uncommitted)
+
+- `NwsForecastReply`: new `NwsForecastReplyTest` (8 tests) against a recorded reply. 0% to 77% test
+  strength (47 of 103 killed). The rest is coroutine plumbing and `logPeriodSummary`'s PAST/ACTIVE/FUTURE
+  marker, which reads `ZonedDateTime.now()` and so cannot be pinned.
+- `OpenWeatherMapApi`: `OpenWeatherMapApiTest` moved from `:app` to `:shared` (it has no Android
+  dependency) and extended from 3 to 8 tests: interpolation, visibility, local-date grouping, the 1 pm
+  representative, missing key, request parameters. 0% to 89% test strength (125 of 149 killed);
+  the survivors are coroutine and ktor request plumbing.
+- **Defect found, not fixed:** `OpenWeatherMapApi.kt:103` converts rain chance with
+  `(pop * 100).toInt()`, which truncates. A probe test showed 0.53 stored as 52 and 0.59 as 58. It is
+  the only such conversion in main code. Fix is `roundToInt()`; needs user approval.
+- Also noted, not pinned: a period with no temperature is stored as 0 °F (`?: 0f`, line 99).
+- Other `:app` tests of `:shared` API clients remain in `app/src/test/.../data/remote/`
+  (`NwsApiTest`, `OpenMeteoApiTest`, `SilurianApiTest`, `TomorrowIoApiTest`, `WeatherApiTest`, ...);
+  whether they can move like this one is unchecked.
+
+User (2026-11-13): "fix truncation, commit, move the other API tests. Fix rain truncation. Fix no temp
+stored as zero."
+
+- `OpenWeatherMapApi`: rain chance now uses `roundToInt()`; a period with no temperature is dropped
+  (logged `OWM_PERIOD_NO_TEMP`) instead of stored as 0 °F. Before the fix the interpolation drew a slope
+  through the 0 °F row (60, 40, 20, 0, ...). Both new tests fail on the old code.
+- Full gate 2026-11-13 06:17: 6,875 unit tests and 125 instrumented tests passed.
