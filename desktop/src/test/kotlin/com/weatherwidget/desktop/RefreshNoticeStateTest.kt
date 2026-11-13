@@ -165,7 +165,7 @@ class RefreshNoticeStateTest {
         assertEquals("Refresh complete", state.textFor(RefreshNoticeSurface.SETTINGS))
         assertEquals("origin=settings done=Refreshed shown", logged.last())
 
-        state.showAllSourcesOutcome(RefreshOutcome.Failed, RefreshNoticeSurface.SETTINGS, "settings")
+        state.showAllSourcesOutcome(RefreshOutcome.Failed(), RefreshNoticeSurface.SETTINGS, "settings")
         assertEquals("Refresh failed", state.textFor(RefreshNoticeSurface.SETTINGS))
     }
 

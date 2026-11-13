@@ -308,6 +308,7 @@
     <string name="obs_no_location_to_refresh">Kein Standort zum Aktualisieren verfügbar</string>
     <string name="obs_refreshed_source">%1$s aktualisiert</string>
     <string name="forecast_history_refresh_failed">%1$s konnte nicht aktualisiert werden</string>
+    <string name="refresh_retrying_at">neuer Versuch %1$s</string>
     <string name="obs_reported_prefix">"Gemeldet "</string>
     <string name="obs_fetched_separator">" • Abgerufen "</string>
     <string name="station_origin_web">Web</string>

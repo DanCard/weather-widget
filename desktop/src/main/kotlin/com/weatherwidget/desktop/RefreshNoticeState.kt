@@ -64,7 +64,7 @@ class RefreshNoticeState(
 
     /** Settings' Refresh data covers every source, so its ending names none (Android: `refresh_all_*`). */
     fun showAllSourcesOutcome(outcome: RefreshOutcome, surface: RefreshNoticeSurface, origin: String) =
-        showEnding(outcome, if (outcome == RefreshOutcome.Failed) "Refresh failed" else "Refresh complete", surface, origin)
+        showEnding(outcome, if (outcome is RefreshOutcome.Failed) "Refresh failed" else "Refresh complete", surface, origin)
 
     private fun showEnding(outcome: RefreshOutcome, text: String, surface: RefreshNoticeSurface, origin: String) {
         gate.restart()

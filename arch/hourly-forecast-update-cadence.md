@@ -219,12 +219,34 @@ refreshes are limited across both platforms to at most once every 10 minutes per
   - Last user refresh timestamp for that source is recorded (`FetchMetadata` per source on Android, `lastUserRefreshMsBySource` on Desktop).
   - Immediate forced forecast sync and history gap fill are enqueued.
   - A three-second notice names the source and says the refresh is queued; another says how it ended
-    ("NWS refreshed", "Couldn't refresh NWS"). The queued notice shows before the cache repaint, which
+    ("NWS refreshed"). A failure names the fetched source, why, and when it is retried
+    ("Meteo: Timed Out · retrying 9:20 PM"; "Couldn't refresh NWS" only when the reason is unknown).
+    Desktop's source-switch notice takes the fetched source from the daemon's `SWITCH_REFRESH_RESULT`
+    row, not the source displayed when the fetch ends. The queued notice shows before the cache repaint, which
     can take seconds. Only Settings' Refresh data covers every source, so its messages name none
     ("Refresh complete", "Refresh failed"); every other refresh request forces one source.
 - **Passive events are exempt**:
   - Background periodic worker ticks, power connect/disconnect events, screen unlock repaints
     (`EXTRA_PASSIVE = true`), and UI-only ticks do not check, update, or get blocked by this throttle.
+
+### Failed-fetch retry (`SourceRetry`, shared)
+
+A forecast fetch of a displayed source that fails with a transient code (`TIMEOUT`, `DNS_ERROR`,
+`CONN_REFUSED`, `SOCKET_ERROR`, `SSL_ERROR`, `HTTP_5xx`) arms a retry of that source after 1, 2, 5 and
+10 minutes (`SourceRetry.DELAYS_MS`, 4 per failure streak); a success ends the streak, and a failure
+more than an hour after the last retry starts a fresh one. Quotas, rate limits, 4xx and `NO_COVERAGE`
+are not retried here. On battery with the screen off a retry is neither armed nor run
+(`reason=battery_screen_off`, `fire_skip`); a skipped retry ends its chain. Without it, a tap-stale
+source that timed out waited for its background cadence (hours).
+
+- Android: prefs `source_retry_at_<id>`/`_delay_`/`_attempt_` (cleared on success) and a delayed
+  forced sync targeted at the source (`weather_widget_source_retry_<id>`, reason `source_retry`,
+  silent).
+- Desktop: a `SOURCE_RETRY_ARMED` contract row (`consumed=true` once it came due); the forecast loop sleeps toward it
+  (`FORECAST_LOOP_SLEEP reason=SOURCE_RETRY`) and fetches the displayed source in full when it is due.
+  The UI's fetches run in the daemon too (`fetch-request.sock`), so their failures arm the same retry.
+- `SOURCE_RETRY scheduled|skip` logs every decision on both platforms. The failure pill's detail reads
+  "Timed Out · retrying 9:20 PM" while the retry is ahead, the failure time otherwise.
 
 ### Multi-widget render prioritization and interaction preemption
 

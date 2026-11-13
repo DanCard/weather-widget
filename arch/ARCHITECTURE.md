@@ -202,6 +202,11 @@ The packaged desktop app uses a long-lived daemon and an ephemeral UI process:
   integration, and the genmon/panel socket.
 - The UI process hosts Compose windows and exits when its last window closes; the daemon can remain
   alive to serve background work and panel requests.
+- The UI process fetches nothing that stores data. Every refresh, viewing refresh, location change,
+  on-demand hourly day and deep-history pull is a `FetchRequest` line over `fetch-request.sock`; the
+  daemon runs it on its own scope (`FETCH_REQUEST start|done|reply_dropped`), so closing the last window
+  mid-fetch costs nothing. The UI reloads from the database when the reply comes. Display-only network
+  (radar, rain loop, location lookups) stays in the UI. `UserRefreshScopeGuardTest` pins this.
 - Last-launch-wins uses `.quit-<launchId>` trigger files, with file watching and a polling fallback.
 - Autostart launches the repo-local `createDistributable` output through
   `scripts/desktop-app-launcher-and-autostart.sh`.

@@ -618,7 +618,7 @@ class SettingsActivity : AppCompatActivity() {
             if (forecastFinished && currentFinished) {
                 handled = true
                 refreshButton.isEnabled = true
-                val outcome = if (refreshSucceeded) RefreshOutcome.Refreshed else RefreshOutcome.Failed
+                val outcome = if (refreshSucceeded) RefreshOutcome.Refreshed else RefreshOutcome.Failed()
                 lifecycleScope.launch {
                     RefreshToast.showOutcome(
                         this@SettingsActivity,

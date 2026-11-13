@@ -308,6 +308,7 @@
     <string name="obs_no_location_to_refresh">Нет местоположения для обновления</string>
     <string name="obs_refreshed_source">Обновлено: %1$s</string>
     <string name="forecast_history_refresh_failed">Не удалось обновить %1$s</string>
+    <string name="refresh_retrying_at">повтор в %1$s</string>
     <string name="obs_reported_prefix">"Передано "</string>
     <string name="obs_fetched_separator">" • Получено "</string>
     <string name="station_origin_web">Веб</string>

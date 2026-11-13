@@ -82,3 +82,44 @@ object ProductQuotaLog {
     fun parseDetail(message: String): String = message.substringAfter("detail=", "")
 }
 
+
+/**
+ * The SOURCE_RETRY_ARMED message format — a [com.weatherwidget.shared.util.SourceRetry] the daemon armed
+ * for its displayed source. The daemon's forecast loop wakes on it; the popup (another process) reads it
+ * for "retrying 9:20 PM". Readers depend on the `source=<id> ` prefix ([DesktopWeatherDao.getLatestSourceRetry]),
+ * `at=<epoch ms>`, `delayMs=<ms>`, `attempt=<n>` and an optional `consumed=true`. A forecast success after the row ends it ([DesktopSourceRetryState]).
+ */
+object SourceRetryLog {
+    const val TAG = "SOURCE_RETRY_ARMED"
+
+    fun armed(sourceId: String, atMs: Long, delayMs: Long, attempt: Int = 1, consumed: Boolean = false): String =
+        "source=$sourceId at=$atMs delayMs=$delayMs attempt=$attempt" + if (consumed) " consumed=true" else ""
+
+    /** The retry came due and ran or was skipped ([DesktopSourceRetryState.consume]). */
+    fun isConsumed(message: String): Boolean = message.contains(" consumed=true")
+
+    fun parseAtMs(message: String): Long? = FIELD_AT.find(message)?.groupValues?.get(1)?.toLongOrNull()
+
+    fun parseDelayMs(message: String): Long? = FIELD_DELAY.find(message)?.groupValues?.get(1)?.toLongOrNull()
+
+    fun parseAttempt(message: String): Int = FIELD_ATTEMPT.find(message)?.groupValues?.get(1)?.toIntOrNull() ?: 1
+
+    private val FIELD_AT = Regex("""\bat=(\d+)""")
+    private val FIELD_DELAY = Regex("""\bdelayMs=(\d+)""")
+    private val FIELD_ATTEMPT = Regex("""\battempt=(\d+)""")
+}
+
+/**
+ * The SWITCH_REFRESH_RESULT message format — which source a source-switch refresh fetched and whether it
+ * answered, written by the daemon just before it pushes the REFRESHED/FAILED byte. The popup names that
+ * source, not whichever one is displayed by then ("Couldn't refresh NWS" over an Open-Meteo timeout,
+ * 2026-11-12). Readers depend on `source=<id> ok=<true|false>`.
+ */
+object SwitchRefreshLog {
+    const val TAG = "SWITCH_REFRESH_RESULT"
+
+    fun result(sourceId: String, ok: Boolean): String = "source=$sourceId ok=$ok"
+
+    fun parseSourceId(message: String): String? =
+        message.substringAfter("source=", "").substringBefore(' ').ifEmpty { null }
+}

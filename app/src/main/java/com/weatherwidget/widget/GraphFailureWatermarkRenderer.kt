@@ -47,6 +47,8 @@ internal object GraphFailureWatermarkRenderer {
         quotaText: (QuotaScope, String) -> String = QuotaNoticeText::summary,
         rateLimitedText: String = "RATE LIMITED",
         nowMs: Long = System.currentTimeMillis(),
+        retryAtMs: Long? = null,
+        retryingText: (String) -> String = { "retrying $it" },
     ) {
         val stage = stageFor(bannerSinceMs, nowMs)
         val mainPaint = createMainPaint()
@@ -65,6 +67,8 @@ internal object GraphFailureWatermarkRenderer {
             pausedText = pausedText,
             quotaText = quotaText,
             rateLimitedText = rateLimitedText,
+            retryAtMs = retryAtMs,
+            retryingText = retryingText,
             measureMain = { text, textSize ->
                 mainPaint.textSize = textSize
                 mainPaint.measureText(text)
@@ -135,6 +139,7 @@ internal object GraphFailureWatermarkRenderer {
         errorCode: String?,
         failureTimeMs: Long?,
         bannerSinceMs: Long?,
+        retryAtMs: Long? = null,
     ) = draw(
         canvas, width, height, density, sourceLabel, errorCode, failureTimeMs,
         failingText = context.getString(R.string.updates_failing),
@@ -143,6 +148,8 @@ internal object GraphFailureWatermarkRenderer {
         pausedText = context.getString(R.string.updates_paused),
         quotaText = { code, resetTime -> localizedQuotaText(context, code, resetTime) },
         rateLimitedText = context.getString(R.string.updates_rate_limited),
+        retryAtMs = retryAtMs,
+        retryingText = { time -> context.getString(R.string.refresh_retrying_at, time) },
     )
 
     @androidx.annotation.VisibleForTesting
@@ -162,6 +169,8 @@ internal object GraphFailureWatermarkRenderer {
         pausedText: String = "UPDATES PAUSED",
         quotaText: (QuotaScope, String) -> String = QuotaNoticeText::summary,
         rateLimitedText: String = "RATE LIMITED",
+        retryAtMs: Long? = null,
+        retryingText: (String) -> String = { "retrying $it" },
         measureMain: (String, Float) -> Float,
         measureDetail: (String, Float) -> Float,
         mainMetrics: (Float) -> Pair<Float, Float>,
@@ -170,6 +179,7 @@ internal object GraphFailureWatermarkRenderer {
         FailureBannerLayout.calculate(
             width, height, density, sourceLabel, errorCode, failureTimeMs, nowMs, locale, zoneId,
             failingText, errorCodeText, stage, pausedText, quotaText, rateLimitedText,
+            retryAtMs, retryingText,
             measureMain, measureDetail, mainMetrics, detailMetrics,
         )?.let { pill ->
             FailureWatermarkLayout(

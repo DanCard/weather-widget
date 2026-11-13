@@ -38,6 +38,9 @@ internal object SyncDoneNotice {
             dailyBlockedUntilMs = stateManager.getProductQuota(source, ForecastProduct.DAILY, nowMs)?.untilMs,
             partialRateLimitAtMs = stateManager.getRateLimit(source, nowMs)?.takeIf { it.partial }?.atMs,
             startedAtMs = startedAtMs,
+            // Why, and when it is tried again (plans/261112-refresh-failure-reason-and-retry.md).
+            failureCode = stateManager.getSourceLastErrorCode(source),
+            retryAtMs = stateManager.getSourceRetryAtMs(source, nowMs),
         )
     }
 

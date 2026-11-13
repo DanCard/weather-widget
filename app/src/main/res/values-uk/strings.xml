@@ -300,6 +300,7 @@
     <string name="obs_no_location_to_refresh">Немає місцезнаходження для оновлення</string>
     <string name="obs_refreshed_source">Оновлено %1$s</string>
     <string name="forecast_history_refresh_failed">Не вдалося оновити %1$s</string>
+    <string name="refresh_retrying_at">повтор о %1$s</string>
     <string name="obs_reported_prefix">"Зафіксовано "</string>
     <string name="obs_fetched_separator">" • Отримано "</string>
     <string name="station_origin_web">Веб</string>

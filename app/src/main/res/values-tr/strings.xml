@@ -308,6 +308,7 @@
     <string name="obs_no_location_to_refresh">Yenilenecek konum yok</string>
     <string name="obs_refreshed_source">%1$s yenilendi</string>
     <string name="forecast_history_refresh_failed">%1$s yenilenemedi</string>
+    <string name="refresh_retrying_at">%1$s yeniden denenecek</string>
     <string name="obs_reported_prefix">"Bildirildi "</string>
     <string name="obs_fetched_separator">" • Alındı "</string>
     <string name="station_origin_web">Web</string>

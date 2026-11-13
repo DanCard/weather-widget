@@ -18,7 +18,10 @@ class ForecastHistoryRefreshTextTest : RobolectricTest() {
     private val context = ApplicationProvider.getApplicationContext<android.content.Context>()
 
     private val outcomes = listOf(
-        RefreshOutcome.Failed,
+        RefreshOutcome.Failed(),
+        RefreshOutcome.Failed("TIMEOUT"),
+        RefreshOutcome.Failed("TIMEOUT", 1_792_220_400_000L),
+        RefreshOutcome.Failed("HTTP_503", 1_792_220_400_000L),
         RefreshOutcome.Refreshed,
         RefreshOutcome.Refused(QuotaScope.HOURLY_FORECAST, 1_792_220_400_000L),
         RefreshOutcome.Refused(QuotaScope.DAILY_FORECAST, 1_792_220_400_000L),
@@ -39,8 +42,15 @@ class ForecastHistoryRefreshTextTest : RobolectricTest() {
     }
 
     @Test
+    fun `timeout names the reason and the retry time`() {
+        val text = ForecastHistoryActivity.refreshOutcomeText(context, RefreshOutcome.Failed("TIMEOUT", 1_792_220_400_000L), "Meteo")
+        println("timeout text: $text")
+        assertEquals(true, text.startsWith("Meteo: Timed Out · retrying "))
+    }
+
+    @Test
     fun `hourly quota names the hourly forecast and its reset`() {
-        val text = ForecastHistoryActivity.refreshOutcomeText(context, outcomes[2], "Google")
+        val text = ForecastHistoryActivity.refreshOutcomeText(context, RefreshOutcome.Refused(QuotaScope.HOURLY_FORECAST, 1_792_220_400_000L), "Google")
         assertEquals(true, text.startsWith("Google refreshed · Hourly forecast quota used · resets "))
     }
 }

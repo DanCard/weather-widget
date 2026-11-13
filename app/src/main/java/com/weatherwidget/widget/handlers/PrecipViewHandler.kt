@@ -383,6 +383,7 @@ object PrecipViewHandler {
                 errorSourceLabel = displaySource.displayName,
                 errorCode = stateManager.viewWatermark(displaySource, ForecastProduct.HOURLY).errorCode,
                 errorFailureTimeMs = stateManager.viewWatermark(displaySource, ForecastProduct.HOURLY).failureTimeMs,
+                errorRetryAtMs = stateManager.viewWatermark(displaySource, ForecastProduct.HOURLY).retryAtMs,
                 errorBannerSinceMs = stateManager.viewWatermark(displaySource, ForecastProduct.HOURLY).bannerSinceMs,
                 simLoopLabel = context.getString(R.string.sim_loop_button).takeIf { simLoopOffered },
                 radarLabel = context.getString(R.string.radar_button).takeIf { radarOffered },

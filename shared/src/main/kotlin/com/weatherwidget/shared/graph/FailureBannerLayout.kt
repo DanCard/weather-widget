@@ -82,6 +82,9 @@ object FailureBannerLayout {
         pausedText: String = "UPDATES PAUSED",
         quotaText: (QuotaScope, String) -> String = QuotaNoticeText::summary,
         rateLimitedText: String = "RATE LIMITED",
+        /** A pending [com.weatherwidget.shared.util.SourceRetry]: the detail says when, not when it failed. */
+        retryAtMs: Long? = null,
+        retryingText: (String) -> String = { "${com.weatherwidget.shared.util.RefreshOutcome.RETRYING_EN} $it" },
         measureMain: (String, Float) -> Float,
         measureDetail: (String, Float) -> Float,
         mainMetrics: (Float) -> Pair<Float, Float>,
@@ -114,6 +117,8 @@ object FailureBannerLayout {
                 buildDetailText(
                     errorCode = errorCode,
                     failureTimeMs = failureTimeMs,
+                    retryAtMs = retryAtMs,
+                    retryingText = retryingText,
                     nowMs = nowMs,
                     locale = locale,
                     zoneId = zoneId,
@@ -269,14 +274,19 @@ object FailureBannerLayout {
     private fun buildDetailText(
         errorCode: String?,
         failureTimeMs: Long?,
+        retryAtMs: Long?,
+        retryingText: (String) -> String,
         nowMs: Long,
         locale: Locale,
         zoneId: ZoneId,
         errorCodeText: (String) -> String,
     ): String? {
         val codeText = errorCode?.let(errorCodeText)
+        // "Timed Out · retrying 9:20 PM" while a retry is ahead; "Timed Out · 9:05 PM" (when it failed) otherwise.
         val timeText =
-            failureTimeMs?.let {
+            retryAtMs?.takeIf { it > nowMs }?.let {
+                retryingText(formatFailureTime(it, nowMs = nowMs, locale = locale, zoneId = zoneId))
+            } ?: failureTimeMs?.let {
                 formatFailureTime(it, nowMs = nowMs, locale = locale, zoneId = zoneId)
             }
         return when {

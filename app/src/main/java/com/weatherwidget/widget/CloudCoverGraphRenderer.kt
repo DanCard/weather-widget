@@ -166,6 +166,7 @@ object CloudCoverGraphRenderer {
         errorSourceLabel = request.errorSourceLabel,
         errorCode = request.errorCode,
         errorFailureTimeMs = request.errorFailureTimeMs,
+        errorRetryAtMs = request.errorRetryAtMs,
         errorBannerSinceMs = request.errorBannerSinceMs,
         dominantStationLabel = request.dominantStationLabel,
         onDominantStationPlaced = request.onDominantStationPlaced,
@@ -196,6 +197,7 @@ object CloudCoverGraphRenderer {
         errorSourceLabel: String? = null,
         errorCode: String? = null,
         errorFailureTimeMs: Long? = null,
+        errorRetryAtMs: Long? = null,
         errorBannerSinceMs: Long? = null,
         dominantStationLabel: DominantStationLabel.LabelText? = null,
         onDominantStationPlaced: ((DominantStationLabel.Placement?) -> Unit)? = null,
@@ -219,7 +221,7 @@ object CloudCoverGraphRenderer {
                 val watermarkDensity = context.resources.displayMetrics.density * bitmapScale
                 GraphFailureWatermarkRenderer.drawLocalized(
                     context, canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity,
-                    errorSourceLabel, errorCode, errorFailureTimeMs, errorBannerSinceMs,
+                    errorSourceLabel, errorCode, errorFailureTimeMs, errorBannerSinceMs, errorRetryAtMs,
                 )
             }
             return bitmap
@@ -658,7 +660,7 @@ object CloudCoverGraphRenderer {
             val watermarkDensity = context.resources.displayMetrics.density * bitmapScale
             GraphFailureWatermarkRenderer.drawLocalized(
                     context, canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity,
-                    errorSourceLabel, errorCode, errorFailureTimeMs, errorBannerSinceMs,
+                    errorSourceLabel, errorCode, errorFailureTimeMs, errorBannerSinceMs, errorRetryAtMs,
                 )
         }
 

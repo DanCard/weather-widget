@@ -446,6 +446,7 @@ internal object TemperatureStateResolver {
                     errorSourceLabel = displaySource.displayName,
                     errorCode = stateManager.viewWatermark(displaySource, ForecastProduct.HOURLY).errorCode,
                     errorFailureTimeMs = stateManager.viewWatermark(displaySource, ForecastProduct.HOURLY).failureTimeMs,
+                    errorRetryAtMs = stateManager.viewWatermark(displaySource, ForecastProduct.HOURLY).retryAtMs,
                     errorBannerSinceMs = stateManager.viewWatermark(displaySource, ForecastProduct.HOURLY).bannerSinceMs,
                     useCelsius = useCelsius,
                     dominantStationLabel = dominantStationLabel,

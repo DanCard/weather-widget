@@ -308,6 +308,7 @@
     <string name="obs_no_location_to_refresh">更新できる位置がありません</string>
     <string name="obs_refreshed_source">%1$s を更新しました</string>
     <string name="forecast_history_refresh_failed">%1$s を更新できませんでした</string>
+    <string name="refresh_retrying_at">%1$sに再試行</string>
     <string name="obs_reported_prefix">"観測 "</string>
     <string name="obs_fetched_separator">" • 取得 "</string>
     <string name="station_origin_web">ウェブ</string>

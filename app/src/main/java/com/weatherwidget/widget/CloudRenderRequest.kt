@@ -34,6 +34,7 @@ data class CloudRenderRequest(
     val errorSourceLabel: String? = null,
     val errorCode: String? = null,
     val errorFailureTimeMs: Long? = null,
+    val errorRetryAtMs: Long? = null,
     val errorBannerSinceMs: Long? = null,
     val dominantStationLabel: DominantStationLabel.LabelText? = null,
     val onDominantStationPlaced: ((DominantStationLabel.Placement?) -> Unit)? = null,

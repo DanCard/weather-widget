@@ -112,6 +112,7 @@ object TemperatureGraphRenderer {
         errorSourceLabel: String? = null,
         errorCode: String? = null,
         errorFailureTimeMs: Long? = null,
+        errorRetryAtMs: Long? = null,
         errorBannerSinceMs: Long? = null,
         useCelsius: Boolean,
         /** Pre-formatted `knuq 73.4° @ 5:15 pm` (with segments for mixed sizing); null suppresses the annotation entirely. */
@@ -148,7 +149,7 @@ object TemperatureGraphRenderer {
                 val watermarkDensity = context.resources.displayMetrics.density * bitmapScale
                 GraphFailureWatermarkRenderer.drawLocalized(
                     context, canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity,
-                    errorSourceLabel, errorCode, errorFailureTimeMs, errorBannerSinceMs,
+                    errorSourceLabel, errorCode, errorFailureTimeMs, errorBannerSinceMs, errorRetryAtMs,
                 )
             }
             return bitmap
@@ -369,7 +370,7 @@ object TemperatureGraphRenderer {
             val watermarkDensity = context.resources.displayMetrics.density * bitmapScale
             GraphFailureWatermarkRenderer.drawLocalized(
                     context, canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity,
-                    errorSourceLabel, errorCode, errorFailureTimeMs, errorBannerSinceMs,
+                    errorSourceLabel, errorCode, errorFailureTimeMs, errorBannerSinceMs, errorRetryAtMs,
                 )
         }
 

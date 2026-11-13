@@ -300,6 +300,7 @@
     <string name="obs_no_location_to_refresh">No hay ubicación para actualizar</string>
     <string name="obs_refreshed_source">%1$s actualizado</string>
     <string name="forecast_history_refresh_failed">No se pudo actualizar %1$s</string>
+    <string name="refresh_retrying_at">reintento a las %1$s</string>
     <string name="obs_reported_prefix">"Reportado "</string>
     <string name="obs_fetched_separator">" • Obtenido "</string>
     <string name="station_origin_web">Web</string>

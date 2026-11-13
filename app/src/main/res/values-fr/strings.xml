@@ -300,6 +300,7 @@
     <string name="obs_no_location_to_refresh">Aucune position à actualiser</string>
     <string name="obs_refreshed_source">%1$s actualisé</string>
     <string name="forecast_history_refresh_failed">Impossible d\'actualiser %1$s</string>
+    <string name="refresh_retrying_at">nouvel essai à %1$s</string>
     <string name="obs_reported_prefix">"Relevé "</string>
     <string name="obs_fetched_separator">" • Récupéré "</string>
     <string name="station_origin_web">Web</string>

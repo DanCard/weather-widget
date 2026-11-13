@@ -4,6 +4,8 @@ import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
 import com.weatherwidget.data.local.desktop.ProductQuotaLog
 import com.weatherwidget.data.local.desktop.RateLimitLog
+import com.weatherwidget.data.local.desktop.CurrentTempStatusLog
+import com.weatherwidget.data.local.desktop.SourceRetryLog
 import com.weatherwidget.data.model.ForecastProduct
 import com.weatherwidget.data.remote.QuotaScope
 import com.weatherwidget.shared.util.RefreshOutcome
@@ -45,7 +47,27 @@ class HistoryRefreshOutcomeTest {
 
     @Test
     fun `thrown refresh - Failed`() {
-        assertEquals(RefreshOutcome.Failed, historyRefreshOutcome(dao, source, ok = false, startedAtMs = now))
+        assertEquals(RefreshOutcome.Failed(), historyRefreshOutcome(dao, source, ok = false, startedAtMs = now))
+    }
+
+    @Test
+    fun `thrown refresh - Failed with the logged reason and the armed retry`() {
+        dao.log(CurrentTempStatusLog.TAG, CurrentTempStatusLog.failure(source, java.net.SocketTimeoutException("Request timeout has expired")), "WARN")
+        val at = now + 15 * 60_000L
+        dao.log(SourceRetryLog.TAG, SourceRetryLog.armed(source, at, 15 * 60_000L))
+
+        val outcome = historyRefreshOutcome(dao, source, ok = false, startedAtMs = now)
+        println("outcome=$outcome")
+        assertEquals(RefreshOutcome.Failed("TIMEOUT", at), outcome)
+    }
+
+    @Test
+    fun `a success after the armed row ends the retry`() {
+        val at = now + 15 * 60_000L
+        dao.log(SourceRetryLog.TAG, SourceRetryLog.armed(source, at, 15 * 60_000L), timestampMs = now - 2_000L)
+        dao.log("REFRESH", "source=$source hourly=1 daily=1", "INFO", timestampMs = now - 1_000L)
+
+        assertEquals(null, com.weatherwidget.data.local.desktop.DesktopSourceRetryState(dao).pending(source))
     }
 
     @Test

@@ -308,6 +308,7 @@
     <string name="obs_no_location_to_refresh">রিফ্রেশ করার মতো কোনো অবস্থান নেই</string>
     <string name="obs_refreshed_source">%1$s রিফ্রেশ হয়েছে</string>
     <string name="forecast_history_refresh_failed">%1$s রিফ্রেশ করা যায়নি</string>
+    <string name="refresh_retrying_at">আবার চেষ্টা %1$s</string>
     <string name="obs_reported_prefix">"রিপোর্ট "</string>
     <string name="obs_fetched_separator">" • আনা "</string>
     <string name="station_origin_web">ওয়েব</string>

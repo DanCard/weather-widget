@@ -132,6 +132,31 @@ object WidgetWorkScheduler {
         )
     }
 
+    /** [enqueueSourceRetrySync]'s name prefix: one pending retry per source. */
+    const val WORK_NAME_SOURCE_RETRY_PREFIX = "weather_widget_source_retry_"
+
+    /** The reason a [com.weatherwidget.shared.util.SourceRetry] sync runs under; silent (not owed a notice). */
+    const val SOURCE_RETRY_REASON = com.weatherwidget.shared.util.SourceRetry.REASON
+
+    /**
+     * A forced sync of [sourceId] alone, [delayMs] from now: the retry of a displayed source's failed
+     * fetch ([com.weatherwidget.shared.util.SourceRetry]). A newer failure moves it ([delayedPolicy]:
+     * never REPLACE while it runs — the retry that failed is often the one re-arming it).
+     */
+    fun enqueueSourceRetrySync(context: Context, sourceId: String, delayMs: Long): OneTimeWorkRequest {
+        val name = WORK_NAME_SOURCE_RETRY_PREFIX + sourceId
+        return enqueueFullSync(
+            context = context,
+            uniqueName = name,
+            policy = delayedPolicy(context, name),
+            forceRefresh = true,
+            reason = SOURCE_RETRY_REASON,
+            initialDelayMs = delayMs,
+            targetSourceId = sourceId,
+            constraints = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build(),
+        )
+    }
+
     /** Whether a due-time sync is planned for the future ([enqueueDueWakeSync]). */
     fun dueWakePending(context: Context): Boolean =
         com.weatherwidget.util.SharedPreferencesUtil.getPrefs(context, DUE_WAKE_PREFS)

@@ -501,6 +501,7 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                     errorSourceLabel = effectiveDisplaySource.displayName,
                     errorCode = stateManager.viewWatermark(effectiveDisplaySource, ForecastProduct.HOURLY).errorCode,
                     errorFailureTimeMs = stateManager.viewWatermark(effectiveDisplaySource, ForecastProduct.HOURLY).failureTimeMs,
+                    errorRetryAtMs = stateManager.viewWatermark(effectiveDisplaySource, ForecastProduct.HOURLY).retryAtMs,
                     errorBannerSinceMs = stateManager.viewWatermark(effectiveDisplaySource, ForecastProduct.HOURLY).bannerSinceMs,
                     dominantStationLabel = dominantStationLabel,
                 ),

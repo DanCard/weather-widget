@@ -308,6 +308,7 @@
     <string name="obs_no_location_to_refresh">새로고침할 위치가 없습니다</string>
     <string name="obs_refreshed_source">%1$s 새로고침됨</string>
     <string name="forecast_history_refresh_failed">%1$s을(를) 새로고침할 수 없습니다</string>
+    <string name="refresh_retrying_at">%1$s에 재시도</string>
     <string name="obs_reported_prefix">"보고 "</string>
     <string name="obs_fetched_separator">" • 가져옴 "</string>
     <string name="station_origin_web">웹</string>

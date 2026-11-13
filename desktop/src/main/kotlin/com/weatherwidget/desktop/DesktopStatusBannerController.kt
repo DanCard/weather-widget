@@ -155,6 +155,7 @@ internal class DesktopStatusBannerController(
                 sourceLabel = displayName,
                 errorCode = if (kind.rateLimit) RateLimitNotice.ERROR_CODE else kind.code,
                 failureTimeMs = status.timestamp,
+                retryAtMs = com.weatherwidget.data.local.desktop.DesktopSourceRetryState(weatherDao).retryAtMs(src, now),
             )
             val detailsResult = showDetails(src, status, now, activeConfig)
             newState = DesktopStatusBannerState(

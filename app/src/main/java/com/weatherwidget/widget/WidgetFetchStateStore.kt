@@ -3,6 +3,7 @@ package com.weatherwidget.widget
 import android.content.SharedPreferences
 import com.weatherwidget.data.model.ForecastProduct
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.util.SourceRetry
 import java.time.Clock
 
 /** Owns widget/source cooldowns, current-temperature throttles, and source-health diagnostics. */
@@ -68,6 +69,25 @@ internal class WidgetFetchStateStore(
             .remove("$KEY_SOURCE_FAILURE_TIME_PREFIX${source.id}")
             .remove("$KEY_SOURCE_BANNER_SINCE_PREFIX${source.id}")
             .remove("$KEY_SOURCE_FAILURE_DETAIL_PREFIX${source.id}")
+            .remove("$KEY_SOURCE_RETRY_AT_PREFIX${source.id}")
+            .remove("$KEY_SOURCE_RETRY_DELAY_PREFIX${source.id}")
+            .remove("$KEY_SOURCE_RETRY_ATTEMPT_PREFIX${source.id}")
+            .apply()
+    }
+
+    /** The armed [SourceRetry] of [source]'s failure streak; a success clears it ([recordSourceFetchSuccess]). */
+    fun sourceRetry(source: WeatherSource): SourceRetry.Pending? {
+        val atMs = prefs.getLong("$KEY_SOURCE_RETRY_AT_PREFIX${source.id}", -1L).takeIf { it > 0L } ?: return null
+        val delayMs = prefs.getLong("$KEY_SOURCE_RETRY_DELAY_PREFIX${source.id}", -1L).takeIf { it > 0L } ?: return null
+        val attempt = prefs.getInt("$KEY_SOURCE_RETRY_ATTEMPT_PREFIX${source.id}", 1)
+        return SourceRetry.Pending(atMs, delayMs, attempt)
+    }
+
+    fun armSourceRetry(source: WeatherSource, retry: SourceRetry.Pending) {
+        prefs.edit()
+            .putLong("$KEY_SOURCE_RETRY_AT_PREFIX${source.id}", retry.atMs)
+            .putLong("$KEY_SOURCE_RETRY_DELAY_PREFIX${source.id}", retry.delayMs)
+            .putInt("$KEY_SOURCE_RETRY_ATTEMPT_PREFIX${source.id}", retry.attempt)
             .apply()
     }
 
@@ -207,6 +227,9 @@ internal class WidgetFetchStateStore(
         const val KEY_SOURCE_FAILURE_TIME_PREFIX = "source_fail_time_"
         const val KEY_SOURCE_BANNER_SINCE_PREFIX = "source_fail_banner_since_"
         const val KEY_SOURCE_FAILURE_DETAIL_PREFIX = "source_fail_detail_"
+        const val KEY_SOURCE_RETRY_AT_PREFIX = "source_retry_at_"
+        const val KEY_SOURCE_RETRY_DELAY_PREFIX = "source_retry_delay_"
+        const val KEY_SOURCE_RETRY_ATTEMPT_PREFIX = "source_retry_attempt_"
         const val MAX_DETAIL_CHARS = 8_000
         const val KEY_PRODUCT_QUOTA_PREFIX = "source_quota_"
         const val KEY_RATE_LIMIT_PREFIX = "source_rate_limit_"

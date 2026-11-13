@@ -24,7 +24,16 @@ class RefreshOutcomeTest {
 
     @Test
     fun `failed fetch - Failed even with blocks`() {
-        assertEquals(Failed, outcome(ok = false, hourly = 5L))
+        assertEquals(Failed(), outcome(ok = false, hourly = 5L))
+    }
+
+    @Test
+    fun `failed fetch carries its code and retry time`() {
+        assertEquals(
+            Failed("TIMEOUT", 9L),
+            RefreshOutcome.of(false, null, null, null, start, failureCode = "TIMEOUT", retryAtMs = 9L),
+        )
+        assertEquals(" code=TIMEOUT retryAt=9", RefreshOutcome.logDetail(Failed("TIMEOUT", 9L)))
     }
 
     @Test
@@ -66,7 +75,11 @@ class RefreshOutcomeTest {
     fun `text - every outcome's English line`() {
         val time = { _: Long -> "12 AM" }
         assertEquals("Google refreshed", RefreshOutcome.text(Refreshed, "Google", time))
-        assertEquals("Couldn't refresh Google", RefreshOutcome.text(Failed, "Google", time))
+        assertEquals("Couldn't refresh Google", RefreshOutcome.text(Failed(), "Google", time))
+        assertEquals("Google: Timed Out", RefreshOutcome.text(Failed("TIMEOUT"), "Google", time))
+        assertEquals("Google: Timed Out · retrying 12 AM", RefreshOutcome.text(Failed("TIMEOUT", 5L), "Google", time))
+        assertEquals("Couldn't refresh Google · retrying 12 AM", RefreshOutcome.text(Failed(null, 5L), "Google", time))
+        assertEquals("NWS: 503 Server Error", RefreshOutcome.text(Failed("HTTP_503"), "NWS", time))
         assertEquals(
             "Google refreshed · Hourly forecast quota used · resets 12 AM",
             RefreshOutcome.text(Refused(QuotaScope.HOURLY_FORECAST, 0L), "Google", time),
@@ -87,6 +100,6 @@ class RefreshOutcomeTest {
         assertEquals(" refused=HOURLY_FORECAST until=9", RefreshOutcome.logDetail(outcome(hourly = 9L)))
         assertEquals(" refused=HOURLY_PARTIAL", RefreshOutcome.logDetail(HourlyIncomplete))
         assertEquals("", RefreshOutcome.logDetail(Refreshed))
-        assertEquals("", RefreshOutcome.logDetail(Failed))
+        assertEquals("", RefreshOutcome.logDetail(Failed()))
     }
 }

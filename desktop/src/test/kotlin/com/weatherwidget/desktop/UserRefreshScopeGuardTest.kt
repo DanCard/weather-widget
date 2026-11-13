@@ -2,6 +2,7 @@ package com.weatherwidget.desktop
 
 import com.weatherwidget.shared.util.UserRefreshCallSites
 import com.weatherwidget.test.category.ShortDuration
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -44,25 +45,28 @@ class UserRefreshScopeGuardTest {
     }
 
     /**
-     * The Observations window's Refresh fetches observations only (and a past day's Google refill),
-     * not through `refresh(userRefresh = true)`; those calls need the runner too
-     * (plans/261014-observations-refresh-fetches-observations-only.md). UI file only: the daemon's
-     * loops call `refreshObservations` on their own scopes by design.
+     * The window process exits 400 ms after its last window closes, so it fetches nothing itself: every
+     * fetch that stores data is a [FetchRequest] the daemon runs (plans/261112-desktop-fetches-run-in-daemon.md).
+     * The window may still read (`loadCached`) and show display-only images (radar, rain loop).
      */
     @Test
-    fun `the observations refresh runs through the UserRefreshRunner`() {
+    fun `the window process runs no fetch itself`() {
         val file = listOf(
             File("src/main/kotlin/com/weatherwidget/desktop/DesktopUiApplication.kt"),
             File("desktop/src/main/kotlin/com/weatherwidget/desktop/DesktopUiApplication.kt"),
         ).firstOrNull { it.isFile }
         assertTrue("could not locate DesktopUiApplication.kt from ${File(".").absolutePath}", file != null)
-        val call = Regex("""\.refreshObservations\(""")
         val text = file!!.readText()
-
-        assertTrue("expected the observations-refresh call", UserRefreshCallSites.count(text, call) >= 1)
-        val offenders = UserRefreshCallSites.uncovered(text, call)
-        if (offenders.isNotEmpty()) {
-            fail("Observations refresh call(s) outside refreshRunner.start { … }: lines $offenders")
-        }
+        val fetchCalls = Regex(
+            """\.(refresh|refreshWithOutcome|refreshObservations|refreshObservationWindow|extendHourlyFor|ensureHistory)\(""",
+        )
+        val offenders = text.lines().withIndex()
+            .filter { (_, line) -> !line.trimStart().startsWith("//") && !line.trimStart().startsWith("*") && fetchCalls.containsMatchIn(line) }
+            .map { (i, line) -> "${i + 1}: ${line.trim()}" }
+        // One service, behind the repository the window reads its cache through; no other.
+        assertEquals("DesktopWeatherService constructions", 1, Regex("""DesktopWeatherService\(""").findAll(text).count())
+        // Seven kinds of request; a rename must not make this pass vacuously.
+        assertTrue("expected the daemon fetch requests", Regex("""FetchRequest\(""").findAll(text).count() >= 7)
+        if (offenders.isNotEmpty()) fail("Fetch(es) in the window process:\n" + offenders.joinToString("\n"))
     }
 }

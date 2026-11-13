@@ -168,7 +168,7 @@ class RefreshNoticeTest {
         )
         org.junit.Assert.assertEquals(
             "ok=false source=NWS ms=12",
-            RefreshOutcome.doneLine(false, "source=NWS", 12, RefreshOutcome.Failed),
+            RefreshOutcome.doneLine(false, "source=NWS", 12, RefreshOutcome.Failed()),
         )
         org.junit.Assert.assertEquals("WARN", RefreshOutcome.doneLevel(false))
     }

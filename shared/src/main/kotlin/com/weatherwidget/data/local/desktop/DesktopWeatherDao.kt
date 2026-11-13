@@ -1621,6 +1621,26 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         return null
     }
 
+    /** The newest [SourceRetryLog] row for [source]: (timestamp, message), or null. */
+    fun getLatestSourceRetry(source: String): Pair<Long, String>? = latestContractRow(SourceRetryLog.TAG, "source=$source %")
+
+    /** The newest [SwitchRefreshLog] row: (timestamp, message), or null. */
+    fun getLatestSwitchRefreshResult(): Pair<Long, String>? = latestContractRow(SwitchRefreshLog.TAG, "source=%")
+
+    private fun latestContractRow(tag: String, messageLike: String): Pair<Long, String>? {
+        db.getConnection().use { conn ->
+            conn.prepareStatement(
+                "SELECT timestamp, message FROM app_logs WHERE tag = ? AND message LIKE ? ORDER BY timestamp DESC, id DESC LIMIT 1"
+            ).use { stmt ->
+                stmt.setString(1, tag)
+                stmt.setString(2, messageLike)
+                val rs = stmt.executeQuery()
+                if (rs.next()) return rs.getLong("timestamp") to rs.getString("message")
+            }
+        }
+        return null
+    }
+
     /** The newest [RateLimitLog] row for [source]: (timestamp, message). */
     fun getLatestRateLimit(source: String): Pair<Long, String>? {
         db.getConnection().use { conn ->

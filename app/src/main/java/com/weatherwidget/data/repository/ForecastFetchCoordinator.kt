@@ -475,12 +475,18 @@ internal class ForecastFetchCoordinator(
     } catch (cancellation: CancellationException) {
         throw cancellation
     } catch (exception: Exception) {
+        val errorCode = extractErrorCode(exception)
         widgetStateManager.recordSourceFetchFailure(
             source,
-            errorCode = extractErrorCode(exception),
+            errorCode = errorCode,
             detail = ApiKeyRedaction.redact(exception.message ?: exception.javaClass.simpleName),
         )
         logFetchFailure(tag, source, exception)
+        // A displayed source that timed out is tried again on its own, not hours later at its cadence.
+        com.weatherwidget.shared.util.SourceRetry.onFailure(
+            com.weatherwidget.widget.AndroidSourceRetryHost(context, widgetStateManager, appLogDao),
+            source.id, errorCode, trigger = tag, nowMs = System.currentTimeMillis(),
+        )
         null
     }
 

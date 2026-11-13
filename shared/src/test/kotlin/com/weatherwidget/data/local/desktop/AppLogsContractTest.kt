@@ -110,4 +110,34 @@ class AppLogsContractTest {
         dao.log(CurrentTempStatusLog.TAG, CurrentTempStatusLog.ok("NWS_BLEND"), "INFO")
         assertNull(dao.getLatestCurrentTempStatus("NWS"))
     }
+
+    @Test
+    fun `source retry round-trips per source and a later success ends it`() {
+        val state = DesktopSourceRetryState(dao)
+        assertNull(state.pending("OPEN_METEO"))
+
+        dao.log(SourceRetryLog.TAG, SourceRetryLog.armed("OPEN_METEO", 2_000_000L, 900_000L), "INFO", timestampMs = 1_000_000L)
+        dao.log(SourceRetryLog.TAG, SourceRetryLog.armed("NWS", 3_000_000L, 1_800_000L), "INFO", timestampMs = 1_000_001L)
+        assertEquals(com.weatherwidget.shared.util.SourceRetry.Pending(2_000_000L, 900_000L), state.pending("OPEN_METEO"))
+        assertEquals(2_000_000L, state.retryAtMs("OPEN_METEO", nowMs = 1_500_000L))
+        assertNull(state.retryAtMs("OPEN_METEO", nowMs = 2_000_000L))
+
+        // Due once: consuming it keeps the chain (attempt) but it is no longer due.
+        assertTrue(state.isDue("OPEN_METEO", nowMs = 2_000_000L, graceMs = 0L))
+        state.consume("OPEN_METEO")
+        assertFalse(state.isDue("OPEN_METEO", nowMs = 2_000_000L, graceMs = 0L))
+        assertEquals(1, state.pending("OPEN_METEO")?.attempt)
+
+        dao.log("REFRESH", "source=OPEN_METEO hourly=1 daily=1", "INFO", timestampMs = System.currentTimeMillis() + 1_000L)
+        assertNull(state.pending("OPEN_METEO"))
+        assertEquals(3_000_000L, state.pending("NWS")?.atMs)
+    }
+
+    @Test
+    fun `switch refresh result names the fetched source`() {
+        assertNull(dao.getLatestSwitchRefreshResult())
+        dao.log(SwitchRefreshLog.TAG, SwitchRefreshLog.result("OPEN_METEO", ok = false), "INFO", timestampMs = 1L)
+        dao.log(SwitchRefreshLog.TAG, SwitchRefreshLog.result("NWS", ok = true), "INFO", timestampMs = 2L)
+        assertEquals("NWS", SwitchRefreshLog.parseSourceId(dao.getLatestSwitchRefreshResult()!!.second))
+    }
 }

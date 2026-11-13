@@ -308,6 +308,7 @@
     <string name="obs_no_location_to_refresh">Tidak ada lokasi untuk disegarkan</string>
     <string name="obs_refreshed_source">%1$s disegarkan</string>
     <string name="forecast_history_refresh_failed">Tidak dapat memuat ulang %1$s</string>
+    <string name="refresh_retrying_at">mencoba lagi %1$s</string>
     <string name="obs_reported_prefix">"Dilaporkan "</string>
     <string name="obs_fetched_separator">" • Diambil "</string>
     <string name="station_origin_web">Web</string>

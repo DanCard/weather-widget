@@ -43,6 +43,15 @@ internal class FullSyncPipeline(
         try {
             val startMs = SystemClock.elapsedRealtime()
 
+            // A source retry armed with the screen on may come due in a pocket on battery: skip it there.
+            if (input.currentTempReason == com.weatherwidget.shared.util.SourceRetry.REASON &&
+                !com.weatherwidget.shared.util.SourceRetry.shouldFire(
+                    device.isCharging, device.isScreenInteractive, input.targetSourceId ?: "?",
+                ) { tag, message, level -> appLogDao.log(tag, message, level) }
+            ) {
+                return ListenableWorker.Result.success()
+            }
+
             maybeScheduleDebugFastRefresh()
 
             // GPS resample piggybacks on full syncs

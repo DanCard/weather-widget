@@ -14,6 +14,8 @@ internal data class DesktopFailurePill(
     val sourceLabel: String,
     val errorCode: String?,
     val failureTimeMs: Long,
+    /** A pending source retry: the pill says "retrying 9:20 PM" instead of when it failed. */
+    val retryAtMs: Long? = null,
 )
 
 /**

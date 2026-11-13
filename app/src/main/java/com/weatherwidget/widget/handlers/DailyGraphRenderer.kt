@@ -297,6 +297,7 @@ internal object DailyGraphRenderer {
             errorSourceLabel = ctx.displaySource.displayName,
             errorCode = ctx.stateManager.viewWatermark(ctx.displaySource, ForecastProduct.DAILY).errorCode,
             errorFailureTimeMs = ctx.stateManager.viewWatermark(ctx.displaySource, ForecastProduct.DAILY).failureTimeMs,
+            errorRetryAtMs = ctx.stateManager.viewWatermark(ctx.displaySource, ForecastProduct.DAILY).retryAtMs,
             errorBannerSinceMs = ctx.stateManager.viewWatermark(ctx.displaySource, ForecastProduct.DAILY).bannerSinceMs,
             useLargeTodayOverlay = ctx.largeTodayOverlayEnabled,
             todayOverlayData = todayOverlayData,

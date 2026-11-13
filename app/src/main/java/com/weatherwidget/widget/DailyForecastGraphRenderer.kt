@@ -252,6 +252,7 @@ object DailyForecastGraphRenderer {
         useLargeTodayOverlay: Boolean = false,
         todayOverlayData: TodayOverlayRenderData? = null,
         useCelsius: Boolean,
+        errorRetryAtMs: Long? = null,
     ): DailyGraphRenderResult {
         job?.ensureActive()
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
@@ -263,7 +264,7 @@ object DailyForecastGraphRenderer {
                 val watermarkDensity = context.resources.displayMetrics.density * bitmapScale
                 GraphFailureWatermarkRenderer.drawLocalized(
                     context, canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity,
-                    errorSourceLabel, errorCode, errorFailureTimeMs, errorBannerSinceMs,
+                    errorSourceLabel, errorCode, errorFailureTimeMs, errorBannerSinceMs, errorRetryAtMs,
                 )
             }
             return DailyGraphRenderResult(bitmap, emptyList())
@@ -458,7 +459,7 @@ object DailyForecastGraphRenderer {
             val watermarkDensity = context.resources.displayMetrics.density * bitmapScale
             GraphFailureWatermarkRenderer.drawLocalized(
                     context, canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity,
-                    errorSourceLabel, errorCode, errorFailureTimeMs, errorBannerSinceMs,
+                    errorSourceLabel, errorCode, errorFailureTimeMs, errorBannerSinceMs, errorRetryAtMs,
                 )
         }
 

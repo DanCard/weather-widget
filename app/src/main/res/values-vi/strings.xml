@@ -308,6 +308,7 @@
     <string name="obs_no_location_to_refresh">Không có vị trí để làm mới</string>
     <string name="obs_refreshed_source">Đã làm mới %1$s</string>
     <string name="forecast_history_refresh_failed">Không thể làm mới %1$s</string>
+    <string name="refresh_retrying_at">thử lại lúc %1$s</string>
     <string name="obs_reported_prefix">"Báo lúc "</string>
     <string name="obs_fetched_separator">" • Lấy lúc "</string>
     <string name="station_origin_web">Web</string>

@@ -484,6 +484,16 @@ class WidgetStateManager internal constructor(
         if (errorCode == "HTTP_429") fetchStateStore.recordRateLimit(source, partial = false, detail = detail)
     }
 
+    fun getSourceRetry(source: WeatherSource): com.weatherwidget.shared.util.SourceRetry.Pending? =
+        fetchStateStore.sourceRetry(source)
+
+    fun armSourceRetry(source: WeatherSource, retry: com.weatherwidget.shared.util.SourceRetry.Pending) =
+        fetchStateStore.armSourceRetry(source, retry)
+
+    /** When [source] is next retried ([com.weatherwidget.shared.util.SourceRetry]), if that is still ahead. */
+    fun getSourceRetryAtMs(source: WeatherSource, nowMs: Long = System.currentTimeMillis()): Long? =
+        com.weatherwidget.shared.util.SourceRetry.retryAtMs(getSourceRetry(source), nowMs)
+
     fun getSourceLastErrorCode(source: WeatherSource): String? =
         fetchStateStore.sourceLastErrorCode(source)
 
@@ -530,6 +540,7 @@ class WidgetStateManager internal constructor(
                 errorCode = getSourceLastErrorCode(source),
                 failureTimeMs = getSourceLastFailureTime(source),
                 bannerSinceMs = getSourceBannerSince(source),
+                retryAtMs = getSourceRetryAtMs(source, nowMs),
             )
         }
         val (blocked, quota) = com.weatherwidget.data.remote.QuotaNotice.bannerBlock(product) { getProductQuota(source, it, nowMs) }
@@ -554,6 +565,8 @@ class WidgetStateManager internal constructor(
         val errorCode: String?,
         val failureTimeMs: Long?,
         val bannerSinceMs: Long?,
+        /** A pending source retry: the pill says "retrying 9:20 PM" instead of when it failed. */
+        val retryAtMs: Long? = null,
     ) {
         companion object {
             val NONE = ViewWatermark(false, null, null, null)

@@ -106,7 +106,20 @@ class ForecastHistoryActivity : AppCompatActivity() {
          * 12 AM", from existing strings only (plans/261016-history-refresh-outcome-shared-desktop-parity.md).
          */
         fun refreshOutcomeText(context: android.content.Context, outcome: RefreshOutcome, sourceName: String): String {
-            if (outcome == RefreshOutcome.Failed) return context.getString(R.string.forecast_history_refresh_failed, sourceName)
+            if (outcome is RefreshOutcome.Failed) {
+                return RefreshOutcome.failedText(
+                    outcome,
+                    sourceName,
+                    couldNotRefresh = { context.getString(R.string.forecast_history_refresh_failed, it) },
+                    errorCodeText = { com.weatherwidget.widget.GraphFailureWatermarkRenderer.localizedErrorCodeText(context, it) },
+                    retrying = {
+                        context.getString(
+                            R.string.refresh_retrying_at,
+                            android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(it)),
+                        )
+                    },
+                )
+            }
             val refreshed = context.getString(R.string.obs_refreshed_source, sourceName)
             val refused = when (outcome) {
                 is RefreshOutcome.Refused -> {

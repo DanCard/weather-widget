@@ -783,6 +783,7 @@ private fun BoxScope.FetchFailureBanner(
             errorCode = pill.errorCode,
             failureTimeMs = pill.failureTimeMs,
             stage = bannerStage,
+            retryAtMs = pill.retryAtMs,
             measureMain = { text, size -> measure(true, text, size).size.width.toFloat() },
             measureDetail = { text, size -> measure(false, text, size).size.width.toFloat() },
             mainMetrics = { size -> metrics(true, size) },

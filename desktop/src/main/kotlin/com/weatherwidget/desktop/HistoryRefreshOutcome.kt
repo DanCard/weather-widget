@@ -2,6 +2,7 @@ package com.weatherwidget.desktop
 
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopQuotaState
+import com.weatherwidget.data.local.desktop.DesktopSourceRetryState
 import com.weatherwidget.data.model.ForecastProduct
 import com.weatherwidget.shared.util.RefreshOutcome
 
@@ -18,7 +19,7 @@ internal fun historyRefreshOutcome(
     startedAtMs: Long,
     nowMs: Long = System.currentTimeMillis(),
 ): RefreshOutcome {
-    if (!ok) return RefreshOutcome.Failed
+    if (!ok) return failedOutcome(weatherDao, sourceId, nowMs)
     val quotas = DesktopQuotaState(weatherDao)
     return RefreshOutcome.of(
         ok = true,
@@ -28,3 +29,14 @@ internal fun historyRefreshOutcome(
         startedAtMs = startedAtMs,
     )
 }
+
+/**
+ * A failed refresh of [sourceId], with why (its newest failed `CURRENT_TEMP_STATUS` row) and when it is
+ * retried ([DesktopSourceRetryState]): "Meteo: Timed Out · retrying 9:20 PM"
+ * (plans/261112-refresh-failure-reason-and-retry.md).
+ */
+internal fun failedOutcome(weatherDao: DesktopWeatherDao, sourceId: String, nowMs: Long = System.currentTimeMillis()): RefreshOutcome.Failed =
+    RefreshOutcome.Failed(
+        errorCode = weatherDao.getLatestCurrentTempStatus(sourceId)?.takeIf { !it.ok }?.let { desktopFailureKind(it).code },
+        retryAtMs = DesktopSourceRetryState(weatherDao).retryAtMs(sourceId, nowMs),
+    )

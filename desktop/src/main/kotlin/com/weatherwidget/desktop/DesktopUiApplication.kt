@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.data.local.desktop.SwitchRefreshLog
 import com.weatherwidget.data.remote.weathernext.WeatherNextDomain
 import com.weatherwidget.shared.rainmap.WeatherNextLoop
 import com.weatherwidget.shared.util.DayTap
@@ -242,6 +243,9 @@ internal fun runDesktopUiApplication() = application {
             com.weatherwidget.shared.util.UserRefreshRunner(uiScope) { tag, message, level -> weatherDao.log(tag, message, level) }
         }
         val currentConfig = config
+        // Every fetch that stores data runs in the daemon: this process exits 400 ms after its last
+        // window closes (plans/261112-desktop-fetches-run-in-daemon.md). It only waits for the reply.
+        val fetchClient = remember { DaemonFetchClient(appDataDir()) }
 
         val weatherService = remember(currentConfig?.lat, currentConfig?.lon, currentConfig?.settings?.weatherSource, currentConfig?.settings?.apiKeys, currentConfig?.personalStationWeight()) {
             currentConfig?.let {
@@ -325,6 +329,13 @@ internal fun runDesktopUiApplication() = application {
             if (!publishIfCurrent(repo, snapshot, origin)) reloadCachedForecast("stale_publish:$origin")
         }
 
+        /** The source the daemon's switch refresh fetched ([SwitchRefreshLog]); [fallback] without a row. */
+        fun switchResultSource(fallback: WeatherSource): WeatherSource =
+            weatherDao.getLatestSwitchRefreshResult()
+                ?.let { (_, message) -> SwitchRefreshLog.parseSourceId(message) }
+                ?.let(WeatherSource::fromId)
+                ?: fallback
+
         /** The daemon's refresh after a source switch, on the popup: the click is the UI's, the fetch is not. */
         fun announceSwitchRefresh(signal: SwitchRefreshSignal) {
             val origin = "source_switch"
@@ -333,10 +344,14 @@ internal fun runDesktopUiApplication() = application {
             when (signal) {
                 SwitchRefreshSignal.QUEUED ->
                     refreshNotice.show(RefreshNotice.Queued(RefreshNotice.Kind.FORECAST, source.shortDisplayName), RefreshNoticeSurface.POPUP, origin)
+                // The fetched source, not the displayed one: a switch onward while it fetched made the
+                // popup say "Couldn't refresh NWS" over an Open-Meteo timeout (2026-11-12).
                 SwitchRefreshSignal.REFRESHED ->
-                    refreshNotice.showOutcome(RefreshOutcome.Refreshed, source.shortDisplayName, RefreshNoticeSurface.POPUP, origin)
-                SwitchRefreshSignal.FAILED ->
-                    refreshNotice.showOutcome(RefreshOutcome.Failed, source.shortDisplayName, RefreshNoticeSurface.POPUP, origin)
+                    refreshNotice.showOutcome(RefreshOutcome.Refreshed, switchResultSource(source).shortDisplayName, RefreshNoticeSurface.POPUP, origin)
+                SwitchRefreshSignal.FAILED -> {
+                    val fetched = switchResultSource(source)
+                    refreshNotice.showOutcome(failedOutcome(weatherDao, fetched.id), fetched.shortDisplayName, RefreshNoticeSurface.POPUP, origin)
+                }
             }
         }
 
@@ -446,7 +461,10 @@ internal fun runDesktopUiApplication() = application {
                 )
                 uiScope.launch {
                     try {
-                        val fetched = repo.ensureHistory(neededBackHours)
+                        val cfg = currentConfig ?: return@launch
+                        val fetched = fetchClient.send(
+                            FetchRequest(FetchRequest.Kind.HISTORY_DEPTH, cfg.displaySource, cfg.lat, cfg.lon, "history_zoom", "history_depth", backHours = neededBackHours),
+                        ).changed
                         if (fetched) repo.loadCached()?.let { publishOrReload(repo, it, "history") }
                         // The DB already holds all retained history (loadCached reads the full window),
                         // and an on-demand fetch can only add RECENT obs (NWS serves ~7 days), never
@@ -483,7 +501,11 @@ internal fun runDesktopUiApplication() = application {
                 } else {
                     uiScope.launch {
                         try {
-                            if (repo.extendHourlyFor(date)) repo.loadCached()?.let { publishOrReload(repo, it, "day_hourly") }
+                            val cfg = currentConfig
+                            val changed = cfg != null && fetchClient.send(
+                                FetchRequest(FetchRequest.Kind.HOURLY_DAY, cfg.displaySource, cfg.lat, cfg.lon, "day_tap", "day_hourly", date = date.toString()),
+                            ).changed
+                            if (changed) repo.loadCached()?.let { publishOrReload(repo, it, "day_hourly") }
                         } catch (e: kotlinx.coroutines.CancellationException) {
                             throw e
                         } catch (e: Exception) {
@@ -626,7 +648,10 @@ internal fun runDesktopUiApplication() = application {
                 refreshInFlight = true
                 try {
                     // A Synoptic backoff earned at the previous site must not blank this one's actuals.
-                    publishIfCurrent(repo, repo.refresh(userLocationChange = true, reason = "location_change"), "location_change")
+                    fetchClient.send(
+                        FetchRequest(FetchRequest.Kind.FORECAST, cfg.displaySource, repo.latitude, repo.longitude, "location_change", "location_change", userLocationChange = true),
+                    )
+                    repo.loadCached()?.let { publishIfCurrent(repo, it, "location_change") }
                     dataStatus = DataStatus.Live(System.currentTimeMillis())
                     dataUpdateCount++
                     LocationChangePaintPolicy.log(LocationChangePaintPolicy.Action.CLEARED, label, write = weatherDao::log)
@@ -789,7 +814,11 @@ internal fun runDesktopUiApplication() = application {
                     val startedAtMs = System.currentTimeMillis()
                     refreshNotice.show(RefreshNotice.Queued(RefreshNotice.Kind.FORECAST, source.shortDisplayName), surface, origin)
                     try {
-                        publishOrReload(repo, refreshRunner.start("viewing_refresh") { repo.refresh(reason = "viewing_forecast_stale") }.await(), origin)
+                        val viewed = refreshRunner.start("viewing_refresh") {
+                            fetchClient.send(FetchRequest(FetchRequest.Kind.FORECAST, cfg.displaySource, cfg.lat, cfg.lon, origin, "viewing_forecast_stale"))
+                            repo.loadCached()
+                        }.await()
+                        viewed?.let { publishOrReload(repo, it, origin) }
                         dataUpdateCount++
                         notifyRefreshRequested()
                         announceRefreshDone(origin, source.id, ok = true, startedAtMs, surface)
@@ -866,17 +895,21 @@ internal fun runDesktopUiApplication() = application {
             val refreshedSourceId = WeatherSource.fromDisplaySource(currentConfig?.displaySource ?: "").id
             // Through the shared runner on the application-owned scope: removing either child window
             // from composition cannot cancel the fetch or discard its result.
+            val cfgAtTap = currentConfig
             val refresh = refreshRunner.start("user_refresh:$origin") {
-                val snapshot = repo.refresh(reason = "user_refresh:$origin", userRefresh = true)
-                // The daily NWS gap fill, as Android's Refresh runs it: need-gated, so a complete
-                // 3 days costs no request. Only a wake ran it before, so a fill that wake judged
-                // unneeded had no manual way out (2026-10-27: cloud actuals stopped at 01:00).
-                val served = currentConfig?.effectiveSources?.map(WeatherSource::fromId).orEmpty()
-                if (repo.refreshObservationWindow(served, reason = "user_refresh:$origin") > 0) repo.loadCached() ?: snapshot else snapshot
+                // In the daemon, with the daily NWS gap fill as Android's Refresh runs it: need-gated,
+                // so a complete 3 days costs no request (2026-10-27: cloud actuals stopped at 01:00).
+                fetchClient.send(
+                    FetchRequest(
+                        FetchRequest.Kind.FORECAST, refreshedSourceId, cfgAtTap?.lat ?: 0.0, cfgAtTap?.lon ?: 0.0,
+                        origin, "user_refresh:$origin", userRefresh = true, observationWindow = true,
+                    ),
+                )
+                repo.loadCached()
             }
             uiScope.launch {
                 try {
-                    publishOrReload(repo, refresh.await(), origin)
+                    refresh.await()?.let { publishOrReload(repo, it, origin) }
                     // A Refresh is the way out the location-change error message points at.
                     if (dataStatus is DataStatus.FetchingLocation || dataStatus is DataStatus.Error) {
                         dataStatus = DataStatus.Live(System.currentTimeMillis())
@@ -884,7 +917,7 @@ internal fun runDesktopUiApplication() = application {
                     dataUpdateCount++
                     weatherDao.log(
                         "REFRESH_CLICK",
-                        "origin=$origin repository.refresh() completed",
+                        "origin=$origin daemon refresh completed",
                         "INFO",
                     )
                     // UI -> daemon direction: only notify after the refreshed rows are durable.
@@ -899,24 +932,11 @@ internal fun runDesktopUiApplication() = application {
                     val cfg = currentConfig
                     if (origin == "settings" && cfg != null) {
                         val others = refreshRunner.start("user_refresh:settings_all_sources") {
-                            SettingsRefreshAllSources.refreshOthers(
-                                cfg.displaySource,
-                                cfg.effectiveSources,
-                                refresh = { sourceId ->
-                                    // As the daemon's forecast loop builds a non-active source's.
-                                    val service = DesktopWeatherService(
-                                        cfg.lat, cfg.lon, sourceId, cfg.settings.apiKeys, weatherDao,
-                                        isForeground = true, synopticBackoffStore = DesktopSynopticBackoffStore.default(), nowcastStore = DesktopNowcast.store,
-                                        personalStationWeight = cfg.personalStationWeight(),
-                                    )
-                                    try {
-                                        DesktopWeatherRepository(service, weatherDao, cfg.lat, cfg.lon, sourceId, cfg.personalStationWeight())
-                                            .refresh(reason = "user_refresh:settings", userRefresh = true)
-                                    } finally {
-                                        service.close()
-                                    }
-                                },
-                                log = weatherDao::log,
+                            fetchClient.send(
+                                FetchRequest(
+                                    FetchRequest.Kind.OTHER_SOURCES, cfg.displaySource, cfg.lat, cfg.lon,
+                                    origin, "user_refresh:settings", userRefresh = true,
+                                ),
                             )
                             repo.loadCached()
                         }
@@ -1001,12 +1021,16 @@ internal fun runDesktopUiApplication() = application {
             val startedAtMs = System.currentTimeMillis()
             val refreshedSourceId = WeatherSource.fromDisplaySource(currentConfig?.displaySource ?: "").id
             // The shared runner, as in requestFullRefresh: closing the window cannot cancel it.
+            val cfgAtTap = currentConfig
             val refresh = refreshRunner.start("user_refresh:$origin") {
-                repo.refreshObservations(reason = "user_refresh:$origin")
+                fetchClient.send(
+                    FetchRequest(FetchRequest.Kind.OBSERVATIONS, refreshedSourceId, cfgAtTap?.lat ?: 0.0, cfgAtTap?.lon ?: 0.0, origin, "user_refresh:$origin"),
+                )
+                repo.loadCached()
             }
             uiScope.launch {
                 try {
-                    publishOrReload(repo, refresh.await(), origin)
+                    refresh.await()?.let { publishOrReload(repo, it, origin) }
                     dataUpdateCount++
                     notifyRefreshRequested()
                     weatherDao.log("REFRESH_CLICK", "origin=$origin completed", "INFO")
@@ -1076,17 +1100,9 @@ internal fun runDesktopUiApplication() = application {
             val startedAtMs = System.currentTimeMillis()
             // The shared runner, as in requestFullRefresh: closing the window cannot cancel it.
             val refresh = refreshRunner.start("user_refresh:$origin:${source.id}") {
-                val service = DesktopWeatherService(
-                    cfg.lat, cfg.lon, source.id, cfg.settings.apiKeys, weatherDao,
-                    isForeground = true, synopticBackoffStore = DesktopSynopticBackoffStore.default(), nowcastStore = DesktopNowcast.store,
-                    personalStationWeight = cfg.personalStationWeight(),
+                fetchClient.send(
+                    FetchRequest(FetchRequest.Kind.FORECAST, source.id, cfg.lat, cfg.lon, origin, "user_refresh:$origin", userRefresh = true),
                 )
-                try {
-                    DesktopWeatherRepository(service, weatherDao, cfg.lat, cfg.lon, source.id, cfg.personalStationWeight())
-                        .refresh(reason = "user_refresh:$origin", userRefresh = true)
-                } finally {
-                    service.close()
-                }
             }
             uiScope.launch {
                 try {

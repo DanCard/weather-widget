@@ -31,6 +31,7 @@ class FailureBannerLayoutTest {
         failureTimeMs: Long? = now - 60_000,
         stage: FailureBannerStage = FailureBannerStage.FULL,
         sourceLabel: String? = "Google",
+        retryAtMs: Long? = null,
     ) = FailureBannerLayout.calculate(
         width = width,
         height = height,
@@ -42,6 +43,7 @@ class FailureBannerLayoutTest {
         locale = Locale.US,
         zoneId = zone,
         stage = stage,
+        retryAtMs = retryAtMs,
         measureMain = { text, size -> text.length * size * 0.6f },
         measureDetail = { text, size -> text.length * size * 0.6f },
         mainMetrics = { size -> -0.9f * size to 0.25f * size },
@@ -86,6 +88,20 @@ class FailureBannerLayoutTest {
         val p = placed(pill(errorCode = "HTTP_429"))
         assertEquals("⚠ GOOGLE UPDATES FAILING", p.mainText)
         assertEquals("429 Rate Limited · 2:34 PM", p.detailText)
+    }
+
+    @Test
+    fun `a pending retry replaces the failure time with when it is tried again`() {
+        val retryAt = LocalDateTime.of(2026, 10, 7, 14, 50).atZone(zone).toInstant().toEpochMilli()
+        val p = placed(pill(errorCode = "TIMEOUT", retryAtMs = retryAt))
+        println("detail=${p.detailText}")
+        assertEquals("Timed Out · retrying 2:50 PM", p.detailText)
+    }
+
+    @Test
+    fun `a retry already past falls back to the failure time`() {
+        val p = placed(pill(errorCode = "TIMEOUT", retryAtMs = now - 1))
+        assertEquals("Timed Out · 2:34 PM", p.detailText)
     }
 
     @Test
