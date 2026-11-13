@@ -4,24 +4,19 @@ import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.parity.DailyParity
-import com.weatherwidget.test.category.LongDuration
+import com.weatherwidget.test.category.ShortDuration
 import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.widget.DailyForecastGraphRenderer
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.experimental.categories.Category
-import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.Config
 import java.time.LocalDate
 
 /**
  * Android half of the daily parity harness ([DailyParity]): the shared fixtures through
  * [DailyViewLogic.prepareGraphDays], written as text for `scripts/daily_parity_diff.py`.
  */
-@RunWith(RobolectricTestRunner::class)
-@Config(sdk = [35])
-@Category(LongDuration::class)
+@Category(ShortDuration::class)
 class AndroidDailyParityTest {
 
     private fun entity(r: DailyParity.Row) = ForecastEntity(

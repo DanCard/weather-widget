@@ -6,7 +6,7 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.testutil.TestData.dateEpoch
-import com.weatherwidget.test.category.LongDuration
+import com.weatherwidget.test.category.ShortDuration
 import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.widget.DailyForecastGraphRenderer
 import com.weatherwidget.widget.WidgetConstants
@@ -18,16 +18,11 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.experimental.categories.Category
-import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.Config
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
-@RunWith(RobolectricTestRunner::class)
-@Config(sdk = [35])
-@Category(LongDuration::class)
+@Category(ShortDuration::class)
 class DailyViewLogicTest {
 
     private fun extreme(

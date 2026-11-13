@@ -4,8 +4,7 @@ import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.actuals.DailyHistoryMaintenance
-import com.weatherwidget.test.RobolectricTest
-import com.weatherwidget.test.category.LongDuration
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -20,8 +19,8 @@ import java.time.ZoneId
  * today's left bar uses the same 06:00 / 16:00 anchors through [DailyTodayResolver].
  * See plans/261005-past-days-triple-bar-prior-forecast-at-cutoffs.md.
  */
-@Category(LongDuration::class)
-class PastDayTripleBarDataIntegrationTest : RobolectricTest() {
+@Category(ShortDuration::class)
+class PastDayTripleBarDataIntegrationTest {
     private val zone = ZoneId.systemDefault()
     private val today = LocalDate.now(zone)
     private val yesterday = today.minusDays(1)

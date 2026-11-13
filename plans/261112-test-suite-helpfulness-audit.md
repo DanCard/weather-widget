@@ -500,3 +500,32 @@ falls back to the station id but that station's observations keep the blank name
 User (2026-11-13): "fix blank station". Fixed: `parseStationObservations` treats a blank `NAME` as
 missing, so the observations use the fallback (the station id on the radius path) as the station
 record already did. `SynopticApiRulesTest` pins it on both paths; the radius case failed before the fix.
+
+## Phase 5 result (2026-11-13, uncommitted): layer and duplication
+
+**Robolectric classes that need no Android.** 294 files used Robolectric. 35 reference no Android API
+directly; 32 of those open Room through `TestDatabase` or are Room host contracts, which need it. The
+other three ran unchanged as plain JVM tests and are now `ShortDuration`:
+`DailyViewLogicTest` (64 tests, 0.11 s), `AndroidDailyParityTest` (1), `PastDayTripleBarDataIntegrationTest` (3).
+The remaining files with one or two Android imports all take a real `Context`
+(`ApplicationProvider`), so they stay. Not tried: removing the runner from every class to see what
+passes, because `isReturnDefaultValues = true` would let Android stubs return defaults and pass vacuously.
+
+**App tests of `:shared` code.** Seven pure-JVM `:app` test classes touched only `:shared` classes,
+so Pitest never saw them (`NiceAxisScale` showed no tests). Moved to `shared/src/test`, same packages:
+`SunPositionUtilsTest`, `NavigationUtilsTest`, `NiceAxisScaleTest`, `NwsForecastMapperGridpointMergeTest`,
+`ForecastRepositoryPhantomDayTest`, `TemperatureGraphRendererLabelPlacementTest`,
+`WeatherSourceHistoricalActualsTest`. `WeatherTimeUtilsTest` stays: it tests the `:app` object of that name.
+Desktop: none (the five candidates use the desktop database).
+
+**Duplicates and tests that cannot fail (11 tests removed).**
+
+| Removed | Why | Covering test |
+|---|---|---|
+| `PrecipTouchZoneTest` (5), `CurrentTempTouchZoneTest` (3) | Assert numbers they declare themselves; read no layout or code | None: they tested nothing |
+| `:shared` `TodayColumnOverlayPlannerTest` (1) | Same three cases as the `:app` class, weaker assertions | The `:app` class (4 tests), moved into its place |
+| `ZoomLevelSmoothingTest` (2) | WIDE = 3 and NARROW = 1 smoothing passes | `ZoomWindowTest` (wide at line 89; narrow span table, span 5 → 1) |
+
+**Largest files.** No split: `DailyViewLogicTest`'s only concrete problem was the unneeded runner.
+
+Counts: unit tests 6,972 → 6,961; Robolectric files 294 → 291; `./scripts/unit-tests.sh` passes.
