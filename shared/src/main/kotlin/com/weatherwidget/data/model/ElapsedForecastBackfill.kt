@@ -54,15 +54,34 @@ object ElapsedForecastBackfill {
     }
 
     /** Files [fetched]'s elapsed hours into [store] ([select]); null when it offered none in the window. */
-    suspend fun backfill(fetched: List<HourlyForecast>, nowMs: Long, store: Store): Summary? {
+    suspend fun backfill(
+        fetched: List<HourlyForecast>,
+        nowMs: Long,
+        store: Store,
+        stored: List<HourlyForecast> = emptyList(),
+    ): Summary? {
         val range = window(nowMs)
         val offered = fetched.count { it.dateTime in range }
         if (offered == 0) return null
+        val storedAmounts = newestAmountByHour(stored)
         // Stamped here, not per platform: newest-wins must read this fetch as the newest on both.
-        val selected = select(fetched, nowMs).map { it.copy(fetchedAt = nowMs) }
+        val selected = select(fetched, nowMs).map {
+            it.copy(fetchedAt = nowMs, precipAmountMm = it.precipAmountMm ?: storedAmounts[it.dateTime])
+        }
         store.insert(selected)
         return Summary(offered, selected.size)
     }
+
+    /**
+     * Each hour's newest stored rain amount. A provider whose amount comes from a forward-looking grid
+     * (NWS QPF) returns none for an hour that has elapsed, and filing that null would erase the amount
+     * an earlier fetch recorded while the hour was still ahead (NWS Fri 2026-11-13: the 09:57 fetch's
+     * null 08:00 hour blanked the whole day's amount; plans/261113-nws-day-amount-null-elapsed-hour.md).
+     */
+    private fun newestAmountByHour(stored: List<HourlyForecast>): Map<Long, Float> =
+        stored.filter { it.precipAmountMm != null }
+            .groupBy { it.dateTime }
+            .mapValues { (_, rows) -> rows.maxBy { it.fetchedAt }.precipAmountMm!! }
 
     const val LOG_TAG = "HOURLY_HISTORY_BACKFILL"
 

@@ -118,4 +118,43 @@ class HourlyForecastDaoTest {
         val result = dao.getHourlyForecasts(TestData.toEpoch("2026-02-20T14:00"), TestData.toEpoch("2026-02-20T14:00"), LAT, LON)
         assertEquals(80, result[0].precipProbability)
     }
+
+    /** plans/261113-nws-day-amount-null-elapsed-hour.md: the desktop twin is `HourlyForecastSqlTest`. */
+    @Test
+    fun `a newest row with no rain amount reads the newest stored amount on every newest-per-hour read`() = runTest {
+        val t = TestData.toEpoch("2026-02-20T14:00")
+        fun fetch(at: Long, amount: Float?, temp: Float) =
+            TestData.hourly(dateTime = "2026-02-20T14:00", temperature = temp, fetchedAt = at)
+                .copy(precipAmountMm = amount, timestampToGroupPredictions = at)
+        dao.insertAll(listOf(fetch(1_000L, 0.5f, 60f), fetch(2_000L, 0.08f, 61f), fetch(3_000L, null, 66f)))
+
+        val reads = listOf(
+            dao.getHourlyForecasts(t, t, LAT, LON),
+            dao.getHourlyForecastsBySource(t, t, LAT, LON, "NWS"),
+            dao.getHourlyForecastsForSources(t, t, LAT, LON, listOf("NWS")),
+        )
+        for (rows in reads) {
+            val row = rows.single()
+            assertEquals(66f, row.temperature, 0f) // still the newest fetch's row
+            assertEquals(0.08f, row.precipAmountMm!!, 0f)
+        }
+    }
+
+    @Test
+    fun `a rain amount of zero is real and an hour never given one stays null`() = runTest {
+        val t = TestData.toEpoch("2026-02-20T14:00")
+        dao.insertAll(
+            listOf(
+                TestData.hourly(dateTime = "2026-02-20T14:00", fetchedAt = 1_000L)
+                    .copy(precipAmountMm = 0.5f, timestampToGroupPredictions = 1_000L),
+                TestData.hourly(dateTime = "2026-02-20T14:00", fetchedAt = 2_000L)
+                    .copy(precipAmountMm = 0f, timestampToGroupPredictions = 2_000L),
+                TestData.hourly(dateTime = "2026-02-20T15:00", fetchedAt = 2_000L),
+            ),
+        )
+
+        val rows = dao.getHourlyForecastsBySource(t, t + 3_600_000L, LAT, LON, "NWS")
+        assertEquals(0f, rows[0].precipAmountMm!!, 0f)
+        assertNull(rows[1].precipAmountMm)
+    }
 }

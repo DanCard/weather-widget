@@ -1768,7 +1768,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         val result = mutableListOf<HourlyForecast>()
         db.getConnection().use { conn ->
             val sql = """
-                SELECT * FROM hourly_forecasts 
+                SELECT ${com.weatherwidget.data.local.HourlyForecastSql.NEWEST_ROW_COLUMNS} FROM hourly_forecasts 
                 WHERE ${LocationMatch.JDBC_WHERE} AND source = ? AND fetchedAt >= ?
                 GROUP BY dateTime, source, locationLat, locationLon
                 HAVING fetchedAt = MAX(fetchedAt)
@@ -1808,7 +1808,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         val result = mutableListOf<HourlyForecast>()
         db.getConnection().use { conn ->
             val sql = """
-                SELECT * FROM hourly_forecasts
+                SELECT ${com.weatherwidget.data.local.HourlyForecastSql.NEWEST_ROW_COLUMNS} FROM hourly_forecasts
                 WHERE ${LocationMatch.JDBC_WHERE} AND source = ? AND dateTime >= ? AND dateTime <= ?
                 GROUP BY dateTime, source, locationLat, locationLon
                 HAVING fetchedAt = MAX(fetchedAt)
@@ -1849,7 +1849,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         val result = mutableListOf<HourlyForecast>()
         db.getConnection().use { conn ->
             val sql = """
-                SELECT * FROM hourly_forecasts
+                SELECT ${com.weatherwidget.data.local.HourlyForecastSql.NEWEST_ROW_COLUMNS} FROM hourly_forecasts
                 WHERE ${LocationMatch.JDBC_WHERE} AND dateTime >= ? AND dateTime <= ?
                   AND source != '${com.weatherwidget.shared.graph.PriorDayCloudForecast.SOURCE_ID}'
                 GROUP BY dateTime, source, locationLat, locationLon

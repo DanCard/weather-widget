@@ -98,7 +98,9 @@ class ForecastPersistRun<K>(
     /** Never fails the fetch: the live rows and the daily rows matter more than history for a blank site. */
     private suspend fun backfillElapsed(hours: List<HourlyForecast>, label: Long, nowMs: Long): ElapsedForecastBackfill.Summary? {
         val summary = try {
-            ElapsedForecastBackfill.backfill(hours, nowMs, host.elapsedStore(label, nowMs))
+            val window = ElapsedForecastBackfill.window(nowMs)
+            val stored = host.storedHourly(window.first, window.last)
+            ElapsedForecastBackfill.backfill(hours, nowMs, host.elapsedStore(label, nowMs), stored)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

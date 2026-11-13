@@ -79,4 +79,34 @@ class HourlyForecastSelectorTest {
         val rows = listOf(fc(hour, 65f, fetchedAt = 1_000L, rowLat = null, rowLon = null))
         assertEquals(65f, select(rows).getValue(hour).temperature, 0f)
     }
+
+    @Test
+    fun `newest row with no rain amount takes the amount of the newest row that has one`() {
+        // NWS 2026-11-13 08:00: the 09:57 fetch had no amount, the 08:10 fetch had 0.08 mm.
+        val hour = 1_000L
+        val picked = select(
+            listOf(
+                fc(hour, 60f, fetchedAt = 1L).copy(precipAmountMm = 0.5f),
+                fc(hour, 61f, fetchedAt = 2L).copy(precipAmountMm = 0.08f),
+                fc(hour, 62f, fetchedAt = 3L).copy(precipAmountMm = null),
+            ),
+        ).getValue(hour)
+
+        assertEquals(62f, picked.temperature, 0f) // still the newest fetch's row
+        assertEquals(0.08f, picked.precipAmountMm!!, 0f)
+    }
+
+    @Test
+    fun `an hour no fetch has an amount for stays null, and a newer amount is never replaced`() {
+        val bare = select(listOf(fc(1_000L, 60f, fetchedAt = 1L))).getValue(1_000L)
+        assertEquals(null, bare.precipAmountMm)
+
+        val newer = select(
+            listOf(
+                fc(2_000L, 60f, fetchedAt = 1L).copy(precipAmountMm = 0.5f),
+                fc(2_000L, 61f, fetchedAt = 2L).copy(precipAmountMm = 0f),
+            ),
+        ).getValue(2_000L)
+        assertEquals(0f, newer.precipAmountMm!!, 0f)
+    }
 }

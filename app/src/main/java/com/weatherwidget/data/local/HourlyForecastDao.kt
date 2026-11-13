@@ -10,7 +10,7 @@ import androidx.room.*
 interface HourlyForecastDao {
     @Query(
         """
-        SELECT * FROM hourly_forecasts
+        SELECT ${HourlyForecastSql.NEWEST_ROW_COLUMNS} FROM hourly_forecasts
         WHERE ${LocationMatch.ROOM_WHERE}
         AND dateTime >= :startDateTime
         AND dateTime <= :endDateTime
@@ -29,7 +29,7 @@ interface HourlyForecastDao {
 
     @Query(
         """
-        SELECT * FROM hourly_forecasts
+        SELECT ${HourlyForecastSql.NEWEST_ROW_COLUMNS} FROM hourly_forecasts
         WHERE ${LocationMatch.ROOM_WHERE}
         AND dateTime >= :startDateTime
         AND dateTime <= :endDateTime
@@ -58,7 +58,7 @@ interface HourlyForecastDao {
      */
     @Query(
         """
-        SELECT * FROM hourly_forecasts
+        SELECT ${HourlyForecastSql.NEWEST_ROW_COLUMNS} FROM hourly_forecasts
         WHERE ${LocationMatch.ROOM_WHERE}
         AND dateTime >= :startDateTime
         AND dateTime <= :endDateTime

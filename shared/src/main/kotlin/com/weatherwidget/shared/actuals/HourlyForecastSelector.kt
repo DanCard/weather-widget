@@ -54,7 +54,15 @@ object HourlyForecastSelector {
                     lat == null || lon == null || LocationMatch.sameSite(centerLat, centerLon, lat, lon)
                 }
                 val candidates = sameSite.ifEmpty { sourceFiltered }
-                val picked = candidates.maxByOrNull { it.fetchedAt }
+                val newest = candidates.maxByOrNull { it.fetchedAt }
+                // A newer fetch can lack the amount (NWS's grid drops elapsed hours); rows already in
+                // the database hold nulls where an earlier fetch had a value, so fall back per field.
+                val picked = if (newest != null && newest.precipAmountMm == null) {
+                    candidates.filter { it.precipAmountMm != null }.maxByOrNull { it.fetchedAt }
+                        ?.let { newest.copy(precipAmountMm = it.precipAmountMm) } ?: newest
+                } else {
+                    newest
+                }
                 if (candidates.size > 1) {
                     Log.d(
                         TAG,

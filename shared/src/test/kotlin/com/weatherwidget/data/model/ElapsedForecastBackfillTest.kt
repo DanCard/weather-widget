@@ -71,4 +71,28 @@ class ElapsedForecastBackfillTest {
         assertEquals(1, selected.size)
         assertEquals(55f, selected.single().temperature, 0f)
     }
+
+    @Test
+    fun `an elapsed hour with no amount keeps the amount an earlier fetch stored`() = kotlinx.coroutines.runBlocking {
+        val inserted = mutableListOf<HourlyForecast>()
+        val store = object : ElapsedForecastBackfill.Store {
+            override suspend fun insert(rows: List<HourlyForecast>) { inserted += rows }
+        }
+        val t = now - 3 * h
+        // NWS 2026-11-13: the 08:10 fetch had 0.08 mm for 08:00; the 09:57 fetch's grid had none left.
+        val stored = listOf(
+            hour(t).copy(precipAmountMm = 0.5f, fetchedAt = 1L),
+            hour(t).copy(precipAmountMm = 0.08f, fetchedAt = 2L),
+            hour(t).copy(precipAmountMm = null, fetchedAt = 3L),
+        )
+        val neverStored = now - 4 * h
+        val fetched = listOf(hour(t), hour(neverStored), hour(now - 5 * h).copy(precipAmountMm = 1.2f))
+
+        ElapsedForecastBackfill.backfill(fetched, now, store, stored)
+
+        val byHour = inserted.associateBy { it.dateTime }
+        assertEquals(0.08f, byHour.getValue(t).precipAmountMm!!, 0f)
+        assertEquals(null, byHour.getValue(neverStored).precipAmountMm)
+        assertEquals(1.2f, byHour.getValue(now - 5 * h).precipAmountMm!!, 0f)
+    }
 }
