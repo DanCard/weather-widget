@@ -105,15 +105,15 @@ label = "Test",
 
             assertTrue("Daemon failed to start. Output:\n${outputLines.joinToString("\n")}", daemonStarted)
 
-            // 2. Give the WatchService a brief moment to register
-            Thread.sleep(1500)
-
-            // 3. Touch the .show file to trigger the UI launch
+            // 2. Touch the .show file to trigger the UI launch. The daemon logs its start line before
+            // its WatchService is registered, and a trigger written before registration is lost, so
+            // the trigger is re-sent every 500 ms until the daemon reacts (no fixed settle time).
             val showFile = appDir.resolve(".show")
             Files.writeString(showFile, "", java.nio.charset.StandardCharsets.UTF_8)
 
-            // 4. Wait for the spawn UI message
+            // 3. Wait for the spawn UI message
             var uiSpawned = false
+            var polls = 0
             val spawnStartTime = System.currentTimeMillis()
             while (System.currentTimeMillis() - spawnStartTime < 10000L) {
                 if (outputLines.any { it.contains("Spawning a new UI process") || it.contains("Launching UI process") }) {
@@ -121,6 +121,7 @@ label = "Test",
                     break
                 }
                 Thread.sleep(100)
+                if (++polls % 5 == 0) Files.writeString(showFile, "", java.nio.charset.StandardCharsets.UTF_8)
             }
 
             assertTrue("UI process was not spawned in response to .show trigger. Output:\n${outputLines.joinToString("\n")}", uiSpawned)
@@ -191,8 +192,8 @@ label = "Test",
 
             assertTrue("Daemon failed to start. Output:\n${outputLines.joinToString("\n")}", daemonStarted)
 
-            // 2. Give the WatchService a brief moment to register
-            Thread.sleep(1500)
+            // 2. No fixed settle time: the WatchService may not be registered yet, and a trigger written
+            // before registration is lost, so both triggers are re-sent every 500 ms (step 5).
 
             // 3. Touch .data-updated first — the daemon produces this trigger (daemon → UI) and
             // must NOT consume it. Reacting to its own writes is the self-echo that clobbered
@@ -205,6 +206,7 @@ label = "Test",
 
             // 5. Wait for the WatchService to detect the refresh request
             var refreshRequestDetected = false
+            var refreshPolls = 0
             val detectStartTime = System.currentTimeMillis()
             while (System.currentTimeMillis() - detectStartTime < 10000L) {
                 if (outputLines.any { it.contains("WatchService: .refresh-requested trigger detected") }) {
@@ -212,6 +214,10 @@ label = "Test",
                     break
                 }
                 Thread.sleep(100)
+                if (++refreshPolls % 5 == 0) {
+                    Files.writeString(appDir.resolve(DATA_UPDATED_TRIGGER), "", java.nio.charset.StandardCharsets.UTF_8)
+                    Files.writeString(appDir.resolve(REFRESH_REQUESTED_TRIGGER), "", java.nio.charset.StandardCharsets.UTF_8)
+                }
             }
 
             assertTrue("WatchService did not detect .refresh-requested trigger. Output:\n${outputLines.joinToString("\n")}", refreshRequestDetected)

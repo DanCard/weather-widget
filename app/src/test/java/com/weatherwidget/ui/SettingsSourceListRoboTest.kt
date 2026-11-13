@@ -108,11 +108,25 @@ class SettingsSourceListRoboTest {
             .first { it.findViewById<TextView>(R.id.source_name).text == source.displayName }
     }
 
-    private fun sourceOrderLogs(): List<String> {
-        // AppLogWidgetStateEventLogger writes on its own scope.
-        Thread.sleep(200)
-        idle()
-        return runBlocking { db.appLogDao().getLogsByTag("SOURCE_ORDER", 50) }.map { it.message }
+    /**
+     * The SOURCE_ORDER rows. AppLogWidgetStateEventLogger writes on its own scope, so the rows arrive
+     * a moment after the save. With [expectAtLeast] the read polls until that many rows exist (up to
+     * 5 s); with 0 it waits a fixed 200 ms, because "nothing was logged" has no event to wait for.
+     */
+    private fun sourceOrderLogs(expectAtLeast: Int = 0): List<String> {
+        fun read() = runBlocking { db.appLogDao().getLogsByTag("SOURCE_ORDER", 50) }.map { it.message }
+        if (expectAtLeast == 0) {
+            Thread.sleep(200)
+            idle()
+            return read()
+        }
+        val deadline = System.currentTimeMillis() + 5_000
+        while (true) {
+            idle()
+            val rows = read()
+            if (rows.size >= expectAtLeast || System.currentTimeMillis() >= deadline) return rows
+            Thread.sleep(10)
+        }
     }
 
     // 3
@@ -161,7 +175,7 @@ class SettingsSourceListRoboTest {
             callback.clearView(recycler, dragged)
             assertEquals(listOf(WeatherSource.SILURIAN, WeatherSource.TOMORROW_IO, WeatherSource.OPEN_METEO), stored())
             // The preference layer logs "Order changed:" on every save: one save per drag.
-            val logs = sourceOrderLogs()
+            val logs = sourceOrderLogs(expectAtLeast = 2)
             assertEquals("one save per drag: $logs", 1, logs.count { it.startsWith("Order changed:") })
             assertEquals("one Drag line: $logs", 1, logs.count { it.startsWith("Drag:") })
             val dragLogs = runBlocking { db.appLogDao().getLogsByTag("SOURCE_DRAG", 50) }.map { it.message }

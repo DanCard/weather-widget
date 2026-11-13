@@ -330,3 +330,26 @@ User (2026-11-13): "Yes delete files that cannot fail. Yes reword. Yes fix weak 
   7%). The interpolation test fails on the old code.
 - Unit suite: 6,873 (two tests deleted). Emulator gate not re-run. Desktop not restarted: an emulator
   was running, and the 06:24 GPU fault happened on a desktop restart with an emulator up.
+
+## Phase 4a result (2026-11-13, uncommitted): the `Thread.sleep` calls
+
+49 matches: one is a comment, 48 are real.
+
+| Kind | Count | Verdict |
+|---|---|---|
+| Poll interval inside a loop with a deadline | 20 | Fine: the wait ends on a condition |
+| Two rows need distinct millisecond timestamps | 17 | Fine: wall-clock time is part of the key or order |
+| Retry pause in a liveness test | 2 | Fine |
+| Elapsed time is the subject (held lock, debounce, "nothing arrives") | 6 | Fine: `DesktopWriteTimingTest`, `DesktopAppLogQueueTest`, `RainForecastLayerSwitchTest`, `UiNotifyChannelTest`, `ResizeDebounceInstrumentedTest` (2) |
+| Fixed wait for background work | 3 | Fixed, below |
+
+- `DesktopStartupTest` (2 sleeps of 1.5 s): guessed when the daemon's WatchService was registered.
+  The daemon logs "Starting headless WeatherDaemon" before registering, and a trigger file written
+  before registration is lost. The tests now re-send the trigger every 500 ms until the daemon reacts.
+  Class time 2.3 s (the two sleeps alone were 3 s); three runs passed.
+- `SettingsSourceListRoboTest` (1 sleep of 200 ms before reading log rows): the presence check now
+  polls until the expected rows exist; the "nothing logged" check keeps the fixed wait.
+- Several of the 17 timestamp sleeps carry no comment saying why (the strategy doc asks for one). Not
+  counted or changed.
+- Product observation, not changed: a `.show` or `.refresh-requested` trigger written in the window
+  between daemon start and WatchService registration is lost (`DaemonRuntime.kt:302-323`).
