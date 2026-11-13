@@ -249,4 +249,120 @@ class OpenMeteoApiTest {
         assertEquals("Thunderstorm", api.weatherCodeToCondition(95))
         assertEquals("Unknown", api.weatherCodeToCondition(999))
     }
+
+    // Kathmandu (UTC+5:45) is no dev machine's zone, so a fallback to the device zone gives a different instant.
+    // 2026-03-02T14:15 there is 08:30Z.
+    private val kathmandu1415 = 1772440200000L
+    private val quarterHour = 15 * 60_000L
+
+    private fun subHourly(current: String, minutely: String) =
+        """{"timezone": "Asia/Kathmandu", "current": $current, "minutely_15": $minutely}"""
+
+    @Test
+    fun `sub-hourly history keeps slots up to the current time, in the reply's zone`() {
+        val rows = OpenMeteoApi.parseSubHourlyHistory(
+            subHourly(
+                current = """{"time": "2026-03-02T14:15"}""",
+                minutely = """
+                    {
+                      "time": ["2026-03-02T13:45", "2026-03-02T14:00", "2026-03-02T14:15", "2026-03-02T14:30", "not-a-time"],
+                      "temperature_2m": [60.5, null, 62.5, 63.5, 64.5],
+                      "weather_code": [3, 3, 61, 0, 0],
+                      "precipitation": [0.0, 0.1, 0.4, 0.0, 0.0],
+                      "cloud_cover": [120, 50, -5, 10, 10],
+                      "cloud_cover_low": [10, 50, 101, 10, 10],
+                      "cloud_cover_mid": [20, 50, 30, 10, 10],
+                      "cloud_cover_high": [30, 50, null, 10, 10]
+                    }
+                """.trimIndent(),
+            ),
+        )
+
+        // 14:00 has no temperature, 14:30 is after the current time, the last slot has no readable time.
+        assertEquals(listOf(kathmandu1415 - 2 * quarterHour, kathmandu1415), rows.map { it.dateTime })
+        assertEquals(listOf(60.5f, 62.5f), rows.map { it.temperature })
+        assertEquals(listOf(0.0f, 0.4f), rows.map { it.precipAmountMm })
+        assertEquals(listOf(100, 0), rows.map { it.cloudCover })
+        assertEquals(listOf(10, 100), rows.map { it.cloudCoverLow })
+        assertEquals(listOf(20, 30), rows.map { it.cloudCoverMid })
+        assertEquals(listOf<Int?>(30, null), rows.map { it.cloudCoverHigh })
+        assertEquals(listOf("OPEN_METEO", "OPEN_METEO"), rows.map { it.source })
+        val api = OpenMeteoApi(HttpClient(MockEngine) { engine { addHandler { error("unused") } } }, json)
+        assertEquals(listOf(api.weatherCodeToCondition(3), api.weatherCodeToCondition(61)), rows.map { it.condition })
+    }
+
+    @Test
+    fun `sub-hourly history reads only time and temperature when the rest is absent`() {
+        val rows = OpenMeteoApi.parseSubHourlyHistory(
+            subHourly(
+                current = """{"time": "2026-03-02T08:30Z"}""",
+                minutely = """{"time": ["2026-03-02T08:30Z"], "temperature_2m": [61.0]}""",
+            ),
+        )
+
+        val row = rows.single()
+        assertEquals(kathmandu1415, row.dateTime)
+        assertEquals(61.0f, row.temperature)
+        assertNull(row.precipAmountMm)
+        assertNull(row.cloudCover)
+        assertNull(row.cloudCoverLow)
+        assertNull(row.cloudCoverMid)
+        assertNull(row.cloudCoverHigh)
+    }
+
+    @Test
+    fun `sub-hourly history is empty without a current time, the block, its times or its temperatures`() {
+        val full = """{"time": ["2026-03-02T14:15"], "temperature_2m": [61.0]}"""
+        val now = """{"time": "2026-03-02T14:15"}"""
+        assertEquals(1, OpenMeteoApi.parseSubHourlyHistory(subHourly(now, full)).size)
+
+        assertEquals(0, OpenMeteoApi.parseSubHourlyHistory("""{"minutely_15": $full}""").size)
+        assertEquals(0, OpenMeteoApi.parseSubHourlyHistory(subHourly("{}", full)).size)
+        assertEquals(0, OpenMeteoApi.parseSubHourlyHistory(subHourly("""{"time": "soon"}""", full)).size)
+        assertEquals(0, OpenMeteoApi.parseSubHourlyHistory("""{"current": $now}""").size)
+        assertEquals(0, OpenMeteoApi.parseSubHourlyHistory(subHourly(now, """{"temperature_2m": [61.0]}""")).size)
+        assertEquals(0, OpenMeteoApi.parseSubHourlyHistory(subHourly(now, """{"time": ["2026-03-02T14:15"]}""")).size)
+    }
+
+    @Test
+    fun `getCurrent reads the temperature, code, clamped cloud layers and the time in the reply's zone`() =
+        runTest {
+            val api = OpenMeteoApi(
+                createMockClient(
+                    """
+                    {"timezone": "Asia/Kathmandu", "current": {"time": "2026-03-02T14:15", "temperature_2m": 58.3,
+                      "weather_code": 61, "cloud_cover": 130, "cloud_cover_low": -2, "cloud_cover_mid": 40, "cloud_cover_high": 75}}
+                    """.trimIndent(),
+                ),
+                json,
+            )
+
+            assertEquals(
+                OpenMeteoApi.CurrentReading(58.3f, 61, kathmandu1415, 100, 0, 40, 75),
+                api.getCurrent(37.0, -122.0),
+            )
+        }
+
+    @Test
+    fun `getCurrent takes a time with an offset as given, and no time when it is blank or unreadable`() =
+        runTest {
+            fun reply(time: String) =
+                """{"timezone": "Asia/Kathmandu", "current": {"time": $time, "temperature_2m": 58.3}}"""
+            suspend fun observedAt(time: String) =
+                OpenMeteoApi(createMockClient(reply(time)), json).getCurrent(37.0, -122.0)!!.observedAt
+
+            assertEquals(kathmandu1415, observedAt("\"2026-03-02T08:30Z\""))
+            assertNull(observedAt("\"\""))
+            assertNull(observedAt("\"half past two\""))
+        }
+
+    @Test
+    fun `getCurrent is null without a current block or a temperature`() =
+        runTest {
+            assertNull(OpenMeteoApi(createMockClient("""{"timezone": "UTC"}"""), json).getCurrent(37.0, -122.0))
+            assertNull(
+                OpenMeteoApi(createMockClient("""{"current": {"time": "2026-03-02T14:15", "weather_code": 3}}"""), json)
+                    .getCurrent(37.0, -122.0),
+            )
+        }
 }

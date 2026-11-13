@@ -445,3 +445,27 @@ User (2026-11-13): "proceed with your recommendations and address weak points, d
   in another file stay, since that code could be moved back.
 - `DesktopUiArchitectureTest`: unchanged; every name it bans from `Main.kt` exists in the file that
   now owns it.
+
+### Phase 1 leftover: `SilurianApi` (2026-11-13, uncommitted)
+
+`SilurianApiTest` 2 → 11 tests; rule mutants killed 67 → 102 of 120 (56% → 85%). New tests pin: the
+daily-only / hourly-only split, `timezone=local`, a naive timestamp anchored at `utc_offset`, rows
+dropped for an unreadable time or missing temperature, the daily max/min fallback to `temperature`,
+every weather code, the missing-key and non-2xx failures, and the cloud-cover summary log line.
+The 18 survivors are coroutine plumbing (`throwOnFailure`, state-machine conditionals) plus the
+default-argument lambda of `fetchJson`. No product change.
+
+### Phase 1 leftover: `OpenMeteoApi` (2026-11-13, uncommitted)
+
+`OpenMeteoApiTest` 6 → 12 tests, `PreviousRunsCloudParseTest` 5 → 7; rule mutants killed 71 → 93 of
+105 (68% → 89%). No product change.
+
+- `parseSubHourlyHistory` ran in every forecast test but nothing read its output. Now pinned: slots up
+  to and including the current time, the reply's zone, dropped slots (no temperature, future, unreadable
+  time), clamped cloud layers, and the four cases that return nothing.
+- `getCurrent` had no test: fields, clamping, time in the reply's zone, offset time, blank or
+  unreadable time, and the two null cases.
+- The prior-day cloud tests used `America/Los_Angeles`, the same zone as the dev machine, so the
+  fallback to the device zone gave the same answer. A Kathmandu (UTC+5:45) case tells them apart.
+- Survivors (12): `return emptyList()` replaced by an empty list (equivalent), two log calls, and
+  compiler-generated checks.

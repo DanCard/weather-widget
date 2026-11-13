@@ -67,4 +67,35 @@ class PreviousRunsCloudParseTest {
     fun `a response without the hourly block yields nothing rather than throwing`() {
         assertEquals(emptyMap<Long, Int>(), OpenMeteoApi.parsePriorDayCloudForecast("""{"error":true}""", 0L))
     }
+
+    /**
+     * Kathmandu (UTC+5:45) is no dev machine's zone: [fixture]'s Los Angeles cannot tell the reply's
+     * zone from the device's on a machine in California. 2026-08-20T09:00 there is 03:15Z.
+     */
+    @Test
+    fun `hours are filed in the reply's zone, not the device's`() {
+        val reply = """
+            {"timezone": "Asia/Kathmandu",
+             "hourly": {"time": ["2026-08-20T09:00", "2026-08-20T10:00"], "cloud_cover_previous_day1": [40, -3]}}
+        """.trimIndent()
+        val nineAm = 1787195700000L
+
+        assertEquals(
+            mapOf(nineAm to 40, nineAm + 3_600_000L to 0),
+            OpenMeteoApi.parsePriorDayCloudForecast(reply, nowMs = nineAm + 3_600_001L),
+        )
+        assertEquals(mapOf(nineAm to 40), OpenMeteoApi.parsePriorDayCloudForecast(reply, nowMs = nineAm + 3_600_000L))
+    }
+
+    @Test
+    fun `a reply without the times or without the previous-day values yields nothing`() {
+        assertEquals(
+            emptyMap<Long, Int>(),
+            OpenMeteoApi.parsePriorDayCloudForecast("""{"hourly": {"cloud_cover_previous_day1": [40]}}""", Long.MAX_VALUE),
+        )
+        assertEquals(
+            emptyMap<Long, Int>(),
+            OpenMeteoApi.parsePriorDayCloudForecast("""{"hourly": {"time": ["2026-08-20T09:00"]}}""", Long.MAX_VALUE),
+        )
+    }
 }
