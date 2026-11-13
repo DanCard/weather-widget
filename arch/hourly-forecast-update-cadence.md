@@ -225,6 +225,12 @@ refreshes are limited across both platforms to at most once every 10 minutes per
     row, not the source displayed when the fetch ends. The queued notice shows before the cache repaint, which
     can take seconds. Only Settings' Refresh data covers every source, so its messages name none
     ("Refresh complete", "Refresh failed"); every other refresh request forces one source.
+- **A screen under Settings reloads on return.** Settings → Refresh data starts on top of the screen that opened
+  it, so that screen's rows predate the refresh. Android's History of Forecasts (and the Source Error Details
+  screen) remember the process's `StoredDataVersion` at each load (`StoredDataSeen.markLoaded`, before the read)
+  and reload in `onResume` only when it moved (`SCREEN_RELOAD screen=<name> reason=stored_data_changed`, one INFO
+  line per reload). Weather Observations re-collects its Room flows when it returns to STARTED, and desktop
+  windows reload on the daemon's data-updated signal.
 - **Passive events are exempt**:
   - Background periodic worker ticks, power connect/disconnect events, screen unlock repaints
     (`EXTRA_PASSIVE = true`), and UI-only ticks do not check, update, or get blocked by this throttle.

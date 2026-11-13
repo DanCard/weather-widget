@@ -171,6 +171,9 @@ class ForecastHistoryActivity : AppCompatActivity() {
     private lateinit var targetLocalDate: LocalDate
     private lateinit var widgetStateManager: WidgetStateManager
 
+    /** The stored-data version [loadData] last read at, so a return from Settings → Refresh data can reload. */
+    private val dataSeen = com.weatherwidget.shared.util.StoredDataSeen()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_forecast_history)
@@ -263,6 +266,25 @@ class ForecastHistoryActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Back from another screen: a fetch that ran meanwhile (Settings → Refresh data starts on top of this
+     * screen) stored rows this one never read, so its Age column and graphs showed the pre-refresh data.
+     * Reloads only when stored data changed since the last load (plans/261113-android-data-screens-reload-after-settings-refresh.md).
+     */
+    override fun onResume() {
+        super.onResume()
+        if (!::targetLocalDate.isInitialized || !dataSeen.changedSinceLoad()) return
+        lifecycleScope.launch {
+            appLogDao.log(
+                com.weatherwidget.shared.util.StoredDataSeen.LOG_TAG,
+                com.weatherwidget.shared.util.StoredDataSeen.logMessage("history"),
+                "INFO",
+            )
+        }
+        loadData(targetDate, targetLat, targetLon, targetLocalDate, cachedRequestedSource)
+        loadAccuracySummary(targetLat, targetLon)
+    }
+
     private fun navigateToDay(newDate: LocalDate) {
         targetLocalDate = newDate
         targetDate = newDate.toString()
@@ -298,6 +320,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
         requestedSource: WeatherSource?,
     ) {
         val targetDateEpoch = date.toEpochDay() * WidgetConstants.MS_IN_A_DAY
+        dataSeen.markLoaded() // before any read: a write landing mid-load must still read as a change
         loadSourceComparison(date, lat, lon)
         lifecycleScope.launch(Dispatchers.IO) {
             try {

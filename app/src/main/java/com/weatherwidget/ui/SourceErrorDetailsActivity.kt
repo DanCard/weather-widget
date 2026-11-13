@@ -32,8 +32,12 @@ import java.util.Locale
  */
 class SourceErrorDetailsActivity : AppCompatActivity() {
 
+    /** The stored-data version the failure shown was built at (a refresh from Settings may have cleared it). */
+    private val dataSeen = com.weatherwidget.shared.util.StoredDataSeen()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        dataSeen.markLoaded() // before the content is read
         setContentView(R.layout.activity_source_error_details)
 
         val source = intent.getStringExtra(EXTRA_SOURCE_ID)
@@ -75,6 +79,15 @@ class SourceErrorDetailsActivity : AppCompatActivity() {
             setOnClickListener { startActivity(Intent(this@SourceErrorDetailsActivity, SettingsActivity::class.java)) }
         }
 
+    }
+
+    /**
+     * Back from API-key Settings or Android's data screen: a fetch that stored data meanwhile may have cleared
+     * or changed this failure, so the screen is rebuilt (plans/261113-android-data-screens-reload-after-settings-refresh.md).
+     */
+    override fun onResume() {
+        super.onResume()
+        if (dataSeen.changedSinceLoad()) recreate()
     }
 
     private fun bindRows(rows: List<Pair<String, String>>) {
