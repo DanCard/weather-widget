@@ -286,3 +286,47 @@ Changes (tests only):
 
 Not done: a general guard. Any other Robolectric test that calls a handler with an unbound id will
 still pass silently; `BoundTestWidget` is opt-in.
+
+## Phase 3 result (2026-11-13): assertion-free and relaxed-mock tests
+
+Correction to the evidence section: the "61 files with no assertion" count used a case-sensitive
+search and missed `coVerify`. Counted correctly, only two test files cannot fail.
+
+1. **Cannot fail (2 files):**
+   - `app/.../util/SunPositionDiagnosticTest.kt`: prints day/night for 20 times and asserts nothing.
+     `SunPositionUtilsTest` covers the same function with assertions.
+   - `desktop/.../ObservationFetchReplayHarnessTest.kt`: a one-off record/replay tool for
+     `plans/261013-shared-current-conditions-fetch.md`, skipped unless `REPLAY_DIR` is set.
+   Proposed: delete both (needs user approval, per the strategy doc).
+2. **Relaxed mocks (20 heaviest files, 111 tests):** 95 assert a returned or stored value, 16 verify
+   only mock calls, none check nothing. The relaxed mocks are constructor collaborators the test does
+   not care about; the 16 verify-only tests check routing decisions whose outcome is a call (which
+   source is fetched, which follow-up runs). No hollow test found by this classification.
+3. **Absence-only tests (21, `verify(exactly = 0)` or `wasNot Called` with no other check):** every
+   class that has them also has presence cases. One is weak: `WeatherRepositoryTest`
+   "refreshCurrentTemperature never writes the historical POI list" runs with Silurian only, which
+   fetches no stations, so no code path that could write the list is reached.
+4. **Static and object mocks (35 files):** every `mockkObject`/`mockkStatic`/`mockkConstructor` is
+   undone in the same file. No leak between tests.
+5. **MockK rule:** practice is "relaxed mocks for collaborators the test ignores, real or in-memory
+   objects for the thing under test". The strategy doc's "only where extraction or a real collaborator
+   is not practical" is stricter than that. Proposed: reword the doc to match practice.
+
+Limit: this phase classified tests by what they check, not by whether the check would catch a wrong
+change. `:app` has no mutation testing, so a test that asserts a value a mock was told to return is
+not detected here.
+
+User (2026-11-13): "Yes delete files that cannot fail. Yes reword. Yes fix weak tests."
+
+- Deleted `SunPositionDiagnosticTest` and `ObservationFetchReplayHarnessTest` (covered by
+  `SunPositionUtilsTest`; the replay harness was a finished one-off tool).
+- `arch/testing-strategy.md`: MockK rule reworded to practice (relaxed mocks for ignored
+  collaborators, the thing under test is real, pair every "never called" check with a reachable
+  presence case, undo static mocks).
+- `WeatherRepositoryTest` POI test now runs with NWS and asserts a feed was fetched (result 1) before
+  checking the list was not written.
+- `OpenWeatherMapApi`: the two interpolated hours' rain chance and cloud now use `roundToInt()` too
+  (a side review found they still truncated: a third of the way from 0% to 20% was stored as 6%, not
+  7%). The interpolation test fails on the old code.
+- Unit suite: 6,873 (two tests deleted). Emulator gate not re-run. Desktop not restarted: an emulator
+  was running, and the 06:24 GPU fault happened on a desktop restart with an emulator up.

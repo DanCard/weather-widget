@@ -239,10 +239,13 @@ class WeatherRepositoryTest {
             val editor = mockk<SharedPreferences.Editor>(relaxed = true)
             every { sharedPrefs.edit() } returns editor
             every { sharedPrefs.getLong("last_current_temp_fetch_time", 0L) } returns 0L
-            every { widgetStateManager.getVisibleSourcesOrder() } returns listOf(WeatherSource.SILURIAN)
+            // NWS, not Silurian: Silurian has no actuals, so its refresh fetches nothing and could never
+            // have written the list. The result of 1 shows a feed really was fetched.
+            every { widgetStateManager.getVisibleSourcesOrder() } returns listOf(WeatherSource.NWS)
 
-            repository.refreshCurrentTemperature(testLat, testLon, forceRefresh = true)
+            val result = repository.refreshCurrentTemperature(testLat, testLon, forceRefresh = true)
 
+            assertEquals(1, result.getOrNull())
             verify(exactly = 0) { editor.putString("historical_pois", any()) }
         }
 

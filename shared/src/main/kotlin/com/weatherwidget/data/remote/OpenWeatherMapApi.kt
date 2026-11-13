@@ -161,6 +161,8 @@ class OpenWeatherMapApi(
                 )
             )
 
+            // The two hours between are a third and two thirds of the way to the next period; rain
+            // chance and cloud are rounded to the nearest percent.
             if (next != null && next.dtMs - current.dtMs == 3 * 3600_000L) {
                 val tempDiff = next.temp - current.temp
                 val popDiff = if (current.popPercent != null && next.popPercent != null) {
@@ -175,9 +177,9 @@ class OpenWeatherMapApi(
                         dateTime = current.dtMs + 3600_000L,
                         temperature = current.temp + tempDiff * (1f / 3f),
                         condition = current.condition,
-                        precipProbability = popDiff?.let { current.popPercent!! + (it * (1f / 3f)).toInt() } ?: current.popPercent,
+                        precipProbability = popDiff?.let { current.popPercent!! + (it * (1f / 3f)).roundToInt() } ?: current.popPercent,
                         precipAmountMm = current.precipMm / 3f,
-                        cloudCover = cloudDiff?.let { current.cloudCover!! + (it * (1f / 3f)).toInt() } ?: current.cloudCover,
+                        cloudCover = cloudDiff?.let { current.cloudCover!! + (it * (1f / 3f)).roundToInt() } ?: current.cloudCover,
                         source = WeatherSource.OPEN_WEATHER_MAP.id,
                         visibilityMi = current.visibilityMi,
                     )
@@ -188,9 +190,9 @@ class OpenWeatherMapApi(
                         dateTime = current.dtMs + 2 * 3600_000L,
                         temperature = current.temp + tempDiff * (2f / 3f),
                         condition = if (current.condition == "Clear" && next.condition != "Clear") next.condition else current.condition,
-                        precipProbability = popDiff?.let { current.popPercent!! + (it * (2f / 3f)).toInt() } ?: next.popPercent ?: current.popPercent,
+                        precipProbability = popDiff?.let { current.popPercent!! + (it * (2f / 3f)).roundToInt() } ?: next.popPercent ?: current.popPercent,
                         precipAmountMm = current.precipMm / 3f,
-                        cloudCover = cloudDiff?.let { current.cloudCover!! + (it * (2f / 3f)).toInt() } ?: next.cloudCover ?: current.cloudCover,
+                        cloudCover = cloudDiff?.let { current.cloudCover!! + (it * (2f / 3f)).roundToInt() } ?: next.cloudCover ?: current.cloudCover,
                         source = WeatherSource.OPEN_WEATHER_MAP.id,
                         // The lower of its neighbours: interpolating could invent clear air between fog.
                         visibilityMi = listOfNotNull(current.visibilityMi, next.visibilityMi).minOrNull(),

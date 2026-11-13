@@ -274,7 +274,8 @@ class OpenWeatherMapApiTest {
                 "+6h 51.0 Clouds pop=null mm=0.0 cloud=null",
                 // Twelve hours to the next period: nothing is invented in between.
                 "+18h 66.0 Clear pop=0 mm=0.0 cloud=5",
-                "+19h 67.3 Clear pop=6 mm=0.0 cloud=5",
+                // A third of the way from 0% to 20% is 6.67%, which rounds to 7.
+                "+19h 67.3 Clear pop=7 mm=0.0 cloud=5",
                 "+20h 68.7 Clouds pop=13 mm=0.0 cloud=5",
                 "+21h 70.0 Clouds pop=20 mm=0.0 cloud=null",
             ),
