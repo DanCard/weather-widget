@@ -250,7 +250,8 @@ fun PrecipitationGraph(
         // Silurian; see plans/260901-share-rain-period-selection.md.
         val rainHours = buildRainHours(
             points = points,
-            observations = com.weatherwidget.shared.actuals.ObservedPrecip.rowsFor(
+            // The display source's actuals provider, as the daily actual reads it.
+            observations = com.weatherwidget.shared.actuals.ObservedPrecip.rowsForActualsOf(
                 observations,
                 com.weatherwidget.data.model.WeatherSource.fromId(displaySourceId),
             ),

@@ -4,6 +4,7 @@ import com.weatherwidget.data.model.HistoricalDataKind
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.graph.DayNightHours
+import com.weatherwidget.shared.observations.ActualsProviderResolver
 import com.weatherwidget.shared.observations.MetarDecoder
 import com.weatherwidget.shared.observations.NwsBlend
 import com.weatherwidget.shared.util.Log
@@ -43,6 +44,19 @@ object ObservedPrecip {
     data class Totals(val total: Float?, val day: Float?, val night: Float?)
 
     /**
+     * The observed-rain rows that stand for [source]: its actuals provider's
+     * ([ActualsProviderResolver.providerIdFor], or [providerId] when given), through [rowsFor]. This
+     * is what the daily blend reads, so the hourly "Act" matches the daily actual: Silurian and
+     * Google borrow their provider's gauges, and a source whose user picked NWS reads NWS stations,
+     * not its own model series. plans/261114-hourly-actual-rain-from-actuals-provider.md
+     */
+    fun rowsForActualsOf(
+        rows: List<ObservationReading>,
+        source: WeatherSource,
+        providerId: String = ActualsProviderResolver.providerIdFor(source),
+    ): List<ObservationReading> = rowsFor(rows, WeatherSource.fromId(providerId))
+
+    /**
      * The rows that are [source]'s own observed-rain series. A source without a historical
      * precipitation product has none: Silurian's past hours are forecast output, and relabelling
      * them "Actual" would lie about provenance.
@@ -50,9 +64,11 @@ object ObservedPrecip {
     fun rowsFor(rows: List<ObservationReading>, source: WeatherSource): List<ObservationReading> {
         if (!source.historicalDataKind.preservesHistoricalPrecipitation) return emptyList()
         return rows.filter { row ->
-            row.api == source.id && when (source) {
-                WeatherSource.NWS -> row.stationId != NwsBlend.STATION_ID
-                WeatherSource.TOMORROW_IO -> TomorrowIoActuals.isAllowedStation(row.stationId)
+            row.api == source.id && when {
+                // Station feeds (NWS, METAR, Synoptic): their real gauges, never the NWS blend. METAR
+                // and Synoptic only arrive here as a borrowing source's actuals provider.
+                source.historicalDataKind == HistoricalDataKind.STATION_OBSERVATION -> row.stationId != NwsBlend.STATION_ID
+                source == WeatherSource.TOMORROW_IO -> TomorrowIoActuals.isAllowedStation(row.stationId)
                 else -> row.stationId == HistoricalActualsBackfill.syntheticStationId(source.id)
             }
         }

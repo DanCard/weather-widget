@@ -71,7 +71,10 @@ for local days wholly past 11 days old. Eleven days clears `DailyBlendRecomputeR
 its context. Each value comes from the code the views call, so an archived hour is the hour they drew:
 
 - Temperature: `ActualTemperatureSeriesBuilder.build`'s top-of-hour mark.
-- Rain: `ObservedPrecip.byHour`. 0 is measured dry; null is unknown.
+- Rain: `ObservedPrecip.byHour` over `ObservedPrecip.rowsForActualsOf`, the source's actuals provider's
+  rows (the same feed the daily blend and the hourly graph's "Act" read; Silurian and Google borrow
+  their provider's gauges). 0 is measured dry; null is unknown.
+  plans/261114-hourly-actual-rain-from-actuals-provider.md
 - Cloud: `MetarCloudBlender.fromSiteRows`, the report nearest the hour, with its bands.
 
 Rows are keyed by display source because each value resolves its feed differently. Inserts ignore

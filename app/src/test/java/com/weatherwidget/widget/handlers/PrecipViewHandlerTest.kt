@@ -220,6 +220,27 @@ class PrecipViewHandlerTest {
         assertTrue(result.isEmpty())
     }
 
+    /** plans/261114-hourly-actual-rain-from-actuals-provider.md: Silurian had no Act on any platform. */
+    @Test
+    fun `buildActualPrecipByHour reads Silurian's actuals provider gauges`() {
+        com.weatherwidget.shared.observations.ActualsProviderResolver.installPreferenceSource { source ->
+            WeatherSource.NWS.takeIf { source == WeatherSource.SILURIAN }
+        }
+        try {
+            val result = PrecipViewHandler.buildActualPrecipByHour(
+                observations = listOf(
+                    observation("SILURIAN", "SILURIAN_MAIN", "2026-03-14T18:10", 5.0f),
+                    observation("NWS", "KNUQ", "2026-03-14T18:20", 1.25f, distanceKm = 3.8f),
+                ),
+                displaySource = WeatherSource.SILURIAN,
+            )
+            println("silurian act=$result")
+            assertEquals(1.25f, result[LocalDateTime.of(2026, 3, 14, 18, 0)] ?: -1f, 0.001f)
+        } finally {
+            com.weatherwidget.shared.observations.ActualsProviderResolver.installPreferenceSource { null }
+        }
+    }
+
     private fun hourly(
         dateTime: String,
         source: WeatherSource,

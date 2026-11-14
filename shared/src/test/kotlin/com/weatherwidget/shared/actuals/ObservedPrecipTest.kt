@@ -217,4 +217,37 @@ class ObservedPrecipTest {
         assertNull(precip.total)
         assertEquals(1f, precip.night!!, 0.001f)
     }
+
+    // ---- Hourly "Act" from the actuals provider (plans/261114-hourly-actual-rain-from-actuals-provider.md) ----
+
+    private val mixed = listOf(
+        row("KNUQ", 3.8f, at(10, 0), precipMm = 2.0f, api = WeatherSource.NWS),
+        row(com.weatherwidget.shared.observations.NwsBlend.STATION_ID, 0f, at(10, 0), precipMm = 9f, api = WeatherSource.NWS),
+        row("KSJC", 12f, at(10, 0), precipMm = 1.5f, api = WeatherSource.METAR),
+        row("OPEN_METEO_MAIN", 0f, at(10, 0), precipMm = 3.0f, api = WeatherSource.OPEN_METEO),
+    )
+
+    @Test
+    fun `Silurian reads its provider's gauges, not nothing`() {
+        // Desktop 2026-11-13: Silurian's graph had no Act; its actuals provider is NWS.
+        val rows = ObservedPrecip.rowsForActualsOf(mixed, WeatherSource.SILURIAN, providerId = WeatherSource.NWS.id)
+        println("silurian via NWS: ${rows.map { it.stationId }}")
+        assertEquals(listOf("KNUQ"), rows.map { it.stationId })
+        assertTrue(ObservedPrecip.rowsFor(mixed, WeatherSource.SILURIAN).isEmpty())
+    }
+
+    @Test
+    fun `a source whose user picked NWS reads NWS stations, not its own model series`() {
+        val viaNws = ObservedPrecip.rowsForActualsOf(mixed, WeatherSource.OPEN_METEO, providerId = WeatherSource.NWS.id)
+        assertEquals(listOf("KNUQ"), viaNws.map { it.stationId })
+        val own = ObservedPrecip.rowsForActualsOf(mixed, WeatherSource.OPEN_METEO, providerId = WeatherSource.OPEN_METEO.id)
+        assertEquals(listOf("OPEN_METEO_MAIN"), own.map { it.stationId })
+    }
+
+    @Test
+    fun `METAR as provider returns its real stations`() {
+        // Outside NWS coverage a borrowing source defaults to METAR; rowsFor used to demand METAR_MAIN.
+        val rows = ObservedPrecip.rowsForActualsOf(mixed, WeatherSource.GOOGLE_WEATHER, providerId = WeatherSource.METAR.id)
+        assertEquals(listOf("KSJC"), rows.map { it.stationId })
+    }
 }

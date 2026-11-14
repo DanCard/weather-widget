@@ -1,5 +1,6 @@
 package com.weatherwidget.data.local
 
+import com.weatherwidget.shared.observations.ActualsProviderResolver
 import com.weatherwidget.data.model.HourlyActual
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
@@ -87,7 +88,11 @@ object HourlyActualsArchiveRun {
             val forecasts = host.hourlyForecasts(startMs - CONTEXT_MS, endMs + CONTEXT_MS, lat, lon)
             SOURCES.flatMap { source ->
                 val temps = temperatures(forecasts, observations, source, lat, lon, day, host.personalStationWeight(), nowMs, zone)
-                val rain = ObservedPrecip.byHour(ObservedPrecip.rowsFor(observations, source), zone)
+                // The source's actuals provider at this site, as the daily blend reads it.
+                val rain = ObservedPrecip.byHour(
+                    ObservedPrecip.rowsForActualsOf(observations, source, ActualsProviderResolver.providerIdAt(source, lat, lon)),
+                    zone,
+                )
                 val cloud = MetarCloudBlender.fromSiteRows(startMs, endMs, source.id) { readStart, readEnd ->
                     observations.filter { it.timestamp in readStart until readEnd }
                 }
