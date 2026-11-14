@@ -67,8 +67,13 @@ class ElapsedHourRecoveryTest {
             zone,
         )
 
-        val stitched = HourlyForecastStitcher.stitch(store.rows, lat, lon).associate { it.dateTime to it.precipProbability }
-        println("stitched 1a..4a=${hours.map { stitched[it] }}")
-        assertEquals(listOf(25, 25, 25, 0), hours.map { stitched[it] })
+        val stitchedRows = HourlyForecastStitcher.stitch(store.rows, lat, lon, nowMs = refresh + 60_000L)
+        val stitched = stitchedRows.associate { it.dateTime to it.precipProbability }
+        println("stitched 1a..4a=${hours.map { stitched[it] }} temps from=${stitchedRows.map { it.fetchedAt }}")
+        // The recovered hours are stored (temperature, stale prior > 6 h, takes them), but rain keeps
+        // the evening's pre-hour 5% (plans/261113-rain-no-hindcast-any-prior.md); 25% was the
+        // 2026-11-04 behaviour.
+        assertEquals(listOf(5, 5, 5, 5), hours.map { stitched[it] })
+        assertEquals(hours.map { refresh }, stitchedRows.filter { it.dateTime in hours }.map { it.fetchedAt })
     }
 }

@@ -71,6 +71,22 @@ class StaleForecastFlagRoboTest {
         assertEquals("the next hour is not", false, precip.first { it.dateTime == nowHour.plusHours(1) }.isStaleForecast)
     }
 
+    /** plans/261113-rain-no-hindcast-any-prior.md: the row is a fresh hindcast, its rain an 8 h-old prior. */
+    @Test
+    fun `rain graph dims by the rain's own fetch, not the row's`() {
+        val rainFrom = nowHour.minusHours(8)
+        val data = rows(nowHour.minusHours(9)).map { row ->
+            row.copy(fetchedAt = row.dateTime + 600_000L).also { it.precipFetchedAt = ms(rainFrom) }
+        }
+
+        val precip = PrecipViewHandler.buildPrecipHourDataList(data, nowHour, 5, WeatherSource.NWS, zoom)
+        val cloud = CloudCoverViewHandler.buildCloudHourDataList(data, nowHour, 5, WeatherSource.NWS, zoom)
+        println("precip stale=${precip.filter { it.isStaleForecast }.map { it.dateTime.hour }}")
+
+        assertEquals(expected(precip.map { it.dateTime }, rainFrom), precip.map { it.isStaleForecast })
+        assertEquals("cloud follows the row's own fresh fetch", emptyList<Int>(), cloud.filter { it.isStaleForecast }.map { it.dateTime.hour })
+    }
+
     @Test
     fun `awake device - a fetch 1 h before the hours flags nothing`() {
         val data = rows(nowHour.minusHours(9)).map { it.copy(fetchedAt = it.dateTime - 3_600_000L) }

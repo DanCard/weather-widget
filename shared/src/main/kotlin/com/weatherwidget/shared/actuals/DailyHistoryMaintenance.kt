@@ -215,7 +215,12 @@ object DailyHistoryMaintenance {
                         noonCloudOpen = noonCloudOpen,
                         resolvedHigh = overlayRow?.highTemp,
                         resolvedLow = overlayRow?.lowTemp,
-                        resolvedPrecipAmountMm = overlayRow?.precipAmountMm,
+                        // The stitched hours' day total (no hindcast while a pre-hour forecast
+                        // exists); the provider's total only when the hours don't cover the day.
+                        resolvedPrecipAmountMm = overlayRow?.let {
+                            DailyRainLabels.dayTotalForecastAmountMm(hourly, row.source, centerLat, centerLon, date, zoneId)
+                                ?: it.precipAmountMm
+                        },
                         resolvedNoonCloudPercent = resolvedNoonCloud,
                         existing = DailyHistoryFreeze.FrozenDisplay(
                             forecastHighTemp = existingRow.forecastHighTemp,

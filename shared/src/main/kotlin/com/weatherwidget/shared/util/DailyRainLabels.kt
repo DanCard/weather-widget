@@ -340,6 +340,25 @@ object DailyRainLabels {
     )
 
     /**
+     * The whole local day's (00–24) forecast amount from the stitched hours: what `daily_history`
+     * archives as `forecastPrecipAmountMm`, so it follows the hourly rain rule (no hindcast while a
+     * pre-hour forecast exists) rather than the latest fetch's provider total.
+     * plans/261113-rain-no-hindcast-any-prior.md
+     */
+    fun dayTotalForecastAmountMm(
+        hourly: List<HourlyForecast>,
+        displaySourceId: String,
+        centerLat: Double,
+        centerLon: Double,
+        targetDate: LocalDate,
+        zoneId: ZoneId = ZoneId.systemDefault(),
+    ): Float? = windowForecastAmountMm(
+        hourly, displaySourceId, centerLat, centerLon,
+        startMs = targetDate.atStartOfDay(zoneId).toInstant().toEpochMilli(),
+        endMs = targetDate.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli(),
+    )
+
+    /**
      * Sum of [displaySourceId]'s hourly amounts over [startMs, endMs). A max can stand on any one
      * hour but a sum cannot, so this is null unless the rows cover the whole window with no hole and
      * every hour has an amount — a partial total never passes as the window's. GENERIC_GAP is

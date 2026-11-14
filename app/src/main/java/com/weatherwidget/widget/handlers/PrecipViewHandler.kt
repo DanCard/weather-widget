@@ -600,7 +600,8 @@ object PrecipViewHandler {
                             currentHour, now, actualPrecipByHour,
                         ),
                         isStaleForecast = com.weatherwidget.shared.graph.StaleForecastSpans.isStale(
-                            hourMs, forecast.fetchedAt, now.atZone(zoneId).toInstant().toEpochMilli(),
+                            // The rain's own fetch: it may predate the row's (plans/261113-rain-no-hindcast-any-prior.md).
+                            hourMs, forecast.rainFetchedAt, now.atZone(zoneId).toInstant().toEpochMilli(),
                         ),
                     ),
                 )

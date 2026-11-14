@@ -186,7 +186,8 @@ fun PrecipitationGraph(
         val curvePath = buildCurve(coords)
         forEachStaleSpan(
             xs = coords.map { it.x },
-            stale = points.map { com.weatherwidget.shared.graph.StaleForecastSpans.isStale(it.dateTime, it.fetchedAt, now) },
+            // The rain's own fetch: it may predate the row's (plans/261113-rain-no-hindcast-any-prior.md).
+            stale = points.map { com.weatherwidget.shared.graph.StaleForecastSpans.isStale(it.dateTime, it.rainFetchedAt, now) },
         ) { alpha ->
             drawPath(
                 path = curvePath,

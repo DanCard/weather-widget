@@ -1,6 +1,7 @@
 package com.weatherwidget.data.local
 
 import androidx.room.Entity
+import androidx.room.Ignore
 import androidx.room.Index
 
 /**
@@ -32,7 +33,17 @@ data class HourlyForecastEntity(
     val timestampToGroupPredictions: Long = fetchedAt,
     // Provider visibility (statute miles): today's fog still ahead (ForecastMorningFog). v87.
     val visibilityMi: Float? = null,
-)
+) {
+    /**
+     * Not a column: the fetch the stitched rain fields came from, when it differs from [fetchedAt]
+     * (`HourlyForecast.precipFetchedAt`). Set by [toEntity]; `copy()` drops it.
+     */
+    @Ignore
+    var precipFetchedAt: Long? = null
+
+    /** The fetch time the rain fields stand on. */
+    val rainFetchedAt: Long get() = precipFetchedAt ?: fetchedAt
+}
 
 fun HourlyForecastEntity.toHourlyForecast() = com.weatherwidget.data.model.HourlyForecast(
     dateTime = dateTime,
@@ -49,6 +60,7 @@ fun HourlyForecastEntity.toHourlyForecast() = com.weatherwidget.data.model.Hourl
     locationLat = locationLat,
     locationLon = locationLon,
     visibilityMi = visibilityMi,
+    precipFetchedAt = precipFetchedAt,
 )
 
 /**
@@ -80,4 +92,4 @@ fun com.weatherwidget.data.model.HourlyForecast.toEntity(
         precipAmountMm = precipAmountMm,
         fetchedAt = fetchedAt,
         visibilityMi = visibilityMi,
-    )
+    ).also { it.precipFetchedAt = precipFetchedAt }

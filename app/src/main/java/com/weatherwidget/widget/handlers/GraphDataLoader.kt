@@ -116,7 +116,8 @@ object GraphDataLoader {
         // noise, while the hour it carries is the data.
         val siteLat = primary.first().locationLat
         val siteLon = primary.first().locationLon
-        return (primary + borrowed.map { it.copy(locationLat = siteLat, locationLon = siteLon) })
+        // copy() drops the non-column precipFetchedAt, so carry it across.
+        return (primary + borrowed.map { row -> row.copy(locationLat = siteLat, locationLon = siteLon).also { it.precipFetchedAt = row.precipFetchedAt } })
             .sortedBy { it.dateTime }
     }
 

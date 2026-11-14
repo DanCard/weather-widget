@@ -151,6 +151,34 @@ class DailyHistoryRunTest {
         assertEquals(60, host.inserted.single { it.date == utc(today) }.forecastDayPrecipChance)
     }
 
+    /**
+     * Pixel, 2026-11-13: Open-Meteo's only forecast before today's hours was last night's (stale under
+     * the 6 h guard), so its 21:07 hindcast (1 pm = 100%) set the day. Rain keeps any prior.
+     * plans/261113-rain-no-hindcast-any-prior.md
+     */
+    @Test
+    fun `rain chance and amount archive the old prior, not the hindcast`() = runBlocking {
+        val host = FakeHost()
+        host.history += history(today, "OPEN_METEO")
+        host.forecasts += forecast(today, "OPEN_METEO", fetchedAt = local(today, 17))
+        val lastNight = local(today.minusDays(1), 22)
+        val hindcastAt = local(today, 16) + 59 * 60_000L
+        for (h in 0..23) {
+            val hour = local(today, h)
+            host.hourlyHistory += hr(hour, fetchedAt = lastNight, chance = if (h == 13) 90 else 20).copy(precipAmountMm = 0.5f)
+            if (hour < hindcastAt) {
+                host.hourlyHistory += hr(hour, fetchedAt = hindcastAt, chance = if (h == 13) 100 else 20).copy(precipAmountMm = 1.0f)
+            }
+        }
+
+        DailyHistoryRun(host) { pacific }.snapshotDisplayedRainChance(lat, lon, local(today, 17))
+
+        val row = host.inserted.single { it.date == utc(today) }
+        println("day chance=${row.forecastDayPrecipChance} amount=${row.forecastPrecipAmountMm} (hindcast: 100 / 20.5)")
+        assertEquals(90, row.forecastDayPrecipChance)
+        assertEquals(12f, row.forecastPrecipAmountMm!!, 0.001f)
+    }
+
     @Test
     fun `settle and prior-forecast writes are field-limited, never a full-row replace`() = runBlocking {
         // Desktop upserted whole rows here, which could drop a blend write made in between.

@@ -39,7 +39,16 @@ data class HourlyForecast(
     // Provider visibility (statute miles). Carried in memory from the fetch to the daily fog summary
     // (ForecastMorningFog); not stored per hour. plans/261111-daily-bar-morning-fog.md
     val visibilityMi: Float? = null,
-)
+    /**
+     * Transport-only: the fetch the stitched rain fields came from, when it differs from [fetchedAt].
+     * Rain keeps any pre-hour forecast while temperature follows the 6 h guard, so one stitched row can
+     * mix two fetches; the rain graphs judge staleness by this. plans/261113-rain-no-hindcast-any-prior.md
+     */
+    val precipFetchedAt: Long? = null,
+) {
+    /** The fetch time the rain fields stand on. */
+    val rainFetchedAt: Long get() = precipFetchedAt ?: fetchedAt
+}
 
 data class DailyForecast(
     val date: String,

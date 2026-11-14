@@ -289,7 +289,11 @@ keeps the last forecast made at or before it, unless that forecast is missing or
 hindcast guard's age (`HindcastGuard`, default 6 h); then the **first** fetch after the hour starts
 stands in, and later hindcasts do not move it. With only a stale prior and nothing after, the stale
 prior stays. The age is a temporary Settings → Experimental slider on both platforms (0 h = always the
-newest fetch). Today's daily low after 06:00 and high after 16:00 follow the same rule
+newest fetch). Rain chance and rain amount are stricter: a started hour keeps any pre-hour forecast,
+however old, and takes a hindcast only when none exists. The stitched row records that fetch in
+`precipFetchedAt`, and the rain graphs dim by it. Archived `forecastPrecipAmountMm` is the 00–24 sum
+of the stitched hours ([plan](../plans/261113-rain-no-hindcast-any-prior.md)). A device that slept
+keeps its old rain prior, so devices can disagree there. Today's daily low after 06:00 and high after 16:00 follow the same rule
 (`SameDayExtremeCutoff.settle`); a held sent value goes to `hindcastLowTemp` / `hindcastHighTemp`, and
 the writer logs `SNAPSHOT_SKIP_HINDCAST` (held) or `SNAPSHOT_HINDCAST_ACCEPTED` (prior missing).
 ([plan](../plans/261113-no-hindcasts-unless-prior-missing.md); the 2026-10-27 freeze had no age limit

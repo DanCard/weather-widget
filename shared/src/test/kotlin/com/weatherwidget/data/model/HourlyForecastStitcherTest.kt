@@ -306,4 +306,67 @@ class HourlyForecastStitcherTest {
 
         assertEquals(listOf(90, 5, 60, 95), listOf(row.cloudCover, row.cloudCoverLow, row.cloudCoverMid, row.cloudCoverHigh))
     }
+
+    // ---- Rain keeps any pre-hour forecast (plans/261113-rain-no-hindcast-any-prior.md) ----
+
+    private val hourMs = 3_600_000L
+
+    @Test
+    fun `rain keeps a 9 h-old prior while temperature takes the first hindcast`() {
+        val hour = 100 * hourMs
+        val rows = listOf(
+            fc(hour, 60f, "Prior", precipProbability = 61, precipAmountMm = 1.2f, fetchedAt = hour - 9 * hourMs),
+            fc(hour, 58f, "Hindcast", precipProbability = 29, precipAmountMm = 0.1f, fetchedAt = hour + 14 * hourMs),
+            fc(hour, 57f, "Later", precipProbability = 10, precipAmountMm = 0f, fetchedAt = hour + 15 * hourMs),
+        )
+        val row = HourlyForecastStitcher.stitch(rows, lat, lon, nowMs = hour + 16 * hourMs).single()
+        println("row=$row")
+        assertEquals("temperature: the 9 h prior is stale, the first hindcast stands in", 58f, row.temperature, 0f)
+        assertEquals(61, row.precipProbability)
+        assertEquals(1.2f, row.precipAmountMm!!, 0f)
+        assertEquals(hour - 9 * hourMs, row.precipFetchedAt)
+        assertEquals(hour - 9 * hourMs, row.rainFetchedAt)
+    }
+
+    @Test
+    fun `rain with no prior takes the earliest hindcast`() {
+        val hour = 100 * hourMs
+        val rows = listOf(
+            fc(hour, 58f, "Hindcast", precipProbability = 29, fetchedAt = hour + 1 * hourMs),
+            fc(hour, 57f, "Later", precipProbability = 10, fetchedAt = hour + 5 * hourMs),
+        )
+        val row = HourlyForecastStitcher.stitch(rows, lat, lon, nowMs = hour + 6 * hourMs).single()
+        assertEquals(29, row.precipProbability)
+        assertNull("rain came from the row's own fetch", row.precipFetchedAt)
+    }
+
+    @Test
+    fun `with the guard off rain takes the newest fetch too`() {
+        val hour = 100 * hourMs
+        val rows = listOf(
+            fc(hour, 60f, "Prior", precipProbability = 61, fetchedAt = hour - 1 * hourMs),
+            fc(hour, 57f, "Later", precipProbability = 10, fetchedAt = hour + 5 * hourMs),
+        )
+        val saved = HindcastGuard.maxPriorAgeHours
+        try {
+            HindcastGuard.setMaxPriorAgeHours(0)
+            val row = HourlyForecastStitcher.stitch(rows, lat, lon, nowMs = hour + 6 * hourMs).single()
+            assertEquals(10, row.precipProbability)
+            assertEquals(57f, row.temperature, 0f)
+        } finally {
+            HindcastGuard.setMaxPriorAgeHours(saved)
+        }
+    }
+
+    @Test
+    fun `an hour not yet started takes the newest rain`() {
+        val hour = 100 * hourMs
+        val rows = listOf(
+            fc(hour, 60f, "Older", precipProbability = 61, fetchedAt = hour - 9 * hourMs),
+            fc(hour, 57f, "Newer", precipProbability = 10, fetchedAt = hour - 1 * hourMs),
+        )
+        val row = HourlyForecastStitcher.stitch(rows, lat, lon, nowMs = hour - 30 * 60_000L).single()
+        assertEquals(10, row.precipProbability)
+        assertNull(row.precipFetchedAt)
+    }
 }

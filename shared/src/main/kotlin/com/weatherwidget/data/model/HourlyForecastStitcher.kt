@@ -11,7 +11,9 @@ import com.weatherwidget.shared.graph.PriorDayCloudForecast
  * day alike: [SettledForecastPick] — an hour keeps updating until it starts ([nowMs]); then it keeps
  * the last forecast made before it unless that is missing or older than [HindcastGuard], when the
  * first fetch after the start stands in. Rows compete on `fetchedAt` alone, and a null field borrows
- * from the same window, nearest first. `HistorySnapshotRetention` keeps every row this can read.
+ * from the same window, nearest first. Rain chance and amount keep any pre-hour forecast, however
+ * old (a hindcast only when none exists), and record their fetch in `precipFetchedAt`.
+ * `HistorySnapshotRetention` keeps every row this can read.
  *
  * Rows first collapse same-site fragments via [LocationMatch.sameSite]: float-keyed rows that
  * GPS jitter splits into ~10 cm-apart silos are merged, and genuinely-different neighbouring markers
@@ -89,6 +91,12 @@ object HourlyForecastStitcher {
     private fun List<HourlyForecast>.withoutSyntheticSources(): List<HourlyForecast> =
         filter { it.source != PriorDayCloudForecast.SOURCE_ID }
 
+    /**
+     * Rain's age limit: none (any pre-hour forecast wins) while the guard is on; with the guard off
+     * (0 h) rain takes the newest fetch like everything else.
+     */
+    private fun rainMaxPriorAgeMs(): Long = if (HindcastGuard.enabled) Long.MAX_VALUE else 0L
+
     fun stitch(
         rows: List<HourlyForecast>,
         centerLat: Double,
@@ -97,15 +105,24 @@ object HourlyForecastStitcher {
     ): List<HourlyForecast> {
         val byTime = groupSameSite(rows.withoutSyntheticSources(), centerLat, centerLon)
         return byTime.keys.sorted().mapNotNull { time ->
-            val backfillPool = SettledForecastPick.backfillOrder(byTime.getValue(time), hourMs = time, nowMs = nowMs)
+            val hourRows = byTime.getValue(time)
+            val backfillPool = SettledForecastPick.backfillOrder(hourRows, hourMs = time, nowMs = nowMs)
             val base = backfillPool.firstOrNull() ?: return@mapNotNull null
+            // Rain keeps any pre-hour forecast, however old (plans/261113-rain-no-hindcast-any-prior.md).
+            val rainPool = SettledForecastPick.backfillOrder(
+                hourRows, time, nowMs, maxPriorAgeMs = rainMaxPriorAgeMs(),
+            ) { it.fetchedAt }
+            val rainChanceRow = rainPool.firstOrNull { it.precipProbability != null }
+            val rainAmountRow = rainPool.firstOrNull { it.precipAmountMm != null }
+            val rainFetchedAt = (rainChanceRow ?: rainAmountRow)?.fetchedAt
             base.copy(
                 cloudCover = base.cloudCover ?: backfillPool.firstNotNullOfOrNull { it.cloudCover },
                 cloudCoverLow = base.cloudCoverLow ?: backfillPool.firstNotNullOfOrNull { it.cloudCoverLow },
                 cloudCoverMid = base.cloudCoverMid ?: backfillPool.firstNotNullOfOrNull { it.cloudCoverMid },
                 cloudCoverHigh = base.cloudCoverHigh ?: backfillPool.firstNotNullOfOrNull { it.cloudCoverHigh },
-                precipProbability = base.precipProbability ?: backfillPool.firstNotNullOfOrNull { it.precipProbability },
-                precipAmountMm = base.precipAmountMm ?: backfillPool.firstNotNullOfOrNull { it.precipAmountMm },
+                precipProbability = rainChanceRow?.precipProbability,
+                precipAmountMm = rainAmountRow?.precipAmountMm,
+                precipFetchedAt = rainFetchedAt?.takeIf { it != base.fetchedAt },
             )
         }
     }
