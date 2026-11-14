@@ -8,9 +8,10 @@ import com.weatherwidget.shared.graph.PriorDayCloudForecast
  * (`GraphDataLoader`) and desktop (`DesktopWeatherDao.getHourlyWithHistory`).
  *
  * Rule across all metrics (temperature, cloud cover, and precipitation probability/amount), every
- * hour alike: [SettledForecastPick] — **the newest fetch**, started hour or not (the pre-hour freeze
- * was removed 2026-11-04). Rows compete on `fetchedAt` alone, and a null field borrows from the
- * next-newest rows. `HistorySnapshotRetention` keeps exactly the history rows this reads.
+ * day alike: [SettledForecastPick] — an hour keeps updating until it starts ([nowMs]); then it keeps
+ * the last forecast made before it unless that is missing or older than [HindcastGuard], when the
+ * first fetch after the start stands in. Rows compete on `fetchedAt` alone, and a null field borrows
+ * from the same window, nearest first. `HistorySnapshotRetention` keeps every row this can read.
  *
  * Rows first collapse same-site fragments via [LocationMatch.sameSite]: float-keyed rows that
  * GPS jitter splits into ~10 cm-apart silos are merged, and genuinely-different neighbouring markers
@@ -92,10 +93,11 @@ object HourlyForecastStitcher {
         rows: List<HourlyForecast>,
         centerLat: Double,
         centerLon: Double,
+        nowMs: Long = System.currentTimeMillis(),
     ): List<HourlyForecast> {
         val byTime = groupSameSite(rows.withoutSyntheticSources(), centerLat, centerLon)
         return byTime.keys.sorted().mapNotNull { time ->
-            val backfillPool = SettledForecastPick.backfillOrder(byTime.getValue(time))
+            val backfillPool = SettledForecastPick.backfillOrder(byTime.getValue(time), hourMs = time, nowMs = nowMs)
             val base = backfillPool.firstOrNull() ?: return@mapNotNull null
             base.copy(
                 cloudCover = base.cloudCover ?: backfillPool.firstNotNullOfOrNull { it.cloudCover },
@@ -121,9 +123,10 @@ object HourlyForecastStitcher {
         rows: List<HourlyForecast>,
         centerLat: Double,
         centerLon: Double,
+        nowMs: Long = System.currentTimeMillis(),
     ): List<HourlyForecast> =
         rows.withoutSyntheticSources().groupBy { it.source }.values
-            .flatMap { sourceRows -> stitch(sourceRows, centerLat, centerLon) }
+            .flatMap { sourceRows -> stitch(sourceRows, centerLat, centerLon, nowMs) }
             .sortedBy { it.dateTime }
 
     private fun groupSameSite(

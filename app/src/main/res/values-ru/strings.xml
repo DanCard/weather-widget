@@ -564,4 +564,9 @@
     <string name="rain_day_result">%1$s: факт %2$s\n%3$s</string>
     <string name="rain_day_insufficient">%1$s: недостаточно измеренных часов (%2$d из 24)</string>
     <string name="rain_day_today">Сегодня: оценка после полуночи</string>
+    <!-- Temporary experiment: HindcastGuard (plans/261113-no-hindcasts-unless-prior-missing.md) -->
+    <string name="experimental_title">Экспериментальное</string>
+    <string name="hindcast_guard_description" formatted="false">Защита от ретропрогнозов: когда час начался (или сегодняшний минимум после 6:00 / максимум после 16:00), сохраняется последний прогноз, сделанный до него, если он не старше этого предела. Если он старше или отсутствует, используется первое обновление после начала. Временная настройка для тестирования.</string>
+    <string name="hindcast_guard_value">Макс. возраст прогноза %1$d ч</string>
+    <string name="hindcast_guard_off">Выкл. — прошедшие часы берут новейшее обновление</string>
 </resources>

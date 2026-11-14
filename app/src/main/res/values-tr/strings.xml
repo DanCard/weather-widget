@@ -564,4 +564,9 @@
     <string name="rain_day_result">%1$s: gerçek %2$s\n%3$s</string>
     <string name="rain_day_insufficient">%1$s: yetersiz ölçülen saat (%2$d / 24)</string>
     <string name="rain_day_today">Bugün: gece yarısından sonra değerlendirilir</string>
+    <!-- Temporary experiment: HindcastGuard (plans/261113-no-hindcasts-unless-prior-missing.md) -->
+    <string name="experimental_title">Deneysel</string>
+    <string name="hindcast_guard_description" formatted="false">Geriye dönük tahmin koruması: bir saat başladıktan sonra (veya bugünün en düşüğü 06:00 sonrası / en yükseği 16:00 sonrası), ondan önce yapılan son tahmin bu süreden eski değilse korunur. Daha eski veya yoksa başlangıçtan sonraki ilk güncelleme kullanılır. Test için geçici ayar.</string>
+    <string name="hindcast_guard_value">Maks. tahmin yaşı %1$d sa</string>
+    <string name="hindcast_guard_off">Kapalı — geçmiş saatler en yeni güncellemeyi alır</string>
 </resources>

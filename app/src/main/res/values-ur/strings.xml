@@ -564,4 +564,9 @@
     <string name="rain_day_result">%1$s: اصل %2$s\n%3$s</string>
     <string name="rain_day_insufficient">%1$s: ناپے گئے گھنٹے ناکافی (24 میں سے %2$d)</string>
     <string name="rain_day_today">آج: آدھی رات کے بعد جانچا جائے گا</string>
+    <!-- Temporary experiment: HindcastGuard (plans/261113-no-hindcasts-unless-prior-missing.md) -->
+    <string name="experimental_title">تجرباتی</string>
+    <string name="hindcast_guard_description" formatted="false">ہنڈکاسٹ تحفظ: کسی گھنٹے کے شروع ہونے کے بعد (یا صبح 6 بجے کے بعد آج کا کم از کم / شام 4 بجے کے بعد زیادہ سے زیادہ) اس سے پہلے کی آخری پیش گوئی رکھی جاتی ہے اگر وہ اس حد سے پرانی نہ ہو۔ پرانی یا غیر موجود ہو تو آغاز کے بعد کی پہلی اپ ڈیٹ استعمال ہوتی ہے۔ جانچ کے لیے عارضی ترتیب۔</string>
+    <string name="hindcast_guard_value">پیش گوئی کی زیادہ سے زیادہ عمر %1$d گھنٹے</string>
+    <string name="hindcast_guard_off">بند — گزرے گھنٹے تازہ ترین اپ ڈیٹ لیتے ہیں</string>
 </resources>

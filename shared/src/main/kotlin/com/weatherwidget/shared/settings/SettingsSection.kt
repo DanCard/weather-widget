@@ -43,6 +43,8 @@ enum class SettingsSection(
     API_KEYS("API Keys"),
     SUPPORT("Support Development"),
     DATA_USAGE("Data Usage"),
+    /** Temporary experiment knobs (`HindcastGuard`); delete with the last of them. */
+    EXPERIMENTAL("Experimental"),
     ;
 
     companion object {

@@ -284,35 +284,40 @@ class DesktopWeatherDaoTest {
         val lat = 37.4168
         val lon = -122.0890
         val today = LocalDate.now()
+        val at1500 = today.atTime(15, 0).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
         val at1716 = today.atTime(17, 16).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        // A fresh pre-4 pm high (plans/261113-no-hindcasts-unless-prior-missing.md: with no prior,
+        // the first post-cutoff value would stand in instead).
+        dao.upsertForecasts(lat, lon, "GOOGLE_WEATHER", listOf(
+            DailyForecast(date = today.toString(), highTemp = 80f, lowTemp = 60.4f, condition = "Clear"),
+        ), nowMs = at1500)
         dao.upsertForecasts(lat, lon, "GOOGLE_WEATHER", listOf(
             DailyForecast(date = today.toString(), highTemp = 81.9f, lowTemp = 60.4f, condition = "Clear"),
         ), nowMs = at1716)
 
         val stored = database.getConnection().use { conn ->
             conn.createStatement().executeQuery(
-                "SELECT highTemp, lowTemp, hindcastHighTemp, hindcastLowTemp FROM forecasts WHERE source = 'GOOGLE_WEATHER'",
+                "SELECT highTemp, lowTemp, hindcastHighTemp, hindcastLowTemp FROM forecasts WHERE source = 'GOOGLE_WEATHER' ORDER BY fetchedAt DESC",
             ).use { rs ->
                 assertTrue(rs.next())
                 listOf(rs.getObject("highTemp"), rs.getObject("lowTemp"), rs.getObject("hindcastHighTemp"), rs.getObject("hindcastLowTemp"))
             }
         }
-        assertNull("a post-cutoff high never becomes the forecast", stored[0])
+        assertEquals("a post-cutoff high never replaces a fresh prior", 80.0, (stored[0] as Number).toDouble(), 0.01)
         assertEquals(60.4, (stored[1] as Number).toDouble(), 0.01)
         assertEquals(81.9, (stored[2] as Number).toDouble(), 0.01)
-        assertNull("the low is never frozen, so it is never hindcast", stored[3])
+        assertNull("the held low equals the sent one, so no hindcast", stored[3])
 
         // A later batch makes the first one a snapshot, which carries the hindcast to the renderer.
-        setForecastBatchStamp(1000L)
         dao.upsertForecasts(lat, lon, "GOOGLE_WEATHER", listOf(
             DailyForecast(date = today.plusDays(1).toString(), highTemp = 80f, lowTemp = 59f, condition = "Clear"),
-        ))
+        ), nowMs = at1716 + 60_000L)
         val snapshot = dao.getDailyForecastSnapshots(
             today.minusDays(1).atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli(),
             today.plusDays(1).atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli(),
             lat, lon, "GOOGLE_WEATHER",
-        )[today.toString()]!!.single()
-        assertNull(snapshot.highTemp)
+        )[today.toString()]!!.single { it.hindcastHighTemp != null }
+        assertEquals(80f, snapshot.highTemp!!, 0.01f)
         assertEquals(81.9f, snapshot.hindcastHighTemp!!, 0.01f)
     }
 

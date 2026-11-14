@@ -4,52 +4,70 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
+import com.weatherwidget.data.model.HindcastGuard
 
 /**
- * Same-day high is only a prediction until a fixed local cutoff. After that a fetch's high is a
- * hindcast and must not enter `forecasts` (user rule, 2026-10-04): the high after 16:00.
+ * Today's forecast low and high are predictions only until a fixed local cutoff — the low until
+ * [LOW_CUTOFF] (06:00), the high until [HIGH_CUTOFF] (16:00). After it, a fetch's value is a
+ * hindcast, and it may replace the stored one only when the prior forecast is missing (user,
+ * 2026-11-13: "don't allow hindcasts unless prior data is missing"):
  *
- * Today's low is never frozen (user, 2026-11-06): every fetch writes it, so the daily view's
- * forecast low matches the newest hourly forecast. [LOW_CUTOFF] remains the D−1 anchor for
- * [PriorDayForecast] and the History of Forecasts hindcast trim. See
- * plans/261106-remove-same-day-low-freeze.md.
+ * 1. the value from the last fetch at or before the cutoff, if it is at most
+ *    [HindcastGuard.maxPriorAgeMs] older than the cutoff;
+ * 2. otherwise (no prior, or a stale one) the value from the **first** fetch after the cutoff, so
+ *    later hindcasts do not move it;
+ * 3. if this fetch is that first one, its own value (the stale prior when it sends none).
  *
- * Wired from both daily writers (`ForecastSnapshotStore.saveForecastSnapshot` on Android,
- * `DesktopWeatherRepository.persistForecastResult` → `upsertForecasts` on desktop). Display reads
- * whatever the DB holds; freezing writes is enough.
+ * The age limit is what the earlier freezes lacked: the 06:00 low freeze (removed 2026-11-06) held a
+ * 53 h-old 57° low against a fresh 46.6° hourly. With [HindcastGuard] off (0 h), every fetch writes.
+ * [LOW_CUTOFF] is also the D−1 anchor for [PriorDayForecast] and the History of Forecasts trim.
+ * See plans/261113-no-hindcasts-unless-prior-missing.md.
+ *
+ * Wired from the shared daily writer ([DailyForecastWrite]) used by both platforms. Display reads
+ * whatever the DB holds; settling writes is enough.
  */
 object SameDayExtremeCutoff {
     val LOW_CUTOFF: LocalTime = LocalTime.of(6, 0)
     val HIGH_CUTOFF: LocalTime = LocalTime.of(16, 0)
 
-    data class Filtered(
-        val highTemp: Float?,
-        val lowTemp: Float?,
-        val frozeHigh: Boolean,
-    )
+    /** One stored row's value for the extreme being settled, with its fetch stamps. */
+    data class Prior(val value: Float?, val fetchedAt: Long, val lastConfirmedAt: Long)
+
+    enum class Reason { BEFORE_CUTOFF, GUARD_OFF, FRESH_PRIOR, FIRST_AFTER_CUTOFF, THIS_FETCH_FIRST }
 
     /**
-     * Nulls out a same-day high past its cutoff at [nowMs]; the low always passes through. Future
-     * dates pass through; past dates are already dropped by the writers.
+     * The value to store. [held] = the sent value was not used (it belongs in the hindcast column).
+     * [priorAgeMs]: how long before the cutoff the newest prior was last confirmed; null when none.
      */
-    fun filter(
-        targetDate: LocalDate,
-        highTemp: Float?,
-        lowTemp: Float?,
+    data class Settled(val value: Float?, val held: Boolean, val reason: Reason, val priorAgeMs: Long?)
+
+    fun cutoffMs(date: LocalDate, cutoff: LocalTime, zone: ZoneId): Long =
+        date.atTime(cutoff).atZone(zone).toInstant().toEpochMilli()
+
+    /**
+     * Settles today's low or high at [cutoffMs] from the day's stored rows [priors] and this fetch's
+     * [sent] value. A row restamped after the cutoff (a later fetch sent identical values) counts as
+     * confirmed at the cutoff: that fetch agreed with it, so keeping it changes nothing.
+     */
+    fun settle(
+        priors: List<Prior>,
+        sent: Float?,
+        cutoffMs: Long,
         nowMs: Long,
-        zone: ZoneId = ZoneId.systemDefault(),
-    ): Filtered {
-        val nowDate = Instant.ofEpochMilli(nowMs).atZone(zone).toLocalDate()
-        if (!targetDate.isEqual(nowDate)) {
-            return Filtered(highTemp, lowTemp, frozeHigh = false)
+        maxPriorAgeMs: Long = HindcastGuard.maxPriorAgeMs,
+    ): Settled {
+        if (nowMs < cutoffMs) return Settled(sent, held = false, Reason.BEFORE_CUTOFF, null)
+        if (maxPriorAgeMs <= 0) return Settled(sent, held = false, Reason.GUARD_OFF, null)
+        val withValue = priors.filter { it.value != null }
+        val pre = withValue.filter { it.fetchedAt <= cutoffMs }
+            .maxByOrNull { maxOf(it.fetchedAt, minOf(it.lastConfirmedAt, cutoffMs)) }
+        val priorAge = pre?.let { cutoffMs - maxOf(it.fetchedAt, minOf(it.lastConfirmedAt, cutoffMs)) }
+        if (pre != null && priorAge!! <= maxPriorAgeMs) {
+            return Settled(pre.value, held = true, Reason.FRESH_PRIOR, priorAge)
         }
-        val nowTime = Instant.ofEpochMilli(nowMs).atZone(zone).toLocalTime()
-        val freezeHigh = !nowTime.isBefore(HIGH_CUTOFF)
-        return Filtered(
-            highTemp = if (freezeHigh) null else highTemp,
-            lowTemp = lowTemp,
-            frozeHigh = freezeHigh && highTemp != null,
-        )
+        val firstAfter = withValue.filter { it.fetchedAt > cutoffMs }.minByOrNull { it.fetchedAt }
+        if (firstAfter != null) return Settled(firstAfter.value, held = true, Reason.FIRST_AFTER_CUTOFF, priorAge)
+        return Settled(sent ?: pre?.value, held = false, Reason.THIS_FETCH_FIRST, priorAge)
     }
 
     /**

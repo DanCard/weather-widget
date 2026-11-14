@@ -37,6 +37,7 @@ fun buildBugReportMailto(config: DesktopConfig): String {
         appendLine("  viewMode: ${config.viewMode}")
         appendLine("  useCelsius: ${config.settings.useCelsius}")
         appendLine("  personalStationDiscount: ${config.settings.personalStationDiscount}")
+        appendLine("  hindcastMaxPriorAgeHours: ${config.settings.hindcastMaxPriorAgeHours}")
         appendLine("  dailyExtraHistory: ${config.dailyExtraHistory}")
         appendLine("  monthsView: ${config.monthsView} span=${config.monthsSpan} end=${config.monthsEnd}")
         appendLine("  zoomFactor: ${config.zoomFactor}")

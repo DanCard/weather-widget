@@ -15,8 +15,9 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 
 /**
- * Same-day high cutoff (plans/261004-same-day-high-low-cutoffs.md) on the desktop writer; today's
- * low is never frozen (plans/261106-remove-same-day-low-freeze.md).
+ * Same-day low (06:00) and high (16:00) cutoffs on the desktop writer: a fresh pre-cutoff forecast
+ * is held; a hindcast stands in only when that prior is missing or stale
+ * (plans/261113-no-hindcasts-unless-prior-missing.md). Default guard age: 6 h.
  */
 @Category(ShortDuration::class)
 class DesktopWeatherDaoHindcastCutoffTest {
@@ -61,12 +62,23 @@ class DesktopWeatherDaoHindcastCutoffTest {
     }
 
     @Test
-    fun `after 6 am both the low and the high take the newest fetch`() {
+    fun `after 6 am a fresh pre-6 am low is held while the high still updates`() {
         dao.upsertForecasts(lat, lon, source, listOf(DailyForecast(todayStr, 80f, 55f, "Sunny")), nowMs = at(5, 30))
         dao.upsertForecasts(lat, lon, source, listOf(DailyForecast(todayStr, 82f, 50f, "Sunny")), nowMs = at(7, 0))
         val row = dao.getDailyForecasts(lat, lon, source).single()
         assertEquals(82f, row.highTemp)
-        assertEquals("low takes the 07:00 fetch, not the pre-6 am prediction", 50f, row.lowTemp)
+        assertEquals("low keeps the 05:30 prediction, not the 07:00 hindcast", 55f, row.lowTemp)
+    }
+
+    /** Emulator 2026-11-06: a ~50 h-old 57 low held against a fresh 46.6 — a stale prior counts as missing. */
+    @Test
+    fun `a stale pre-6 am low is replaced once by the first fetch after 6 am`() {
+        val evening = LocalDateTime.of(today.minusDays(2), java.time.LocalTime.of(4, 0)).atZone(zone).toInstant().toEpochMilli()
+        dao.upsertForecasts(lat, lon, source, listOf(DailyForecast(todayStr, 74f, 57f, "Sunny")), nowMs = evening)
+        dao.upsertForecasts(lat, lon, source, listOf(DailyForecast(todayStr, 72f, 46.6f, "Sunny")), nowMs = at(8, 0))
+        assertEquals(46.6f, dao.getDailyForecasts(lat, lon, source).single().lowTemp)
+        dao.upsertForecasts(lat, lon, source, listOf(DailyForecast(todayStr, 72f, 44f, "Sunny")), nowMs = at(11, 0))
+        assertEquals("a later hindcast does not move it", 46.6f, dao.getDailyForecasts(lat, lon, source).single().lowTemp)
     }
 
     @Test
@@ -76,14 +88,14 @@ class DesktopWeatherDaoHindcastCutoffTest {
         dao.upsertForecasts(lat, lon, source, listOf(DailyForecast(todayStr, 90f, 52f, "Sunny")), nowMs = at(16, 30))
         val row = dao.getDailyForecasts(lat, lon, source).single()
         assertEquals("high stays the pre-4 pm prediction", 82f, row.highTemp)
-        assertEquals("low takes the 16:30 fetch", 52f, row.lowTemp)
+        assertEquals("low stays the pre-6 am prediction", 55f, row.lowTemp)
     }
 
     @Test
-    fun `first write after 4 pm stores the low but no high`() {
+    fun `first write after 4 pm with no prior forecast stores both`() {
         dao.upsertForecasts(lat, lon, source, listOf(DailyForecast(todayStr, 90f, 52f, "Sunny")), nowMs = at(17, 0))
         val row = dao.getDailyForecasts(lat, lon, source).single()
-        assertNull("no hindcast high", row.highTemp)
+        assertEquals("no prior: the first fetch after the cutoff stands in", 90f, row.highTemp)
         assertEquals(52f, row.lowTemp)
     }
 

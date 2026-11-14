@@ -489,6 +489,16 @@ internal fun SettingsWindow(
                                 modifier = Modifier.testTag("usage_stats_btn"),
                             )
                         }
+
+                        // Experimental -- Android: R.string.experimental_title, hindcast_guard_* SeekBar.
+                        SettingsCard(title = SettingsSection.EXPERIMENTAL.title) {
+                            HindcastGuardSlider(
+                                hours = currentConfig.settings.hindcastMaxPriorAgeHours,
+                                onChanged = { hours ->
+                                    updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(hindcastMaxPriorAgeHours = hours)))
+                                },
+                            )
+                        }
                     }
 
                     // Footer
@@ -667,6 +677,37 @@ private fun HourlyZoomSpan(
                 modifier = Modifier.testTag("hourly_zoom_two_day_switch"),
             )
         }
+    }
+}
+
+/** Temporary experiment (plans/261113-no-hindcasts-unless-prior-missing.md); Android: `setupHindcastGuard`. */
+@Composable
+private fun HindcastGuardSlider(
+    hours: Int,
+    onChanged: (Int) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            "Hindcast guard: once an hour has started (or today's low after 6 AM, high after 4 PM), keep " +
+                "the last forecast made before it if it is at most this old. If it is older or missing, " +
+                "the first fetch after the start is used. Temporary setting for testing.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            com.weatherwidget.data.model.HindcastGuard.formatMaxPriorAge(hours),
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.testTag("hindcast_guard_value"),
+        )
+        Slider(
+            value = hours.toFloat(),
+            onValueChange = { onChanged(it.roundToInt()) },
+            valueRange = 0f..com.weatherwidget.data.model.HindcastGuard.MAX_PRIOR_AGE_HOURS_LIMIT.toFloat(),
+            steps = com.weatherwidget.data.model.HindcastGuard.MAX_PRIOR_AGE_HOURS_LIMIT - 1,
+            modifier = Modifier.fillMaxWidth().testTag("hindcast_guard_slider"),
+        )
     }
 }
 

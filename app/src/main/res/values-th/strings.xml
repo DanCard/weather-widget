@@ -564,4 +564,9 @@
     <string name="rain_day_result">%1$s: จริง %2$s\n%3$s</string>
     <string name="rain_day_insufficient">%1$s: ชั่วโมงที่วัดได้ไม่พอ (%2$d จาก 24)</string>
     <string name="rain_day_today">วันนี้: ให้คะแนนหลังเที่ยงคืน</string>
+    <!-- Temporary experiment: HindcastGuard (plans/261113-no-hindcasts-unless-prior-missing.md) -->
+    <string name="experimental_title">ทดลอง</string>
+    <string name="hindcast_guard_description" formatted="false">ป้องกันการพยากรณ์ย้อนหลัง: เมื่อชั่วโมงหนึ่งเริ่มแล้ว (หรืออุณหภูมิต่ำสุดวันนี้หลัง 6:00 / สูงสุดหลัง 16:00) จะคงพยากรณ์ล่าสุดที่ออกก่อนหน้านั้นไว้หากอายุไม่เกินค่านี้ หากเก่ากว่าหรือไม่มี จะใช้การอัปเดตแรกหลังเริ่ม การตั้งค่าชั่วคราวสำหรับทดสอบ</string>
+    <string name="hindcast_guard_value">อายุพยากรณ์สูงสุด %1$d ชม.</string>
+    <string name="hindcast_guard_off">ปิด — ชั่วโมงที่ผ่านไปใช้การอัปเดตล่าสุด</string>
 </resources>

@@ -40,6 +40,18 @@ internal class WeatherDisplayPreferences(
         prefs.edit().putInt(KEY_PERSONAL_STATION_DISCOUNT, percent.coerceIn(0, 100)).apply()
     }
 
+    /** Temporary experiment: [com.weatherwidget.data.model.HindcastGuard]'s max prior age (desktop: `DesktopConfig.hindcastMaxPriorAgeHours`). */
+    fun hindcastMaxPriorAgeHours(): Int =
+        prefs.getInt(KEY_HINDCAST_MAX_PRIOR_AGE_HOURS, com.weatherwidget.data.model.HindcastGuard.DEFAULT_MAX_PRIOR_AGE_HOURS)
+            .coerceIn(0, com.weatherwidget.data.model.HindcastGuard.MAX_PRIOR_AGE_HOURS_LIMIT)
+
+    fun setHindcastMaxPriorAgeHours(hours: Int) {
+        prefs.edit().putInt(
+            KEY_HINDCAST_MAX_PRIOR_AGE_HOURS,
+            hours.coerceIn(0, com.weatherwidget.data.model.HindcastGuard.MAX_PRIOR_AGE_HOURS_LIMIT),
+        ).apply()
+    }
+
     /** Configured span of the tight (NARROW) hourly view, in hours. Always within 4..8. */
     fun hourlyNarrowSpanHours(): Int =
         HourlyZoomRules.clampNarrowSpan(
@@ -100,6 +112,7 @@ internal class WeatherDisplayPreferences(
         const val TAG = "UNIT_DEFAULT"
         const val KEY_USE_CELSIUS = "use_celsius"
         const val KEY_PERSONAL_STATION_DISCOUNT = "personal_station_discount"
+        const val KEY_HINDCAST_MAX_PRIOR_AGE_HOURS = "hindcast_max_prior_age_hours"
         const val KEY_HOURLY_NARROW_SPAN = "hourly_narrow_span_hours"
         const val KEY_MULTI_DAY_ZOOM = "hourly_multi_day_zoom_enabled"
         const val KEY_SHOW_TODAY_OVERLAY_DELTA = "show_today_overlay_delta"

@@ -564,4 +564,9 @@
     <string name="rain_day_result">%1$s: gemessen %2$s\n%3$s</string>
     <string name="rain_day_insufficient">%1$s: zu wenige gemessene Stunden (%2$d von 24)</string>
     <string name="rain_day_today">Heute: Bewertung nach Mitternacht</string>
+    <!-- Temporary experiment: HindcastGuard (plans/261113-no-hindcasts-unless-prior-missing.md) -->
+    <string name="experimental_title">Experimentell</string>
+    <string name="hindcast_guard_description" formatted="false">Hindcast-Schutz: Hat eine Stunde begonnen (oder das heutige Tief nach 6 Uhr / Hoch nach 16 Uhr), bleibt die letzte vorher erstellte Vorhersage, sofern sie höchstens so alt ist. Ist sie älter oder fehlt sie, gilt der erste Abruf nach Beginn. Vorübergehende Testeinstellung.</string>
+    <string name="hindcast_guard_value">Max. Vorhersagealter %1$d h</string>
+    <string name="hindcast_guard_off">Aus — vergangene Stunden zeigen den neuesten Abruf</string>
 </resources>

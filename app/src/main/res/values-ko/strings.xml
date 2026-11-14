@@ -564,4 +564,9 @@
     <string name="rain_day_result">%1$s: 실측 %2$s\n%3$s</string>
     <string name="rain_day_insufficient">%1$s: 측정 시간 부족 (24시간 중 %2$d)</string>
     <string name="rain_day_today">오늘: 자정 이후 평가</string>
+    <!-- Temporary experiment: HindcastGuard (plans/261113-no-hindcasts-unless-prior-missing.md) -->
+    <string name="experimental_title">실험 기능</string>
+    <string name="hindcast_guard_description" formatted="false">사후 예보 방지: 한 시간이 시작된 후(또는 오전 6시 이후 오늘 최저 / 오후 4시 이후 최고)에는 그 전에 나온 마지막 예보가 이 시간보다 오래되지 않았으면 유지합니다. 더 오래되었거나 없으면 시작 후 첫 업데이트를 사용합니다. 테스트용 임시 설정입니다.</string>
+    <string name="hindcast_guard_value">예보 최대 경과 시간 %1$d시간</string>
+    <string name="hindcast_guard_off">끔 — 지난 시간은 최신 업데이트 사용</string>
 </resources>

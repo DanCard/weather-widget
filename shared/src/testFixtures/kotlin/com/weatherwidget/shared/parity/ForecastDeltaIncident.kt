@@ -10,8 +10,8 @@ import java.time.ZoneId
 
 /**
  * The real rows behind "+2.5 in the daily view, +3.9 on the temperature graph" (Open-Meteo,
- * 2026-10-30): the 10:24 fetch raised 11:00 by 2.3°. Since the pre-hour freeze was removed
- * (2026-11-04) the started 10:00 hour takes that fetch too, so the delta is against one run. Both platforms' integration tests run these rows through their real views and must print
+ * 2026-10-30): the 10:24 fetch raised 11:00 by 2.3°, and the started 10:00 hour keeps its 05:03
+ * forecast. Both platforms' integration tests run these rows through their real views and must print
  * the literal [DELTA_TEXT]. See plans/261030-one-forecast-delta-all-views.md.
  *
  * Dated [day] rather than 2026-10-30 because the hourly read ages rows out by the wall clock.
@@ -41,9 +41,9 @@ class ForecastDeltaIncident(val day: LocalDate = LocalDate.now(), val zone: Zone
     )
     val lateRun = run(10, 24, 10 to 59.3f, 11 to 61.6f, 12 to 63.6f, 13 to 65.5f, 14 to 67.8f)
 
-    /** What both platforms feed the resolver and the graph: each hour's newest fetch. */
+    /** What both platforms feed the resolver and the graph: each started hour's pre-hour forecast. */
     val stitched: List<HourlyForecast>
-        get() = HourlyForecastStitcher.stitch(lateRun + earlyRun + lateRun, LAT, LON)
+        get() = HourlyForecastStitcher.stitch(lateRun + earlyRun + lateRun, LAT, LON, nowMs)
 
     val observations: List<ObservationReading>
         get() = (0..7).map { step ->
@@ -69,11 +69,11 @@ class ForecastDeltaIncident(val day: LocalDate = LocalDate.now(), val zone: Zone
         const val OBSERVED = 64.08f
         val SOURCE = WeatherSource.OPEN_METEO
 
-        /** 64.08 − 60.64: the observation against the newest run at 10:35 (59.3 → 61.6). */
-        const val DELTA = 3.44f
-        const val DELTA_TEXT = "+3.4"
+        /** 64.08 − 61.60: the observation against the newest run, held flat before its first slot. */
+        const val DELTA = 2.48f
+        const val DELTA_TEXT = "+2.5"
 
-        /** 11:00 on the ghost line: 61.6 + 3.44. */
-        const val GHOST_AT_11 = 65.04f
+        /** 11:00 on the ghost line: 61.6 + 2.48. Mixing runs gave 61.6 + 3.9 = 65.5. */
+        const val GHOST_AT_11 = 64.08f
     }
 }

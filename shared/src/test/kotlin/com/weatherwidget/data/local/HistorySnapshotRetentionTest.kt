@@ -1,6 +1,7 @@
 package com.weatherwidget.data.local
 
 import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.data.model.HindcastGuard
 import com.weatherwidget.data.model.HourlyForecastStitcher
 import com.weatherwidget.shared.graph.CloudBands
 import com.weatherwidget.shared.graph.PriorDayBandForecast
@@ -89,8 +90,8 @@ class HistorySnapshotRetentionTest {
             val kept = pruned(full)
             // Some live rows too: they win per hour, history fills gaps and null fields.
             val live = full.filter { it.bucket % 7 == 0L }.map { it.toHourly() }
-            val expected = HourlyForecastStitcher.stitchBySource(live + daoOrder(full).map { it.toHourly() }, centre.first, centre.second)
-            val actual = HourlyForecastStitcher.stitchBySource(live + daoOrder(kept).map { it.toHourly() }, centre.first, centre.second)
+            val expected = HourlyForecastStitcher.stitchBySource(live + daoOrder(full).map { it.toHourly() }, centre.first, centre.second, 0L)
+            val actual = HourlyForecastStitcher.stitchBySource(live + daoOrder(kept).map { it.toHourly() }, centre.first, centre.second, 0L)
             assertEquals("seed=$seed", expected, actual)
         }
     }
@@ -102,19 +103,30 @@ class HistorySnapshotRetentionTest {
      */
     @Test
     fun `stitched hourly series is identical on full and pruned history for started hours`() {
-        repeat(300) { seed ->
-            val full = generate(seed, postHour = true)
-            val kept = pruned(full)
-            val live = full.filter { it.bucket % 7 == 0L }.map { it.toHourly() }
-            val expected = HourlyForecastStitcher.stitchBySource(live + daoOrder(full).map { it.toHourly() }, centre.first, centre.second)
-            val actual = HourlyForecastStitcher.stitchBySource(live + daoOrder(kept).map { it.toHourly() }, centre.first, centre.second)
-            assertEquals("seed=$seed", expected, actual)
+        // The guard's age is a user setting, so one prune must serve every value of it.
+        // plans/261113-no-hindcasts-unless-prior-missing.md
+        val saved = HindcastGuard.maxPriorAgeHours
+        try {
+            for (hours in listOf(0, 1, 6, 48)) {
+                HindcastGuard.setMaxPriorAgeHours(hours)
+                repeat(300) { seed ->
+                    val full = generate(seed, postHour = true)
+                    val kept = pruned(full)
+                    val live = full.filter { it.bucket % 7 == 0L }.map { it.toHourly() }
+                    val expected = HourlyForecastStitcher.stitchBySource(live + daoOrder(full).map { it.toHourly() }, centre.first, centre.second, t0)
+                    val actual = HourlyForecastStitcher.stitchBySource(live + daoOrder(kept).map { it.toHourly() }, centre.first, centre.second, t0)
+                    assertEquals("T=${hours}h seed=$seed", expected, actual)
+                }
+                println("T=${hours}h: 300 seeds identical after prune")
+            }
+        } finally {
+            HindcastGuard.setMaxPriorAgeHours(saved)
         }
     }
 
-    /** No pre-hour freeze since 2026-11-04: the 12:01 fetch stands for noon, so 11:44 is not read. */
+    /** Desktop DB, NWS 2026-10-25 12:00: last pre-noon fetch 11:44, newest 12:01 — neither rule 1–4 kept 11:44. */
     @Test
-    fun `a pre-hour snapshot goes behind a newer post-hour fetch`() {
+    fun `the newest pre-hour snapshot survives behind a post-hour hindcast`() {
         val noon = t0 + 4 * hourMs
         val minute = 60_000L
         val early = HistorySnapshotRetention.Row("NWS", noon, 52.2334, 20.9703, noon - 6 * hourMs, noon - 6 * hourMs + 5 * minute)
@@ -123,13 +135,12 @@ class HistorySnapshotRetentionTest {
 
         val keep = HistorySnapshotRetention.keptKeys(listOf(early, preNoon, hindcast), zone, nowMs = noon + hourMs)
 
-        assertTrue(hindcast.key in keep)
-        assertTrue(preNoon.key !in keep)
+        assertTrue(preNoon.key in keep)
         assertTrue(early.key !in keep)
     }
 
     @Test
-    fun `with only post-hour snapshots the newest is kept`() {
+    fun `with no pre-hour snapshot the earliest is kept`() {
         val hour = t0 + 4 * hourMs
         val first = HistorySnapshotRetention.Row("NWS", hour, 52.2334, 20.9703, hour + hourMs, hour + hourMs)
         val second = HistorySnapshotRetention.Row("NWS", hour, 52.2334, 20.9703, hour + 3 * hourMs, hour + 3 * hourMs)
@@ -137,8 +148,7 @@ class HistorySnapshotRetentionTest {
 
         val keep = HistorySnapshotRetention.keptKeys(listOf(first, second, third), zone, nowMs = hour + 6 * hourMs)
 
-        assertTrue(third.key in keep)
-        assertTrue(first.key !in keep)
+        assertTrue(first.key in keep)
         assertTrue(second.key !in keep)
     }
 
@@ -172,22 +182,24 @@ class HistorySnapshotRetentionTest {
     }
 
     @Test
-    fun `past 5 days the settled pick is the newest fetch`() {
+    fun `past 5 days the pre-hour pick and the first hindcast both stay, for any guard age`() {
         val hour = t0 - 6 * 24 * hourMs
         val preHour = HistorySnapshotRetention.Row("OPEN_METEO", hour, 49.84, 24.03, hour - 2 * hourMs, hour - 2 * hourMs)
         val hindcast = HistorySnapshotRetention.Row("OPEN_METEO", hour, 49.84, 24.03, hour + 2 * hourMs, hour + 2 * hourMs)
 
-        assertEquals(setOf(hindcast.key), HistorySnapshotRetention.keptKeys(listOf(preHour, hindcast), zone, nowMs = t0))
+        // preHour is the pick while it counts as fresh; the hindcast stands in when the guard's age
+        // is set below 2 h or to 0 (off). The prune cannot know the setting, so it keeps both.
+        assertEquals(setOf(preHour.key, hindcast.key), HistorySnapshotRetention.keptKeys(listOf(preHour, hindcast), zone, nowMs = t0))
     }
 
     @Test
-    fun `inside 5 days the newest fetch is both the newest and the settled pick`() {
+    fun `inside 5 days the newest hindcast stays beside the settled pick`() {
         val hour = t0 - 4 * 24 * hourMs
         val preHour = HistorySnapshotRetention.Row("OPEN_METEO", hour, 49.84, 24.03, hour - 2 * hourMs, hour - 2 * hourMs)
         val hindcast = HistorySnapshotRetention.Row("OPEN_METEO", hour, 49.84, 24.03, hour + 2 * hourMs, hour + 2 * hourMs)
 
         assertEquals(
-            setOf(hindcast.key),
+            setOf(preHour.key, hindcast.key),
             HistorySnapshotRetention.keptKeys(listOf(preHour, hindcast), zone, nowMs = t0),
         )
     }
@@ -226,9 +238,12 @@ class HistorySnapshotRetentionTest {
         assertTrue(RetentionPolicy.HOURLY_FORECAST_DAYS * 24 > -com.weatherwidget.util.NavigationUtils.MIN_HOURLY_OFFSET)
     }
 
-    /** The stitcher fills the newest row's null field from the next-newest row carrying it. */
+    /**
+     * Every head the pick can choose stays: the pre-hour row (fresh prior), the first hindcast (prior
+     * stale for a short guard age), and the newest (guard off). plans/261113-no-hindcasts-unless-prior-missing.md
+     */
     @Test
-    fun `a null field on the newest row keeps the next-newest row carrying it`() {
+    fun `the pre-hour row, the first hindcast and the newest row all stay`() {
         val hour = 1_790_640_000_000L
         fun row(fetchedAt: Long, cloud: Int?) = HistorySnapshotRetention.Row(
             source = "OPEN_METEO", dateTime = hour, lat = 37.42, lon = -122.08,
@@ -244,6 +259,6 @@ class HistorySnapshotRetentionTest {
             nowMs = hour + 24 * 3_600_000L,
         )
 
-        assertEquals(setOf(hindcastWithCloud.key, newest.key), kept)
+        assertEquals(setOf(preHour.key, hindcastWithCloud.key, newest.key), kept)
     }
 }

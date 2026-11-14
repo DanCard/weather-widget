@@ -96,18 +96,20 @@ class DesktopWeatherDaoTest {
     fun `the prior row is this site's, never another site in the box`() {
         val today = java.time.LocalDate.now()
         val zone = java.time.ZoneId.systemDefault()
-        // Another town 5.5 km north, inside the ±0.1° box, had today's high at 99.
-        dao.upsertForecasts(37.467, -122.089, "NWS", listOf(DailyForecast(today.toString(), 99f, 50f, "Clear")), nowMs = today.atTime(5, 0).atZone(zone).toInstant().toEpochMilli())
-        // This site's first fetch comes after the high cutoff: its high has no prior here.
+        // Another town 5.5 km north, inside the ±0.1° box, had today's high at 99, fetched 15:00 (a
+        // fresh prior for the 16:00 cutoff, so a leak would hold it).
+        dao.upsertForecasts(37.467, -122.089, "NWS", listOf(DailyForecast(today.toString(), 99f, 50f, "Clear")), nowMs = today.atTime(15, 0).atZone(zone).toInstant().toEpochMilli())
+        // This site's first fetch comes after the high cutoff: its high has no prior here, so this
+        // fetch's value stands in (plans/261113-no-hindcasts-unless-prior-missing.md).
         dao.upsertForecasts(37.417, -122.089, "NWS", listOf(DailyForecast(today.toString(), 80f, 50f, "Clear")), nowMs = today.atTime(17, 0).atZone(zone).toInstant().toEpochMilli())
 
         db.getConnection().use { conn ->
             conn.prepareStatement("SELECT highTemp, hindcastHighTemp FROM forecasts WHERE locationLat = 37.417 AND source = 'NWS'").use { stmt ->
                 val rs = stmt.executeQuery()
                 assertTrue(rs.next())
-                assertEquals(0f, rs.getFloat("highTemp"), 0f)
-                assertTrue("this site's high is unknown, not the neighbour's 99", rs.wasNull())
-                assertEquals(80f, rs.getFloat("hindcastHighTemp"), 0f)
+                assertEquals("this site's own first value, not the neighbour's 99", 80f, rs.getFloat("highTemp"), 0f)
+                rs.getFloat("hindcastHighTemp")
+                assertTrue("nothing held", rs.wasNull())
             }
         }
     }

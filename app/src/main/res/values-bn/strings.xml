@@ -564,4 +564,9 @@
     <string name="rain_day_result">%1$s: প্রকৃত %2$s\n%3$s</string>
     <string name="rain_day_insufficient">%1$s: মাপা ঘণ্টা যথেষ্ট নয় (24-এর মধ্যে %2$d)</string>
     <string name="rain_day_today">আজ: মধ্যরাতের পরে মূল্যায়ন</string>
+    <!-- Temporary experiment: HindcastGuard (plans/261113-no-hindcasts-unless-prior-missing.md) -->
+    <string name="experimental_title">পরীক্ষামূলক</string>
+    <string name="hindcast_guard_description" formatted="false">হিন্ডকাস্ট সুরক্ষা: একটি ঘণ্টা শুরু হলে (বা সকাল ৬টার পর আজকের সর্বনিম্ন / বিকেল ৪টার পর সর্বোচ্চ), তার আগে করা শেষ পূর্বাভাসটি রাখা হয় যদি তা এর চেয়ে পুরোনো না হয়। পুরোনো বা অনুপস্থিত হলে শুরুর পরের প্রথম আপডেট ব্যবহৃত হয়। পরীক্ষার জন্য অস্থায়ী সেটিং।</string>
+    <string name="hindcast_guard_value">পূর্বাভাসের সর্বোচ্চ বয়স %1$d ঘ</string>
+    <string name="hindcast_guard_off">বন্ধ — অতীত ঘণ্টাগুলো নতুনতম আপডেট নেয়</string>
 </resources>

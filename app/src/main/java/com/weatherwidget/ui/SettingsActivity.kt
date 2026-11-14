@@ -149,6 +149,9 @@ class SettingsActivity : AppCompatActivity() {
         // Personal weather station discount slider
         setupPersonalStationDiscount()
 
+        // Experimental: hindcast guard age slider
+        setupHindcastGuard()
+
         // Location Settings
         setupLocationSettings()
 
@@ -729,6 +732,34 @@ class SettingsActivity : AppCompatActivity() {
                 val percent = sb?.progress ?: return
                 widgetStateManager.setPersonalStationDiscountPercent(percent)
                 Log.d("SETTINGS", "Personal station discount set to $percent%")
+            }
+        })
+    }
+
+    /** Temporary experiment; desktop: SettingsWindow `HindcastGuardSlider`. */
+    private fun setupHindcastGuard() {
+        val seekBar = findViewById<SeekBar>(R.id.hindcast_guard_seekbar)
+        val valueLabel = findViewById<TextView>(R.id.hindcast_guard_value)
+
+        fun labelFor(hours: Int): String =
+            if (hours == 0) getString(R.string.hindcast_guard_off) else getString(R.string.hindcast_guard_value, hours)
+
+        val initial = widgetStateManager.getHindcastMaxPriorAgeHours()
+        seekBar.progress = initial
+        valueLabel.text = labelFor(initial)
+
+        seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
+                valueLabel.text = labelFor(progress)
+            }
+
+            override fun onStartTrackingTouch(sb: SeekBar?) {}
+
+            override fun onStopTrackingTouch(sb: SeekBar?) {
+                val hours = sb?.progress ?: return
+                widgetStateManager.setHindcastMaxPriorAgeHours(hours)
+                Log.d("SETTINGS", "Hindcast guard max prior age set to ${hours}h")
+                repaintWidgets()
             }
         })
     }

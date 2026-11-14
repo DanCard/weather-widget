@@ -549,4 +549,9 @@
     <string name="rain_day_result">%1$s : mesuré %2$s\n%3$s</string>
     <string name="rain_day_insufficient">%1$s : pas assez d\'heures mesurées (%2$d sur 24)</string>
     <string name="rain_day_today">Aujourd\'hui : évalué après minuit</string>
+    <!-- Temporary experiment: HindcastGuard (plans/261113-no-hindcasts-unless-prior-missing.md) -->
+    <string name="experimental_title">Expérimental</string>
+    <string name="hindcast_guard_description" formatted="false">Protection contre les prévisions rétroactives : une fois une heure commencée (ou le minimum du jour après 6 h / le maximum après 16 h), la dernière prévision faite avant est conservée si son âge ne dépasse pas cette limite. Plus ancienne ou absente : la première mise à jour après le début est utilisée. Réglage temporaire pour les tests.</string>
+    <string name="hindcast_guard_value">Âge max. de la prévision %1$d h</string>
+    <string name="hindcast_guard_off">Désactivé — les heures passées prennent la mise à jour la plus récente</string>
 </resources>

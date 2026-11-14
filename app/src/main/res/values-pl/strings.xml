@@ -564,4 +564,9 @@
     <string name="rain_day_result">%1$s: zmierzono %2$s\n%3$s</string>
     <string name="rain_day_insufficient">%1$s: za mało zmierzonych godzin (%2$d z 24)</string>
     <string name="rain_day_today">Dziś: ocena po północy</string>
+    <!-- Temporary experiment: HindcastGuard (plans/261113-no-hindcasts-unless-prior-missing.md) -->
+    <string name="experimental_title">Eksperymentalne</string>
+    <string name="hindcast_guard_description" formatted="false">Ochrona przed prognozą wsteczną: gdy godzina się zaczęła (lub dzisiejsze minimum po 6:00 / maksimum po 16:00), zostaje ostatnia prognoza sprzed niej, jeśli nie jest starsza niż ten limit. Jeśli jest starsza lub jej brak, używane jest pierwsze pobranie po rozpoczęciu. Tymczasowe ustawienie testowe.</string>
+    <string name="hindcast_guard_value">Maks. wiek prognozy %1$d h</string>
+    <string name="hindcast_guard_off">Wył. — minione godziny biorą najnowsze pobranie</string>
 </resources>

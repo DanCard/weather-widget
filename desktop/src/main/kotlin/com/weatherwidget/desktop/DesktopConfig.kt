@@ -39,6 +39,9 @@ data class DesktopSettings(
     // App-wide discount (0..100%) applied to personal weather stations in the actual-temperature
     // IDW blend. 0 = no discount; 100 = personal stations ignored.
     val personalStationDiscount: Int = 95,
+    // Temporary experiment: HindcastGuard's max prior age in hours (0 = off). Android:
+    // WeatherDisplayPreferences.hindcastMaxPriorAgeHours. plans/261113-no-hindcasts-unless-prior-missing.md
+    val hindcastMaxPriorAgeHours: Int = com.weatherwidget.data.model.HindcastGuard.DEFAULT_MAX_PRIOR_AGE_HOURS,
     // Locale-derived for a legacy/first-run config, then materialized by DesktopConfigStore on
     // every save so the daemon and UI cannot derive different defaults from their environments.
     val useCelsius: Boolean = desktopDefaultUseCelsius(),
@@ -77,6 +80,7 @@ data class DesktopSettings(
         add("narrowZoomSpanHours", narrowZoomSpanHours, other.narrowZoomSpanHours)
         add("multiDayZoomEnabled", multiDayZoomEnabled, other.multiDayZoomEnabled)
         add("personalStationDiscount", personalStationDiscount, other.personalStationDiscount)
+        add("hindcastMaxPriorAgeHours", hindcastMaxPriorAgeHours, other.hindcastMaxPriorAgeHours)
         add("useCelsius", useCelsius, other.useCelsius)
         add("actualsProviders", actualsProviders, other.actualsProviders)
         add("todayOverlayDelta", todayOverlayDelta, other.todayOverlayDelta)

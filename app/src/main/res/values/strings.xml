@@ -585,4 +585,9 @@
     <string name="rain_day_result">%1$s: actual %2$s\n%3$s</string>
     <string name="rain_day_insufficient">%1$s: not enough measured hours (%2$d of 24)</string>
     <string name="rain_day_today">Today: scored after midnight</string>
+    <!-- Temporary experiment: HindcastGuard (plans/261113-no-hindcasts-unless-prior-missing.md) -->
+    <string name="experimental_title">Experimental</string>
+    <string name="hindcast_guard_description" formatted="false">Hindcast guard: once an hour has started (or today\'s low after 6 AM, high after 4 PM), keep the last forecast made before it if it is at most this old. If it is older or missing, the first fetch after the start is used. Temporary setting for testing.</string>
+    <string name="hindcast_guard_value">Max forecast age %1$d h</string>
+    <string name="hindcast_guard_off">Off — past hours take the newest fetch</string>
 </resources>

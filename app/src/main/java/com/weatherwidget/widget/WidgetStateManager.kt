@@ -99,6 +99,15 @@ class WidgetStateManager internal constructor(
         displayPreferences.setPersonalStationDiscountPercent(percent)
     }
 
+    /** Temporary experiment (plans/261113-no-hindcasts-unless-prior-missing.md). */
+    fun getHindcastMaxPriorAgeHours(): Int = displayPreferences.hindcastMaxPriorAgeHours()
+
+    /** Stores the setting and applies it to the shared [com.weatherwidget.data.model.HindcastGuard] now. */
+    fun setHindcastMaxPriorAgeHours(hours: Int) {
+        displayPreferences.setHindcastMaxPriorAgeHours(hours)
+        com.weatherwidget.data.model.HindcastGuard.setMaxPriorAgeHours(hours)
+    }
+
     /** App-wide span (4..8h) of the tight NARROW hourly view. See [ZoomStage.window]. */
     fun getNarrowZoomSpanHours(): Int = displayPreferences.hourlyNarrowSpanHours()
 

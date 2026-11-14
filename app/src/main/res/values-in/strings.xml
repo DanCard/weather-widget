@@ -564,4 +564,9 @@
     <string name="rain_day_result">%1$s: aktual %2$s\n%3$s</string>
     <string name="rain_day_insufficient">%1$s: jam terukur tidak cukup (%2$d dari 24)</string>
     <string name="rain_day_today">Hari ini: dinilai setelah tengah malam</string>
+    <!-- Temporary experiment: HindcastGuard (plans/261113-no-hindcasts-unless-prior-missing.md) -->
+    <string name="experimental_title">Eksperimental</string>
+    <string name="hindcast_guard_description" formatted="false">Pelindung hindcast: setelah satu jam dimulai (atau suhu terendah hari ini setelah 06.00 / tertinggi setelah 16.00), prakiraan terakhir sebelum itu dipertahankan jika usianya tidak melebihi batas ini. Jika lebih lama atau tidak ada, pembaruan pertama setelah dimulai yang dipakai. Pengaturan sementara untuk pengujian.</string>
+    <string name="hindcast_guard_value">Usia maks. prakiraan %1$d j</string>
+    <string name="hindcast_guard_off">Mati — jam yang lalu memakai pembaruan terbaru</string>
 </resources>

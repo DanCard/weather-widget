@@ -15,9 +15,11 @@ import java.time.ZoneId
  *    backfills read the freshest per hour, as does `HourlyForecastSelector`.
  * 2. **Settled pick** ([SettledForecastPick]): `HourlyForecastStitcher` (Android
  *    `HourlyForecastLoader`/`GraphDataLoader`, desktop `getHourlyWithHistory`) and
- *    `DailyNoonCloudCover` read the newest row, started hour or not (the pre-hour freeze was removed
- *    2026-11-04), and fill its null fields from the next-newest rows. So keep that row and, per
- *    coalesced field, the newest non-null row.
+ *    `DailyNoonCloudCover` read, for a started hour, the newest pre-hour row when it is fresh,
+ *    otherwise the earliest post-hour row; and the newest row when [HindcastGuard] is off. The age
+ *    limit is a user setting, so keep what every value can read: the **newest** row, the **newest
+ *    pre-hour** row and the **earliest post-hour** row, and the same three per coalesced field among
+ *    rows carrying it. (plans/261113-no-hindcasts-unless-prior-missing.md)
  * 3. **Prior-day band:** newest bucket at least [BAND_LEAD_MS] before the hour among rows carrying a
  *    mid or high band (`PriorDayBandForecast.select`).
  * 4. **Rain accuracy:** newest bucket captured on the hour's previous local calendar day
@@ -26,11 +28,12 @@ import java.time.ZoneId
  * Rule 1 runs only for hours under [FULL_WINDOW_MS] old: those hindcasts draw nothing past that age.
  * Hours past [RETAINED_WINDOW_MS] keep no row at all.
  *
- * Each is "the newest row within a window that never moves", and new snapshots only ever arrive with
- * later buckets, so a row that is not the newest in its window now can never become it later —
- * pruning is safe for future hours as well as past ones, and idempotent.
+ * Each is "the newest (or, after the hour, earliest) row within a window that never moves", and new
+ * snapshots only ever arrive with later buckets, so a row that is not that extreme in its window now
+ * can never become it later — pruning is safe for future hours as well as past ones, and idempotent.
+ * The first post-hour row arrives after the hour and then stays the earliest.
  *
- * Keeping each site's own maxima preserves every reader's cross-site maximum, so readers that merge
+ * Keeping each site's own maxima (and minima) preserves every reader's cross-site extremes, so readers that merge
  * sites (the stitcher's same-site/borrow sets, rain accuracy's unfiltered box) see the same result.
  * The one-shot repairs that read *all* snapshots (`FrozenRainChanceRepair`, the frozen-display and
  * chance backfills) must have run first; callers gate on that.
@@ -108,12 +111,10 @@ object HistorySnapshotRetention {
             val dayStart = day.atStartOfDay(zone).toInstant().toEpochMilli()
             val prevDayStart = day.minusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
             keepMax(group.filter { it.bucket in prevDayStart until dayStart }, kept) { it.bucket }
-            // 2. settled pick and its per-field backfill, from the same window (ties: keep all)
-            val window = SettledForecastPick.backfillOrder(group) { it.fetchedAt }
-            keepFetchedAtOf(window.firstOrNull(), window, kept)
+            // 2. settled pick and its per-field backfill, for any HindcastGuard age (ties: keep all)
+            keepSettledCandidates(group, hour, kept)
             for (field in coalescedFields) {
-                val withField = window.filter { field(it) != null }
-                keepFetchedAtOf(withField.firstOrNull(), withField, kept)
+                keepSettledCandidates(group.filter { field(it) != null }, hour, kept)
             }
         }
 
@@ -141,9 +142,11 @@ object HistorySnapshotRetention {
 
     private data class GroupKey(val source: String, val dateTime: Long, val lat: Double, val lon: Double)
 
-    private fun keepFetchedAtOf(best: Row?, rows: List<Row>, into: MutableSet<Key>) {
-        if (best == null) return
-        rows.filter { it.fetchedAt == best.fetchedAt }.forEach { into += it.key }
+    /** Newest, newest at-or-before [hour], and earliest after it: every head [SettledForecastPick] can choose. */
+    private fun keepSettledCandidates(rows: List<Row>, hour: Long, into: MutableSet<Key>) {
+        keepMax(rows, into) { it.fetchedAt }
+        keepMax(rows.filter { it.fetchedAt <= hour }, into) { it.fetchedAt }
+        keepMax(rows.filter { it.fetchedAt > hour }, into) { -it.fetchedAt }
     }
 
     private inline fun keepMax(rows: List<Row>, into: MutableSet<Key>, selector: (Row) -> Long) {

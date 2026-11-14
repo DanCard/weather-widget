@@ -68,6 +68,7 @@ object NwsStationActualsRun {
             rows = host.nwsHourlyHistory(dayStartMs, dayEndMs),
             centerLat = host.lat,
             centerLon = host.lon,
+            nowMs = nowMs,
         )
 
     suspend fun run(host: Host, nowMs: Long, zone: ZoneId = ZoneId.systemDefault()) {

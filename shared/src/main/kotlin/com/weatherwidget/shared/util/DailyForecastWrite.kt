@@ -1,5 +1,6 @@
 package com.weatherwidget.shared.util
 
+import com.weatherwidget.data.model.HindcastGuard
 import com.weatherwidget.data.model.WeatherSource
 import java.time.Instant
 import java.time.LocalDate
@@ -11,9 +12,10 @@ import java.time.ZoneId
  * existing rows are only re-stamped with this fetch's `lastConfirmedAt`, and the `SNAPSHOT_*` lines.
  *
  * - Past days, climate normals and an already-ended NWS period are not written.
- * - A same-day high past its [SameDayExtremeCutoff] keeps the prior row's value (the sent one goes
- *   to `hindcastHighTemp`); today's low always takes this fetch's value, and a missing one keeps a
- *   recent stored one.
+ * - Today's low after 06:00 and high after 16:00 are settled by [SameDayExtremeCutoff.settle]: a
+ *   fresh pre-cutoff value is kept, a hindcast is accepted only when that prior is missing or stale
+ *   (the held sent value goes to `hindcastLowTemp` / `hindcastHighTemp`). A fetch that sends no low
+ *   keeps a recent stored one.
  * - A window this fetch's hourly did not cover keeps the prior row's summary ([DailyHourlySummaries]).
  * - A row with neither high nor low is not written (it would hide an older real row).
  * - A row equal to the prior is not written again; the prior is re-stamped, so readers aging by last
@@ -115,30 +117,45 @@ object DailyForecastWrite {
             val low = day.lowTemp?.takeIf { it.isFinite() }
             if (high == null && low == null) return@mapNotNull null
             val isToday = day.date == today
-            val filtered = SameDayExtremeCutoff.filter(
-                targetDate = day.date,
-                highTemp = high,
-                lowTemp = low,
-                nowMs = nowMs,
-                zone = zone,
-            )
-            // Keep the last real pre-cutoff prediction rather than nulling the field: a post-cutoff
-            // batch must not become the newest row with a hole where the forecast used to be.
             val prior = priorByDate[day.date]?.values
-            val highToStore = if (filtered.frozeHigh) prior?.highTemp else filtered.highTemp
-            val lowToStore = filtered.lowTemp ?: newestLowByDate[day.date].let {
+            val dayRows = if (isToday) stored.filter { it.date == day.date } else emptyList()
+            fun settle(cutoff: java.time.LocalTime, sent: Float?, value: (Values) -> Float?) =
+                if (!isToday) {
+                    SameDayExtremeCutoff.Settled(sent, held = false, SameDayExtremeCutoff.Reason.BEFORE_CUTOFF, null)
+                } else {
+                    SameDayExtremeCutoff.settle(
+                        priors = dayRows.map { SameDayExtremeCutoff.Prior(value(it.values), it.fetchedAt, it.lastConfirmedAt) },
+                        sent = sent,
+                        cutoffMs = SameDayExtremeCutoff.cutoffMs(day.date, cutoff, zone),
+                        nowMs = nowMs,
+                    )
+                }
+            val highSettled = settle(SameDayExtremeCutoff.HIGH_CUTOFF, high) { it.highTemp }
+            val lowSettled = settle(SameDayExtremeCutoff.LOW_CUTOFF, low) { it.lowTemp }
+            val highToStore = highSettled.value
+            val lowToStore = lowSettled.value ?: newestLowByDate[day.date].let {
                 SameDayExtremeCutoff.keptTodayLow(isToday, it?.values?.lowTemp, it?.fetchedAt, nowMs)
             }
-            // The frozen high's sent value is kept: readers ignore hindcast*, and a past day with no
-            // pre-cutoff forecast draws it as a dashed fallback (PastDayForecastOverlay).
-            val hindcastHigh = if (filtered.frozeHigh) high else null
-            if (filtered.frozeHigh) {
-                lines += Line(
-                    "SNAPSHOT_SKIP_HINDCAST",
-                    "date=${day.date} source=$sourceId froze=high prior_high=${prior?.highTemp}",
-                )
+            // A held sent value is kept: readers ignore hindcast*, and a past day with no pre-cutoff
+            // forecast draws it as a dashed fallback (PastDayForecastOverlay).
+            val hindcastHigh = high.takeIf { highSettled.held && it != highSettled.value }
+            val hindcastLow = low.takeIf { lowSettled.held && it != lowSettled.value }
+            for ((name, settled, sent) in listOf(Triple("high", highSettled, high), Triple("low", lowSettled, low))) {
+                val ageH = settled.priorAgeMs?.let { String.format(java.util.Locale.US, "%.1f", it / 3_600_000.0) }
+                when {
+                    settled.held && sent != settled.value -> lines += Line(
+                        "SNAPSHOT_SKIP_HINDCAST",
+                        "date=${day.date} source=$sourceId froze=$name kept=${settled.value} sent=$sent " +
+                            "reason=${settled.reason} prior_age_h=$ageH",
+                    )
+                    settled.reason == SameDayExtremeCutoff.Reason.THIS_FETCH_FIRST -> lines += Line(
+                        "SNAPSHOT_HINDCAST_ACCEPTED",
+                        "date=${day.date} source=$sourceId $name=${settled.value} prior_age_h=$ageH " +
+                            "max_age_h=${HindcastGuard.maxPriorAgeHours}",
+                    )
+                }
             }
-            if (highToStore == null && lowToStore == null && hindcastHigh == null) {
+            if (highToStore == null && lowToStore == null && hindcastHigh == null && hindcastLow == null) {
                 return@mapNotNull null
             }
             val summary = DailyHourlySummaries.carryForward(day.summary, prior?.summary)
@@ -159,7 +176,7 @@ object DailyForecastWrite {
                     daytimePrecipProbability = periods.day,
                     nighttimePrecipProbability = periods.night,
                     hindcastHighTemp = hindcastHigh,
-                    hindcastLowTemp = null,
+                    hindcastLowTemp = hindcastLow,
                     summary = summary,
                 ),
             )

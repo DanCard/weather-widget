@@ -47,7 +47,7 @@ class HourlyForecastStitcherTest {
     private fun stitch(rows: List<HourlyForecast>) = stitch(rows, emptyList())
 
     private fun stitch(current: List<HourlyForecast>, history: List<HourlyForecast>) =
-        HourlyForecastStitcher.stitch(current + history, centerLat = lat, centerLon = lon)
+        HourlyForecastStitcher.stitch(current + history, centerLat = lat, centerLon = lon, nowMs = now)
 
     @Test
     fun `future hour - live row wins and missing cloud cover is backfilled from history`() {
@@ -67,10 +67,10 @@ class HourlyForecastStitcherTest {
     }
 
     @Test
-    fun `past hour - the newest fetch wins, post-hour hindcast included`() {
+    fun `past hour - fresh pre-hour snapshot wins over post-hour live hindcast`() {
         val past = now - 5_000L // 5_000L
-        // No pre-hour freeze since 2026-11-04 (plans/261104-remove-hourly-pre-hour-freeze.md): the
-        // post-hour live fetch (9_000L) replaces the pre-hour snapshot (1_000L).
+        // Post-hour live fetch (9_000L > 5_000L) is a hindcast; the pre-hour snapshot (1_000L) is the
+        // forecast in effect when the hour arrived (plans/261113-no-hindcasts-unless-prior-missing.md).
         val current = listOf(fc(past, 76f, "Sunny", cloudCover = 5, precipProbability = 10, fetchedAt = 9_000L))
         val history = listOf(fc(past, 71f, "Cloudy", cloudCover = 60, precipProbability = 80, fetchedAt = 1_000L))
 
@@ -78,10 +78,10 @@ class HourlyForecastStitcherTest {
 
         assertEquals(1, stitched.size)
         val row = stitched.first()
-        assertEquals(76f, row.temperature, 0f)
-        assertEquals("Sunny", row.condition)
-        assertEquals(5, row.cloudCover)
-        assertEquals(10, row.precipProbability)
+        assertEquals(71f, row.temperature, 0f) // pre-hour forecast, not post-hour hindcast
+        assertEquals("Cloudy", row.condition)
+        assertEquals(60, row.cloudCover)
+        assertEquals(80, row.precipProbability)
     }
 
     @Test
@@ -116,7 +116,7 @@ class HourlyForecastStitcherTest {
     }
 
     @Test
-    fun `past hour with no live row takes the freshest history snapshot`() {
+    fun `past hour with no live row keeps its fresh pre-hour history snapshot`() {
         val past = now - 5_000L
         val history = listOf(
             fc(past, 79f, "Hot", fetchedAt = 1_000L),   // pre-hour prediction
@@ -124,8 +124,8 @@ class HourlyForecastStitcherTest {
         )
 
         val row = stitch(emptyList(), history).first()
-        assertEquals(73f, row.temperature, 0f)
-        assertEquals("Mild", row.condition)
+        assertEquals(79f, row.temperature, 0f) // pre-hour snapshot wins
+        assertEquals("Hot", row.condition)
     }
 
     @Test
@@ -142,7 +142,7 @@ class HourlyForecastStitcherTest {
     }
 
     @Test
-    fun `past hour - newest fetch wins in any input order`() {
+    fun `past hour with no pre-hour row - earliest fetch wins in any input order`() {
         val past = now - 5_000L
         val live = fc(past, 75f, "Live", fetchedAt = 9_500L)
         val history = listOf(
@@ -152,7 +152,7 @@ class HourlyForecastStitcherTest {
         )
 
         for (order in listOf(history, history.reversed(), history.shuffled(kotlin.random.Random(7)))) {
-            assertEquals("Live", stitch(listOf(live), order).single().condition)
+            assertEquals("Earliest", stitch(listOf(live), order).single().condition)
         }
     }
 
@@ -166,12 +166,13 @@ class HourlyForecastStitcherTest {
     }
 
     @Test
-    fun `null field borrows from the next-newest fetch, not list order`() {
+    fun `null field borrows from the nearest pre-hour snapshot, not list order or a hindcast`() {
         val past = now - 5_000L
-        val current = listOf(fc(past, 76f, "Sunny", cloudCover = null, fetchedAt = 9_000L))
+        val current = listOf(fc(past, 76f, "Sunny", cloudCover = null, fetchedAt = 4_500L))
         val history = listOf(
-            fc(past, 70f, "LongRange", cloudCover = 10, fetchedAt = 500L), // six days out, listed first
+            fc(past, 70f, "LongRange", cloudCover = 10, fetchedAt = 500L), // older, listed first
             fc(past, 73f, "Recent", cloudCover = 60, fetchedAt = 4_000L),
+            fc(past, 72f, "Hindcast", cloudCover = 95, fetchedAt = 9_000L),
         )
 
         val row = stitch(current, history).single()
@@ -179,9 +180,9 @@ class HourlyForecastStitcherTest {
         assertEquals(60, row.cloudCover)
     }
 
-    /** No clock in the rule: yesterday's 23:00 reads the same before and after midnight. */
+    /** Every started hour follows one rule: yesterday's 23:00 reads the same before and after midnight. */
     @Test
-    fun `a past hour takes its newest fetch on either side of midnight`() {
+    fun `yesterday's hour keeps its pre-hour forecast across midnight`() {
         val zone = java.time.ZoneId.systemDefault()
         val day = java.time.LocalDate.of(2026, 10, 26)
         fun at(h: Int, m: Int, d: java.time.LocalDate = day) = d.atTime(h, m).atZone(zone).toInstant().toEpochMilli()
@@ -190,7 +191,9 @@ class HourlyForecastStitcherTest {
             fc(hour, 60f, "PreHour", fetchedAt = at(22, 40)),
             fc(hour, 55f, "Hindcast", fetchedAt = at(23, 30)),
         )
-        assertEquals("Hindcast", HourlyForecastStitcher.stitch(history, lat, lon).single().condition)
+        fun stitchAt(nowMs: Long) = HourlyForecastStitcher.stitch(history, lat, lon, nowMs).single().condition
+        assertEquals("PreHour", stitchAt(at(23, 59)))
+        assertEquals("PreHour", stitchAt(at(0, 1, day.plusDays(1))))
     }
 
     @Test

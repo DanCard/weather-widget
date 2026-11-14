@@ -90,7 +90,7 @@ object CurrentTemperatureResolver {
         // GENERIC_GAP (per-source strictness); drop those buckets rather than assert them present.
         val bucketCount = hourlyForecasts.groupBy { it.dateTime }.size
         val forecastsByTime = hourlyForecasts.groupBy { it.dateTime }
-            .mapNotNull { (time, rows) -> pickBestForecast(rows, displaySourceId)?.let { time to it } }
+            .mapNotNull { (time, rows) -> pickBestForecast(rows, displaySourceId, now)?.let { time to it } }
             .toMap()
         if (forecastsByTime.size < bucketCount) {
             verboseLog(
@@ -112,15 +112,16 @@ object CurrentTemperatureResolver {
     private fun pickBestForecast(
         rows: List<HourlyForecast>,
         sourceId: String,
+        nowMs: Long,
     ): HourlyForecast? {
         val candidates = when {
             rows.any { it.source == sourceId } -> rows.filter { it.source == sourceId }
             rows.any { it.source == WeatherSource.GENERIC_GAP.id } -> rows.filter { it.source == WeatherSource.GENERIC_GAP.id }
             else -> emptyList()
         }
-        // The graph's rule (SettledForecastPick): the newest fetch, so the header and its own graph
-        // line agree on both platforms. plans/261104-remove-hourly-pre-hour-freeze.md
-        return SettledForecastPick.pick(candidates)
+        // The graph's rule (SettledForecastPick), so the header and its own graph line agree on both
+        // platforms. plans/261113-no-hindcasts-unless-prior-missing.md
+        return candidates.firstOrNull()?.let { SettledForecastPick.pick(candidates, it.dateTime, nowMs) }
     }
 
     // Per-resolution trace breadcrumb. VERBOSE: shown in the ephemeral sink (logcat / desktop console)
@@ -407,7 +408,7 @@ object CurrentTemperatureResolver {
 
         val sourceScopedForecasts =
             hourlyForecasts.groupBy { it.dateTime }
-                .mapValues { (_, rows) -> pickBestForecast(rows, source.id) }
+                .mapValues { (_, rows) -> pickBestForecast(rows, source.id, nowMs) }
 
         val currentHourForecast = sourceScopedForecasts[targetHourMs]
         val nextHourForecast = sourceScopedForecasts[nextHourMs]

@@ -92,39 +92,54 @@ class DailyForecastWriteTest {
     }
 
     @Test
-    fun `after the high cutoff the prior high stays and the sent one goes to hindcast`() {
-        val p = plan(listOf(day(today, 90f, 50f)), listOf(stored(today, 80f, 55f, at(5))), nowMs = at(17))
+    fun `after the cutoffs fresh priors stay and the sent values go to hindcast`() {
+        val p = plan(
+            listOf(day(today, 90f, 50f)),
+            listOf(stored(today, 79f, 55f, at(5)), stored(today, 80f, 55f, at(14))),
+            nowMs = at(17),
+        )
         val v = p.write.single().values
+        p.lines.forEach { println("${it.tag} ${it.message}") }
         assertEquals(80f, v.highTemp)
         assertEquals(90f, v.hindcastHighTemp)
-        assertEquals("today's low is never frozen", 50f, v.lowTemp)
-        assertNull(v.hindcastLowTemp)
-        assertTrue(p.lines.any { it.tag == "SNAPSHOT_SKIP_HINDCAST" })
+        assertEquals("the 05:00 low is a fresh prior for 06:00", 55f, v.lowTemp)
+        assertEquals(50f, v.hindcastLowTemp)
+        assertEquals(2, p.lines.count { it.tag == "SNAPSHOT_SKIP_HINDCAST" })
     }
 
-    /** Emulator 2026-11-06: Open-Meteo's 08:54 fetch sent 46.6 but the row kept Nov 4's 57. */
+    /** Emulator 2026-11-06: Open-Meteo's 08:54 fetch sent 46.6 but the row kept Nov 4's 57 (~50 h old). */
     @Test
-    fun `after 6 am today's low takes this fetch's value, not the prior row's`() {
-        val p = plan(listOf(day(today, 72.2f, 46.6f)), listOf(stored(today, 74f, 57f, at(3))), nowMs = at(8))
+    fun `after 6 am a stale prior low counts as missing, and the first fetch after 6 am then holds`() {
+        val nov4 = at(4) - 48 * 3_600_000L
+        val staleRow = stored(today, 74f, 57f, nov4, predicted = today.minusDays(2))
+        val p = plan(listOf(day(today, 72.2f, 46.6f)), listOf(staleRow), nowMs = at(8))
+        p.lines.forEach { println("${it.tag} ${it.message}") }
         val v = p.write.single().values
         assertEquals(46.6f, v.lowTemp)
         assertEquals(72.2f, v.highTemp)
         assertNull(v.hindcastLowTemp)
-        assertTrue(p.lines.none { it.tag == "SNAPSHOT_SKIP_HINDCAST" })
+        assertTrue(p.lines.any { it.tag == "SNAPSHOT_HINDCAST_ACCEPTED" })
+
+        val later = plan(listOf(day(today, 72.2f, 44f)), listOf(staleRow, stored(today, 72.2f, 46.6f, at(8))), nowMs = at(11))
+        assertEquals("a later hindcast does not move it", 46.6f, later.write.single().values.lowTemp)
+        assertEquals(44f, later.write.single().values.hindcastLowTemp)
     }
 
     @Test
     fun `the prior is the newest by prediction date, then batch, then fetch`() {
+        // The prior decides re-stamp vs write: a fetch equal to it is only re-stamped.
+        val tomorrow = today.plusDays(1)
         val p = plan(
-            listOf(day(today, 90f, 50f)),
+            listOf(day(tomorrow, 81f, 50f)),
             listOf(
-                stored(today, 70f, 50f, fetchedAt = at(5), predicted = today.minusDays(1)),
-                stored(today, 81f, 50f, fetchedAt = at(4), batch = at(5)),
-                stored(today, 82f, 50f, fetchedAt = at(5), batch = at(4)),
+                stored(tomorrow, 70f, 50f, fetchedAt = at(5), predicted = today.minusDays(1), ref = "older-prediction"),
+                stored(tomorrow, 81f, 50f, fetchedAt = at(4), batch = at(5), ref = "newest-batch"),
+                stored(tomorrow, 82f, 50f, fetchedAt = at(5), batch = at(4), ref = "newest-fetch"),
             ),
             nowMs = at(17),
         )
-        assertEquals(81f, p.write.single().values.highTemp)
+        assertTrue(p.write.isEmpty())
+        assertEquals(listOf("newest-batch"), p.restamp)
     }
 
     @Test

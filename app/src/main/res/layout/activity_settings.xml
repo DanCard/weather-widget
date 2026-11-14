@@ -847,6 +847,52 @@
                     android:textSize="21sp" />
             </LinearLayout>
 
+            <!-- Experimental: temporary HindcastGuard slider (desktop: SettingsWindow EXPERIMENTAL card).
+                 plans/261113-no-hindcasts-unless-prior-missing.md -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:layout_marginBottom="8dp"
+                android:text="@string/experimental_title"
+                android:tag="settings_section"
+                android:textColor="@color/widget_text_primary"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="24dp"
+                android:background="@drawable/bg_surface_card"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="8dp"
+                    android:text="@string/hindcast_guard_description"
+                    android:textColor="@color/widget_text_secondary"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:id="@+id/hindcast_guard_value"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="4dp"
+                    android:textColor="@color/widget_text_primary"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    tools:text="Max forecast age 6 h" />
+
+                <SeekBar
+                    android:id="@+id/hindcast_guard_seekbar"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:max="48" />
+            </LinearLayout>
+
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 

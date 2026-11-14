@@ -127,7 +127,7 @@ object DailyHistoryMaintenance {
      *
      * [dailyRows] is the current forecast (one row per date/source); [hourly] is the stitched hourly
      * (live + history, `HourlyForecastStitcher`) covering yesterday..tomorrow, so elapsed hours carry
-     * the graph's newest fetch; [existing] is every `daily_history` fragment in the
+     * the graph's settled pick (fresh pre-hour forecast; a hindcast only when that is missing); [existing] is every `daily_history` fragment in the
      * same range. Only rows that already exist are updated.
      */
     fun planSnapshotDisplayedRainChance(
@@ -379,6 +379,7 @@ object DailyHistoryMaintenance {
                 rows = historyRows,
                 centerLat = centerLat,
                 centerLon = centerLon,
+                nowMs = nowMs,
             )
             val dayNight = DailyRainLabels.calculateDayNightPrecipProbabilities(
                 hourly = stitched,
@@ -436,6 +437,7 @@ object DailyHistoryMaintenance {
                         rows = historyRows,
                         centerLat = centerLat,
                         centerLon = centerLon,
+                        nowMs = nowMs,
                     ),
                     date = date,
                     displaySourceId = row.source,

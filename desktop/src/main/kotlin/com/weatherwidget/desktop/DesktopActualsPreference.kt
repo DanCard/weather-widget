@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.data.model.HindcastGuard
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.observations.ActualsProviderResolver
 
@@ -38,11 +39,15 @@ object DesktopActualsPreference {
     /** Publish the latest settings. Call after a settings-only save. */
     fun update(latest: DesktopSettings?) {
         settings = latest
+        latest?.let { HindcastGuard.setMaxPriorAgeHours(it.hindcastMaxPriorAgeHours) }
     }
 
     /** Publish settings and location together. Call on load and on every config reload. */
     fun publish(config: DesktopConfig?) {
         settings = config?.settings
+        // Temporary experiment, riding the same publish (both processes): Android sets it in
+        // WeatherWidgetApp.onCreate. plans/261113-no-hindcasts-unless-prior-missing.md
+        config?.settings?.let { HindcastGuard.setMaxPriorAgeHours(it.hindcastMaxPriorAgeHours) }
         location = config?.let { c -> (c.lat to c.lon).takeIf { c.lat.isFinite() && c.lon.isFinite() } }
     }
 

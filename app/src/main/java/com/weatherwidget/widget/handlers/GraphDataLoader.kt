@@ -171,11 +171,11 @@ object GraphDataLoader {
                 if (nowStartMs != null && nowEndMs != null) everyFetch(nowStartMs, nowEndMs) else emptyList()
             ).distinct()
 
-        // Same shared pick desktop uses: each hour is the newest forecast fetched at or before it
-        // (SettledForecastPick), with null fields filled from that same window; same-site fragments
-        // are collapsed.
+        // Same shared pick desktop uses (SettledForecastPick: a started hour keeps its fresh pre-hour
+        // forecast, hindcasts only when that is missing), with null fields filled from that same
+        // window; same-site fragments are collapsed.
         val nowMs = com.weatherwidget.shared.util.WeatherTimeUtils.liveEpochMs(now, zoneId)
-        val stitched = HourlyForecastStitcher.stitch(rows.map { it.toHourlyForecast() }, lat, lon)
+        val stitched = HourlyForecastStitcher.stitch(rows.map { it.toHourlyForecast() }, lat, lon, nowMs)
         val out = stitched.map { it.toEntity(lat, lon) }
         // Counterpart of HourlyForecastLoader's HOURLY_LOAD line, for the interaction path: this loader
         // had none, so a tap-driven paint could hand the renderer another site's rows with nothing
@@ -219,7 +219,7 @@ object GraphDataLoader {
             lon = lon,
             sources = sourceIds,
         )
-        return HourlyForecastStitcher.stitchBySource(rows.map { it.toHourlyForecast() }, lat, lon)
+        return HourlyForecastStitcher.stitchBySource(rows.map { it.toHourlyForecast() }, lat, lon, nowMs)
             .map { it.toEntity(lat, lon) }
     }
 
@@ -252,7 +252,7 @@ object GraphDataLoader {
             sources = listOf(displaySource.id, WeatherSource.GENERIC_GAP.id),
         )
         val nowMs = com.weatherwidget.shared.util.WeatherTimeUtils.liveEpochMs(now)
-        return HourlyForecastStitcher.stitchBySource(rows.map { it.toHourlyForecast() }, lat, lon)
+        return HourlyForecastStitcher.stitchBySource(rows.map { it.toHourlyForecast() }, lat, lon, nowMs)
             .map { it.toEntity(lat, lon) }
     }
 

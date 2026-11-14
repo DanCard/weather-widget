@@ -3,44 +3,59 @@ package com.weatherwidget.data.model
 /**
  * Which of an hour's forecast rows stands for that hour — the one rule shared by
  * [HourlyForecastStitcher], `DailyNoonCloudCover`, `CurrentTemperatureResolver`, and
- * `HistorySnapshotRetention` (which must keep exactly the rows this reads).
+ * `HistorySnapshotRetention` (which must keep every row this can read, for any [HindcastGuard] age).
  *
- * **Every hour, started or not, takes the newest fetch.** A fetch made during or after the hour may
- * be a hindcast; it still wins. Until 2026-11-04 a started hour froze at the newest fetch at or
- * before it ("Freeze wins always", 2026-10-27), so a device asleep overnight kept its evening
- * forecast — desktop drew NWS 3am as 4% beside its own 03:10 fetch's 25%. User, 2026-11-04: "lets
- * get rid of the freeze rule", everywhere. See plans/261104-remove-hourly-pre-hour-freeze.md.
+ * - **Hour not yet started** (`hourMs >= nowMs`): the newest fetch, so the forecast keeps updating.
+ * - **Hour started**, with `T` = [HindcastGuard.maxPriorAgeMs]:
+ *   1. the newest fetch at or before the hour, if it is at most `T` older than the hour;
+ *   2. otherwise (no prior, or only a stale one) the **earliest** fetch after the hour starts — the
+ *      closest thing to a prediction, and it stays put as more hindcasts arrive;
+ *   3. otherwise (only a stale prior) that prior.
+ *   `T = 0` turns the guard off: the newest fetch, as from 2026-11-04 to 2026-11-13.
  *
- * Synthesized rows (`fetchedAt = 0`) lose to any real fetch. Sorts are stable, so on a `fetchedAt`
- * tie the row listed first wins (the stitcher lists live rows first).
+ * User, 2026-11-13: "don't allow hindcasts unless prior data is missing". The 2026-10-27 freeze had
+ * no age limit, so a stale prior won: desktop asleep 19:33–03:10 drew NWS 3am as its 18:45 4% beside
+ * its own 03:10 fetch's 25%, and a jitter fragment's weeks-old row beat a fresh one. Both now count
+ * as missing. See plans/261113-no-hindcasts-unless-prior-missing.md.
+ *
+ * Synthesized rows (`fetchedAt = 0`) are pre-hour but always stale, so they lose to any later fetch.
+ * Sorts are stable, so on a `fetchedAt` tie the row listed first wins (the stitcher lists live rows
+ * first).
  */
 object SettledForecastPick {
 
-    fun <T> pick(rows: List<T>, fetchedAt: (T) -> Long): T? = rows.maxByOrNullStable(fetchedAt)
+    fun <T> pick(
+        rows: List<T>,
+        hourMs: Long,
+        nowMs: Long,
+        maxPriorAgeMs: Long = HindcastGuard.maxPriorAgeMs,
+        fetchedAt: (T) -> Long,
+    ): T? = backfillOrder(rows, hourMs, nowMs, maxPriorAgeMs, fetchedAt).firstOrNull()
 
     /**
      * Every row the rule may read for this hour, best first: [pick] is the head, and a null field on
-     * it borrows from the first row below that carries one — the next-newest fetch. NWS near-term
-     * hours carry no skyCover, so the fill comes from the nearest-in-time fetch rather than whatever
-     * row the query happened to list first.
+     * it borrows from the first row below that carries one. NWS near-term hours carry no skyCover,
+     * so the fill comes from the nearest-in-time fetch rather than whatever row the query happened
+     * to list first. For a started hour: the chosen side first (pre-hour newest-first or post-hour
+     * earliest-first), then the other side in its own order.
      */
-    fun <T> backfillOrder(rows: List<T>, fetchedAt: (T) -> Long): List<T> = rows.sortedByDescending(fetchedAt)
-
-    fun pick(rows: List<HourlyForecast>): HourlyForecast? = pick(rows) { it.fetchedAt }
-
-    fun backfillOrder(rows: List<HourlyForecast>): List<HourlyForecast> = backfillOrder(rows) { it.fetchedAt }
-
-    /** First row with the maximum key, so ties keep list order like the stable sort above. */
-    private inline fun <T> List<T>.maxByOrNullStable(key: (T) -> Long): T? {
-        var best: T? = null
-        var bestKey = Long.MIN_VALUE
-        for (row in this) {
-            val k = key(row)
-            if (best == null || k > bestKey) {
-                best = row
-                bestKey = k
-            }
-        }
-        return best
+    fun <T> backfillOrder(
+        rows: List<T>,
+        hourMs: Long,
+        nowMs: Long,
+        maxPriorAgeMs: Long = HindcastGuard.maxPriorAgeMs,
+        fetchedAt: (T) -> Long,
+    ): List<T> {
+        if (hourMs >= nowMs || maxPriorAgeMs <= 0) return rows.sortedByDescending(fetchedAt)
+        val pre = rows.filter { fetchedAt(it) <= hourMs }.sortedByDescending(fetchedAt)
+        val post = rows.filter { fetchedAt(it) > hourMs }.sortedBy(fetchedAt)
+        val freshPrior = pre.firstOrNull()?.let { hourMs - fetchedAt(it) <= maxPriorAgeMs } == true
+        return if (freshPrior || post.isEmpty()) pre + post else post + pre
     }
+
+    fun pick(rows: List<HourlyForecast>, hourMs: Long, nowMs: Long): HourlyForecast? =
+        pick(rows, hourMs, nowMs) { it.fetchedAt }
+
+    fun backfillOrder(rows: List<HourlyForecast>, hourMs: Long, nowMs: Long): List<HourlyForecast> =
+        backfillOrder(rows, hourMs, nowMs) { it.fetchedAt }
 }

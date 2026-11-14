@@ -48,6 +48,11 @@ class WeatherWidgetApp : Application(), Configuration.Provider {
         com.weatherwidget.shared.observations.ActualsProviderResolver.installLocationSource {
             com.weatherwidget.widget.ActiveLocationResolver.current(this)
         }
+        // Temporary experiment: the hindcast guard's age limit, read by :shared pick/settle rules.
+        // SharedPreferences only. plans/261113-no-hindcasts-unless-prior-missing.md
+        com.weatherwidget.data.model.HindcastGuard.setMaxPriorAgeHours(
+            com.weatherwidget.widget.WidgetStateManager(this).getHindcastMaxPriorAgeHours(),
+        )
         installCrashLogger()
         processStartElapsedRealtime = SystemClock.elapsedRealtime()
         // Cold-start trace anchor. This line's logcat timestamp is process birth (wall-clock); the

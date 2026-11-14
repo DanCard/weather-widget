@@ -24,9 +24,9 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 /**
- * Same-day high cutoff (plans/261004-same-day-high-low-cutoffs.md): the high is frozen at 16:00
- * local; a post-cutoff batch must not overwrite the last real prediction. Today's low is never
- * frozen (plans/261106-remove-same-day-low-freeze.md): every fetch writes it.
+ * Same-day low (06:00) and high (16:00) cutoffs on the Android writer: a fresh pre-cutoff forecast
+ * is held; a hindcast stands in only when that prior is missing or stale (default guard age 6 h).
+ * Desktop twin: DesktopWeatherDaoHindcastCutoffTest. plans/261113-no-hindcasts-unless-prior-missing.md
  */
 @RunWith(RobolectricTestRunner::class)
 @Category(LongDuration::class)
@@ -102,7 +102,7 @@ class ForecastSnapshotHindcastCutoffTest {
     }
 
     @Test
-    fun `after 6 am both the low and the high take the newest fetch`() = runTest {
+    fun `after 6 am a fresh pre-6 am low is held while the high still updates`() = runTest {
         repository.saveForecastSnapshot(
             listOf(TestData.forecast(targetDate = todayStr, highTemp = 80f, lowTemp = 55f)),
             LAT, LON, "NWS",
@@ -115,8 +115,8 @@ class ForecastSnapshotHindcastCutoffTest {
         )
         val row = latest()
         assertEquals(82f, row.highTemp)
-        assertEquals("low takes the 07:00 fetch, not the pre-6 am prediction", 50f, row.lowTemp)
-        assertNull(row.hindcastLowTemp)
+        assertEquals("low keeps the 05:30 prediction, not the 07:00 hindcast", 55f, row.lowTemp)
+        assertEquals(50f, row.hindcastLowTemp)
     }
 
     @Test
@@ -138,29 +138,29 @@ class ForecastSnapshotHindcastCutoffTest {
         )
         val row = latest()
         assertEquals("high stays the pre-4 pm prediction", 82f, row.highTemp)
-        assertEquals("low takes the 16:30 fetch", 52f, row.lowTemp)
+        assertEquals("low stays the pre-6 am prediction", 55f, row.lowTemp)
     }
 
     @Test
-    fun `first write after 4 pm keeps the high as hindcast and stores the low`() = runTest {
+    fun `first write after 4 pm with no prior forecast stores both`() = runTest {
         repository.saveForecastSnapshot(
             listOf(TestData.forecast(targetDate = todayStr, highTemp = 90f, lowTemp = 52f)),
             LAT, LON, "NWS",
             nowMs = at(17, 0),
         )
         val row = latest()
-        assertNull(row.highTemp)
+        assertEquals("no prior: the first fetch after the cutoff stands in", 90f, row.highTemp)
         assertEquals(52f, row.lowTemp)
-        assertEquals(90f, row.hindcastHighTemp)
+        assertNull(row.hindcastHighTemp)
         assertNull(row.hindcastLowTemp)
     }
 
     /**
-     * Google 2026-10-06 was first fetched at 11:16 and its low used to go to hindcast only. Since
-     * 2026-11-06 a mid-day fetch writes today's low as the forecast, and a later one replaces it.
+     * Google 2026-10-06 was first fetched at 11:16 and its low used to go to hindcast only. With no
+     * prior, the first fetch after 06:00 stands in for the low, and later hindcasts do not move it.
      */
     @Test
-    fun `a source first fetched mid-day stores its low, and a later fetch replaces it`() = runTest {
+    fun `a source first fetched mid-day stores its low, and a later fetch does not replace it`() = runTest {
         repository.saveForecastSnapshot(
             listOf(TestData.forecast(targetDate = todayStr, highTemp = 81.9f, lowTemp = 60.4f)),
             LAT, LON, "NWS",
@@ -172,13 +172,13 @@ class ForecastSnapshotHindcastCutoffTest {
         assertNull(first.hindcastHighTemp)
         assertNull(first.hindcastLowTemp)
 
-        Thread.sleep(5) // fetchedAt (wall clock) is part of the primary key
         repository.saveForecastSnapshot(
             listOf(TestData.forecast(targetDate = todayStr, highTemp = 81.9f, lowTemp = 59.8f)),
             LAT, LON, "NWS",
             nowMs = at(11, 35),
         )
-        assertEquals(59.8f, latest().lowTemp)
+        assertEquals(60.4f, latest().lowTemp)
+        assertEquals(59.8f, latest().hindcastLowTemp)
     }
 
     @Test

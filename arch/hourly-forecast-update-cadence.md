@@ -284,15 +284,22 @@ a substitute for the runtime receiver.
 
 ## Started hours and stale forecasts
 
-Every hour, started or not, shows the newest fetch (`SettledForecastPick`); a fetch during or after
-the hour may be a hindcast and still wins. The pre-hour freeze was removed 2026-11-04
-([plan](../plans/261104-remove-hourly-pre-hour-freeze.md)). Every fetch also files the elapsed hours
+An hour that has not started shows the newest fetch. A started hour (`SettledForecastPick`, `:shared`)
+keeps the last forecast made at or before it, unless that forecast is missing or older than the
+hindcast guard's age (`HindcastGuard`, default 6 h); then the **first** fetch after the hour starts
+stands in, and later hindcasts do not move it. With only a stale prior and nothing after, the stale
+prior stays. The age is a temporary Settings → Experimental slider on both platforms (0 h = always the
+newest fetch). Today's daily low after 06:00 and high after 16:00 follow the same rule
+(`SameDayExtremeCutoff.settle`); a held sent value goes to `hindcastLowTemp` / `hindcastHighTemp`, and
+the writer logs `SNAPSHOT_SKIP_HINDCAST` (held) or `SNAPSHOT_HINDCAST_ACCEPTED` (prior missing).
+([plan](../plans/261113-no-hindcasts-unless-prior-missing.md); the 2026-10-27 freeze had no age limit
+and was removed 2026-11-04.) Every fetch also files the elapsed hours
 its payload still carries (NWS gridpoint since the issuance, Open-Meteo `past_days`, Silurian
 `include_past`, Tomorrow.io 23 h; `ElapsedForecastBackfill`), so a device that slept recovers them on
 its next fetch ([plan](../plans/261104-file-every-elapsed-hour.md)). Hours older than a source's
 look-back keep the last forecast the device fetched, and devices can still disagree there. The hourly
-temperature, rain-chance, and cloud graphs on both platforms draw such an hour's forecast line at
-reduced opacity when its newest fetch was more than 3 h before the hour (`:shared`
+temperature, rain-chance, and cloud graphs on both platforms draw an hour's forecast line at
+reduced opacity when the drawn forecast was fetched more than 3 h before the hour (`:shared`
 `StaleForecastSpans`). The cloud graph's day-ago prediction is never dimmed.
 See [plans/261104-dim-stale-pre-hour-forecasts.md](../plans/261104-dim-stale-pre-hour-forecasts.md).
 

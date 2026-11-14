@@ -564,4 +564,9 @@
     <string name="rain_day_result">%1$s：实测 %2$s\n%3$s</string>
     <string name="rain_day_insufficient">%1$s：实测小时数不足（24 小时中 %2$d）</string>
     <string name="rain_day_today">今天：午夜后评分</string>
+    <!-- Temporary experiment: HindcastGuard (plans/261113-no-hindcasts-unless-prior-missing.md) -->
+    <string name="experimental_title">实验性</string>
+    <string name="hindcast_guard_description" formatted="false">事后预报防护：某个小时开始后（或今天的最低温在早上6点后／最高温在下午4点后），若此前最后一次预报不超过此时长，则保留它。若更旧或缺失，则使用开始后的第一次更新。用于测试的临时设置。</string>
+    <string name="hindcast_guard_value">预报最长时效 %1$d 小时</string>
+    <string name="hindcast_guard_off">关闭 — 过去的小时使用最新更新</string>
 </resources>

@@ -47,10 +47,11 @@ platforms use the same order.
 it. Within the 30-day active window, the union of these rows is kept for each source/site/hour:
 
 1. The newest snapshot by label and by `fetchedAt`, for the backfills and `HourlyForecastSelector`.
-2. The settled pick (`SettledForecastPick`), which history stitching and daily noon cloud read:
-   the newest snapshot, whether or not the hour has started (the pre-hour freeze was removed
-   2026-11-04; plans/261104-remove-hourly-pre-hour-freeze.md). Also kept, per coalesced field, is
-   the newest row carrying a non-null value.
+2. Every row the settled pick (`SettledForecastPick`) can choose, which history stitching and daily
+   noon cloud read: the newest snapshot, the newest snapshot at or before the hour, and the earliest
+   snapshot after it, plus the same three per coalesced field among rows carrying a value. The pick
+   depends on the hindcast guard's age, a user setting, so the prune keeps what any age can read
+   (plans/261113-no-hindcasts-unless-prior-missing.md).
 3. The newest sufficiently old snapshot carrying the mid/high-cloud band used by prior-day graphs.
 4. The newest snapshot captured on the previous local day for rain-accuracy comparisons.
 
