@@ -113,6 +113,7 @@
     <string name="source_compare_legend_cloud">облачность в полдень</string>
     <string name="source_compare_legend_bias">средний прогноз максимума минус факт, 30 дней (+ = теплее)</string>
     <string name="source_compare_legend_age">с последнего подтверждения прогноза источником; серым после 24 ч</string>
+    <string name="source_compare_legend_star">Источник больше не присылает сегодняшний день (его сутки идут по UTC); возраст — от последнего прогноза, где он был.</string>
     <string name="loading_accuracy_summary">Загрузка точности прогнозов...</string>
     <string name="error_loading_accuracy_summary">Не удаётся загрузить точность прогнозов.</string>
     <string name="data_freshness_unknown">Свежесть данных: неизвестно</string>

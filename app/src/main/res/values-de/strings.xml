@@ -113,6 +113,7 @@
     <string name="source_compare_legend_cloud">Bewölkung um 12 Uhr</string>
     <string name="source_compare_legend_bias">mittleres Prognose-Hoch minus Ist-Wert, letzte 30 Tage (+ = zu warm)</string>
     <string name="source_compare_legend_age">seit die Quelle diese Prognose zuletzt bestätigt hat; grau nach 24 h</string>
+    <string name="source_compare_legend_star">Die Quelle sendet heute nicht mehr (ihre Tage laufen nach UTC); das Alter stammt von ihrer letzten Vorhersage, die heute enthielt.</string>
     <string name="loading_accuracy_summary">Vorhersagegenauigkeit wird geladen...</string>
     <string name="error_loading_accuracy_summary">Vorhersagegenauigkeit kann derzeit nicht geladen werden.</string>
     <string name="data_freshness_unknown">Datenaktualität: Unbekannt</string>

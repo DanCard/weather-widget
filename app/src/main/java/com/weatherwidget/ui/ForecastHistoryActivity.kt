@@ -916,11 +916,11 @@ class ForecastHistoryActivity : AppCompatActivity() {
         cells.forEachIndexed { i, c ->
             table.addView(comparisonRow(c.values(), showAmount, primary, bold = sorted[i].source == cachedRequestedSource, staleAge = c.ageIsStale))
         }
-        findViewById<TextView>(R.id.source_comparison_legend).text = sourceComparisonLegend(names, showAmount)
+        findViewById<TextView>(R.id.source_comparison_legend).text = sourceComparisonLegend(names, showAmount, DaySourceComparison.showStarNote(cells))
     }
 
     /** One line per column, "Rain highest hourly chance, 8am–8pm": shared column choice, bold names, localized notes. */
-    private fun sourceComparisonLegend(names: List<String>, showAmount: Boolean): CharSequence {
+    internal fun sourceComparisonLegend(names: List<String>, showAmount: Boolean, showStar: Boolean): CharSequence {
         val notes = mapOf(
             DaySourceComparison.SortColumn.DAY_RAIN to R.string.source_compare_legend_rain,
             DaySourceComparison.SortColumn.PEAK to R.string.source_compare_legend_peak,
@@ -935,6 +935,12 @@ class ForecastHistoryActivity : AppCompatActivity() {
             if (i > 0) text.append("\n")
             text.append(names[column.ordinal], android.text.style.StyleSpan(android.graphics.Typeface.BOLD), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             text.append(" ").append(getString(notes.getValue(column)))
+        }
+        // Only while some Age carries the star (DaySourceComparison.Row.noLongerSent).
+        if (showStar) {
+            text.append("\n")
+            text.append(DaySourceComparison.AGE_STAR, android.text.style.StyleSpan(android.graphics.Typeface.BOLD), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            text.append(" ").append(getString(R.string.source_compare_legend_star))
         }
         return text
     }

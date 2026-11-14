@@ -113,6 +113,7 @@
     <string name="source_compare_legend_cloud">couverture nuageuse à midi</string>
     <string name="source_compare_legend_bias">max prévu moyen moins le réel, 30 derniers jours (+ = trop chaud)</string>
     <string name="source_compare_legend_age">depuis la dernière confirmation de cette prévision par la source ; gris après 24 h</string>
+    <string name="source_compare_legend_star">La source n\'envoie plus aujourd\'hui (ses jours suivent l\'UTC) ; l\'âge est celui de sa dernière prévision qui l\'incluait.</string>
     <string name="loading_accuracy_summary">Chargement de la précision des prévisions...</string>
     <string name="error_loading_accuracy_summary">Impossible de charger la précision des prévisions pour le moment.</string>
     <string name="data_freshness_unknown">Fraîcheur des données : inconnue</string>

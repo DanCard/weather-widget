@@ -113,6 +113,7 @@
     <string name="source_compare_legend_cloud">tutupan awan pukul 12 siang</string>
     <string name="source_compare_legend_bias">rata-rata prakiraan maks dikurangi aktual, 30 hari terakhir (+ = lebih hangat)</string>
     <string name="source_compare_legend_age">sejak sumber terakhir mengonfirmasi prakiraan ini; abu-abu setelah 24 jam</string>
+    <string name="source_compare_legend_star">Sumber tidak lagi mengirim hari ini (harinya mengikuti UTC); usia dihitung dari prakiraan terakhir yang memuatnya.</string>
     <string name="loading_accuracy_summary">Memuat akurasi prakiraan...</string>
     <string name="error_loading_accuracy_summary">Tidak dapat memuat akurasi prakiraan saat ini.</string>
     <string name="data_freshness_unknown">Kesegaran data: Tidak diketahui</string>

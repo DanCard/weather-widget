@@ -98,7 +98,7 @@ internal fun DaySourceComparisonTable(
                     )
                 }
                 Text(
-                    legendText(showAmount),
+                    legendText(showAmount, DaySourceComparison.showStarNote(cells)),
                     modifier = Modifier.padding(top = 5.dp).testTag("source_compare_legend"),
                     color = ObsStyle.textSecondary,
                     fontSize = 12.sp,
@@ -110,14 +110,24 @@ internal fun DaySourceComparisonTable(
 }
 
 /** One line per column, "Rain highest hourly chance, 8am–8pm", names bold (Android: `sourceComparisonLegend`). */
-private fun legendText(showAmount: Boolean): AnnotatedString = buildAnnotatedString {
+internal fun legendText(showAmount: Boolean, showStar: Boolean): AnnotatedString = buildAnnotatedString {
     DaySourceComparison.legendColumns(showAmount).forEachIndexed { i, column ->
         if (i > 0) append("\n")
         withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(HEADERS[column.ordinal]) }
         append(" ")
         append(LEGEND_TEXT.getValue(column))
     }
+    // Only while some Age carries the star (DaySourceComparison.Row.noLongerSent).
+    if (showStar) {
+        append("\n")
+        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(DaySourceComparison.AGE_STAR) }
+        append(" ")
+        append(STAR_NOTE)
+    }
 }
+
+/** Desktop wording of the Age star's note; Android: `source_compare_legend_star`. */
+internal const val STAR_NOTE = "The source no longer sends today (its days run on UTC); the age is from its last forecast that did."
 
 /** Desktop legend wording; Android carries the same in its `source_compare_legend_*` strings. */
 internal val LEGEND_TEXT: Map<DaySourceComparison.SortColumn, String> = mapOf(

@@ -113,6 +113,7 @@
     <string name="source_compare_legend_cloud">دوپہر 12 بجے بادل</string>
     <string name="source_compare_legend_bias">اوسط پیشگوئی شدہ زیادہ سے زیادہ منفی اصل، پچھلے 30 دن (+ = زیادہ گرم)</string>
     <string name="source_compare_legend_age">ماخذ کی اس پیشگوئی کی آخری تصدیق سے؛ 24 گھنٹے بعد سرمئی</string>
+    <string name="source_compare_legend_star">ماخذ اب آج کا ڈیٹا نہیں بھیجتا (اس کے دن UTC پر چلتے ہیں)؛ عمر اس کی آخری ایسی پیشگوئی سے ہے جس میں آج شامل تھا۔</string>
     <string name="loading_accuracy_summary">پیشن گوئی کی درستگی لوڈ ہو رہی ہے...</string>
     <string name="error_loading_accuracy_summary">ابھی پیشن گوئی کی درستگی لوڈ نہیں ہو سکتی۔</string>
     <string name="data_freshness_unknown">ڈیٹا کی تازگی: نامعلوم</string>

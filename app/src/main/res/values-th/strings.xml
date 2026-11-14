@@ -113,6 +113,7 @@
     <string name="source_compare_legend_cloud">เมฆปกคลุมตอนเที่ยง</string>
     <string name="source_compare_legend_bias">ค่าเฉลี่ยสูงสุดที่พยากรณ์ลบค่าจริง 30 วันล่าสุด (+ = อุ่นกว่า)</string>
     <string name="source_compare_legend_age">นับจากแหล่งข้อมูลยืนยันพยากรณ์นี้ครั้งล่าสุด เป็นสีเทาหลัง 24 ชม.</string>
+    <string name="source_compare_legend_star">แหล่งข้อมูลไม่ส่งข้อมูลของวันนี้แล้ว (วันของแหล่งนี้อิงตาม UTC) อายุนับจากพยากรณ์ล่าสุดที่ยังมีวันนี้</string>
     <string name="loading_accuracy_summary">กำลังโหลดความแม่นยำของพยากรณ์...</string>
     <string name="error_loading_accuracy_summary">ไม่สามารถโหลดความแม่นยำของพยากรณ์ได้ในขณะนี้</string>
     <string name="data_freshness_unknown">ความใหม่ของข้อมูล: ไม่ทราบ</string>

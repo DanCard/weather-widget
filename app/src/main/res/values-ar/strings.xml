@@ -113,6 +113,7 @@
     <string name="source_compare_legend_cloud">الغطاء السحابي عند الظهر</string>
     <string name="source_compare_legend_bias">متوسط العظمى المتوقعة ناقص الفعلية، آخر 30 يومًا (+ = أدفأ)</string>
     <string name="source_compare_legend_age">منذ آخر تأكيد للمصدر لهذا التوقع؛ رمادي بعد 24 ساعة</string>
+    <string name="source_compare_legend_star">لم يعد المصدر يرسل اليوم (أيامه بتوقيت UTC)؛ العمر من آخر توقع له تضمّن اليوم.</string>
     <string name="loading_accuracy_summary">جارٍ تحميل دقة التوقعات...</string>
     <string name="error_loading_accuracy_summary">يتعذر تحميل دقة التوقعات حاليًا.</string>
     <string name="data_freshness_unknown">حداثة البيانات: غير معروفة</string>

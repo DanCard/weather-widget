@@ -113,6 +113,7 @@
     <string name="source_compare_legend_cloud">öğlen bulut örtüsü</string>
     <string name="source_compare_legend_bias">ortalama tahmini yüksek eksi gerçek, son 30 gün (+ = sıcak)</string>
     <string name="source_compare_legend_age">kaynağın bu tahmini son onaylamasından beri; 24 sa sonra gri</string>
+    <string name="source_compare_legend_star">Kaynak artık bugünü göndermiyor (günleri UTC\'ye göre); yaş, bugünü içeren son tahmininden.</string>
     <string name="loading_accuracy_summary">Tahmin doğruluğu yükleniyor...</string>
     <string name="error_loading_accuracy_summary">Tahmin doğruluğu şu anda yüklenemiyor.</string>
     <string name="data_freshness_unknown">Veri güncelliği: Bilinmiyor</string>

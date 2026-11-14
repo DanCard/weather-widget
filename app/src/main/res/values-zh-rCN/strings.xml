@@ -113,6 +113,7 @@
     <string name="source_compare_legend_cloud">正午云量</string>
     <string name="source_compare_legend_bias">预报最高温平均减实测，近30天（+ = 偏暖）</string>
     <string name="source_compare_legend_age">距来源上次确认此预报的时间；超过24小时显示为灰色</string>
+    <string name="source_compare_legend_star">该来源已不再发送今天的数据（其日期按 UTC 计算）；时长从其最后一次包含今天的预报算起。</string>
     <string name="loading_accuracy_summary">正在加载预报准确度...</string>
     <string name="error_loading_accuracy_summary">目前无法加载预报准确度。</string>
     <string name="data_freshness_unknown">数据新鲜度：未知</string>

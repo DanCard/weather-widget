@@ -313,6 +313,75 @@ class DaySourceComparisonTest {
         assertEquals("bias [NWS]", calls[2])
     }
 
+    // --- Age star: a today row the source no longer sends (plans/261113-all-sources-age-star-for-dropped-today.md) ---
+
+    private val today = now.toLocalDate()
+
+    private fun buildToday(stored: List<DaySourceComparison.StoredRow>, nextDay: List<DaySourceComparison.StoredRow>, date: LocalDate = today) =
+        DaySourceComparison.build(
+            date = date, now = now, lat = lat, lon = lon, sources = listOf(WeatherSource.NWS, WeatherSource.SILURIAN),
+            stored = stored, history = emptyList(), hourly = emptyList(), highBias = emptyMap(),
+            use24HourClock = false, zone = zone, nextDay = nextDay,
+        ).also { rows -> println("age star rows: " + rows.joinToString { "${it.source.id} noLongerSent=${it.noLongerSent} cell=${DaySourceComparison.cells(it, nowMs, false).age}" }) }
+
+    @Test
+    fun `age star - today row older than tomorrow's from a later fetch is starred, the note shows`() {
+        // Desktop 2026-11-13: Silurian today confirmed 12:10, tomorrow 16:59 (UTC days after 4 PM).
+        val rows = buildToday(
+            stored = listOf(stored(WeatherSource.NWS, 63f, lastConfirmedAt = nowMs - minute), stored(WeatherSource.SILURIAN, 64f, lastConfirmedAt = nowMs - 5 * hour)),
+            nextDay = listOf(stored(WeatherSource.NWS, 65f, lastConfirmedAt = nowMs - minute), stored(WeatherSource.SILURIAN, 66f, lastConfirmedAt = nowMs - 12 * minute)),
+        )
+        val cells = rows.associate { it.source to DaySourceComparison.cells(it, nowMs, useCelsius = false) }
+        assertEquals("5h*", cells.getValue(WeatherSource.SILURIAN).age)
+        assertEquals("1m", cells.getValue(WeatherSource.NWS).age)
+        assertTrue(DaySourceComparison.showStarNote(cells.values.toList()))
+    }
+
+    @Test
+    fun `age star - a failed refresh (tomorrow just as old) is not starred`() {
+        val rows = buildToday(
+            stored = listOf(stored(WeatherSource.SILURIAN, 64f, lastConfirmedAt = nowMs - 5 * hour)),
+            nextDay = listOf(stored(WeatherSource.SILURIAN, 66f, lastConfirmedAt = nowMs - 5 * hour + 2_000L)),
+        )
+        val cells = rows.map { DaySourceComparison.cells(it, nowMs, useCelsius = false) }
+        assertEquals("5h", cells.first { it.source == WeatherSource.SILURIAN.shortDisplayName }.age)
+        assertFalse(DaySourceComparison.showStarNote(cells))
+    }
+
+    @Test
+    fun `age star - none without a tomorrow row, none on a past day`() {
+        val todayRows = listOf(stored(WeatherSource.SILURIAN, 64f, lastConfirmedAt = nowMs - 5 * hour))
+        assertFalse(buildToday(todayRows, nextDay = emptyList()).any { it.noLongerSent })
+        assertFalse(
+            "past day",
+            buildToday(todayRows, nextDay = listOf(stored(WeatherSource.SILURIAN, 66f, lastConfirmedAt = nowMs - minute)), date = today.minusDays(1))
+                .any { it.noLongerSent },
+        )
+    }
+
+    @Test
+    fun `age star - load reads tomorrow's rows only when the day is today`() = runBlocking {
+        val asked = mutableListOf<Long>()
+        val todayEpoch = today.toEpochDay() * 86_400_000L
+        val host = object : DaySourceComparison.Host {
+            override suspend fun visibleSources() = listOf(WeatherSource.SILURIAN)
+            override suspend fun forecastRows(targetDateEpoch: Long, lat: Double, lon: Double): List<DaySourceComparison.StoredRow> {
+                asked += targetDateEpoch
+                val confirmed = if (targetDateEpoch == todayEpoch) nowMs - 5 * hour else nowMs - minute
+                return listOf(stored(WeatherSource.SILURIAN, 64f, lastConfirmedAt = confirmed))
+            }
+            override suspend fun dailyHistory(targetDateEpoch: Long, lat: Double, lon: Double): List<DailyHistory> = emptyList()
+            override suspend fun hourly(startMs: Long, endMs: Long, lat: Double, lon: Double, sourceIds: List<String>): List<HourlyForecast> = emptyList()
+            override suspend fun highBias(sources: List<WeatherSource>, lat: Double, lon: Double): Map<String, Double> = emptyMap()
+        }
+        val rows = DaySourceComparison.load(host, today, lat, lon, now, zone, use24HourClock = false)
+        assertEquals(listOf(todayEpoch, todayEpoch + 86_400_000L), asked)
+        assertTrue(rows.single().noLongerSent)
+        asked.clear()
+        DaySourceComparison.load(host, tomorrow, lat, lon, now, zone, use24HourClock = false)
+        assertEquals("a future day reads only its own rows", 1, asked.size)
+    }
+
     // --- Column sort (plans/261112-all-sources-column-sort.md) ---
 
     private fun row(

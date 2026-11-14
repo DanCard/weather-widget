@@ -203,4 +203,48 @@ class ForecastHistorySourceComparisonRoboTest {
         assertEquals(listOf("NWS", "Meteo", "Silur"), order(reopened))
         assertEquals("Rain ▴", cell(reopened, 0, 3).text.toString())
     }
+
+    @Test
+    fun `today - a source whose later fetch left today out gets a starred age and the footnote`() {
+        // Desktop 2026-11-13: Silurian today 12:10, tomorrow 16:59 (UTC days after 4 PM Pacific).
+        val today = LocalDate.now()
+        val now = System.currentTimeMillis()
+        fun row(source: WeatherSource, dayOffset: Long, high: Float, ageMs: Long) = ForecastEntity(
+            targetDate = today.plusDays(dayOffset).toEpochDay() * 86_400_000L, dateOfPrediction = today.toEpochDay() * 86_400_000L,
+            locationLat = lat, locationLon = lon, highTemp = high, lowTemp = 50f, condition = "Cloudy",
+            source = source.id, fetchedAt = now - ageMs, lastConfirmedAt = now - ageMs,
+        )
+        runBlocking {
+            db.forecastDao().insertAll(
+                listOf(
+                    row(WeatherSource.NWS, 0, 63f, 60_000L), row(WeatherSource.NWS, 1, 65f, 60_000L),
+                    row(WeatherSource.SILURIAN, 0, 64f, 5 * 3_600_000L), row(WeatherSource.SILURIAN, 1, 66f, 12 * 60_000L),
+                ),
+            )
+        }
+        WidgetStateManager(context).setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.SILURIAN))
+        val intent = Intent(context, ForecastHistoryActivity::class.java).apply {
+            putExtra(ForecastHistoryActivity.EXTRA_TARGET_DATE, today.toString())
+            putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
+            putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
+            putExtra(ForecastHistoryActivity.EXTRA_SOURCE, WeatherSource.NWS.displayName)
+        }
+        val controller = Robolectric.buildActivity(ForecastHistoryActivity::class.java, intent)
+        val activity = controller.get()
+        controller.setup()
+        val table = activity.findViewById<LinearLayout>(R.id.source_comparison_table)
+        val deadline = System.currentTimeMillis() + 10_000
+        while (table.childCount < 3 && System.currentTimeMillis() < deadline) {
+            Thread.sleep(20)
+            shadowOf(Looper.getMainLooper()).idle()
+        }
+        fun cellTexts(row: Int) = (table.getChildAt(row) as LinearLayout).let { r -> (0 until r.childCount).map { (r.getChildAt(it) as TextView).text.toString() } }
+        val rows = (1 until table.childCount).map { cellTexts(it) }
+        println("ForecastHistorySourceComparisonRoboTest today rows: $rows")
+        assertEquals("5h*", rows.single { it[0] == "Silur" }.last())
+        assertEquals("1m", rows.single { it[0] == "NWS" }.last())
+        val legend = activity.findViewById<TextView>(R.id.source_comparison_legend).text.toString()
+        println("ForecastHistorySourceComparisonRoboTest today legend: $legend")
+        assertTrue(legend, legend.endsWith("grey after 24 h\n* " + context.getString(R.string.source_compare_legend_star)))
+    }
 }

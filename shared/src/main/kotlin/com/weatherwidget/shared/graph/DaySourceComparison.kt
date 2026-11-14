@@ -68,6 +68,12 @@ object DaySourceComparison {
         val lastConfirmedAt: Long?,
         /** Position in the user's visible-source order; every sort breaks ties by it. */
         val sourceOrder: Int = 0,
+        /**
+         * Today only: a later fetch of this source succeeded but no longer included today (Silurian's
+         * UTC days after 4 PM Pacific), so [lastConfirmedAt] cannot advance. Age prints a star
+         * ([AGE_STAR]) and the legend explains it ([showStarNote]).
+         */
+        val noLongerSent: Boolean = false,
     ) {
         val hasForecast: Boolean get() = lastConfirmedAt != null
     }
@@ -85,6 +91,8 @@ object DaySourceComparison {
         val bias: String,
         val age: String,
         val ageIsStale: Boolean,
+        /** [Row.noLongerSent]: [age] ends in [AGE_STAR]. */
+        val ageNoLongerSent: Boolean = false,
     ) {
         /** The cells in column order ([SortColumn]), blanks as "—". */
         fun values(): List<String> =
@@ -136,10 +144,12 @@ object DaySourceComparison {
             sources.map { it.id } + WeatherSource.GENERIC_GAP.id,
         )
         val bias = host.highBias(sources, lat, lon)
-        val rows = build(date, now, lat, lon, sources, stored, history, hourly, bias, use24HourClock, zone)
+        // Today: tomorrow's rows tell a dropped day from a failed refresh ([Row.noLongerSent]).
+        val nextDay = if (date == now.toLocalDate()) host.forecastRows(targetEpoch + MS_IN_A_DAY, lat, lon) else emptyList()
+        val rows = build(date, now, lat, lon, sources, stored, history, hourly, bias, use24HourClock, zone, nextDay)
         Log.d(
             TAG,
-            "DAY_SOURCE_COMPARE date=$date site=%.4f,%.4f rows=${rows.size} stored=${stored.size} hourly=${hourly.size} order=${rows.joinToString(",") { it.source.id }} missing=${rows.filterNot { it.hasForecast }.joinToString(",") { it.source.id }.ifEmpty { "none" }}"
+            "DAY_SOURCE_COMPARE date=$date site=%.4f,%.4f rows=${rows.size} stored=${stored.size} hourly=${hourly.size} order=${rows.joinToString(",") { it.source.id }} missing=${rows.filterNot { it.hasForecast }.joinToString(",") { it.source.id }.ifEmpty { "none" }} noLongerSent=${rows.filter { it.noLongerSent }.joinToString(",") { it.source.id }.ifEmpty { "none" }}"
                 .format(Locale.US, lat, lon),
         )
         return rows
@@ -157,14 +167,22 @@ object DaySourceComparison {
         highBias: Map<String, Double>,
         use24HourClock: Boolean,
         zone: ZoneId = ZoneId.systemDefault(),
+        /** The next day's stored rows; read only when [date] is today ([Row.noLongerSent]). */
+        nextDay: List<StoredRow> = emptyList(),
     ): List<Row> {
         val today = now.toLocalDate()
         val rows = sources.filter { it != WeatherSource.GENERIC_GAP }.mapIndexed { index, source ->
             // Stored as actual − forecast; the table shows forecast − actual ("+2.1°" = runs warm),
             // the reading the accuracy card's "(2.1° high)" gives.
             val bias = highBias[source.id]?.let { -it }
-            rowFor(source, date, today, now, lat, lon, stored, history, hourly, bias, use24HourClock, zone)
-                .copy(sourceOrder = index)
+            val row = rowFor(source, date, today, now, lat, lon, stored, history, hourly, bias, use24HourClock, zone)
+            val todayConfirmed = row.lastConfirmedAt
+            val nextConfirmed = if (date == today) lastConfirmed(sitedRows(source, nextDay, lat, lon)) else null
+            row.copy(
+                sourceOrder = index,
+                noLongerSent = todayConfirmed != null && nextConfirmed != null &&
+                    nextConfirmed - todayConfirmed > NO_LONGER_SENT_SLACK_MS,
+            )
         }
         // Highest high first; no high last; ties keep the user's source order.
         return sort(rows, Sort.DEFAULT)
@@ -259,11 +277,7 @@ object DaySourceComparison {
         zone: ZoneId,
     ): Row {
         val isPast = date.isBefore(today)
-        // As the newest-row-per-day reads: the source's own real forecasts with a temperature.
-        val mine = stored.filter {
-            it.forecast.source == source.id && !it.forecast.isClimateNormal &&
-                (it.forecast.highTemp != null || it.forecast.lowTemp != null)
-        }
+        val mine = ownRows(source, stored)
         val sited = LocationMatch.selectNearestSite(mine, lat, lon, { it.lat }, { it.lon })
         val newest = sited.maxWithOrNull(
             compareBy<StoredRow> { it.forecast.lastConfirmedAt ?: 0L }.thenBy { it.forecast.fetchedAt ?: 0L },
@@ -305,7 +319,7 @@ object DaySourceComparison {
             hourly = sourceHourly, displaySourceId = source.id, centerLat = lat, centerLon = lon,
             targetDate = date, zoneId = zone,
         )
-        val lastConfirmed = sited.maxOfOrNull { it.forecast.lastConfirmedAt ?: it.forecast.fetchedAt ?: 0L }?.takeIf { it > 0L }
+        val lastConfirmed = lastConfirmed(sited)
         return Row(
             source = source,
             high = high,
@@ -320,6 +334,19 @@ object DaySourceComparison {
             lastConfirmedAt = lastConfirmed,
         )
     }
+
+    /** As the newest-row-per-day reads: [source]'s own real forecasts with a temperature. */
+    private fun ownRows(source: WeatherSource, stored: List<StoredRow>): List<StoredRow> = stored.filter {
+        it.forecast.source == source.id && !it.forecast.isClimateNormal &&
+            (it.forecast.highTemp != null || it.forecast.lowTemp != null)
+    }
+
+    private fun sitedRows(source: WeatherSource, stored: List<StoredRow>, lat: Double, lon: Double): List<StoredRow> =
+        LocationMatch.selectNearestSite(ownRows(source, stored), lat, lon, { it.lat }, { it.lon })
+
+    /** The newest confirmation among [sited]; null when none. */
+    private fun lastConfirmed(sited: List<StoredRow>): Long? =
+        sited.maxOfOrNull { it.forecast.lastConfirmedAt ?: it.forecast.fetchedAt ?: 0L }?.takeIf { it > 0L }
 
     /**
      * Today's row by the shared rule ([PartialForecastDays.todayRowNearestSite]). When a stored
@@ -362,10 +389,23 @@ object DaySourceComparison {
             amount = row.amountMm?.takeIf { it > 0f }?.let { DailyRainLabels.formatPrecipAmount(it) }.orEmpty(),
             cloud = row.noonCloudPercent?.let { "$it%" }.orEmpty(),
             bias = row.highBias?.let { formatBias(it, useCelsius) }.orEmpty(),
-            age = age?.let { formatAge(it) }.orEmpty(),
+            age = age?.let { formatAge(it) + if (row.noLongerSent) AGE_STAR else "" }.orEmpty(),
             ageIsStale = age != null && age > STALE_AGE_MS,
+            ageNoLongerSent = age != null && row.noLongerSent,
         )
     }
+
+    /** Marks an Age the source can no longer advance ([Row.noLongerSent]); the legend's last line explains it. */
+    const val AGE_STAR = "*"
+
+    /**
+     * One fetch writes today's and tomorrow's rows within moments; a tomorrow confirmed more than this
+     * after today means a later fetch left today out.
+     */
+    private const val NO_LONGER_SENT_SLACK_MS = 60_000L
+
+    /** Both platforms: the legend adds the star's note only while some Age carries the star. */
+    fun showStarNote(cells: List<Cells>): Boolean = cells.any { it.ageNoLongerSent }
 
     /** Index of the Amount column in the shared column order ([SortColumn]). */
     val AMOUNT_COLUMN = SortColumn.AMOUNT.ordinal

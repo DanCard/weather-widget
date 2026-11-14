@@ -113,6 +113,7 @@
     <string name="source_compare_legend_cloud">mây che phủ lúc trưa</string>
     <string name="source_compare_legend_bias">trung bình cao nhất dự báo trừ thực tế, 30 ngày qua (+ = ấm hơn)</string>
     <string name="source_compare_legend_age">kể từ lần nguồn xác nhận dự báo này gần nhất; xám sau 24 giờ</string>
+    <string name="source_compare_legend_star">Nguồn không còn gửi hôm nay (ngày của nguồn theo UTC); tuổi tính từ dự báo cuối cùng có hôm nay.</string>
     <string name="loading_accuracy_summary">Đang tải độ chính xác dự báo...</string>
     <string name="error_loading_accuracy_summary">Hiện không thể tải độ chính xác dự báo.</string>
     <string name="data_freshness_unknown">Độ mới của dữ liệu: Không rõ</string>

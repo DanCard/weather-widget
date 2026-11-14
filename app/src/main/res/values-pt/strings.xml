@@ -113,6 +113,7 @@
     <string name="source_compare_legend_cloud">nebulosidade ao meio-dia</string>
     <string name="source_compare_legend_bias">máxima prevista média menos a real, últimos 30 dias (+ = mais quente)</string>
     <string name="source_compare_legend_age">desde que a fonte confirmou esta previsão; cinza após 24 h</string>
+    <string name="source_compare_legend_star">A fonte já não envia hoje (seus dias seguem o UTC); a idade é da última previsão que o incluía.</string>
     <string name="loading_accuracy_summary">Carregando precisão da previsão...</string>
     <string name="error_loading_accuracy_summary">Não foi possível carregar a precisão da previsão agora.</string>
     <string name="data_freshness_unknown">Atualidade dos dados: desconhecida</string>

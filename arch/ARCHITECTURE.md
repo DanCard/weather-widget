@@ -54,6 +54,10 @@ Examples include:
   order. The sort is remembered (`source_compare_sort` pref / `DesktopConfig.sourceCompareSort`);
   `DAY_SOURCE_SORT` logs each tap. A legend under the table gives one line per ambiguous column
   (`legendColumns`; wording per platform: desktop `LEGEND_TEXT`, Android `source_compare_legend_*`).
+  Today only, a source whose later fetch succeeded but left today out (Silurian's UTC days after 4 PM
+  Pacific: its tomorrow row confirmed more than a minute after its today row) gets `Row.noLongerSent`:
+  Age reads `5h*` and the legend adds a `*` note (`showStarNote`; desktop `STAR_NOTE`, Android
+  `source_compare_legend_star`). A failed refresh leaves tomorrow just as old, so it is never starred.
 
 A shared planner that leaves ordering or policy in platform glue is not equivalent; that arrangement
 previously allowed Android and desktop to drift. Host contract tests exercise the same runner against

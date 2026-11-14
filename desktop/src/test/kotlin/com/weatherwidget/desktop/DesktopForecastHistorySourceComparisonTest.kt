@@ -57,7 +57,7 @@ class DesktopForecastHistorySourceComparisonTest {
         tempDir.toFile().deleteRecursively()
     }
 
-    private fun seed(source: String, high: Float, low: Float, ageMs: Long, noonCloud: Int? = null, dayMax: Int? = null) {
+    private fun seed(source: String, high: Float, low: Float, ageMs: Long, noonCloud: Int? = null, dayMax: Int? = null, dayOffset: Long = 1) {
         val today = LocalDate.now()
         val fetched = System.currentTimeMillis() - ageMs
         db.getConnection().use { conn ->
@@ -66,7 +66,7 @@ class DesktopForecastHistorySourceComparisonTest {
                     "isClimateNormal, source, lastConfirmedAt, fetchedAt, noonCloudPercent, hourlyDayPrecipMax) VALUES (?, ?, ?, ?, ?, ?, 'Cloudy', 0, ?, ?, ?, ?, ?)",
             ).use { stmt ->
                 listOf<Any?>(
-                    today.plusDays(1).toEpochDay() * 86_400_000L, today.toEpochDay() * 86_400_000L, lat, lon, high, low,
+                    today.plusDays(dayOffset).toEpochDay() * 86_400_000L, today.toEpochDay() * 86_400_000L, lat, lon, high, low,
                     source, fetched, fetched, noonCloud, dayMax,
                 ).forEachIndexed { i, v -> stmt.setObject(i + 1, v) }
                 stmt.executeUpdate()
@@ -170,5 +170,26 @@ class DesktopForecastHistorySourceComparisonTest {
         println("DesktopForecastHistorySourceComparisonTest saved-sort first row: $first")
         assertEquals("Meteo", first)
         composeTestRule.onNodeWithText("Rain ▾").assertExists()
+    }
+
+    @Test
+    fun `today - a source whose later fetch left today out gets a starred age and the footnote`() {
+        // Desktop 2026-11-13: Silurian today 12:10, tomorrow 16:59 (UTC days after 4 PM Pacific).
+        seed("NWS", 63f, 54f, ageMs = 60_000L, dayOffset = 0)
+        seed("NWS", 65f, 48f, ageMs = 60_000L, dayOffset = 1)
+        seed("SILURIAN", 64f, 53f, ageMs = 5 * 3_600_000L, dayOffset = 0)
+        seed("SILURIAN", 66f, 50f, ageMs = 12 * 60_000L, dayOffset = 1)
+        composeTestRule.setContent {
+            ForecastHistoryContent(weatherDao = DesktopWeatherDao(db), config = config, initialDate = LocalDate.now(), onClose = {})
+        }
+        composeTestRule.waitForIdle()
+        composeTestRule.waitUntil(timeoutMillis = 10_000) {
+            composeTestRule.onAllNodesWithText("5h*").fetchSemanticsNodes().isNotEmpty()
+        }
+        val legend = composeTestRule.onNodeWithTag("source_compare_legend", useUnmergedTree = true)
+            .fetchSemanticsNode().config[SemanticsProperties.Text].joinToString()
+        println("DesktopForecastHistorySourceComparisonTest today legend: $legend")
+        assertTrue(legend, legend.endsWith("grey after 24 h\n* $STAR_NOTE"))
+        assertTrue("NWS is not starred", composeTestRule.onAllNodesWithText("1m").fetchSemanticsNodes().isNotEmpty())
     }
 }

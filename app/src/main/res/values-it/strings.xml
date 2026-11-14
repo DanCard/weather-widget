@@ -113,6 +113,7 @@
     <string name="source_compare_legend_cloud">copertura nuvolosa a mezzogiorno</string>
     <string name="source_compare_legend_bias">massima prevista media meno reale, ultimi 30 giorni (+ = più calda)</string>
     <string name="source_compare_legend_age">da quando la fonte ha confermato questa previsione; grigio dopo 24 h</string>
+    <string name="source_compare_legend_star">La fonte non invia più oggi (i suoi giorni seguono l\'UTC); l\'età è quella dell\'ultima previsione che lo includeva.</string>
     <string name="loading_accuracy_summary">Caricamento accuratezza previsioni...</string>
     <string name="error_loading_accuracy_summary">Impossibile caricare l\'accuratezza delle previsioni al momento.</string>
     <string name="data_freshness_unknown">Aggiornamento dati: sconosciuto</string>

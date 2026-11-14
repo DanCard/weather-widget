@@ -113,6 +113,7 @@
     <string name="source_compare_legend_cloud">정오 구름량</string>
     <string name="source_compare_legend_bias">평균 예보 최고기온 − 실제, 최근 30일 (+ = 높게 예보)</string>
     <string name="source_compare_legend_age">출처가 이 예보를 마지막으로 확인한 후 경과 시간; 24시간 후 회색</string>
+    <string name="source_compare_legend_star">이 소스는 더 이상 오늘 데이터를 보내지 않습니다(날짜가 UTC 기준). 경과 시간은 오늘이 포함된 마지막 예보 기준입니다.</string>
     <string name="loading_accuracy_summary">예보 정확도 불러오는 중...</string>
     <string name="error_loading_accuracy_summary">지금은 예보 정확도를 불러올 수 없습니다.</string>
     <string name="data_freshness_unknown">데이터 최신 상태: 알 수 없음</string>

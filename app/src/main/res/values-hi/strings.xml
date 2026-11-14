@@ -113,6 +113,7 @@
     <string name="source_compare_legend_cloud">दोपहर 12 बजे बादल</string>
     <string name="source_compare_legend_bias">औसत पूर्वानुमानित अधिकतम घटा वास्तविक, पिछले 30 दिन (+ = अधिक गर्म)</string>
     <string name="source_compare_legend_age">स्रोत द्वारा इस पूर्वानुमान की अंतिम पुष्टि से; 24 घंटे बाद धूसर</string>
+    <string name="source_compare_legend_star">स्रोत अब आज का डेटा नहीं भेजता (उसके दिन UTC पर चलते हैं); आयु उसके आख़िरी ऐसे पूर्वानुमान से है जिसमें आज था।</string>
     <string name="loading_accuracy_summary">पूर्वानुमान सटीकता लोड हो रही है...</string>
     <string name="error_loading_accuracy_summary">अभी पूर्वानुमान सटीकता लोड नहीं हो पा रही।</string>
     <string name="data_freshness_unknown">डेटा ताज़गी: अज्ञात</string>

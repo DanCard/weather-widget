@@ -113,6 +113,7 @@
     <string name="source_compare_legend_cloud">хмарність опівдні</string>
     <string name="source_compare_legend_bias">середній прогноз максимуму мінус факт, 30 днів (+ = тепліше)</string>
     <string name="source_compare_legend_age">від останнього підтвердження прогнозу джерелом; сірим після 24 год</string>
+    <string name="source_compare_legend_star">Джерело більше не надсилає сьогоднішній день (його доба йде за UTC); вік — від останнього прогнозу, де він був.</string>
     <string name="loading_accuracy_summary">Завантаження точності прогнозів...</string>
     <string name="error_loading_accuracy_summary">Наразі не вдається завантажити точність прогнозів.</string>
     <string name="data_freshness_unknown">Свіжість даних: невідомо</string>

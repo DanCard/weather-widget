@@ -113,6 +113,7 @@
     <string name="source_compare_legend_cloud">cloud cover at noon</string>
     <string name="source_compare_legend_bias">average forecast high minus actual, last 30 days (+ = ran warm)</string>
     <string name="source_compare_legend_age">time since the source last confirmed this forecast; grey after 24 h</string>
+    <string name="source_compare_legend_star">The source no longer sends today (its days run on UTC); the age is from its last forecast that did.</string>
     <string name="loading_accuracy_summary">Loading forecast accuracy...</string>
     <string name="error_loading_accuracy_summary">Unable to load forecast accuracy right now.</string>
     <string name="data_freshness_unknown">Data freshness: Unknown</string>

@@ -113,6 +113,7 @@
     <string name="source_compare_legend_cloud">zachmurzenie w południe</string>
     <string name="source_compare_legend_bias">średnia prognozowana maks. minus rzeczywista, ostatnie 30 dni (+ = za ciepło)</string>
     <string name="source_compare_legend_age">od ostatniego potwierdzenia tej prognozy przez źródło; szare po 24 h</string>
+    <string name="source_compare_legend_star">Źródło nie wysyła już dzisiejszego dnia (jego doby liczone są w UTC); wiek pochodzi z ostatniej prognozy, która go zawierała.</string>
     <string name="loading_accuracy_summary">Ładowanie trafności prognoz...</string>
     <string name="error_loading_accuracy_summary">Nie można teraz wczytać trafności prognoz.</string>
     <string name="data_freshness_unknown">Aktualność danych: nieznana</string>
