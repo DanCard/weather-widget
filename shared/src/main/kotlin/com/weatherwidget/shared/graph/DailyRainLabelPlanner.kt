@@ -45,7 +45,9 @@ object DailyRainLabelPlanner {
     /**
      * Where [placeNightLabel] put the night label. [placement] is `home` when nothing was in the
      * way, else which way it moved (`left|right|down|down_left|down_right`); [overlapPx] is the
-     * deepest intrusion into any obstacle (0 when clear), for the log line.
+     * deepest intrusion into any obstacle (0 when clear), for the log line. [inPocket]: it sits under
+     * its own day's ° and passed the day-name floor to fit there. [underRightLow]: more than half of
+     * it lies under the next day's low digits, where it reads as that day's label.
      */
     data class NightLabelPlacement(
         val centerX: Float,
@@ -54,6 +56,8 @@ object DailyRainLabelPlanner {
         val dxPx: Float,
         val dyPx: Float,
         val overlapPx: Float,
+        val inPocket: Boolean = false,
+        val underRightLow: Boolean = false,
     )
 
     /** Where [easeOffNeighbors] left a night label. */
@@ -184,6 +188,14 @@ object DailyRainLabelPlanner {
      * [sidewaysCost] weighs sideways movement against down: above 1 prefers down, for when there is
      * lots of room below. Candidates outside [minLeft]..[maxRight] are skipped (home is kept if it is
      * the only one).
+     *
+     * The label belongs to the left day. Among candidates equally clear, one that does not lie mostly
+     * under [rightDigits] (the next day's low; more than half the label's width) wins before movement
+     * is compared: under that number it reads as the next day's label. And a candidate in the pocket
+     * under [pocketDegree], the left low's °, may go down to [pocketMaxBottom], past [maxBottom]: the
+     * coldest low sits on the day-name row, which put its pocket just below the floor. Those rows are
+     * tried only when everything above the floor left the label under the next day's low (Fold and
+     * emulator ".3in", 2026-11-14, plans/261114-night-rain-label-own-degree-pocket.md).
      */
     fun placeNightLabel(
         homeCenterX: Float,
@@ -197,6 +209,9 @@ object DailyRainLabelPlanner {
         maxRight: Float,
         density: Float,
         sidewaysCost: Float = 1f,
+        pocketDegree: Box? = null,
+        pocketMaxBottom: Float = maxBottom,
+        rightDigits: Box? = null,
     ): NightLabelPlacement {
         val step = (DailyRainLabels.NIGHT_NUDGE_STEP_DP * density).coerceAtLeast(0.5f)
         val slightPx = DailyRainLabels.NIGHT_SLIGHT_OVERLAP_DP * density
@@ -205,6 +220,22 @@ object DailyRainLabelPlanner {
             .coerceAtMost(maxBottom - (homeTop + height))
             .coerceAtLeast(0f)
         val halfWidth = width / 2f
+        // Rows past the floor exist only for the pocket; the last one is the pocket's exact limit.
+        val pocketDownPx = if (pocketDegree == null) {
+            maxDownPx
+        } else {
+            (DailyRainLabels.NIGHT_NUDGE_MAX_DOWN_DP * density)
+                .coerceAtMost(pocketMaxBottom - (homeTop + height))
+                .coerceAtLeast(maxDownPx)
+        }
+        val rows = (0..(pocketDownPx / step).toInt()).map { it * step }.let {
+            if (pocketDownPx > maxDownPx && pocketDownPx - it.last() > 0.01f) it + pocketDownPx else it
+        }
+        fun inPocket(cx: Float, top: Float) = pocketDegree != null &&
+            minOf(cx + halfWidth, pocketDegree.right) > maxOf(cx - halfWidth, pocketDegree.left) &&
+            top >= pocketDegree.bottom - slightPx
+        fun underRightLow(cx: Float) = rightDigits != null &&
+            minOf(cx + halfWidth, rightDigits.right) - maxOf(cx - halfWidth, rightDigits.left) > halfWidth
 
         // Excess overlap (area beyond "slight"), last-resort ° overlap and the deepest intrusion.
         fun score(cx: Float, top: Float): Triple<Float, Float, Float> {
@@ -232,31 +263,39 @@ object DailyRainLabelPlanner {
         var bestExcess = Float.MAX_VALUE
         var bestDegreeOverlap = Float.MAX_VALUE
         var bestCost = Float.MAX_VALUE
+        var bestUnderRight = true
         val xSteps = (maxShiftPx / step).toInt().coerceAtLeast(0)
-        val ySteps = (maxDownPx / step).toInt()
-        for (yi in 0..ySteps) {
-            val dy = yi * step
+        for (dy in rows) {
+            val pastFloor = dy > maxDownPx + 0.01f
+            // The pocket is only for a label that otherwise ends up under the next day's low.
+            if (pastFloor && !bestUnderRight) break
             for (xi in 0..xSteps) {
                 for (sign in if (xi == 0) intArrayOf(1) else intArrayOf(-1, 1)) {
                     val dx = sign * xi * step
                     val cx = homeCenterX + dx
                     val inBounds = cx - halfWidth >= minLeft && cx + halfWidth <= maxRight
-                    if (!inBounds && !(xi == 0 && yi == 0)) continue
+                    if (!inBounds && !(xi == 0 && dy == 0f)) continue
+                    if (pastFloor && !inPocket(cx, homeTop + dy)) continue
                     val (excess, degreeOverlap, deepest) = score(cx, homeTop + dy)
-                    // Least overlap, then least movement.
+                    val underRight = underRightLow(cx)
+                    // Least overlap, then its own day's side, then least movement.
                     val cost = kotlin.math.abs(dx) * sidewaysCost + dy
                     val better = when {
                         excess < bestExcess - 0.01f -> true
                         excess > bestExcess + 0.01f -> false
                         degreeOverlap < bestDegreeOverlap - 0.01f -> true
                         degreeOverlap > bestDegreeOverlap + 0.01f -> false
+                        underRight != bestUnderRight && best != null -> !underRight
                         else -> cost < bestCost
                     }
                     if (better) {
                         bestExcess = excess
                         bestDegreeOverlap = degreeOverlap
                         bestCost = cost
+                        bestUnderRight = underRight
                         best = NightLabelPlacement(
+                            inPocket = pastFloor,
+                            underRightLow = underRight,
                             centerX = cx,
                             top = homeTop + dy,
                             placement = nudgeName(dx, dy),
@@ -268,7 +307,7 @@ object DailyRainLabelPlanner {
                 }
             }
             // Every lower row costs more than a clear candidate already found.
-            if (bestExcess == 0f && bestDegreeOverlap == 0f && bestCost <= dy) break
+            if (bestExcess == 0f && bestDegreeOverlap == 0f && !bestUnderRight && bestCost <= dy) break
         }
         return checkNotNull(best) // home (dx = 0, dy = 0) is always scored
     }
@@ -308,7 +347,10 @@ object DailyRainLabelPlanner {
      * so it does not slide further left: that drifted labels to [maxShiftPx] from the gap's centre.
      *
      * Gaps are measured at the label's own height. A digit box it only grazes vertically (up to
-     * [DailyRainLabels.NIGHT_SLIGHT_OVERLAP_DP]) is not level with it; a ° always is. Hugging the right,
+     * [DailyRainLabels.NIGHT_SLIGHT_OVERLAP_DP]) is not level with it; a ° always is. Whether it hugs the
+     * right is measured to the right digits' ink: the bottom [DailyRainLabels.DIGIT_BLANK_DESCENT_FRACTION]
+     * of that box is blank, and a label under it was slid a full 30 % of a column off centre
+     * (emulator Wed "87%", 2026-11-14). Hugging the right,
      * it slides left. With no room to, if what it hugs is [rightLowLabel], it drops instead, up to
      * [DailyRainLabels.NIGHT_EASE_MAX_DROP_DP] (above [maxBottom]), to the first row with room on its
      * left, and slides just [DailyRainLabels.NIGHT_EASE_DROP_SLIDE_DP]: a digit box's side padding
@@ -337,9 +379,14 @@ object DailyRainLabelPlanner {
         val roomyPx = DailyRainLabels.NIGHT_ROOMY_SIDE_DP * density
 
         // Free space beside the label with its top at [atTop]; null right = nothing level over there.
-        fun gaps(atTop: Float): Pair<Float, Float?> {
+        // [toInk]: the right low's digits end at their ink, so a label under their blank descent is
+        // below them, not beside. Only for deciding whether it hugs the right at all: the left side
+        // and the drop rows keep the line box, which the approved placements were tuned against
+        // (emulator "4%" 2026-10-30; "44%" and "Trace" moved 2 dp when this was wider).
+        fun gaps(atTop: Float, toInk: Boolean = false): Pair<Float, Float?> {
             val level = obstacles.filter {
-                val overlap = minOf(atTop + height, it.bottom) - maxOf(atTop, it.top)
+                val bottom = if (toInk && it.isLowDigits && (it.left + it.right) / 2f > centerX) it.bottom - (it.bottom - it.top) * DailyRainLabels.DIGIT_BLANK_DESCENT_FRACTION else it.bottom
+                val overlap = minOf(atTop + height, bottom) - maxOf(atTop, it.top)
                 overlap > 0f && (it.isDegreeSign || overlap > slightPx)
             }
             val (right, left) = level.partition { (it.left + it.right) / 2f > centerX }
@@ -347,7 +394,7 @@ object DailyRainLabelPlanner {
             return (centerX - width / 2f - leftEdge) to right.minOfOrNull { it.left - (centerX + width / 2f) }
         }
 
-        val (gapLeft, gapRight) = gaps(top)
+        val (gapLeft, gapRight) = gaps(top, toInk = true)
         if (gapRight != null && gapRight <= hugPx) {
             if (gapLeft >= roomyPx) {
                 if (searchMovedLeft) return NightLabelEase(centerX, top)

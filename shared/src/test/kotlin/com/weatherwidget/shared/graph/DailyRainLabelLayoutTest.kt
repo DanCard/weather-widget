@@ -239,6 +239,130 @@ class DailyRainLabelLayoutTest {
         assertTrue("under Thu's digits: top=${label.top}", label.top >= 349.1f - DailyRainLabels.NIGHT_SLIGHT_OVERLAP_DP * 2.625f)
     }
 
+    // Fold 4, NWS, 2026-11-14 11:51 trace (2.625 px/dp): Tue night ".3in" between Tue "42°", the
+    // week's coldest low (its line box ends 4.2 px below the day-name floor), and Wed "47°". It went
+    // 5 dp right and sat under Wed's digits, reading as a Wednesday label.
+    private fun foldTueNight(measure: DailyRainLabelLayout.Host) = DailyRainLabelLayout.layoutNight(
+        measure,
+        DailyRainLabelLayout.NightInput(
+            date = "2026-11-17", text = ".3in", probability = 99, isPast = false, daysFromToday = 3,
+            columnCenterX = 339f, gapCenterX = 364.1f, columnWidth = 50.2f,
+            leftLowLabel = Box(316.0f, 344.8f, 362.0f, 381.8f), rightLowLabel = Box(366.2f, 306.1f, 412.2f, 343.0f),
+            obstacles = listOf(
+                Box(323.5f, 314.2f, 354.5f, 345.2f), // Tue icon
+                Box(316.0f, 344.8f, 350.0f, 381.8f, isLowDigits = true), Box(350.0f, 344.8f, 362.0f, 363.3f, isDegreeSign = true),
+                Box(373.7f, 275.4f, 404.7f, 306.4f), // Wed icon
+                Box(366.2f, 306.1f, 400.2f, 343.0f, isLowDigits = true), Box(400.2f, 306.1f, 412.2f, 324.5f, isDegreeSign = true),
+            ),
+            dayLabelTop = 377.6f, canvasWidth = 560f, pxPerDp = 2.625f,
+        ),
+        "test",
+    )
+
+    private val tueNightBaseScale =
+        DailyRainLabels.rainLabelFontScale(false, 99, 3) * DailyRainLabels.NIGHT_SCALE
+
+    @Test
+    fun `night label tucks under its own day's degree sign instead of the next day's low`() {
+        // Android measures 19.9 px of line box with 4.1 px of blank descent under the baseline.
+        val label = foldTueNight { _, _, _ -> DailyRainLabelLayout.TextSize(27f, 19.9f, 15.8f) }
+        println("fold .3in: centerX=${label.centerX} top=${label.top} bottom=${label.bottom}")
+        assertEquals("stays in the gap, not under Wed's digits", 364.1f, label.centerX, 0.01f)
+        assertTrue("under Tue's °: top=${label.top}", label.top >= 363.3f - 1.5f * 2.625f)
+        assertTrue("right of Tue's digits: left=${label.left}", label.left >= 350.0f)
+        assertTrue("no lower than Tue's low: bottom=${label.bottom}", label.bottom <= 381.8f)
+        assertTrue("only blank descent passes the day-name floor: bottom=${label.bottom}", label.bottom - 377.6f <= 4.1f + 0.01f)
+        assertEquals("full size", tueNightBaseScale, label.fontScale, 0.0001f)
+    }
+
+    @Test
+    fun `emulator night label tucks under its own day's degree sign`() {
+        // emulator-5554, NWS, 2026-11-14 11:56 trace: same week, ".3in" resolved (310.1, 384.2), 1.3 px
+        // under Wed's digits.
+        val label = DailyRainLabelLayout.layoutNight(
+            DailyRainLabelLayout.Host { _, _, _ -> DailyRainLabelLayout.TextSize(27f, 19.9f, 15.8f) },
+            DailyRainLabelLayout.NightInput(
+                date = "2026-11-17", text = ".3in", probability = 99, isPast = false, daysFromToday = 3,
+                columnCenterX = 280.5f, gapCenterX = 304.9f, columnWidth = 48.8f,
+                leftLowLabel = Box(257.5f, 398.0f, 303.5f, 434.9f), rightLowLabel = Box(306.3f, 348.6f, 352.3f, 385.5f),
+                obstacles = listOf(
+                    Box(265.0f, 367.3f, 296.0f, 398.3f),
+                    Box(257.5f, 398.0f, 291.5f, 434.9f, isLowDigits = true), Box(291.5f, 398.0f, 303.5f, 416.5f, isDegreeSign = true),
+                    Box(313.8f, 318.0f, 344.8f, 349.0f),
+                    Box(306.3f, 348.6f, 340.3f, 385.5f, isLowDigits = true), Box(340.3f, 348.6f, 352.3f, 367.1f, isDegreeSign = true),
+                ),
+                dayLabelTop = 430.7f, canvasWidth = 540f, pxPerDp = 2.625f,
+            ),
+            "test",
+        )
+        println("emulator .3in: centerX=${label.centerX} top=${label.top} bottom=${label.bottom}")
+        assertEquals(304.9f, label.centerX, 0.01f)
+        assertTrue("under Tue's °: top=${label.top}", label.top >= 416.5f - 1.5f * 2.625f)
+        assertTrue("no lower than Tue's low: bottom=${label.bottom}", label.bottom <= 434.9f)
+    }
+
+    @Test
+    fun `night label under the next low's blank descent stays centred between the two days`() {
+        // emulator-5554, NWS, 2026-11-14 12:01 trace: Wed night "87%" dropped 2 dp at the gap centre,
+        // below the ink of Thu "46°" (line box to 395.4, ink to 387.3), then eased 5.6 dp left, the
+        // whole 30 % shift, into Wed's column: resolved (339.0, 389.5).
+        val label = DailyRainLabelLayout.layoutNight(
+            DailyRainLabelLayout.Host { _, _, _ -> DailyRainLabelLayout.TextSize(30f, 19f, 15f) },
+            DailyRainLabelLayout.NightInput(
+                date = "2026-11-18", text = "87%", probability = 87, isPast = false, daysFromToday = 4,
+                columnCenterX = 329.3f, gapCenterX = 353.7f, columnWidth = 48.8f,
+                leftLowLabel = Box(306.3f, 348.6f, 352.3f, 385.5f), rightLowLabel = Box(355.0f, 358.5f, 401.0f, 395.4f),
+                obstacles = listOf(
+                    Box(313.8f, 318.0f, 344.8f, 349.0f),
+                    Box(306.3f, 348.6f, 340.3f, 385.5f, isLowDigits = true), Box(340.3f, 348.6f, 352.3f, 367.1f, isDegreeSign = true),
+                    Box(362.5f, 327.9f, 393.5f, 358.9f),
+                    Box(355.0f, 358.5f, 389.0f, 395.4f, isLowDigits = true), Box(389.0f, 358.5f, 401.0f, 377.0f, isDegreeSign = true),
+                ),
+                dayLabelTop = 430.7f, canvasWidth = 540f, pxPerDp = 2.625f,
+            ),
+            "test",
+        )
+        println("emulator 87%: centerX=${label.centerX} top=${label.top}")
+        assertEquals("centred between Wed and Thu", 353.7f, label.centerX, 0.01f)
+        val thuInkBottom = 395.4f - (395.4f - 358.5f) * DailyRainLabels.DIGIT_BLANK_DESCENT_FRACTION
+        assertTrue("below Thu's digit ink: top=${label.top}", label.top >= thuInkBottom)
+    }
+
+    @Test
+    fun `night label whose ink would cross the day names keeps its place beside the next low`() {
+        // No blank descent to spend, and a host that cannot shrink: the pocket stays out of reach.
+        val label = foldTueNight { _, _, _ -> DailyRainLabelLayout.TextSize(27f, 19.9f, 19.9f) }
+        assertEquals("5 dp right, as before", 364.1f + 5f * 2.625f, label.centerX, 0.01f)
+        assertTrue("above the day names: bottom=${label.bottom}", label.bottom <= 377.6f)
+    }
+
+    @Test
+    fun `night label shrinks when only the smaller size fits under its own degree sign`() {
+        // 1 px of blank descent is too little at full size (the pocket needs 1.7 px past the floor);
+        // at 0.85 the label is 3 px shorter and fits.
+        val label = foldTueNight { _, _, fontScale ->
+            val k = fontScale / tueNightBaseScale
+            DailyRainLabelLayout.TextSize(27f * k, 19.9f * k, 18.9f * k)
+        }
+        println("fold .3in shrunk: centerX=${label.centerX} top=${label.top} bottom=${label.bottom} scale=${label.fontScale}")
+        assertEquals(tueNightBaseScale * DailyRainLabelLayout.NIGHT_REDUCED_SCALE, label.fontScale, 0.0001f)
+        assertEquals("NIGHT_SHIFTED_SCALED", label.placement)
+        assertEquals(364.1f, label.centerX, 0.01f)
+        assertTrue("under Tue's °: top=${label.top}", label.top >= 363.3f - 1.5f * 2.625f)
+    }
+
+    @Test
+    fun `pocket rows are not tried for a label that is clear of the next day's low`() {
+        val degree = Box(50f, 100f, 60f, 110f, isDegreeSign = true)
+        val placed = DailyRainLabelPlanner.placeNightLabel(
+            homeCenterX = 62f, homeTop = 104f, width = 20f, height = 10f,
+            obstacles = listOf(degree), maxShiftPx = 20f, maxBottom = 116f, minLeft = 0f, maxRight = 200f, density = 1f,
+            pocketDegree = degree, pocketMaxBottom = 124f, rightDigits = Box(120f, 60f, 150f, 90f, isLowDigits = true),
+        )
+        assertTrue("stays above the floor: top=${placed.top}", placed.top + 10f <= 116f)
+        assertEquals(false, placed.inPocket)
+    }
+
     private fun lowDigits(left: Float, top: Float, right: Float, bottom: Float) =
         DailyRainLabelPlanner.lowLabelObstacles("47.9°", left, top, right, bottom, degreeWidth = 12f)
 

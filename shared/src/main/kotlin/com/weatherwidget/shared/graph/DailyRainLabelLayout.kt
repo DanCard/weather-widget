@@ -182,6 +182,12 @@ object DailyRainLabelLayout {
      * lows, down to the day-name row, when nothing above is clear; a label that does slides right off the left low
      * ([DailyRainLabelPlanner.slideRightAfterSinking]). When the lows sit on the day-name row (the coldest days), there is no room under them, so it rises until it
      * clears the row — level with the lows, in the gap between them.
+     *
+     * It is the left day's label. When the search can only clear by going mostly under the next day's
+     * low, it takes the pocket under its own day's ° instead, even a little past the day-name floor
+     * (only its blank descent crosses); such a placement is final. If it still ends up under the next
+     * day's low, it is laid out again at [NIGHT_REDUCED_SCALE] and the smaller label is used when that
+     * keeps it on its own day's side (plans/261114-night-rain-label-own-degree-pocket.md).
      */
     fun layoutNight(host: Host, input: NightInput, platform: String): Placed {
         val p = input.pxPerDp
@@ -215,8 +221,52 @@ object DailyRainLabelLayout {
             }
         }
 
+        val head = "nightRainLabel position: platform=$platform date=${input.date} text=\"${input.text}\"" +
+            " anchorBottom=${anchorBottom.r()} lowerLowBottom=${lowerLowBottom.r()} roomBelowDp=${roomBelowDp.r()}" +
+            " tuckTop=${tuckTop.r()}"
+        var night = resolveNight(input, size, fontScale, homeCenterX, placement, tuckTop, anchorBottom, lowerLowBottom, edge)
+        var shrunk = false
+        if (night.underRightLow && placement == "NIGHT_SHIFTED_LEFT") {
+            val reducedScale = baseScale * NIGHT_REDUCED_SCALE
+            val reduced = resolveNight(
+                input, host.measure(input.text, Kind.NIGHT, reducedScale), reducedScale, homeCenterX,
+                "NIGHT_SHIFTED_SCALED", tuckTop, anchorBottom, lowerLowBottom, edge,
+            )
+            if (!reduced.underRightLow) {
+                night = reduced
+                shrunk = true
+            }
+        }
+        Log.v(TAG, "$head${night.trace} shrunkForOwnDay=$shrunk")
+        return night.label
+    }
+
+    /** One [layoutNight] attempt at a given size: the label, whether it lies under the next day's low, and its trace. */
+    private data class NightAttempt(val label: Placed, val underRightLow: Boolean, val trace: String)
+
+    private fun resolveNight(
+        input: NightInput,
+        size: TextSize,
+        fontScale: Float,
+        homeCenterX: Float,
+        placement: String,
+        tuckTop: Float,
+        anchorBottom: Float,
+        lowerLowBottom: Float,
+        edge: Float,
+    ): NightAttempt {
+        val p = input.pxPerDp
         val homeTop = minOf(tuckTop, input.dayLabelTop - size.height)
         val maxBottom = input.dayLabelTop
+        val leftDigits = input.obstacles.firstOrNull { it.isLowDigits && it.left == input.leftLowLabel.left }
+        val leftDegree = leftDigits?.let { d -> input.obstacles.firstOrNull { it.isDegreeSign && it.left == d.right && it.top == d.top } }
+        val rightDigits = input.rightLowLabel?.let { r -> input.obstacles.firstOrNull { it.isLowDigits && it.left == r.left } }
+        // The pocket under the left °: past the floor by the label's blank descent at most, and
+        // never below that low's own line box.
+        val pocketMaxBottom = minOf(
+            input.leftLowLabel.bottom,
+            maxBottom + minOf(size.height - size.baseline, DailyRainLabels.NIGHT_FLOOR_DEGREE_DROP_DP * p),
+        ).coerceAtLeast(maxBottom)
         val roomyBelow = input.dayLabelTop - (homeTop + size.height) >= DailyRainLabels.NIGHT_ROOMY_BELOW_DP * p
         val maxShiftPx = input.columnWidth * DailyRainLabels.NIGHT_NUDGE_MAX_SHIFT_FRACTION
         val placed = DailyRainLabelPlanner.placeNightLabel(
@@ -231,7 +281,28 @@ object DailyRainLabelLayout {
             maxRight = input.canvasWidth - edge,
             density = p,
             sidewaysCost = if (roomyBelow) DailyRainLabels.NIGHT_ROOMY_SIDEWAYS_COST else 1f,
+            pocketDegree = leftDegree,
+            pocketMaxBottom = pocketMaxBottom,
+            rightDigits = rightDigits,
         )
+        val searchTrace = " placement=${placed.placement} offsetDp=(${(placed.dxPx / p).r()},${(placed.dyPx / p).r()})" +
+            " overlapDp=${(placed.overlapPx / p).r()} underRightLow=${placed.underRightLow}" +
+            " pocketFloorDp=${((placed.top + size.height - maxBottom).coerceAtLeast(0f) / p).r()}" +
+            " maxBottom=${maxBottom.r()} dayLabelTop=${input.dayLabelTop.r()}" +
+            " obstacles=${input.obstacles.joinToString(";", "[", "]") { "${it.left.r()},${it.top.r()},${it.right.r()},${it.bottom.r()}" }}"
+        if (placed.inPocket) {
+            // Under its own ° and past the floor: final. The later steps all work to [maxBottom] and
+            // would slide it back out toward the next day's low.
+            return NightAttempt(
+                Placed(
+                    Kind.NIGHT, input.text, fontScale, placed.centerX, placed.top, size.width, size.height,
+                    placed.top + size.baseline, placement, anchorBottom,
+                ),
+                placed.underRightLow,
+                " fit=$placement home=(${homeCenterX.r()},${homeTop.r()}) size=${size.width.r()}x${size.height.r()}" +
+                    " resolved=(${placed.centerX.r()},${placed.top.r()}) pocket=true$searchTrace",
+            )
+        }
         val sunk = placed.dyPx > 0f && placed.top + size.height > lowerLowBottom
         val placedCenterX = if (sunk) {
             DailyRainLabelPlanner.slideRightAfterSinking(
@@ -343,21 +414,19 @@ object DailyRainLabelLayout {
         } else {
             floorTop
         }
-        Log.v(
-            TAG,
-            "nightRainLabel position: platform=$platform date=${input.date} text=\"${input.text}\" fit=$placement" +
-                " anchorBottom=${anchorBottom.r()} lowerLowBottom=${lowerLowBottom.r()} roomBelowDp=${roomBelowDp.r()}" +
-                " tuckTop=${tuckTop.r()} home=(${homeCenterX.r()},${homeTop.r()}) size=${size.width.r()}x${size.height.r()}" +
-                " resolved=(${floorEased.centerX.r()},${tuckedTop.r()}) ownLowTuckDp=${((floorTop - tuckedTop) / p).r()} placement=${placed.placement} sunk=$sunk" +
-                " recentered=${final != eased} inkDropDp=${((offInkTop - final.top) / p).r()} inkSlideDp=${((finalCenterX - final.centerX) / p).r()} degreeDropDp=${((finalTop - offInkTop) / p).r()} degreeSlideDp=${((placedCenterXFinal - finalCenterX) / p).r()} floorEaseDp=(${((floorEased.centerX - placedCenterXFinal) / p).r()},${((floorEased.top - finalTop) / p).r()}) floorDegreeDropDp=${((floorTop - floorEased.top) / p).r()}" +
-                " easedDp=(${((eased.centerX - placedCenterX) / p).r()},${((eased.top - placed.top) / p).r()})" +
-                " offsetDp=(${(placed.dxPx / p).r()},${(placed.dyPx / p).r()}) overlapDp=${(placed.overlapPx / p).r()}" +
-                " maxBottom=${maxBottom.r()} dayLabelTop=${input.dayLabelTop.r()}" +
-                " obstacles=${input.obstacles.joinToString(";", "[", "]") { "${it.left.r()},${it.top.r()},${it.right.r()},${it.bottom.r()}" }}",
-        )
-        return Placed(
+        val label = Placed(
             Kind.NIGHT, input.text, fontScale, floorEased.centerX, tuckedTop, size.width, size.height,
             tuckedTop + size.baseline, placement, anchorBottom,
+        )
+        val halfUnderRight = rightDigits != null &&
+            minOf(label.right, rightDigits.right) - maxOf(label.left, rightDigits.left) > size.width / 2f
+        return NightAttempt(
+            label,
+            halfUnderRight,
+            " fit=$placement home=(${homeCenterX.r()},${homeTop.r()}) size=${size.width.r()}x${size.height.r()}" +
+                " resolved=(${floorEased.centerX.r()},${tuckedTop.r()}) pocket=false ownLowTuckDp=${((floorTop - tuckedTop) / p).r()} sunk=$sunk" +
+                " recentered=${final != eased} inkDropDp=${((offInkTop - final.top) / p).r()} inkSlideDp=${((finalCenterX - final.centerX) / p).r()} degreeDropDp=${((finalTop - offInkTop) / p).r()} degreeSlideDp=${((placedCenterXFinal - finalCenterX) / p).r()} floorEaseDp=(${((floorEased.centerX - placedCenterXFinal) / p).r()},${((floorEased.top - finalTop) / p).r()}) floorDegreeDropDp=${((floorTop - floorEased.top) / p).r()}" +
+                " easedDp=(${((eased.centerX - placedCenterX) / p).r()},${((eased.top - placed.top) / p).r()})$searchTrace",
         )
     }
 
