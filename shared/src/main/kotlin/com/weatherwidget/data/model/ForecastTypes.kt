@@ -45,9 +45,21 @@ data class HourlyForecast(
      * mix two fetches; the rain graphs judge staleness by this. plans/261113-rain-no-hindcast-any-prior.md
      */
     val precipFetchedAt: Long? = null,
+    /**
+     * When the provider issued this forecast (NWS `updateTime`), stored. Null for sources that send
+     * no issuance time. plans/261114-nws-issuance-time-prior.md
+     */
+    val issuedAt: Long? = null,
 ) {
-    /** The fetch time the rain fields stand on. */
-    val rainFetchedAt: Long get() = precipFetchedAt ?: fetchedAt
+    /**
+     * When this forecast was made: the issuance when known (never after the fetch, against clock
+     * skew), else the fetch. [SettledForecastPick] judges "before the hour" by this, so two devices
+     * holding the same NWS issuance pick alike however late either fetched it.
+     */
+    val madeAt: Long get() = issuedAt?.coerceAtMost(fetchedAt) ?: fetchedAt
+
+    /** When the forecast the rain fields stand on was made. */
+    val rainFetchedAt: Long get() = precipFetchedAt ?: madeAt
 }
 
 data class DailyForecast(

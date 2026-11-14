@@ -126,6 +126,7 @@ object NwsForecastFetch {
                     precipProbability = gridpoints.precipProbabilityByHour[hourMs],
                     cloudCover = cover,
                     visibilityMi = gridpoints.visibilityByHour[hourMs],
+                    issuedAt = gridpoints.updateTime,
                 )
             }
     }

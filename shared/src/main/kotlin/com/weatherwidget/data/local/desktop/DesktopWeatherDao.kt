@@ -125,8 +125,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             try {
                 val sql = """
                     INSERT OR REPLACE INTO hourly_forecasts 
-                    (timestampToGroupPredictions, dateTime, locationLat, locationLon, temperature, condition, source, precipProbability, cloudCover, cloudCoverLow, cloudCoverMid, cloudCoverHigh, precipAmountMm, fetchedAt, visibilityMi)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (timestampToGroupPredictions, dateTime, locationLat, locationLon, temperature, condition, source, precipProbability, cloudCover, cloudCoverLow, cloudCoverMid, cloudCoverHigh, precipAmountMm, fetchedAt, visibilityMi, issuedAt)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """.trimIndent()
                 conn.prepareStatement(sql).use { stmt ->
                     val now = System.currentTimeMillis()
@@ -151,6 +151,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         stmt.setNullableFloat(13, h.precipAmountMm)
                         stmt.setLong(14, fetchedAt)
                         stmt.setNullableFloat(15, h.visibilityMi)
+                        stmt.setNullableLong(16, h.issuedAt)
                         stmt.addBatch()
                     }
                     stmt.executeBatch()
@@ -344,8 +345,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             try {
                 val sql = """
                     INSERT OR REPLACE INTO hourly_forecasts 
-                    (dateTime, locationLat, locationLon, temperature, condition, source, timestampToGroupPredictions, precipProbability, cloudCover, cloudCoverLow, cloudCoverMid, cloudCoverHigh, precipAmountMm, fetchedAt, visibilityMi)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (dateTime, locationLat, locationLon, temperature, condition, source, timestampToGroupPredictions, precipProbability, cloudCover, cloudCoverLow, cloudCoverMid, cloudCoverHigh, precipAmountMm, fetchedAt, visibilityMi, issuedAt)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """.trimIndent()
                 conn.prepareStatement(sql).use { stmt ->
                     val now = System.currentTimeMillis()
@@ -368,6 +369,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         stmt.setNullableFloat(13, h.precipAmountMm)
                         stmt.setLong(14, h.fetchedAt.takeIf { it > 0L } ?: now)
                         stmt.setNullableFloat(15, h.visibilityMi)
+                        stmt.setNullableLong(16, h.issuedAt)
                         stmt.addBatch()
                     }
                     stmt.executeBatch()
@@ -1164,7 +1166,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             val lastDay = java.time.Instant.ofEpochMilli(max).atZone(zone).toLocalDate()
             val select = conn.prepareStatement(
                 "SELECT dateTime, source, locationLat, locationLon, timestampToGroupPredictions, fetchedAt, " +
-                    "cloudCover, cloudCoverLow, cloudCoverMid, cloudCoverHigh, precipProbability, precipAmountMm " +
+                    "cloudCover, cloudCoverLow, cloudCoverMid, cloudCoverHigh, precipProbability, precipAmountMm, issuedAt " +
                     "FROM hourly_forecasts WHERE dateTime >= ? AND dateTime < ?",
             )
             val delete = conn.prepareStatement(
@@ -1192,6 +1194,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                                 cloudCoverHigh = int("cloudCoverHigh"),
                                 precipProbability = int("precipProbability"),
                                 precipAmountMm = rs.getFloat("precipAmountMm").takeUnless { rs.wasNull() },
+                                issuedAt = rs.getLong("issuedAt").takeUnless { rs.wasNull() },
                             )
                         }
                     }
@@ -1792,6 +1795,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         cloudCoverMid = rs.getNullableInt("cloudCoverMid"),
                         cloudCoverHigh = rs.getNullableInt("cloudCoverHigh"),
                         visibilityMi = rs.getNullableFloat("visibilityMi"),
+                        issuedAt = rs.getNullableLong("issuedAt"),
                         precipAmountMm = rs.getNullableFloat("precipAmountMm"),
                         source = source,
                         fetchedAt = rs.getLong("fetchedAt"),
@@ -1833,6 +1837,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         cloudCoverMid = rs.getNullableInt("cloudCoverMid"),
                         cloudCoverHigh = rs.getNullableInt("cloudCoverHigh"),
                         visibilityMi = rs.getNullableFloat("visibilityMi"),
+                        issuedAt = rs.getNullableLong("issuedAt"),
                         precipAmountMm = rs.getNullableFloat("precipAmountMm"),
                         source = source,
                         fetchedAt = rs.getLong("fetchedAt"),
@@ -1874,6 +1879,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         cloudCoverMid = rs.getNullableInt("cloudCoverMid"),
                         cloudCoverHigh = rs.getNullableInt("cloudCoverHigh"),
                         visibilityMi = rs.getNullableFloat("visibilityMi"),
+                        issuedAt = rs.getNullableLong("issuedAt"),
                         precipAmountMm = rs.getNullableFloat("precipAmountMm"),
                         source = rs.getString("source"),
                         fetchedAt = rs.getLong("fetchedAt"),
@@ -1900,7 +1906,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
             // or invent a forecast for hours we never actually forecast). So only admit Generic rows
             // for future timestamps; the real source supplies all past/near hours.
             val sql = """
-                SELECT dateTime, temperature, condition, precipProbability, cloudCover, cloudCoverLow, cloudCoverMid, cloudCoverHigh, precipAmountMm, fetchedAt, source, locationLat, locationLon, visibilityMi
+                SELECT dateTime, temperature, condition, precipProbability, cloudCover, cloudCoverLow, cloudCoverMid, cloudCoverHigh, precipAmountMm, fetchedAt, source, locationLat, locationLon, visibilityMi, issuedAt
                 FROM hourly_forecasts
                 WHERE ${LocationMatch.JDBC_WHERE} AND (source = ? OR (source = 'Generic' AND dateTime > ?)) AND dateTime >= ? AND dateTime <= ?
                 ORDER BY dateTime ASC, (source = ?) DESC, timestampToGroupPredictions DESC
@@ -1930,6 +1936,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         cloudCoverMid = rs.getNullableInt("cloudCoverMid"),
                         cloudCoverHigh = rs.getNullableInt("cloudCoverHigh"),
                         visibilityMi = rs.getNullableFloat("visibilityMi"),
+                        issuedAt = rs.getNullableLong("issuedAt"),
                         precipAmountMm = rs.getNullableFloat("precipAmountMm"),
                         source = rs.getString("source"),
                         fetchedAt = rs.getLong("fetchedAt"),
@@ -1953,7 +1960,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         val result = mutableListOf<HourlyForecast>()
         db.getConnection().use { conn ->
             val sql = """
-                SELECT dateTime, temperature, condition, precipProbability, cloudCover, cloudCoverLow, cloudCoverMid, cloudCoverHigh, precipAmountMm, fetchedAt, source, locationLat, locationLon, visibilityMi
+                SELECT dateTime, temperature, condition, precipProbability, cloudCover, cloudCoverLow, cloudCoverMid, cloudCoverHigh, precipAmountMm, fetchedAt, source, locationLat, locationLon, visibilityMi, issuedAt
                 FROM hourly_forecasts
                 WHERE ${LocationMatch.JDBC_WHERE} AND (? IS NULL OR source = ?) AND dateTime >= ? AND dateTime < ?
                 ORDER BY dateTime ASC, timestampToGroupPredictions DESC
@@ -1977,6 +1984,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         cloudCoverMid = rs.getNullableInt("cloudCoverMid"),
                         cloudCoverHigh = rs.getNullableInt("cloudCoverHigh"),
                         visibilityMi = rs.getNullableFloat("visibilityMi"),
+                        issuedAt = rs.getNullableLong("issuedAt"),
                         precipAmountMm = rs.getNullableFloat("precipAmountMm"),
                         source = rs.getString("source"),
                         fetchedAt = rs.getLong("fetchedAt"),

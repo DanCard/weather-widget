@@ -26,7 +26,8 @@ object StaleForecastSpans {
 
     /** The hour starts among [forecasts] (stitched, one per hour) whose forecast is stale at [nowMs]. */
     fun staleHourStarts(forecasts: List<com.weatherwidget.data.model.HourlyForecast>, nowMs: Long): Set<Long> =
-        forecasts.filter { isStale(it.dateTime, it.fetchedAt, nowMs) }.mapTo(HashSet()) { it.dateTime }
+        // madeAt: the NWS issuance when known, so a late fetch of an old issuance still reads as old.
+        forecasts.filter { isStale(it.dateTime, it.madeAt, nowMs) }.mapTo(HashSet()) { it.dateTime }
 
     data class Span(val start: Float, val end: Float, val stale: Boolean)
 

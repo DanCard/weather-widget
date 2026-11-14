@@ -350,7 +350,8 @@ class NwsApi
 
             val jsonObj = json.parseToJsonElement(response).jsonObject
             val properties = jsonObj["properties"]?.jsonObject
-            val updated = properties?.get("updated")?.jsonPrimitive?.content
+            // updateTime is the issuance; generatedAt only the render. ("updated" does not exist.)
+            val updated = properties?.get("updateTime")?.jsonPrimitive?.content
             val generatedAt = properties?.get("generatedAt")?.jsonPrimitive?.content
             val periods =
                 properties?.get("periods")?.jsonArray
@@ -403,9 +404,14 @@ class NwsApi
                 }.body()
 
             val jsonObj = json.parseToJsonElement(response).jsonObject
+            val properties = jsonObj["properties"]?.jsonObject
+            // The issuance this product was rendered from: a forecast issued before an hour is that
+            // hour's prior even when fetched after it. plans/261114-nws-issuance-time-prior.md
+            val issuedAt = parseUpdateTime(properties)
             val periods =
-                jsonObj["properties"]?.jsonObject?.get("periods")?.jsonArray
+                properties?.get("periods")?.jsonArray
                     ?: return emptyList()
+            Log.i(TAG, "getHourlyForecast: url=$url issuedAt=${issuedAt?.let { java.time.Instant.ofEpochMilli(it) }} periodCount=${periods.size}")
 
             return periods.mapNotNull { period ->
                 val obj = period.jsonObject
@@ -440,6 +446,7 @@ class NwsApi
                     shortForecast = shortForecast,
                     precipProbability = precipProbability,
                     precipAmountMm = precipAmountMm,
+                    issuedAt = issuedAt,
                 )
             }
         }
@@ -483,6 +490,7 @@ class NwsApi
                 temperatureByHour = temperatureByHour,
                 precipProbabilityByHour = precipProbabilityByHour,
                 visibilityByHour = visibilityByHour,
+                updateTime = parseUpdateTime(properties),
             )
         }
 
@@ -741,6 +749,7 @@ class NwsApi
             val precipAmountMm: Float? = null,
             val cloudCover: Int? = null, // Sky cover percentage (0-100)
             val visibilityMi: Float? = null, // From the grid's visibility layer (statute miles)
+            val issuedAt: Long? = null, // The product's updateTime (issuance), epoch ms
         )
 
         data class QuantitativePrecipitationInterval(
@@ -766,7 +775,14 @@ class NwsApi
             val precipProbabilityByHour: Map<Long, Int> = emptyMap(),
             /** Hourly visibility (statute miles) keyed like [temperatureByHour]. */
             val visibilityByHour: Map<Long, Float> = emptyMap(),
+            /** The grid's `updateTime`: when this issuance was made (epoch ms). */
+            val updateTime: Long? = null,
         )
+
+        /** A product's `properties.updateTime` (its issuance) as epoch ms; null when absent or unparsable. */
+        internal fun parseUpdateTime(properties: JsonObject?): Long? =
+            properties?.get("updateTime")?.jsonPrimitive?.contentOrNull
+                ?.let { runCatching { java.time.OffsetDateTime.parse(it).toInstant().toEpochMilli() }.getOrNull() }
 
         private fun parseQuantitativePrecipitationMm(obj: JsonObject?): Float? {
             if (obj == null) return null

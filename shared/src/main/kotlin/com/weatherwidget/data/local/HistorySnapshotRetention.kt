@@ -63,7 +63,12 @@ object HistorySnapshotRetention {
         val cloudCoverHigh: Int? = null,
         val precipProbability: Int? = null,
         val precipAmountMm: Float? = null,
+        /** NWS issuance (`updateTime`); the pick compares [madeAt]. */
+        val issuedAt: Long? = null,
     ) {
+        /** Same as `HourlyForecast.madeAt`. */
+        val madeAt: Long get() = issuedAt?.coerceAtMost(fetchedAt) ?: fetchedAt
+
         /** The table's primary key minus nothing: (dateTime, source, lat, lon, bucket). */
         val key: Key get() = Key(dateTime, source, lat, lon, bucket)
     }
@@ -142,11 +147,14 @@ object HistorySnapshotRetention {
 
     private data class GroupKey(val source: String, val dateTime: Long, val lat: Double, val lon: Double)
 
-    /** Newest, newest at-or-before [hour], and earliest after it: every head [SettledForecastPick] can choose. */
+    /**
+     * Newest, newest made at-or-before [hour], and earliest made after it: every head
+     * [SettledForecastPick] can choose. "Made" = [Row.madeAt] (issuance when known), as the pick compares.
+     */
     private fun keepSettledCandidates(rows: List<Row>, hour: Long, into: MutableSet<Key>) {
-        keepMax(rows, into) { it.fetchedAt }
-        keepMax(rows.filter { it.fetchedAt <= hour }, into) { it.fetchedAt }
-        keepMax(rows.filter { it.fetchedAt > hour }, into) { -it.fetchedAt }
+        keepMax(rows, into) { it.madeAt }
+        keepMax(rows.filter { it.madeAt <= hour }, into) { it.madeAt }
+        keepMax(rows.filter { it.madeAt > hour }, into) { -it.madeAt }
     }
 
     private inline fun keepMax(rows: List<Row>, into: MutableSet<Key>, selector: (Row) -> Long) {

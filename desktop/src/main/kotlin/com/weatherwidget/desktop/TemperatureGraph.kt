@@ -402,7 +402,7 @@ fun TemperatureGraph(
             // Stale hours (forecast fetched >3 h before the hour) draw dimmed, as on the widget.
             forEachStaleSpan(
                 xs = coords.map { it.x },
-                stale = points.map { com.weatherwidget.shared.graph.StaleForecastSpans.isStale(it.dateTime, it.fetchedAt, now) },
+                stale = points.map { com.weatherwidget.shared.graph.StaleForecastSpans.isStale(it.dateTime, it.madeAt, now) },
             ) { staleAlpha ->
             for (i in 0 until coords.size - 1) {
                 val segmentColor = forecastColor(conditionFlagsOf(points[i + 1], latitude, longitude))

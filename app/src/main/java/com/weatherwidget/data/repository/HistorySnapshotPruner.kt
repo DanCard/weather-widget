@@ -93,4 +93,5 @@ internal fun HourlyForecastEntity.toRetentionRow() = HistorySnapshotRetention.Ro
     cloudCoverHigh = cloudCoverHigh,
     precipProbability = precipProbability,
     precipAmountMm = precipAmountMm,
+    issuedAt = issuedAt,
 )

@@ -33,7 +33,12 @@ data class HourlyForecastEntity(
     val timestampToGroupPredictions: Long = fetchedAt,
     // Provider visibility (statute miles): today's fog still ahead (ForecastMorningFog). v87.
     val visibilityMi: Float? = null,
+    // Provider issuance (NWS updateTime); the settled pick compares madeAt. v90.
+    val issuedAt: Long? = null,
 ) {
+    /** Same as `HourlyForecast.madeAt`: issuance when known, never after the fetch. */
+    val madeAt: Long get() = issuedAt?.coerceAtMost(fetchedAt) ?: fetchedAt
+
     /**
      * Not a column: the fetch the stitched rain fields came from, when it differs from [fetchedAt]
      * (`HourlyForecast.precipFetchedAt`). Set by [toEntity]; `copy()` drops it.
@@ -41,8 +46,8 @@ data class HourlyForecastEntity(
     @Ignore
     var precipFetchedAt: Long? = null
 
-    /** The fetch time the rain fields stand on. */
-    val rainFetchedAt: Long get() = precipFetchedAt ?: fetchedAt
+    /** When the forecast the rain fields stand on was made. */
+    val rainFetchedAt: Long get() = precipFetchedAt ?: madeAt
 }
 
 fun HourlyForecastEntity.toHourlyForecast() = com.weatherwidget.data.model.HourlyForecast(
@@ -61,6 +66,7 @@ fun HourlyForecastEntity.toHourlyForecast() = com.weatherwidget.data.model.Hourl
     locationLon = locationLon,
     visibilityMi = visibilityMi,
     precipFetchedAt = precipFetchedAt,
+    issuedAt = issuedAt,
 )
 
 /**
@@ -92,4 +98,5 @@ fun com.weatherwidget.data.model.HourlyForecast.toEntity(
         precipAmountMm = precipAmountMm,
         fetchedAt = fetchedAt,
         visibilityMi = visibilityMi,
+        issuedAt = issuedAt,
     ).also { it.precipFetchedAt = precipFetchedAt }

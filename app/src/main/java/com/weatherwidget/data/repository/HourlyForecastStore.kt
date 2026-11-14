@@ -212,6 +212,7 @@ internal class RoomElapsedHistoryStore(
                     precipAmountMm = it.precipAmountMm,
                     fetchedAt = nowMs,
                     visibilityMi = it.visibilityMi,
+                    issuedAt = it.issuedAt,
                 )
             },
         )

@@ -797,7 +797,7 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                     isDateLabel = p.isDateLabel,
                     // The day-ago prediction is stale by design; only the live pick is judged.
                     isStaleForecast = !point.isFrozen && com.weatherwidget.shared.graph.StaleForecastSpans.isStale(
-                        point.timeMs, entity.fetchedAt, now.atZone(zoneId).toInstant().toEpochMilli(),
+                        point.timeMs, entity.madeAt, now.atZone(zoneId).toInstant().toEpochMilli(),
                     ),
                 ),
             )

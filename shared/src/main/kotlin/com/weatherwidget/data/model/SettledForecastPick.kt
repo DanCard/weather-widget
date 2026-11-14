@@ -18,6 +18,9 @@ package com.weatherwidget.data.model
  * its own 03:10 fetch's 25%, and a jitter fragment's weeks-old row beat a fresh one. Both now count
  * as missing. See plans/261113-no-hindcasts-unless-prior-missing.md.
  *
+ * "Made at" is the provider's issuance time when known (NWS `updateTime`), else the fetch time
+ * (plans/261114-nws-issuance-time-prior.md): a 03:10 fetch of a 02:30 issuance is a prior for 3 am.
+ *
  * Synthesized rows (`fetchedAt = 0`) are pre-hour but always stale, so they lose to any later fetch.
  * Sorts are stable, so on a `fetchedAt` tie the row listed first wins (the stitcher lists live rows
  * first).
@@ -53,9 +56,10 @@ object SettledForecastPick {
         return if (freshPrior || post.isEmpty()) pre + post else post + pre
     }
 
+    /** Rows compete on [HourlyForecast.madeAt]: the issuance when the provider sends one (NWS), else the fetch. */
     fun pick(rows: List<HourlyForecast>, hourMs: Long, nowMs: Long): HourlyForecast? =
-        pick(rows, hourMs, nowMs) { it.fetchedAt }
+        pick(rows, hourMs, nowMs) { it.madeAt }
 
     fun backfillOrder(rows: List<HourlyForecast>, hourMs: Long, nowMs: Long): List<HourlyForecast> =
-        backfillOrder(rows, hourMs, nowMs) { it.fetchedAt }
+        backfillOrder(rows, hourMs, nowMs) { it.madeAt }
 }

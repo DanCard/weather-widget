@@ -189,6 +189,7 @@ class DesktopWeatherDatabase(
                     addFogColumns(stmt)
                     addFogPredawnColumns(stmt)
                     addColumnIfMissing(stmt, "daily_history", DAILY_HISTORY_DAY_PRECIP_PEAK_COLUMN, "INTEGER")
+                    addColumnIfMissing(stmt, "hourly_forecasts", HOURLY_ISSUED_AT_COLUMN, "INTEGER")
                     stmt.execute("PRAGMA user_version = $SCHEMA_VERSION")
                 } else {
                     migrate(conn, currentVersion, SCHEMA_VERSION)
@@ -670,6 +671,11 @@ class DesktopWeatherDatabase(
             if (from < 41) {
                 addColumnIfMissing(stmt, "daily_history", DAILY_HISTORY_DAY_PRECIP_PEAK_COLUMN, "INTEGER")
             }
+            // v42: hourly_forecasts.issuedAt, the provider's issuance (NWS updateTime), which the
+            // settled pick compares. Room MIGRATION_89_90. plans/261114-nws-issuance-time-prior.md
+            if (from < 42) {
+                addColumnIfMissing(stmt, "hourly_forecasts", HOURLY_ISSUED_AT_COLUMN, "INTEGER")
+            }
             stmt.execute("PRAGMA user_version = $to")
         }
     }
@@ -831,7 +837,7 @@ class DesktopWeatherDatabase(
          * the v24 bump, even though that test is about the v22 cloud columns and not about the
          * version number at all.
          */
-        const val SCHEMA_VERSION = 41
+        const val SCHEMA_VERSION = 42
         private const val HOURLY_TABLE_MERGE_VERSION = 36
 
         /** Room's `HourlyActualEntity` declares the same columns (MIGRATION_84_85). */
@@ -914,6 +920,7 @@ class DesktopWeatherDatabase(
          */
         /** Provider visibility per hour (statute miles). Desktop v39, Room MIGRATION_86_87. */
         const val HOURLY_VISIBILITY_COLUMN = "visibilityMi"
+        const val HOURLY_ISSUED_AT_COLUMN = "issuedAt"
 
         val FORECAST_FOG_COLUMNS = listOf("fogLevel" to "INTEGER", "fogTopTemp" to "REAL", "fogVisibilityMi" to "REAL")
         val DAILY_HISTORY_FOG_COLUMNS = listOf(

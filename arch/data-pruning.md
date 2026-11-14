@@ -48,8 +48,8 @@ it. Within the 30-day active window, the union of these rows is kept for each so
 
 1. The newest snapshot by label and by `fetchedAt`, for the backfills and `HourlyForecastSelector`.
 2. Every row the settled pick (`SettledForecastPick`) can choose, which history stitching and daily
-   noon cloud read: the newest snapshot, the newest snapshot at or before the hour, and the earliest
-   snapshot after it, plus the same three per coalesced field among rows carrying a value. The pick
+   noon cloud read: the newest snapshot, the newest snapshot made at or before the hour, and the
+   earliest made after it ("made" = NWS issuance `issuedAt` when stored, else `fetchedAt`), plus the same three per coalesced field among rows carrying a value. The pick
    depends on the hindcast guard's age, a user setting, so the prune keeps what any age can read
    (plans/261113-no-hindcasts-unless-prior-missing.md).
 3. The newest sufficiently old snapshot carrying the mid/high-cloud band used by prior-day graphs.

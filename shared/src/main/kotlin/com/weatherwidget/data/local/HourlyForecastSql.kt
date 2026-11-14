@@ -22,5 +22,5 @@ object HourlyForecastSql {
             "WHERE o.dateTime = hourly_forecasts.dateTime AND o.source = hourly_forecasts.source " +
             "AND o.locationLat = hourly_forecasts.locationLat AND o.locationLon = hourly_forecasts.locationLon " +
             "AND o.precipAmountMm IS NOT NULL ORDER BY o.fetchedAt DESC LIMIT 1)) AS precipAmountMm, " +
-            "fetchedAt, cloudCoverLow, cloudCoverMid, cloudCoverHigh, visibilityMi"
+            "fetchedAt, cloudCoverLow, cloudCoverMid, cloudCoverHigh, visibilityMi, issuedAt"
 }

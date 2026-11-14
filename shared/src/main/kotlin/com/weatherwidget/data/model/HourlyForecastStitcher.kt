@@ -111,10 +111,10 @@ object HourlyForecastStitcher {
             // Rain keeps any pre-hour forecast, however old (plans/261113-rain-no-hindcast-any-prior.md).
             val rainPool = SettledForecastPick.backfillOrder(
                 hourRows, time, nowMs, maxPriorAgeMs = rainMaxPriorAgeMs(),
-            ) { it.fetchedAt }
+            ) { it.madeAt }
             val rainChanceRow = rainPool.firstOrNull { it.precipProbability != null }
             val rainAmountRow = rainPool.firstOrNull { it.precipAmountMm != null }
-            val rainFetchedAt = (rainChanceRow ?: rainAmountRow)?.fetchedAt
+            val rainFetchedAt = (rainChanceRow ?: rainAmountRow)?.madeAt
             base.copy(
                 cloudCover = base.cloudCover ?: backfillPool.firstNotNullOfOrNull { it.cloudCover },
                 cloudCoverLow = base.cloudCoverLow ?: backfillPool.firstNotNullOfOrNull { it.cloudCoverLow },
@@ -122,7 +122,7 @@ object HourlyForecastStitcher {
                 cloudCoverHigh = base.cloudCoverHigh ?: backfillPool.firstNotNullOfOrNull { it.cloudCoverHigh },
                 precipProbability = rainChanceRow?.precipProbability,
                 precipAmountMm = rainAmountRow?.precipAmountMm,
-                precipFetchedAt = rainFetchedAt?.takeIf { it != base.fetchedAt },
+                precipFetchedAt = rainFetchedAt?.takeIf { it != base.madeAt },
             )
         }
     }

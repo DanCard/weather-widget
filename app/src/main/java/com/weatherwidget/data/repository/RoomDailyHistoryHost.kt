@@ -61,6 +61,7 @@ internal class RoomDailyHistoryHost(
                 cloudCoverHigh = it.cloudCoverHigh,
                 precipAmountMm = it.precipAmountMm,
                 fetchedAt = it.fetchedAt,
+                issuedAt = it.issuedAt,
             ).toHourlyForecast()
         }
 

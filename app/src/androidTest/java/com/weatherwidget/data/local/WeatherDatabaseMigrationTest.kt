@@ -1260,4 +1260,29 @@ class WeatherDatabaseMigrationTest {
         }
         db.close()
     }
+
+    /** plans/261114-nws-issuance-time-prior.md: hourly rows kept, issuedAt null until the next NWS fetch. */
+    @Test
+    fun migrate89To90AddsHourlyIssuedAt() {
+        helper.createDatabase(testDb, 89).use { db ->
+            db.execSQL(
+                "INSERT INTO hourly_forecasts (dateTime, locationLat, locationLon, temperature, condition, source, " +
+                    "precipProbability, fetchedAt, timestampToGroupPredictions) " +
+                    "VALUES (1792954800000, 37.417, -122.089, 50.0, 'Cloudy', 'NWS', 40, 1, 1)",
+            )
+        }
+        val db = helper.runMigrationsAndValidate(testDb, 90, true, WeatherDatabase.MIGRATION_89_90)
+        db.query("SELECT precipProbability, issuedAt FROM hourly_forecasts").use { c ->
+            c.moveToFirst()
+            println("migrate89To90: chance=${c.getInt(0)} issuedAtIsNull=${c.isNull(1)}")
+            assertEquals(40, c.getInt(0))
+            assertTrue(c.isNull(1))
+        }
+        db.execSQL("UPDATE hourly_forecasts SET issuedAt = 1792953000000")
+        db.query("SELECT issuedAt FROM hourly_forecasts").use { c ->
+            c.moveToFirst()
+            assertEquals(1792953000000L, c.getLong(0))
+        }
+        db.close()
+    }
 }

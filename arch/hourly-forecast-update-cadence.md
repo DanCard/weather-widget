@@ -293,7 +293,12 @@ newest fetch). Rain chance and rain amount are stricter: a started hour keeps an
 however old, and takes a hindcast only when none exists. The stitched row records that fetch in
 `precipFetchedAt`, and the rain graphs dim by it. Archived `forecastPrecipAmountMm` is the 00–24 sum
 of the stitched hours ([plan](../plans/261113-rain-no-hindcast-any-prior.md)). A device that slept
-keeps its old rain prior, so devices can disagree there. Today's daily low after 06:00 and high after 16:00 follow the same rule
+keeps its old rain prior, so devices can disagree there.
+"Before the hour" means *made* before it: the provider's issuance time when it sends one (NWS
+`updateTime`, stored as `hourly_forecasts.issuedAt`; `HourlyForecast.madeAt`), else the fetch time.
+A 03:10 fetch of a 02:30 NWS issuance is a prior for 3 am, so devices holding the same NWS issuance
+agree. No other source sends an issuance time ([plan](../plans/261114-nws-issuance-time-prior.md)).
+Dimming measures age from the same made-at time. Today's daily low after 06:00 and high after 16:00 follow the same rule
 (`SameDayExtremeCutoff.settle`); a held sent value goes to `hindcastLowTemp` / `hindcastHighTemp`, and
 the writer logs `SNAPSHOT_SKIP_HINDCAST` (held) or `SNAPSHOT_HINDCAST_ACCEPTED` (prior missing).
 ([plan](../plans/261113-no-hindcasts-unless-prior-missing.md); the 2026-10-27 freeze had no age limit

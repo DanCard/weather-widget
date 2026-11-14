@@ -310,7 +310,7 @@ fun CloudCoverGraph(
             xs = coords.map { it.x },
             stale = points.map {
                 it.dateTime !in frozenByTime &&
-                    com.weatherwidget.shared.graph.StaleForecastSpans.isStale(it.dateTime, it.fetchedAt, now)
+                    com.weatherwidget.shared.graph.StaleForecastSpans.isStale(it.dateTime, it.madeAt, now)
             },
         ) { alpha ->
             drawPath(
