@@ -67,6 +67,14 @@ import kotlin.math.ceil
 
 private const val MS_IN_A_DAY = 86_400_000L
 
+/** When a History reload may blank the window. Pure so the rule is unit-tested. */
+internal object ForecastHistoryReload {
+    data class View(val date: LocalDate, val source: WeatherSource, val lat: Double, val lon: Double)
+
+    /** Blank to "Loading…" only when [next] is a different view than the one on screen. */
+    fun showsLoading(loaded: View?, next: View): Boolean = loaded != next
+}
+
 /** Everything the window needs for one (targetDate, source) view, computed off the UI thread. */
 private data class HistoryData(
     val points: List<EvolutionPoint>,
@@ -202,11 +210,18 @@ internal fun ForecastHistoryContent(
     var loading by remember { mutableStateOf(true) }
     var data by remember { mutableStateOf<HistoryData?>(null) }
 
+    // The view the current [data] belongs to. A reload for the SAME view (a dataUpdateCount bump,
+    // e.g. the popup's source toggle landing its refresh) keeps the content on screen and swaps the
+    // result in place; "Loading…" is only for a different date, source, or location.
+    var loadedView by remember { mutableStateOf<ForecastHistoryReload.View?>(null) }
+
     LaunchedEffect(targetDate, source, config.lat, config.lon, dataUpdateCount) {
-        loading = true
+        val view = ForecastHistoryReload.View(targetDate, source, config.lat, config.lon)
+        if (ForecastHistoryReload.showsLoading(loadedView, view)) loading = true
         data = withContext(Dispatchers.IO) {
             loadHistory(weatherDao, config, targetDate, source, visibleSources)
         }
+        loadedView = view
         loading = false
     }
 
