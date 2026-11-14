@@ -430,7 +430,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
             val obsKey = "${source.id}:observations"
             val nowMs = System.currentTimeMillis()
             val lastRefresh = FetchMetadata.getLastUserRefreshTime(this@WeatherObservationsActivity, obsKey)
-            when (val decision = UserRefreshThrottle.check(lastRefresh, nowMs)) {
+            when (val decision = UserRefreshThrottle.check(lastRefresh, nowMs, lastFetchMs = null)) {
                 is UserRefreshThrottle.Decision.Throttled -> {
                     val notice = com.weatherwidget.shared.util.RefreshNotice.NotQueued(
                         com.weatherwidget.shared.util.RefreshNotice.Reason.RATE_LIMITED,

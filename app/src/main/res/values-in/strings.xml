@@ -42,6 +42,7 @@
     <string name="refresh_up_to_date_forecast">Prakiraan %1$s terbaru · %2$s lalu</string>
     <string name="refresh_up_to_date_observations">Observasi %1$s terbaru · %2$s lalu</string>
     <string name="refresh_already_queued">Penyegaran sudah dalam antrean</string>
+    <string name="refresh_all_fresh">Sudah terbaru</string>
     <string name="refresh_in_progress">Penyegaran sedang berlangsung</string>
     <string name="refresh_all_done">Penyegaran selesai</string>
     <string name="refresh_all_failed">Penyegaran gagal</string>

@@ -160,7 +160,11 @@ internal class ForecastFetchCoordinator(
             candidates = candidates.map { it.id },
             nowMs = clock(),
             decide = { id -> horizonDecision(byId.getValue(id), fetchContext, latitude, longitude) },
-            forced = { id -> ForecastParts.BOTH.takeIf { forceRefresh && (id == targetSourceId || targetSourceId == null) } },
+            // Settings → Refresh data leaves a source fetched in the last 10 minutes to its cadence.
+            forced = { id ->
+                val skipped = fetchContext?.skipSourceIds.orEmpty()
+                ForecastParts.BOTH.takeIf { forceRefresh && (id == targetSourceId || (targetSourceId == null && id !in skipped)) }
+            },
             dueWithoutDecision = { id -> isStale(byId.getValue(id), cachedForecasts) },
         )
     }

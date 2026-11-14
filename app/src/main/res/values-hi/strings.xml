@@ -42,6 +42,7 @@
     <string name="refresh_up_to_date_forecast">%1$s पूर्वानुमान अद्यतन है · %2$s पहले</string>
     <string name="refresh_up_to_date_observations">%1$s अवलोकन अद्यतन हैं · %2$s पहले</string>
     <string name="refresh_already_queued">रीफ़्रेश पहले से कतार में है</string>
+    <string name="refresh_all_fresh">पहले से अप टू डेट</string>
     <string name="refresh_in_progress">रीफ़्रेश पहले से चल रहा है</string>
     <string name="refresh_all_done">रीफ़्रेश पूरा हुआ</string>
     <string name="refresh_all_failed">रीफ़्रेश विफल रहा</string>

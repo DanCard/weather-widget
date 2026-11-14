@@ -46,6 +46,11 @@ data class FetchRequest(
     val date: String? = null,
     /** [Kind.HISTORY_DEPTH]: hours back the graph needs. */
     val backHours: Int? = null,
+    /**
+     * [Kind.OTHER_SOURCES]: the sources Settings → Refresh data found stale at the click
+     * ([com.weatherwidget.shared.util.SettingsRefreshAllSources.partition]); null = every usable source.
+     */
+    val sourceIds: List<String>? = null,
 ) {
     enum class Kind { FORECAST, OTHER_SOURCES, OBSERVATIONS, HOURLY_DAY, HISTORY_DEPTH }
 

@@ -42,6 +42,7 @@
     <string name="refresh_up_to_date_forecast">توقعات %1$s محدّثة · قبل %2$s</string>
     <string name="refresh_up_to_date_observations">ملاحظات %1$s محدّثة · قبل %2$s</string>
     <string name="refresh_already_queued">التحديث مجدول بالفعل</string>
+    <string name="refresh_all_fresh">محدّث بالفعل</string>
     <string name="refresh_in_progress">التحديث قيد التنفيذ بالفعل</string>
     <string name="refresh_all_done">اكتمل التحديث</string>
     <string name="refresh_all_failed">فشل التحديث</string>

@@ -14,7 +14,7 @@ sealed interface RefreshNotice {
     enum class Kind { FORECAST, OBSERVATIONS, BOTH }
 
     /** Ordered by how specific the reason is: [merge] keeps the higher one. */
-    enum class Reason { UP_TO_DATE, RATE_LIMITED, ALREADY_QUEUED, IN_PROGRESS, QUOTA, NO_LOCATION }
+    enum class Reason { UP_TO_DATE, ALL_FRESH, RATE_LIMITED, ALREADY_QUEUED, IN_PROGRESS, QUOTA, NO_LOCATION }
 
     /** [sourceName]: which source, so overlapping refreshes can be told apart; null when it covers all of them. */
     data class Queued(val kind: Kind, val sourceName: String? = null) : RefreshNotice
@@ -111,6 +111,7 @@ sealed interface RefreshNotice {
                     val subject = notice.sourceName?.let { "$it $what" } ?: what.replaceFirstChar { it.uppercase() }
                     notice.ageMs?.let { "$subject up to date · ${formatAge(it)} ago" } ?: "$subject up to date"
                 }
+                Reason.ALL_FRESH -> "Already up to date"
                 Reason.RATE_LIMITED -> {
                     UserRefreshThrottle.formatMessage(
                         notice.elapsedMinutes ?: 0,

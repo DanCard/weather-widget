@@ -42,6 +42,7 @@
     <string name="refresh_up_to_date_forecast">%1$s tahmini güncel · %2$s önce</string>
     <string name="refresh_up_to_date_observations">%1$s gözlemleri güncel · %2$s önce</string>
     <string name="refresh_already_queued">Yenileme zaten sırada</string>
+    <string name="refresh_all_fresh">Zaten güncel</string>
     <string name="refresh_in_progress">Yenileme zaten sürüyor</string>
     <string name="refresh_all_done">Yenileme tamamlandı</string>
     <string name="refresh_all_failed">Yenileme başarısız</string>

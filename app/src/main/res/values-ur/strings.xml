@@ -42,6 +42,7 @@
     <string name="refresh_up_to_date_forecast">%1$s پیشگوئی تازہ ہے · %2$s پہلے</string>
     <string name="refresh_up_to_date_observations">%1$s مشاہدات تازہ ہیں · %2$s پہلے</string>
     <string name="refresh_already_queued">ریفریش پہلے سے قطار میں ہے</string>
+    <string name="refresh_all_fresh">پہلے سے تازہ ترین</string>
     <string name="refresh_in_progress">ریفریش پہلے سے جاری ہے</string>
     <string name="refresh_all_done">ریفریش مکمل</string>
     <string name="refresh_all_failed">ریفریش ناکام</string>

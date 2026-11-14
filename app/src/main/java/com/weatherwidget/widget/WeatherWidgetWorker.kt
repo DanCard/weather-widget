@@ -761,6 +761,12 @@ class WeatherWidgetWorker
              * fetches every visible source ([com.weatherwidget.shared.util.SettingsRefreshAllSources]).
              */
             const val KEY_ALL_SOURCES = "all_sources"
+
+            /**
+             * With [KEY_ALL_SOURCES]: sources fetched or refreshed within 10 minutes at the click, not
+             * forced ([com.weatherwidget.shared.util.SettingsRefreshAllSources.partition]).
+             */
+            const val KEY_SKIP_SOURCES = "skip_sources"
             const val DEFAULT_OBSERVATION_BACKFILL_HOURS = 72L
             const val WORK_NAME_LOCATION_CANDIDATE = "weather_widget_location_candidate"
             const val WAKELOCK_TIMEOUT_MS = 60_000L

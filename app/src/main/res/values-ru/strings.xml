@@ -42,6 +42,7 @@
     <string name="refresh_up_to_date_forecast">Прогноз %1$s актуален · %2$s назад</string>
     <string name="refresh_up_to_date_observations">Наблюдения %1$s актуальны · %2$s назад</string>
     <string name="refresh_already_queued">Обновление уже в очереди</string>
+    <string name="refresh_all_fresh">Уже актуально</string>
     <string name="refresh_in_progress">Обновление уже выполняется</string>
     <string name="refresh_all_done">Обновление завершено</string>
     <string name="refresh_all_failed">Не удалось обновить</string>

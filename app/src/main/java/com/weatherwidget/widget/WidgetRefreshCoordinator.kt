@@ -40,7 +40,8 @@ internal object WidgetRefreshCoordinator {
             val displaySource = requestedWidgetId?.let { stateManager.getCurrentDisplaySource(it) } ?: stateManager.getPrimarySource()
             val sourceId = displaySource.id
             val lastUserRefreshMs = FetchMetadata.getLastUserRefreshTime(context, sourceId)
-            when (val decision = UserRefreshThrottle.check(lastUserRefreshMs, nowMs)) {
+            val lastFetchMs = SettingsRefreshPartitionLoader.lastFetchMs(context, stateManager, sourceId, ActiveLocationResolver.current(context))
+            when (val decision = UserRefreshThrottle.check(lastUserRefreshMs, nowMs, lastFetchMs)) {
                 is UserRefreshThrottle.Decision.Throttled -> {
                     WeatherDatabase.getDatabase(context).appLogDao().log(
                         "USER_REFRESH_THROTTLED",

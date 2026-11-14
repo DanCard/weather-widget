@@ -42,6 +42,7 @@
     <string name="refresh_up_to_date_forecast">%1$s পূর্বাভাস হালনাগাদ · %2$s আগে</string>
     <string name="refresh_up_to_date_observations">%1$s পর্যবেক্ষণ হালনাগাদ · %2$s আগে</string>
     <string name="refresh_already_queued">রিফ্রেশ ইতিমধ্যে সারিতে আছে</string>
+    <string name="refresh_all_fresh">ইতিমধ্যে হালনাগাদ</string>
     <string name="refresh_in_progress">রিফ্রেশ ইতিমধ্যে চলছে</string>
     <string name="refresh_all_done">রিফ্রেশ সম্পন্ন</string>
     <string name="refresh_all_failed">রিফ্রেশ ব্যর্থ</string>

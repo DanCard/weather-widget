@@ -205,16 +205,25 @@ force only the displayed source.
 
 User-initiated manual refresh triggers (Android widget tap-to-refresh, Settings "Refresh data",
 Forecast History refresh, Observations refresh, and Desktop UI refresh buttons) bypass routine
-background cadence checks so that an explicit user tap can fetch immediately. However, manual user
-refreshes are limited across both platforms to at most once every 10 minutes per weather source
-(and observations scope) via `UserRefreshThrottle`:
+background cadence checks so that an explicit user tap can fetch immediately. However, a source's
+forecast refreshes at most once every 10 minutes on both platforms (`UserRefreshThrottle`): a request is
+refused when the source was refreshed by the user **or fetched by anything** (popup open, viewing refresh,
+cadence, Settings → Refresh data) within 10 minutes. The fetch time is the later of the LONG-fetch marker and
+the last successful check at the site on Android, `getLastSuccessfulFetch` on desktop. The Observations
+refresh counts only its own user refreshes (observations scope); the forecast fetch time does not apply.
 
-- **Throttled (< 10 minutes since last user refresh of that source)**:
+- **Throttled (< 10 minutes since the source's last user refresh or fetch)**:
   - Network syncs and gap fills for that source are suppressed.
   - A user-visible notice is shown (Android home widget message banner, in-app `Toast.LENGTH_SHORT`
     on Settings/History/Observations, or Compose `RefreshNoticePill` on Desktop):
     `"Not doing because last refresh was X minute(s) ago, and wait another Y minute(s) before asking for a refresh"`.
   - Logged with `USER_REFRESH_THROTTLED source=… elapsedMin=… waitMin=…` and `REFRESH_TOAST … none=RATE_LIMITED source=…`.
+- **Settings → Refresh data applies the rule per source** (`SettingsRefreshAllSources.partition`): at the
+  click it splits the usable sources into fresh (skipped) and stale (fetched), logged as
+  `SETTINGS_REFRESH partition fetch=… skip_fresh=NWS(75s),…`. One fresh source never blocks the rest. A
+  skipped source is skipped whole (its observations too); on Android it is passed to the worker
+  (`KEY_SKIP_SOURCES`) and left to its normal cadence. When every source is fresh nothing is queued and the
+  notice reads "Already up to date" (`REFRESH_TOAST … none=ALL_FRESH`).
 - **Allowed (≥ 10 minutes or first user refresh for that source)**:
   - Last user refresh timestamp for that source is recorded (`FetchMetadata` per source on Android, `lastUserRefreshMsBySource` on Desktop).
   - Immediate forced forecast sync and history gap fill are enqueued.

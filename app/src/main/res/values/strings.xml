@@ -42,6 +42,7 @@
     <string name="refresh_up_to_date_forecast">%1$s forecast up to date · %2$s ago</string>
     <string name="refresh_up_to_date_observations">%1$s observations up to date · %2$s ago</string>
     <string name="refresh_already_queued">Refresh already queued</string>
+    <string name="refresh_all_fresh">Already up to date</string>
     <string name="refresh_in_progress">Refresh already in progress</string>
     <string name="refresh_all_done">Refresh complete</string>
     <string name="refresh_all_failed">Refresh failed</string>

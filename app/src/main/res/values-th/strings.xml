@@ -42,6 +42,7 @@
     <string name="refresh_up_to_date_forecast">พยากรณ์ %1$s เป็นปัจจุบัน · %2$s ที่แล้ว</string>
     <string name="refresh_up_to_date_observations">ข้อมูลสังเกตการณ์ %1$s เป็นปัจจุบัน · %2$s ที่แล้ว</string>
     <string name="refresh_already_queued">มีการรีเฟรชอยู่ในคิวแล้ว</string>
+    <string name="refresh_all_fresh">เป็นข้อมูลล่าสุดแล้ว</string>
     <string name="refresh_in_progress">กำลังรีเฟรชอยู่</string>
     <string name="refresh_all_done">รีเฟรชเสร็จแล้ว</string>
     <string name="refresh_all_failed">รีเฟรชไม่สำเร็จ</string>

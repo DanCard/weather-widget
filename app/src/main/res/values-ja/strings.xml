@@ -42,6 +42,7 @@
     <string name="refresh_up_to_date_forecast">%1$sの予報は最新です · %2$s前</string>
     <string name="refresh_up_to_date_observations">%1$sの観測データは最新です · %2$s前</string>
     <string name="refresh_already_queued">更新はすでにキューにあります</string>
+    <string name="refresh_all_fresh">すでに最新です</string>
     <string name="refresh_in_progress">更新はすでに実行中です</string>
     <string name="refresh_all_done">更新が完了しました</string>
     <string name="refresh_all_failed">更新に失敗しました</string>

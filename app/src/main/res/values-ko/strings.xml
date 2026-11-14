@@ -42,6 +42,7 @@
     <string name="refresh_up_to_date_forecast">%1$s 예보 최신 상태 · %2$s 전</string>
     <string name="refresh_up_to_date_observations">%1$s 관측 최신 상태 · %2$s 전</string>
     <string name="refresh_already_queued">새로고침이 이미 대기 중</string>
+    <string name="refresh_all_fresh">이미 최신 상태</string>
     <string name="refresh_in_progress">새로고침이 이미 진행 중</string>
     <string name="refresh_all_done">새로고침 완료</string>
     <string name="refresh_all_failed">새로고침 실패</string>

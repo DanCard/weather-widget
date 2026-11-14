@@ -864,8 +864,23 @@ internal fun runDesktopUiApplication() = application {
             val currentSource = WeatherSource.fromDisplaySource(currentConfig?.displaySource ?: "")
             val sourceId = currentSource.id
             val nowMs = System.currentTimeMillis()
-            val lastRefresh = lastUserRefreshMsBySource[sourceId]
-            when (val decision = UserRefreshThrottle.check(lastRefresh, nowMs)) {
+            // Settings → Refresh data: every usable source not fetched or refreshed in the last 10
+            // minutes, partitioned once here (plans/261113-settings-refresh-skips-fresh-sources.md).
+            val settingsPartition = currentConfig?.takeIf { origin == "settings" }?.let { cfg ->
+                SettingsRefreshAllSources.partition(
+                    SettingsRefreshAllSources.order(cfg.displaySource, cfg.effectiveSources),
+                    lastFetchMs = { weatherDao.getLastSuccessfulFetch(it) },
+                    lastUserRefreshMs = { lastUserRefreshMsBySource[it] },
+                    nowMs = nowMs,
+                ).also { weatherDao.log(SettingsRefreshAllSources.TAG, it.logLine(), "INFO") }
+            }
+            if (settingsPartition != null) {
+                if (settingsPartition.allFresh) {
+                    refreshNotice.show(RefreshNotice.NotQueued(RefreshNotice.Reason.ALL_FRESH), surface, origin)
+                    return
+                }
+                settingsPartition.fetch.forEach { lastUserRefreshMsBySource[it] = nowMs }
+            } else when (val decision = UserRefreshThrottle.check(lastUserRefreshMsBySource[sourceId], nowMs, weatherDao.getLastSuccessfulFetch(sourceId))) {
                 is UserRefreshThrottle.Decision.Throttled -> {
                     weatherDao.log(
                         "REFRESH_CLICK",
@@ -890,13 +905,19 @@ internal fun runDesktopUiApplication() = application {
             }
 
             refreshInFlight = true
-            refreshNotice.show(RefreshNotice.Queued(RefreshNotice.Kind.FORECAST, WeatherSource.fromDisplaySource(currentConfig?.displaySource ?: "").shortDisplayName), surface, origin)
+            // A fresh displayed source is skipped; the notice then names no source.
+            val displayedFetched = settingsPartition == null || sourceId in settingsPartition.fetch
+            refreshNotice.show(
+                RefreshNotice.Queued(RefreshNotice.Kind.FORECAST, currentSource.shortDisplayName.takeIf { displayedFetched }),
+                surface,
+                origin,
+            )
             val startedAtMs = System.currentTimeMillis()
             val refreshedSourceId = WeatherSource.fromDisplaySource(currentConfig?.displaySource ?: "").id
             // Through the shared runner on the application-owned scope: removing either child window
             // from composition cannot cancel the fetch or discard its result.
             val cfgAtTap = currentConfig
-            val refresh = refreshRunner.start("user_refresh:$origin") {
+            val refresh = if (!displayedFetched) null else refreshRunner.start("user_refresh:$origin") {
                 // In the daemon, with the daily NWS gap fill as Android's Refresh runs it: need-gated,
                 // so a complete 3 days costs no request (2026-10-27: cloud actuals stopped at 01:00).
                 fetchClient.send(
@@ -909,7 +930,7 @@ internal fun runDesktopUiApplication() = application {
             }
             uiScope.launch {
                 try {
-                    refresh.await()?.let { publishOrReload(repo, it, origin) }
+                    refresh?.await()?.let { publishOrReload(repo, it, origin) }
                     // A Refresh is the way out the location-change error message points at.
                     if (dataStatus is DataStatus.FetchingLocation || dataStatus is DataStatus.Error) {
                         dataStatus = DataStatus.Live(System.currentTimeMillis())
@@ -930,12 +951,13 @@ internal fun runDesktopUiApplication() = application {
                     // Settings → Refresh data covers every usable source; the displayed one above
                     // published first. Same app-owned runner, so closing Settings cannot cancel it.
                     val cfg = currentConfig
-                    if (origin == "settings" && cfg != null) {
+                    val otherIds = settingsPartition?.fetch?.filter { it != cfg?.displaySource }.orEmpty()
+                    if (cfg != null && otherIds.isNotEmpty()) {
                         val others = refreshRunner.start("user_refresh:settings_all_sources") {
                             fetchClient.send(
                                 FetchRequest(
                                     FetchRequest.Kind.OTHER_SOURCES, cfg.displaySource, cfg.lat, cfg.lon,
-                                    origin, "user_refresh:settings", userRefresh = true,
+                                    origin, "user_refresh:settings", userRefresh = true, sourceIds = otherIds,
                                 ),
                             )
                             repo.loadCached()
@@ -992,7 +1014,8 @@ internal fun runDesktopUiApplication() = application {
             val obsKey = "${currentSource.id}:observations"
             val nowMs = System.currentTimeMillis()
             val lastRefresh = lastUserRefreshMsBySource[obsKey]
-            when (val decision = UserRefreshThrottle.check(lastRefresh, nowMs)) {
+            // Observations only: the forecast fetch time does not apply.
+            when (val decision = UserRefreshThrottle.check(lastRefresh, nowMs, lastFetchMs = null)) {
                 is UserRefreshThrottle.Decision.Throttled -> {
                     weatherDao.log(
                         "REFRESH_CLICK",
@@ -1071,7 +1094,7 @@ internal fun runDesktopUiApplication() = application {
 
             val nowMs = System.currentTimeMillis()
             val lastRefresh = lastUserRefreshMsBySource[source.id]
-            when (val decision = UserRefreshThrottle.check(lastRefresh, nowMs)) {
+            when (val decision = UserRefreshThrottle.check(lastRefresh, nowMs, weatherDao.getLastSuccessfulFetch(source.id))) {
                 is UserRefreshThrottle.Decision.Throttled -> {
                     weatherDao.log(
                         "REFRESH_CLICK",

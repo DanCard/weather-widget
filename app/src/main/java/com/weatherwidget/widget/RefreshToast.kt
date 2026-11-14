@@ -123,6 +123,7 @@ object RefreshToast {
                 RefreshNotice.formatAge(notice.ageMs ?: 0L),
             ).trim()
             RefreshNotice.Reason.ALREADY_QUEUED -> context.getString(R.string.refresh_already_queued)
+            RefreshNotice.Reason.ALL_FRESH -> context.getString(R.string.refresh_all_fresh)
             RefreshNotice.Reason.RATE_LIMITED -> {
                 val x = notice.elapsedMinutes ?: 0
                 val y = notice.remainingMinutes ?: 1

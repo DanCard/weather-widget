@@ -42,6 +42,7 @@
     <string name="refresh_up_to_date_forecast">Pronóstico de %1$s al día · hace %2$s</string>
     <string name="refresh_up_to_date_observations">Observaciones de %1$s al día · hace %2$s</string>
     <string name="refresh_already_queued">Actualización ya en cola</string>
+    <string name="refresh_all_fresh">Ya está actualizado</string>
     <string name="refresh_in_progress">Actualización ya en curso</string>
     <string name="refresh_all_done">Actualización completada</string>
     <string name="refresh_all_failed">Error al actualizar</string>

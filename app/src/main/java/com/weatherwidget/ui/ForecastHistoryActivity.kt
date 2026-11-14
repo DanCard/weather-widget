@@ -1021,7 +1021,10 @@ class ForecastHistoryActivity : AppCompatActivity() {
         }
         val nowMs = System.currentTimeMillis()
         val lastRefresh = FetchMetadata.getLastUserRefreshTime(this, source.id)
-        when (val decision = UserRefreshThrottle.check(lastRefresh, nowMs)) {
+        val lastFetch = com.weatherwidget.widget.SettingsRefreshPartitionLoader.lastFetchMs(
+            this, WidgetStateManager(this), source.id, targetLat to targetLon,
+        )
+        when (val decision = UserRefreshThrottle.check(lastRefresh, nowMs, lastFetch)) {
             is UserRefreshThrottle.Decision.Throttled -> {
                 val notice = com.weatherwidget.shared.util.RefreshNotice.NotQueued(
                     com.weatherwidget.shared.util.RefreshNotice.Reason.RATE_LIMITED,

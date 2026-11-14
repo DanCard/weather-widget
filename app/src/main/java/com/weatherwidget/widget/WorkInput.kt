@@ -36,6 +36,8 @@ internal data class WorkInput(
     val userRefresh: Boolean = false,
     /** See [WeatherWidgetWorker.KEY_ALL_SOURCES]. */
     val allSources: Boolean = false,
+    /** See [WeatherWidgetWorker.KEY_SKIP_SOURCES]. */
+    val skipSourceIds: Set<String> = emptySet(),
 ) {
     companion object {
         fun from(data: Data): WorkInput {
@@ -71,6 +73,7 @@ internal data class WorkInput(
                 locationCacheAdopted = data.getBoolean(WeatherWidgetWorker.KEY_LOCATION_CACHE_ADOPTED, false),
                 userRefresh = data.getBoolean(WeatherWidgetWorker.KEY_USER_REFRESH, false),
                 allSources = data.getBoolean(WeatherWidgetWorker.KEY_ALL_SOURCES, false),
+                skipSourceIds = data.getStringArray(WeatherWidgetWorker.KEY_SKIP_SOURCES)?.toSet().orEmpty(),
             )
         }
     }

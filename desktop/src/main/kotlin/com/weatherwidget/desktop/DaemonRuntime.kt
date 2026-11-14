@@ -137,7 +137,7 @@ internal class DaemonRuntime(
         if (request.kind == FetchRequest.Kind.OTHER_SOURCES) {
             SettingsRefreshAllSources.refreshOthers(
                 cfg.displaySource,
-                cfg.effectiveSources,
+                request.sourceIds ?: SettingsRefreshAllSources.order(cfg.displaySource, cfg.effectiveSources),
                 refresh = { sourceId ->
                     val (service, repo) = repoFor(sourceId)
                     try {

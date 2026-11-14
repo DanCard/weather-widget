@@ -24,6 +24,8 @@ data class ForecastFetchContext(
     val userRefresh: Boolean = false,
     /** Settings → Refresh data: no recently-viewed gate ([com.weatherwidget.shared.util.SettingsRefreshAllSources]). */
     val allSources: Boolean = false,
+    /** With [allSources]: sources still fresh at the click, judged by their cadence instead of forced. */
+    val skipSourceIds: Set<String> = emptySet(),
     /**
      * The next predicted unplug ([com.weatherwidget.shared.util.UnplugPredictor]): on a charger, a fetch
      * comes due in the lead before it ([com.weatherwidget.data.remote.ForecastHorizonCadence.preWakeAtMs]).

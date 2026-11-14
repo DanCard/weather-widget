@@ -225,6 +225,8 @@ object WidgetWorkScheduler {
         userRefresh: Boolean = false,
         /** See [WeatherWidgetWorker.KEY_ALL_SOURCES]. */
         allSources: Boolean = false,
+        /** See [WeatherWidgetWorker.KEY_SKIP_SOURCES]. */
+        skipSourceIds: Set<String> = emptySet(),
     ): OneTimeWorkRequest =
         enqueueFullSync(
             context = context,
@@ -237,6 +239,7 @@ object WidgetWorkScheduler {
                 {
                     if (userRefresh) putBoolean(WeatherWidgetWorker.KEY_USER_REFRESH, true)
                     if (allSources) putBoolean(WeatherWidgetWorker.KEY_ALL_SOURCES, true)
+                    if (skipSourceIds.isNotEmpty()) putStringArray(WeatherWidgetWorker.KEY_SKIP_SOURCES, skipSourceIds.toTypedArray())
                 }
             } else {
                 null

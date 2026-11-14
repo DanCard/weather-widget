@@ -44,8 +44,8 @@ import com.weatherwidget.data.repository.FetchMetadata
 import com.weatherwidget.shared.graph.HourlyZoomRules
 import com.weatherwidget.shared.util.ApiKeySignupUrls
 import com.weatherwidget.shared.util.RefreshNotice
+import com.weatherwidget.shared.util.SettingsRefreshAllSources
 import com.weatherwidget.shared.util.RefreshOutcome
-import com.weatherwidget.shared.util.UserRefreshThrottle
 import com.weatherwidget.widget.RefreshToast
 import com.weatherwidget.shared.util.WeatherSourceOrdering
 import android.Manifest
@@ -57,6 +57,10 @@ import com.weatherwidget.widget.DominantTempWatchPreferences
 import com.weatherwidget.widget.WidgetActionReceiver
 import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetStateManager
+import com.weatherwidget.widget.ActiveLocationResolver
+import com.weatherwidget.widget.SettingsRefreshPartitionLoader
+import com.weatherwidget.data.local.WeatherDatabase
+import com.weatherwidget.data.local.log
 import com.weatherwidget.widget.WidgetWorkScheduler
 import java.util.UUID
 
@@ -151,26 +155,28 @@ class SettingsActivity : AppCompatActivity() {
         // Refresh data button
         val refreshDataButton = findViewById<Button>(R.id.refresh_data_button)
         refreshDataButton.setOnClickListener {
+            // Every visible source not fetched or refreshed in the last 10 minutes; the rest are left to
+            // their cadence (plans/261113-settings-refresh-skips-fresh-sources.md).
             val nowMs = System.currentTimeMillis()
-            val primarySource = widgetStateManager.getPrimarySource()
-            val lastRefresh = FetchMetadata.getLastUserRefreshTime(this, primarySource.id)
-            when (val decision = UserRefreshThrottle.check(lastRefresh, nowMs)) {
-                is UserRefreshThrottle.Decision.Throttled -> {
-                    val notice = RefreshNotice.NotQueued(
-                        RefreshNotice.Reason.RATE_LIMITED,
-                        sourceName = primarySource.name,
-                        elapsedMinutes = decision.elapsedMinutes,
-                        remainingMinutes = decision.remainingMinutes,
-                    )
-                    lifecycleScope.launch {
-                        RefreshToast.show(this@SettingsActivity, "settings_refresh", notice)
-                    }
-                    return@setOnClickListener
-                }
-                is UserRefreshThrottle.Decision.Allowed -> {
-                    FetchMetadata.setLastUserRefreshTime(this, nowMs, primarySource.id)
-                }
+            val partition = SettingsRefreshPartitionLoader.load(
+                this, widgetStateManager, ActiveLocationResolver.current(this), nowMs,
+            )
+            lifecycleScope.launch {
+                WeatherDatabase.getDatabase(this@SettingsActivity).appLogDao()
+                    .log(SettingsRefreshAllSources.TAG, partition.logLine(), "INFO")
             }
+            if (partition.allFresh) {
+                lifecycleScope.launch {
+                    RefreshToast.show(
+                        this@SettingsActivity,
+                        "settings_refresh",
+                        RefreshNotice.NotQueued(RefreshNotice.Reason.ALL_FRESH),
+                    )
+                }
+                return@setOnClickListener
+            }
+            partition.fetch.forEach { FetchMetadata.setLastUserRefreshTime(this, nowMs, it) }
+            val primaryFetched = widgetStateManager.getPrimarySource().id in partition.fetch
 
             val forecastRefreshWork =
                 WidgetWorkScheduler.enqueueRequiredImmediateSync(
@@ -178,6 +184,7 @@ class SettingsActivity : AppCompatActivity() {
                     reason = "settings_manual_refresh",
                     userRefresh = true,
                     allSources = true,
+                    skipSourceIds = partition.fresh.keys,
                 )
             val currentRefreshWork =
                 OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
@@ -196,18 +203,21 @@ class SettingsActivity : AppCompatActivity() {
                     .build()
 
             val workManager = WorkManager.getInstance(this)
-            workManager.enqueueUniqueWork(
-                // Run-now name: on the loop's chain this waited behind the delayed heartbeat.
-                WidgetWorkScheduler.WORK_NAME_CURRENT_TEMP_NOW,
-                ExistingWorkPolicy.APPEND_OR_REPLACE,
-                currentRefreshWork,
-            )
+            // A fresh displayed source is skipped whole: its observations too.
+            if (primaryFetched) {
+                workManager.enqueueUniqueWork(
+                    // Run-now name: on the loop's chain this waited behind the delayed heartbeat.
+                    WidgetWorkScheduler.WORK_NAME_CURRENT_TEMP_NOW,
+                    ExistingWorkPolicy.APPEND_OR_REPLACE,
+                    currentRefreshWork,
+                )
+            }
 
             lifecycleScope.launch {
                 com.weatherwidget.widget.RefreshToast.show(
                     this@SettingsActivity,
                     "settings_refresh",
-                    com.weatherwidget.shared.util.RefreshNotice.Queued(com.weatherwidget.shared.util.RefreshNotice.Kind.BOTH),
+                    RefreshNotice.Queued(if (primaryFetched) RefreshNotice.Kind.BOTH else RefreshNotice.Kind.FORECAST),
                 )
             }
             refreshDataButton.isEnabled = false
@@ -216,7 +226,7 @@ class SettingsActivity : AppCompatActivity() {
                 workManager = workManager,
                 refreshButton = refreshDataButton,
                 forecastWorkId = forecastRefreshWork.id,
-                currentWorkId = currentRefreshWork.id,
+                currentWorkId = currentRefreshWork.id.takeIf { primaryFetched },
             )
         }
 
@@ -598,10 +608,11 @@ class SettingsActivity : AppCompatActivity() {
         workManager: WorkManager,
         refreshButton: Button,
         forecastWorkId: UUID,
-        currentWorkId: UUID,
+        /** Null when the displayed source was fresh and no observations work was enqueued. */
+        currentWorkId: UUID?,
     ) {
         var forecastFinished = false
-        var currentFinished = false
+        var currentFinished = currentWorkId == null
         var refreshSucceeded = false
         var handled = false
 
@@ -634,7 +645,7 @@ class SettingsActivity : AppCompatActivity() {
         workManager.getWorkInfoByIdLiveData(forecastWorkId).observe(this) { workInfo ->
             onFinished(workInfo, isForecastWork = true)
         }
-        workManager.getWorkInfoByIdLiveData(currentWorkId).observe(this) { workInfo ->
+        currentWorkId?.let { id -> workManager.getWorkInfoByIdLiveData(id) }?.observe(this) { workInfo ->
             onFinished(workInfo, isForecastWork = false)
         }
     }

@@ -121,6 +121,7 @@ internal class FullSyncPipeline(
                 activeSourceIds = activeSourceList.toSet(),
                 userRefresh = input.userRefresh,
                 allSources = input.allSources,
+                skipSourceIds = input.skipSourceIds,
                 wakeAtMs = device.wakeAtMs,
             )
 

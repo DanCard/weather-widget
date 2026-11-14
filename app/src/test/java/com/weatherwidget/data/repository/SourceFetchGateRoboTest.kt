@@ -61,8 +61,9 @@ class SourceFetchGateRoboTest {
         WeatherDatabase.setIsTesting(false)
     }
 
-    private fun coordinator(): ForecastFetchCoordinator {
+    private fun coordinator(longFetch: Map<String, Long> = emptyMap()): ForecastFetchCoordinator {
         val wsm = mockk<WidgetStateManager>(relaxed = true)
+        every { wsm.getLastLongFetch(any(), any(), any()) } answers { longFetch[firstArg()] }
         every { wsm.getVisibleSourcesOrder() } returns listOf(NWS, OPEN_METEO, SILURIAN)
         every { wsm.isSourceVisible(any()) } answers { firstArg<WeatherSource>() in listOf(NWS, OPEN_METEO, SILURIAN) }
         val nwsMapper = mockk<NwsForecastMapper>()
@@ -196,5 +197,22 @@ class SourceFetchGateRoboTest {
             "unforced keeps the gate",
             SILURIAN in SourceFetchGateLoader.forSync(context, wsm, lat, lon, forceRefresh = false, targetSourceId = null, allSources = true)!!.forecasts,
         )
+    }
+
+    @Test
+    fun `planSync - settings refresh does not force a source fresh at the click`() {
+        // User, 2026-11-13: NWS fetched 75 s before Settings → Refresh data was fetched again.
+        val now = System.currentTimeMillis()
+        val c = coordinator(longFetch = mapOf(NWS.id to now - 75_000L))
+        fun ctx(skip: Set<String>) = com.weatherwidget.widget.ForecastFetchContext(
+            isCharging = true, isScreenInteractive = true, batteryLevel = 100,
+            activeSourceIds = setOf(NWS.id), userRefresh = true, allSources = true, skipSourceIds = skip,
+        )
+        val withSkip = c.planSync(emptyList(), forceRefresh = true, targetSourceId = null, ctx(setOf(NWS.id)), null, lat, lon)
+        println("skip NWS: ${withSkip.line}")
+        assertEquals("fresh NWS left to its cadence (not due 75 s after a fetch)", setOf(OPEN_METEO.id, SILURIAN.id), withSkip.due.keys)
+        val noSkip = c.planSync(emptyList(), forceRefresh = true, targetSourceId = null, ctx(emptySet()), null, lat, lon)
+        println("no skip: ${noSkip.line}")
+        assertTrue("without the skip every source is forced", NWS.id in noSkip.due.keys)
     }
 }

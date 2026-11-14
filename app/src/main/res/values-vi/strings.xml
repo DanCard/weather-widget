@@ -42,6 +42,7 @@
     <string name="refresh_up_to_date_forecast">Dự báo %1$s đã cập nhật · %2$s trước</string>
     <string name="refresh_up_to_date_observations">Quan trắc %1$s đã cập nhật · %2$s trước</string>
     <string name="refresh_already_queued">Đã có lượt làm mới trong hàng đợi</string>
+    <string name="refresh_all_fresh">Đã cập nhật</string>
     <string name="refresh_in_progress">Đang làm mới</string>
     <string name="refresh_all_done">Đã làm mới xong</string>
     <string name="refresh_all_failed">Làm mới thất bại</string>
