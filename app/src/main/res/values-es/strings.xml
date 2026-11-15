@@ -172,6 +172,7 @@
     <string name="app_logs_all_levels">Todos los niveles</string>
     <string name="app_logs_showing">Mostrando %1$d (%2$s)</string>
     <string name="app_logs_showing_filtered">Mostrando %1$d con \"%2$s\" (%3$s)</string>
+    <string name="app_logs_filter_all">Todos</string>
     <string name="icon_preview_title">Galería de iconos</string>
     <string name="icon_preview_description">Galería completa de todos los iconos meteorológicos del widget.</string>
     <string name="gallery_icon_pc_slight_rain_new">Parcialmente nublado, lluvia ligera (nuevo)</string>

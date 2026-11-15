@@ -172,6 +172,7 @@
     <string name="app_logs_all_levels">すべてのレベル</string>
     <string name="app_logs_showing">%1$d 件表示中（%2$s）</string>
     <string name="app_logs_showing_filtered">\"%2$s\" に一致する %1$d 件を表示中（%3$s）</string>
+    <string name="app_logs_filter_all">すべて</string>
     <string name="icon_preview_title">アイコンギャラリー</string>
     <string name="icon_preview_description">ウィジェットで使われる全天気アイコンの総合ギャラリー。</string>
     <string name="gallery_icon_pc_slight_rain_new">晴れ時々曇り 弱い雨（新）</string>

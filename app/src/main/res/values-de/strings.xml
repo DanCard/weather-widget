@@ -172,6 +172,7 @@
     <string name="app_logs_all_levels">Alle Stufen</string>
     <string name="app_logs_showing">%1$d angezeigt (%2$s)</string>
     <string name="app_logs_showing_filtered">%1$d passend zu \"%2$s\" (%3$s)</string>
+    <string name="app_logs_filter_all">Alle</string>
     <string name="icon_preview_title">Symbolgalerie</string>
     <string name="icon_preview_description">Umfassende Galerie aller im Widget verwendeten Wettersymbole.</string>
     <string name="gallery_icon_pc_slight_rain_new">Teils bewölkt, leichter Regen (Neu)</string>

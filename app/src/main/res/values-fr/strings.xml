@@ -172,6 +172,7 @@
     <string name="app_logs_all_levels">Tous les niveaux</string>
     <string name="app_logs_showing">%1$d affichés (%2$s)</string>
     <string name="app_logs_showing_filtered">%1$d affichés pour \"%2$s\" (%3$s)</string>
+    <string name="app_logs_filter_all">Tous</string>
     <string name="icon_preview_title">Galerie d\'icônes</string>
     <string name="icon_preview_description">Galerie complète de toutes les icônes météo du widget.</string>
     <string name="gallery_icon_pc_slight_rain_new">Partiellement nuageux, pluie légère (nouveau)</string>

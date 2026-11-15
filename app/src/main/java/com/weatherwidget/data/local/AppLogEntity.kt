@@ -41,6 +41,23 @@ interface AppLogDao {
     @Query("SELECT * FROM app_logs WHERE tag = :tag ORDER BY timestamp DESC, id DESC LIMIT :limit")
     suspend fun getLogsByTag(tag: String, limit: Int): List<AppLogEntity>
 
+    /**
+     * Rows whose tag or message contains any of [a], [b], [c] (SQLite LIKE: ASCII case-insensitive) —
+     * the App Logs provider chip's coarse pre-filter over the whole table, refined in Kotlin by
+     * `AppLogSourceFilter`. The newest 3000 rows alone cover only ~2 h at normal write rates.
+     */
+    @Query(
+        """
+        SELECT * FROM app_logs
+        WHERE tag LIKE '%' || :a || '%' OR message LIKE '%' || :a || '%'
+           OR tag LIKE '%' || :b || '%' OR message LIKE '%' || :b || '%'
+           OR tag LIKE '%' || :c || '%' OR message LIKE '%' || :c || '%'
+        ORDER BY timestamp DESC, id DESC
+        LIMIT :limit
+        """,
+    )
+    suspend fun getLogsContainingAny(a: String, b: String, c: String, limit: Int): List<AppLogEntity>
+
     @Query(
         """
         SELECT * FROM app_logs

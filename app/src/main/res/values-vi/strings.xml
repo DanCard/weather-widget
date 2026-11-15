@@ -172,6 +172,7 @@
     <string name="app_logs_all_levels">Tất cả các mức</string>
     <string name="app_logs_showing">Hiển thị %1$d (%2$s)</string>
     <string name="app_logs_showing_filtered">Hiển thị %1$d khớp với \"%2$s\" (%3$s)</string>
+    <string name="app_logs_filter_all">Tất cả</string>
     <string name="icon_preview_title">Thư viện biểu tượng</string>
     <string name="icon_preview_description">Thư viện đầy đủ mọi biểu tượng thời tiết dùng trong tiện ích.</string>
     <string name="gallery_icon_pc_slight_rain_new">Ít mây, mưa nhỏ (mới)</string>

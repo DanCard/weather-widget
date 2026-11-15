@@ -134,6 +134,22 @@
         android:textSize="13sp"
         android:singleLine="true" />
 
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="4dp"
+        android:scrollbars="none">
+
+        <!-- Provider chips (All + one per forecast source), added in AppLogsActivity. -->
+        <LinearLayout
+            android:id="@+id/app_log_source_chips"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp" />
+    </HorizontalScrollView>
+
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/app_log_list"
         android:layout_width="match_parent"

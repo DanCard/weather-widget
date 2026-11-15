@@ -172,6 +172,7 @@
     <string name="app_logs_all_levels">Все уровни</string>
     <string name="app_logs_showing">Показано %1$d (%2$s)</string>
     <string name="app_logs_showing_filtered">Показано %1$d по запросу \"%2$s\" (%3$s)</string>
+    <string name="app_logs_filter_all">Все</string>
     <string name="icon_preview_title">Галерея значков</string>
     <string name="icon_preview_description">Полная галерея всех значков погоды, используемых в виджете.</string>
     <string name="gallery_icon_pc_slight_rain_new">Переменная облачность, небольшой дождь (новый)</string>

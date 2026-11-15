@@ -172,6 +172,7 @@
     <string name="app_logs_all_levels">所有级别</string>
     <string name="app_logs_showing">显示 %1$d 条（%2$s）</string>
     <string name="app_logs_showing_filtered">显示 %1$d 条匹配\"%2$s\"（%3$s）</string>
+    <string name="app_logs_filter_all">全部</string>
     <string name="icon_preview_title">图标库</string>
     <string name="icon_preview_description">小部件所用全部天气图标的完整图库。</string>
     <string name="gallery_icon_pc_slight_rain_new">局部多云小雨（新）</string>

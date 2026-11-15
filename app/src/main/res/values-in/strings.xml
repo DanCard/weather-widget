@@ -172,6 +172,7 @@
     <string name="app_logs_all_levels">Semua level</string>
     <string name="app_logs_showing">Menampilkan %1$d (%2$s)</string>
     <string name="app_logs_showing_filtered">Menampilkan %1$d yang cocok dengan \"%2$s\" (%3$s)</string>
+    <string name="app_logs_filter_all">Semua</string>
     <string name="icon_preview_title">Galeri ikon</string>
     <string name="icon_preview_description">Galeri lengkap semua ikon cuaca yang digunakan di widget.</string>
     <string name="gallery_icon_pc_slight_rain_new">Berawan sebagian, hujan ringan (baru)</string>

@@ -172,6 +172,7 @@
     <string name="app_logs_all_levels">সব স্তর</string>
     <string name="app_logs_showing">%1$dটি দেখানো হচ্ছে (%2$s)</string>
     <string name="app_logs_showing_filtered">\"%2$s\"-এর সাথে মেলা %1$dটি দেখানো হচ্ছে (%3$s)</string>
+    <string name="app_logs_filter_all">সব</string>
     <string name="icon_preview_title">আইকন গ্যালারি</string>
     <string name="icon_preview_description">উইজেটে ব্যবহৃত সব আবহাওয়া আইকনের পূর্ণাঙ্গ গ্যালারি।</string>
     <string name="gallery_icon_pc_slight_rain_new">আংশিক মেঘলা, হালকা বৃষ্টি (নতুন)</string>

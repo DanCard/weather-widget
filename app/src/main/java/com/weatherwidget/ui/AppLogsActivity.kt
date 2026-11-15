@@ -21,6 +21,7 @@ import com.weatherwidget.R
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.AppLogEntity
 import com.weatherwidget.data.local.ForecastDao
+import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.widget.CurrentTempUpdateScheduler
 
 @AndroidEntryPoint
@@ -40,6 +41,9 @@ class AppLogsActivity : AppCompatActivity() {
     private var dbSizeMb: Double = 0.0
     private var filterQuery: String = ""
     private var showVerbose: Boolean = false
+    /** The selected provider chip; null = All. */
+    private var sourceFilter: WeatherSource? = null
+    private val sourceChips = mutableListOf<Pair<WeatherSource?, Button>>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -60,6 +64,8 @@ class AppLogsActivity : AppCompatActivity() {
             filterQuery = editable?.toString()?.trim().orEmpty()
             applyFilter()
         }
+
+        setupSourceChips()
 
         val recyclerView = findViewById<RecyclerView>(R.id.app_log_list)
         adapter = AppLogAdapter()
@@ -112,6 +118,49 @@ class AppLogsActivity : AppCompatActivity() {
         }
     }
 
+    /** All + one chip per forecast provider, styled like the Verbose toggle; one selected at a time. */
+    private fun setupSourceChips() {
+        val row = findViewById<android.widget.LinearLayout>(R.id.app_log_source_chips)
+        val density = resources.displayMetrics.density
+        val options: List<Pair<WeatherSource?, String>> =
+            listOf(null to getString(R.string.app_logs_filter_all)) +
+                AppLogSourceFilter.sources.map { it to it.shortDisplayName }
+        options.forEach { (source, label) ->
+            val chip = Button(this).apply {
+                text = label
+                isAllCaps = false
+                textSize = 11f
+                minWidth = 0
+                minimumWidth = 0
+                minHeight = 0
+                minimumHeight = 0
+                setPadding((10 * density).toInt(), (6 * density).toInt(), (10 * density).toInt(), (6 * density).toInt())
+                setOnClickListener {
+                    sourceFilter = source
+                    styleSourceChips()
+                    loadLogs()
+                }
+            }
+            row.addView(
+                chip,
+                android.widget.LinearLayout.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+                    android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+                ).apply { marginEnd = (4 * density).toInt() },
+            )
+            sourceChips += source to chip
+        }
+        styleSourceChips()
+    }
+
+    private fun styleSourceChips() {
+        sourceChips.forEach { (source, chip) ->
+            val selected = source == sourceFilter
+            chip.setBackgroundResource(if (selected) R.drawable.rounded_button_blue else R.drawable.rounded_button_gray)
+            chip.setTextColor(if (selected) 0xFFFFFFFF.toInt() else 0xFFAAAAAA.toInt())
+        }
+    }
+
     /**
      * Dumps recent logs to text and fires an ACTION_SEND chooser so the user can email crash/diagnostic
      * logs to the developer — the recovery path for a CRASH row captured by the global handler. The dump
@@ -149,12 +198,20 @@ class AppLogsActivity : AppCompatActivity() {
 
     private fun loadLogs() {
         lifecycleScope.launch(Dispatchers.IO) {
-            val logs = appLogDao.getRecentLogs(3000)
+            val source = sourceFilter
+            val logs = if (source == null) {
+                appLogDao.getRecentLogs(MAX_LOAD_ROWS)
+            } else {
+                // Whole table, not just the newest rows, so a failure from hours ago is still found.
+                val (a, b, c) = AppLogSourceFilter.tokens(source)
+                appLogDao.getLogsContainingAny(a, b, c, MAX_LOAD_ROWS)
+            }
             totalLogCount = appLogDao.getCount()
             snapshotCount = forecastDao.getCount()
             dbSizeMb = getDatabaseSizeMb()
 
             withContext(Dispatchers.Main) {
+                if (source != sourceFilter) return@withContext // a newer chip tap is loading
                 allLogs = logs
                 applyFilter()
             }
@@ -190,23 +247,26 @@ class AppLogsActivity : AppCompatActivity() {
                     log.message.lowercase().contains(query)
             }
             
-            levelPass && searchPass
+            levelPass && searchPass && AppLogSourceFilter.matches(log, sourceFilter)
         }
 
         adapter.setItems(filteredLogs)
 
         val dbStats = getString(R.string.app_logs_db_stats, dbSizeMb, totalLogCount, snapshotCount)
         val levelStatus = getString(if (showVerbose) R.string.app_logs_all_levels else R.string.app_logs_debug_plus)
-        val filterStatus = if (query.isBlank()) {
+        // The provider chip reads as part of the filter text, e.g. `"Meteo timeout"`.
+        val filterLabel = listOfNotNull(sourceFilter?.shortDisplayName, filterQuery.takeIf { it.isNotBlank() }).joinToString(" ")
+        val filterStatus = if (filterLabel.isBlank()) {
             getString(R.string.app_logs_showing, filteredLogs.size, levelStatus)
         } else {
-            getString(R.string.app_logs_showing_filtered, filteredLogs.size, filterQuery, levelStatus)
+            getString(R.string.app_logs_showing_filtered, filteredLogs.size, filterLabel, levelStatus)
         }
 
         statusText.text = "$dbStats\n$filterStatus"
     }
 
     companion object {
+        private const val MAX_LOAD_ROWS = 3000
         private const val MAX_SHARE_LOG_ROWS = 2000
         // Keep well under the ~1MB Binder transaction limit shared by all ACTION_SEND extras.
         private const val MAX_SHARE_CHARS = 450_000

@@ -172,6 +172,7 @@
     <string name="app_logs_all_levels">ทุกระดับ</string>
     <string name="app_logs_showing">กำลังแสดง %1$d (%2$s)</string>
     <string name="app_logs_showing_filtered">กำลังแสดง %1$d ที่ตรงกับ \"%2$s\" (%3$s)</string>
+    <string name="app_logs_filter_all">ทั้งหมด</string>
     <string name="icon_preview_title">แกลเลอรีไอคอน</string>
     <string name="icon_preview_description">แกลเลอรีครบชุดของไอคอนสภาพอากาศทั้งหมดที่ใช้ในวิดเจ็ต</string>
     <string name="gallery_icon_pc_slight_rain_new">เมฆบางส่วน ฝนเล็กน้อย (ใหม่)</string>

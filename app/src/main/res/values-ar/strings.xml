@@ -172,6 +172,7 @@
     <string name="app_logs_all_levels">كل المستويات</string>
     <string name="app_logs_showing">عرض %1$d (%2$s)</string>
     <string name="app_logs_showing_filtered">عرض %1$d مطابقة لـ \"%2$s\" (%3$s)</string>
+    <string name="app_logs_filter_all">الكل</string>
     <string name="icon_preview_title">معرض الرموز</string>
     <string name="icon_preview_description">معرض شامل لكل رموز الطقس المستخدمة في الأداة.</string>
     <string name="gallery_icon_pc_slight_rain_new">غائم جزئيًا مع مطر خفيف (جديد)</string>

@@ -172,6 +172,7 @@
     <string name="app_logs_all_levels">Tüm seviyeler</string>
     <string name="app_logs_showing">%1$d gösteriliyor (%2$s)</string>
     <string name="app_logs_showing_filtered">\"%2$s\" ile eşleşen %1$d gösteriliyor (%3$s)</string>
+    <string name="app_logs_filter_all">Tümü</string>
     <string name="icon_preview_title">Simge galerisi</string>
     <string name="icon_preview_description">Widget\'ta kullanılan tüm hava durumu simgelerinin kapsamlı galerisi.</string>
     <string name="gallery_icon_pc_slight_rain_new">Parçalı bulutlu, hafif yağmur (yeni)</string>

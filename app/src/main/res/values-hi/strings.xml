@@ -172,6 +172,7 @@
     <string name="app_logs_all_levels">सभी स्तर</string>
     <string name="app_logs_showing">%1$d दिखाए जा रहे हैं (%2$s)</string>
     <string name="app_logs_showing_filtered">\"%2$s\" से मेल खाते %1$d दिखाए जा रहे हैं (%3$s)</string>
+    <string name="app_logs_filter_all">सभी</string>
     <string name="icon_preview_title">आइकन गैलरी</string>
     <string name="icon_preview_description">विजेट में उपयोग होने वाले सभी मौसम आइकनों की व्यापक गैलरी।</string>
     <string name="gallery_icon_pc_slight_rain_new">आंशिक बादल, हल्की वर्षा (नया)</string>

@@ -172,6 +172,7 @@
     <string name="app_logs_all_levels">Усі рівні</string>
     <string name="app_logs_showing">Показано %1$d (%2$s)</string>
     <string name="app_logs_showing_filtered">Показано %1$d за запитом \"%2$s\" (%3$s)</string>
+    <string name="app_logs_filter_all">Усі</string>
     <string name="icon_preview_title">Галерея значків</string>
     <string name="icon_preview_description">Повна галерея всіх погодних значків віджета.</string>
     <string name="gallery_icon_pc_slight_rain_new">Мінлива хмарність, невеликий дощ (новий)</string>

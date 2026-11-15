@@ -172,6 +172,7 @@
     <string name="app_logs_all_levels">모든 수준</string>
     <string name="app_logs_showing">%1$d개 표시 중 (%2$s)</string>
     <string name="app_logs_showing_filtered">\"%2$s\"에 해당하는 %1$d개 표시 중 (%3$s)</string>
+    <string name="app_logs_filter_all">전체</string>
     <string name="icon_preview_title">아이콘 갤러리</string>
     <string name="icon_preview_description">위젯에서 사용하는 모든 날씨 아이콘의 전체 갤러리입니다.</string>
     <string name="gallery_icon_pc_slight_rain_new">구름 조금, 약한 비 (신규)</string>
