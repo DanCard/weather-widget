@@ -101,7 +101,7 @@ object DailyRainLabelLayout {
             return null
         }
         val fontScale = DailyRainLabels.rainLabelFontScale(input.isPast, input.probability, input.daysFromToday) *
-            DailyRainLabels.traceFontScale(input.rainText)
+            DailyRainLabels.dayLabelKindFontScale(input.rainText)
         val size = host.measure(input.rainText, Kind.DAY, fontScale)
         val gapPx = DailyRainLabels.RAIN_HIGH_TEMP_GAP_DP * input.pxPerDp
         val unclampedTop = DailyRainLabelPlanner.resolveRainAboveAnchorTop(anchorTop, size.height, gapPx)

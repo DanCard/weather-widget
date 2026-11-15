@@ -50,8 +50,22 @@ object DailyRainLabels {
      */
     const val TRACE_FONT_SCALE = 0.75f
 
-    /** [TRACE_FONT_SCALE] for a label reading "trace", 1 for any other. */
+    /** [TRACE_FONT_SCALE] for a label reading "trace", 1 for any other. Night labels use this. */
     fun traceFontScale(text: String): Float = if (text == PrecipTrace.LABEL) TRACE_FONT_SCALE else 1f
+
+    /**
+     * Font scale of a **day** rain label reading an amount (".91in", "3mm"), on top of the label's
+     * usual scale: drawn at the chance's size it read big and adjacent amounts ran together
+     * (user, 2026-11-15: 15% smaller; day labels only, the small night labels are unchanged).
+     */
+    const val DAY_AMOUNT_FONT_SCALE = 0.85f
+
+    /** Day label: [TRACE_FONT_SCALE] for "trace", 1 for a chance ("40%"), else [DAY_AMOUNT_FONT_SCALE]. */
+    fun dayLabelKindFontScale(text: String): Float = when {
+        text == PrecipTrace.LABEL -> TRACE_FONT_SCALE
+        text.endsWith("%") -> 1f
+        else -> DAY_AMOUNT_FONT_SCALE
+    }
     const val RAIN_PEAK_GAP_DP = -2f
 
     /** Edge margin (dp) keeping a rain label inside the widget bounds. */

@@ -432,8 +432,10 @@ class DailyRainLabelLayoutTest {
     fun `a trace night label is laid out a quarter smaller than an amount`() {
         val trace = foldNwsTueNight(com.weatherwidget.shared.util.PrecipTrace.LABEL)
         val amount = foldNwsTueNight("1in")
-        println("trace scale=${trace.fontScale} amount scale=${amount.fontScale}")
+        val chance = foldNwsTueNight("97%")
+        println("trace scale=${trace.fontScale} amount scale=${amount.fontScale} chance scale=${chance.fontScale}")
         assertEquals(DailyRainLabels.TRACE_FONT_SCALE, trace.fontScale / amount.fontScale, 0.001f)
+        assertEquals("night amounts keep the chance's size", 1f, amount.fontScale / chance.fontScale, 0.001f)
     }
 
     @Test
@@ -1008,15 +1010,25 @@ class DailyRainLabelLayoutTest {
         probability: Int = 40,
         daysFromToday: Int = 0,
         peakCeiling: Float = ceiling,
+        rainText: String = "$probability%",
     ) = DailyRainLabelLayout.layoutDay(
         host,
         DailyRainLabelLayout.DayInput(
-            date = "d", rainText = "$probability%", peakText = peakText, probability = probability, isPast = false,
+            date = "d", rainText = rainText, peakText = peakText, probability = probability, isPast = false,
             daysFromToday = daysFromToday, centerX = 50f, highLabelTop = highLabelTop, snapshotBarTop = null,
             rawHighLabelTop = rawHighLabelTop, ceiling = ceiling, peakCeiling = peakCeiling, pxPerDp = 1f,
         ),
         "test",
     )
+
+    @Test
+    fun `a day amount is laid out 15 percent smaller than a chance`() {
+        // emulator-5556, 2026-11-15: Wed ".91in" and Thu ".29in" ran together at the chance's size.
+        val chance = day(highLabelTop = 100f, probability = 100)!!
+        val amount = day(highLabelTop = 100f, probability = 100, rainText = ".91in")!!
+        println("day chance scale=${chance.rain.fontScale} amount scale=${amount.rain.fontScale}")
+        assertEquals(DailyRainLabels.DAY_AMOUNT_FONT_SCALE, amount.rain.fontScale / chance.rain.fontScale, 0.001f)
+    }
 
     @Test
     fun `day label tucks onto the high label`() {

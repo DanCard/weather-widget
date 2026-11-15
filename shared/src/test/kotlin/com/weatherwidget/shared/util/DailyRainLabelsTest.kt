@@ -797,10 +797,19 @@ class DailyRainLabelsTest {
     // ---- observed trace (plans/261021-observed-rain-trace.md) ----
 
     @Test
-    fun `only a trace label takes the small trace font`() {
+    fun `night labels shrink only trace`() {
         assertEquals(0.75f, DailyRainLabels.traceFontScale(PrecipTrace.LABEL), 0f)
         assertEquals(1f, DailyRainLabels.traceFontScale(".01in"), 0f)
         assertEquals(1f, DailyRainLabels.traceFontScale("40%"), 0f)
+    }
+
+    @Test
+    fun `day labels draw an amount 15 percent smaller than a chance`() {
+        assertEquals(0.75f, DailyRainLabels.dayLabelKindFontScale(PrecipTrace.LABEL), 0f)
+        assertEquals(0.85f, DailyRainLabels.dayLabelKindFontScale(".91in"), 0f)
+        assertEquals(0.85f, DailyRainLabels.dayLabelKindFontScale("3mm"), 0f)
+        assertEquals(0.85f, DailyRainLabels.dayLabelKindFontScale("<.001in"), 0f)
+        assertEquals(1f, DailyRainLabels.dayLabelKindFontScale("40%"), 0f)
     }
 
     @Test
