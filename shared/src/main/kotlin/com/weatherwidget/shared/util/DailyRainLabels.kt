@@ -67,6 +67,13 @@ object DailyRainLabels {
     const val NIGHT_SINK_RIGHT_DP = 3f
 
     /**
+     * Gap a night label eases to off a right neighbour that is an icon (a low keeps
+     * [NIGHT_ROOMY_SIDE_DP]): Fold tonight "88%" still sat mostly under Today's column at 2.5 dp
+     * (user, 2026-11-15: "Still prefer it move to be more centered").
+     */
+    const val NIGHT_ICON_SIDE_GAP_DP = 1f
+
+    /**
      * Gap a night label in its own day's ° pocket keeps from that low's digits: the pocket put Fold
      * Tue night "97%" against "45" so it read "45°97%" (user, 2026-11-15).
      */

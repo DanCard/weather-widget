@@ -467,6 +467,32 @@ class DailyRainLabelLayoutTest {
         assertEquals("then 2 dp right of 256.1", 256.1f + 2f * 2.625f, label.centerX, 0.01f)
     }
 
+    @Test
+    fun `tonight label over the blank top of the next low's digits eases only off the icon`() {
+        // Fold 4, Open-Meteo, 2026-11-15 07:06 trace: Today→Mon "88%" at home (210.3, 329.8) eased
+        // 6.2 dp left to 194.0, under Today's "51.4°", off the blank top 20 % of Mon's "46" box.
+        val label = DailyRainLabelLayout.layoutNight(
+            DailyRainLabelLayout.Host { _, _, _ -> DailyRainLabelLayout.TextSize(30.0f, 19.6f, 15.5f) },
+            DailyRainLabelLayout.NightInput(
+                date = "2026-11-15", text = "88%", probability = 88, isPast = false, daysFromToday = 0,
+                columnCenterX = 182.1f, gapCenterX = 210.3f, columnWidth = 56.4f,
+                leftLowLabel = Box(146.6f, 292.0f, 217.6f, 328.9f), rightLowLabel = Box(215.6f, 340.5f, 261.6f, 377.4f),
+                obstacles = listOf(
+                    Box(166.6f, 261.3f, 197.6f, 292.3f),
+                    Box(146.6f, 292.0f, 205.6f, 328.9f, isLowDigits = true), Box(205.6f, 292.0f, 217.6f, 310.4f, isDegreeSign = true),
+                    Box(223.1f, 309.9f, 254.1f, 340.9f),
+                    Box(215.6f, 340.5f, 249.6f, 377.4f, isLowDigits = true), Box(249.6f, 340.5f, 261.6f, 359.0f, isDegreeSign = true),
+                ),
+                dayLabelTop = 377.6f, canvasWidth = 560f, pxPerDp = 2.625f,
+            ),
+            "test",
+        )
+        println("fold tonight 88%: centerX=${label.centerX} top=${label.top}")
+        val iconGap = DailyRainLabels.NIGHT_ICON_SIDE_GAP_DP * 2.625f
+        assertEquals("1 dp off Mon's icon, not off the 46's blank top", 223.1f - iconGap - 15f, label.centerX, 0.1f)
+        assertEquals(329.8f, label.top, 0.1f)
+    }
+
     private fun lowDigits(left: Float, top: Float, right: Float, bottom: Float) =
         DailyRainLabelPlanner.lowLabelObstacles("47.9°", left, top, right, bottom, degreeWidth = 12f)
 

@@ -429,14 +429,18 @@ object DailyRainLabelPlanner {
         val roomyPx = DailyRainLabels.NIGHT_ROOMY_SIDE_DP * density
 
         // Free space beside the label with its top at [atTop]; null right = nothing level over there.
-        // [toInk]: the right low's digits end at their ink, so a label under their blank descent is
-        // below them, not beside. Only for deciding whether it hugs the right at all: the left side
+        // [toInk]: the right low's digits start and end at their ink, so a label under their blank
+        // descent is below them, and one over their blank ascent above them, not beside. Only for deciding whether it hugs the right at all: the left side
         // and the drop rows keep the line box, which the approved placements were tuned against
         // (emulator "4%" 2026-10-30; "44%" and "Trace" moved 2 dp when this was wider).
         fun gaps(atTop: Float, toInk: Boolean = false): Pair<Float, Float?> {
             val level = obstacles.filter {
-                val bottom = if (toInk && it.isLowDigits && (it.left + it.right) / 2f > centerX) it.bottom - (it.bottom - it.top) * DailyRainLabels.DIGIT_BLANK_DESCENT_FRACTION else it.bottom
-                val overlap = minOf(atTop + height, bottom) - maxOf(atTop, it.top)
+                val rightInk = toInk && it.isLowDigits && (it.left + it.right) / 2f > centerX
+                val bottom = if (rightInk) it.bottom - (it.bottom - it.top) * DailyRainLabels.DIGIT_BLANK_DESCENT_FRACTION else it.bottom
+                // The top of the box is blank too: Fold tonight "88%" eased 6.2 dp left into Today's
+                // column off the empty top of Mon's "46" (plans/261115-tonight-rain-label-ease-blank-ascent.md).
+                val inkTop = if (rightInk) it.top + (it.bottom - it.top) * DailyRainLabels.LOW_BLANK_ASCENT_FRACTION else it.top
+                val overlap = minOf(atTop + height, bottom) - maxOf(atTop, inkTop)
                 overlap > 0f && (it.isDegreeSign || overlap > slightPx)
             }
             val (right, left) = level.partition { (it.left + it.right) / 2f > centerX }
@@ -444,11 +448,28 @@ object DailyRainLabelPlanner {
             return (centerX - width / 2f - leftEdge) to right.minOfOrNull { it.left - (centerX + width / 2f) }
         }
 
+        // Whether the nearest level thing on the right is an icon: not a low's digits or °, nor inside [rightLowLabel].
+        fun nearestRightIsIcon(atTop: Float): Boolean = obstacles
+            .filter { (it.left + it.right) / 2f > centerX }
+            .filter {
+                val bottom = if (it.isLowDigits) it.bottom - (it.bottom - it.top) * DailyRainLabels.DIGIT_BLANK_DESCENT_FRACTION else it.bottom
+                val inkTop = if (it.isLowDigits) it.top + (it.bottom - it.top) * DailyRainLabels.LOW_BLANK_ASCENT_FRACTION else it.top
+                val overlap = minOf(atTop + height, bottom) - maxOf(atTop, inkTop)
+                overlap > 0f && (it.isDegreeSign || overlap > slightPx)
+            }
+            .minByOrNull { it.left }
+            ?.let { o ->
+                val partOfRightLow = rightLowLabel != null && o.left >= rightLowLabel.left - 0.5f &&
+                    o.right <= rightLowLabel.right + 0.5f && o.top >= rightLowLabel.top - 0.5f && o.bottom <= rightLowLabel.bottom + 0.5f
+                !o.isLowDigits && !o.isDegreeSign && !partOfRightLow
+            } ?: false
+
         val (gapLeft, gapRight) = gaps(top, toInk = true)
         if (gapRight != null && gapRight <= hugPx) {
             if (gapLeft >= roomyPx) {
                 if (searchMovedLeft) return NightLabelEase(centerX, top)
-                val shift = minOf((gapLeft - gapRight) / 2f, roomyPx - gapRight)
+                val wantedRight = if (nearestRightIsIcon(top)) DailyRainLabels.NIGHT_ICON_SIDE_GAP_DP * density else roomyPx
+                val shift = minOf((gapLeft - gapRight) / 2f, wantedRight - gapRight)
                 return NightLabelEase((centerX - shift).coerceAtLeast(minOf(centerX, homeCenterX - maxShiftPx)), top)
             }
             val hugsRightLow = rightLowLabel != null &&
