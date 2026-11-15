@@ -16,7 +16,8 @@ object PrecipTrace {
     /** An observed total below this holds traces only (50 trace hours sum to 0.05 mm). */
     const val MAX_MM = 0.05f
 
-    const val LABEL = "Trace"
+    /** Lower case and drawn small in the daily view: it says little (user, 2026-11-15). */
+    const val LABEL = "trace"
 
     fun isTrace(amountMm: Float?): Boolean = amountMm != null && amountMm > 0f && amountMm < MAX_MM
 }

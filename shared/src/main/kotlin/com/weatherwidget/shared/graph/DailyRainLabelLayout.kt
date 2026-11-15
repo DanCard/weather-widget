@@ -100,7 +100,8 @@ object DailyRainLabelLayout {
             Log.d(TAG, "dayRainLabel skipped: platform=$platform date=${input.date} reason=no_high_label")
             return null
         }
-        val fontScale = DailyRainLabels.rainLabelFontScale(input.isPast, input.probability, input.daysFromToday)
+        val fontScale = DailyRainLabels.rainLabelFontScale(input.isPast, input.probability, input.daysFromToday) *
+            DailyRainLabels.traceFontScale(input.rainText)
         val size = host.measure(input.rainText, Kind.DAY, fontScale)
         val gapPx = DailyRainLabels.RAIN_HIGH_TEMP_GAP_DP * input.pxPerDp
         val unclampedTop = DailyRainLabelPlanner.resolveRainAboveAnchorTop(anchorTop, size.height, gapPx)
@@ -203,7 +204,9 @@ object DailyRainLabelLayout {
         val edge = DailyRainLabels.RAIN_LABEL_EDGE_MARGIN_DP * p
         fun fitsAt(cx: Float, width: Float) = cx - width / 2f >= edge && cx + width / 2f <= input.canvasWidth - edge
         val baseScale = DailyRainLabels.rainLabelFontScale(input.isPast, input.probability, input.daysFromToday) *
-            DailyRainLabels.NIGHT_SCALE
+            DailyRainLabels.NIGHT_SCALE * DailyRainLabels.traceFontScale(input.text)
+        // A leading decimal point (".45in") is a speck at the baseline: blank at digit height.
+        fun leadingBlank(scale: Float) = if (input.text.startsWith(".")) host.measure(".", Kind.NIGHT, scale).width else 0f
         var fontScale = baseScale
         var size = host.measure(input.text, Kind.NIGHT, fontScale)
         var homeCenterX = input.gapCenterX
@@ -225,13 +228,13 @@ object DailyRainLabelLayout {
         val head = "nightRainLabel position: platform=$platform date=${input.date} text=\"${input.text}\"" +
             " anchorBottom=${anchorBottom.r()} lowerLowBottom=${lowerLowBottom.r()} roomBelowDp=${roomBelowDp.r()}" +
             " tuckTop=${tuckTop.r()}"
-        var night = resolveNight(input, size, fontScale, homeCenterX, placement, tuckTop, anchorBottom, lowerLowBottom, edge)
+        var night = resolveNight(input, size, fontScale, homeCenterX, placement, tuckTop, anchorBottom, lowerLowBottom, edge, leadingBlank(fontScale))
         var shrunk = false
         if (night.underRightLow && placement == "NIGHT_SHIFTED_LEFT") {
             val reducedScale = baseScale * NIGHT_REDUCED_SCALE
             val reduced = resolveNight(
                 input, host.measure(input.text, Kind.NIGHT, reducedScale), reducedScale, homeCenterX,
-                "NIGHT_SHIFTED_SCALED", tuckTop, anchorBottom, lowerLowBottom, edge,
+                "NIGHT_SHIFTED_SCALED", tuckTop, anchorBottom, lowerLowBottom, edge, leadingBlank(reducedScale),
             )
             if (!reduced.underRightLow) {
                 night = reduced
@@ -255,6 +258,7 @@ object DailyRainLabelLayout {
         anchorBottom: Float,
         lowerLowBottom: Float,
         edge: Float,
+        leadingBlankPx: Float,
     ): NightAttempt {
         val p = input.pxPerDp
         val homeTop = minOf(tuckTop, input.dayLabelTop - size.height)
@@ -286,7 +290,7 @@ object DailyRainLabelLayout {
             pocketMaxBottom = pocketMaxBottom,
             rightDigits = rightDigits,
         )
-        val searchTrace = " placement=${placed.placement} offsetDp=(${(placed.dxPx / p).r()},${(placed.dyPx / p).r()})" +
+        val searchTrace = " leadingBlankDp=${(leadingBlankPx / p).r()} placement=${placed.placement} offsetDp=(${(placed.dxPx / p).r()},${(placed.dyPx / p).r()})" +
             " overlapDp=${(placed.overlapPx / p).r()} underRightLow=${placed.underRightLow}" +
             " pocketFloorDp=${((placed.top + size.height - maxBottom).coerceAtLeast(0f) / p).r()}" +
             " maxBottom=${maxBottom.r()} dayLabelTop=${input.dayLabelTop.r()}" +
@@ -304,6 +308,8 @@ object DailyRainLabelLayout {
                 obstacles = input.obstacles,
                 maxRight = input.canvasWidth - edge,
                 density = p,
+                leadingBlankPx = leadingBlankPx,
+                baselineY = placed.top + size.baseline,
             )
             return NightAttempt(
                 Placed(
@@ -437,6 +443,8 @@ object DailyRainLabelLayout {
             obstacles = input.obstacles,
             maxRight = input.canvasWidth - edge,
             density = p,
+            leadingBlankPx = leadingBlankPx,
+            baselineY = tuckedTop + size.baseline,
         )
         val label = Placed(
             Kind.NIGHT, input.text, fontScale, sideX, tuckedTop, size.width, size.height,

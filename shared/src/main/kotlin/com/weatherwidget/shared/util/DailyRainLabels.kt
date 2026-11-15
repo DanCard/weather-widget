@@ -42,6 +42,16 @@ object DailyRainLabels {
      * (user, 2026-11-04); DailyRainLabelLayoutTest guards it.
      */
     const val RAIN_PEAK_FONT_SCALE = 0.75f
+
+    /**
+     * Font scale of a daily rain label reading "trace" ([PrecipTrace.LABEL]), on top of the label's
+     * usual scale, day or night: at an amount's size it was "too big for the info it conveys"
+     * (user, 2026-11-15; plans/261115-night-amount-leading-dot-and-small-trace.md).
+     */
+    const val TRACE_FONT_SCALE = 0.75f
+
+    /** [TRACE_FONT_SCALE] for a label reading "trace", 1 for any other. */
+    fun traceFontScale(text: String): Float = if (text == PrecipTrace.LABEL) TRACE_FONT_SCALE else 1f
     const val RAIN_PEAK_GAP_DP = -2f
 
     /** Edge margin (dp) keeping a rain label inside the widget bounds. */
@@ -239,7 +249,7 @@ object DailyRainLabels {
 
     /**
      * [formatPrecipAmount] for an amount that was **observed**: a total of traces only reads
-     * "Trace" ([PrecipTrace]). Forecast amounts never take this path — a tiny forecast is "<.001in".
+     * "trace" ([PrecipTrace]). Forecast amounts never take this path — a tiny forecast is "<.001in".
      */
     fun formatObservedPrecipAmount(amountMm: Float): String =
         if (PrecipTrace.isTrace(amountMm)) PrecipTrace.LABEL else formatPrecipAmount(amountMm)

@@ -395,6 +395,58 @@ class DailyRainLabelLayoutTest {
         assertTrue("well below Wed's 50: top=${label.top}", label.top - foldMeteoWedDigits.bottom >= 2.5f * 2.625f)
     }
 
+    // Fold 4 inner, NWS, 2026-11-15 07:41 trace: Tue night ".45in" dropped into the pocket under Tue's
+    // "42°" centred on the gap (289.4), then slid 1.9 dp right off the "42" box to (294.3, 355.1).
+    // Its box starts with the decimal point, below the ink of "42" (user: "more tucked near 42°").
+    private val foldNwsTueDigits = Box(238.8f, 334.0f, 272.8f, 370.9f, isLowDigits = true)
+    private fun foldNwsTueNight(text: String) = DailyRainLabelLayout.layoutNight(
+        DailyRainLabelLayout.Host { measured, _, _ ->
+            if (measured == ".") DailyRainLabelLayout.TextSize(4.5f, 19.9f, 15.8f) else DailyRainLabelLayout.TextSize(35f, 19.9f, 15.8f)
+        },
+        DailyRainLabelLayout.NightInput(
+            date = "2026-11-17", text = text, probability = 97, isPast = false, daysFromToday = 2,
+            columnCenterX = 261.8f, gapCenterX = 289.4f, columnWidth = 55.2f,
+            leftLowLabel = Box(238.8f, 334.0f, 284.8f, 370.9f), rightLowLabel = Box(294.0f, 290.6f, 340.0f, 327.5f),
+            obstacles = listOf(
+                Box(246.3f, 303.4f, 277.3f, 334.4f),
+                foldNwsTueDigits, Box(272.8f, 334.0f, 284.8f, 352.5f, isDegreeSign = true),
+                Box(301.5f, 259.9f, 332.5f, 290.9f),
+                Box(294.0f, 290.6f, 328.0f, 327.5f, isLowDigits = true), Box(328.0f, 290.6f, 340.0f, 309.0f, isDegreeSign = true),
+            ),
+            dayLabelTop = 375.4f, canvasWidth = 552f, pxPerDp = 2.625f,
+        ),
+        "test",
+    )
+
+    @Test
+    fun `night amount starting with a decimal point stays centred beside its own low`() {
+        val amount = foldNwsTueNight(".45in")
+        val chance = foldNwsTueNight("100%")
+        println("fold nws .45in: centerX=${amount.centerX} top=${amount.top}; same box as 100%: centerX=${chance.centerX}")
+        assertEquals("same row as before", 355.1f, amount.top, 0.3f)
+        assertEquals("the dot is the gap: within 0.5 dp of the gap centre", 289.4f, amount.centerX, 0.5f * 2.625f)
+        assertEquals("a label with ink at its left edge still slides 1.5 dp clear", 1.5f, (chance.left - foldNwsTueDigits.right) / 2.625f, 0.01f)
+    }
+
+    @Test
+    fun `a trace night label is laid out a quarter smaller than an amount`() {
+        val trace = foldNwsTueNight(com.weatherwidget.shared.util.PrecipTrace.LABEL)
+        val amount = foldNwsTueNight("1in")
+        println("trace scale=${trace.fontScale} amount scale=${amount.fontScale}")
+        assertEquals(DailyRainLabels.TRACE_FONT_SCALE, trace.fontScale / amount.fontScale, 0.001f)
+    }
+
+    @Test
+    fun `a leading decimal point level with the neighbour's ink is not a gap`() {
+        val left = Box(60f, 40f, 100f, 80f, isLowDigits = true) // ink bottom 71.2
+        fun slide(baselineY: Float) = DailyRainLabelPlanner.slideOffLeftNeighbor(
+            centerX = 115f, top = 56f, width = 30f, height = 20f, rightDigits = null,
+            obstacles = listOf(left), maxRight = 500f, density = 1f, leadingBlankPx = 4f, baselineY = baselineY,
+        )
+        assertEquals("dot beside the digits' ink: slides", 116.5f, slide(72f), 0.01f)
+        assertEquals("dot below the digits' ink: 4 px of blank already clears", 115f, slide(76f), 0.01f)
+    }
+
     @Test
     fun `side slide is capped, skips a label already clear, and never reaches under a near next low`() {
         val degree = Box(100f, 40f, 110f, 55f, isDegreeSign = true)

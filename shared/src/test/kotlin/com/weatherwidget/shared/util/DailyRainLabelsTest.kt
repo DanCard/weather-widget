@@ -797,11 +797,18 @@ class DailyRainLabelsTest {
     // ---- observed trace (plans/261021-observed-rain-trace.md) ----
 
     @Test
-    fun `a past day with only a trace reads Trace, day and night`() {
+    fun `only a trace label takes the small trace font`() {
+        assertEquals(0.75f, DailyRainLabels.traceFontScale(PrecipTrace.LABEL), 0f)
+        assertEquals(1f, DailyRainLabels.traceFontScale(".01in"), 0f)
+        assertEquals(1f, DailyRainLabels.traceFontScale("40%"), 0f)
+    }
+
+    @Test
+    fun `a past day with only a trace reads trace, day and night`() {
         Locale.setDefault(Locale.US)
         val yesterday = today.minusDays(1)
         assertEquals(
-            "Trace",
+            "trace",
             DailyRainLabels.buildDailyRainLabel(
                 date = yesterday, today = today, isPastDate = true, precipAmountMm = 2.33f,
                 dayPrecipProbability = 80, allowTodayRainChanceLabel = true,
@@ -809,7 +816,7 @@ class DailyRainLabelsTest {
             ),
         )
         assertEquals(
-            "Trace",
+            "trace",
             DailyRainLabels.buildNightRainLabel(
                 date = yesterday, today = today, isPastDate = true,
                 nightPrecipProbability = 40, observedNightPrecipMm = 3 * PrecipTrace.MM,

@@ -359,7 +359,7 @@ object RainAmountLabelPlacer {
         graphHeight: Float,
         initialCollisionBounds: List<GraphRect>,
         labelPrefix: String = "",
-        /** True for the observed ("Act") series: a trace-only period reads "Trace". */
+        /** True for the observed ("Act") series: a trace-only period reads "trace". */
         observed: Boolean = false,
         measureText: (String) -> Float,
         getTextBounds: (String) -> Pair<Float, Float>, // (ascent, descent) relative to cy

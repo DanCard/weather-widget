@@ -9,7 +9,7 @@ import org.junit.experimental.categories.Category
 import java.util.Locale
 
 /**
- * The precip graph's "Act" label names a trace-only period "Trace"; the "Pred" label never does.
+ * The precip graph's "Act" label names a trace-only period "trace"; the "Pred" label never does.
  * Both platforms place their labels here (plans/261021-observed-rain-trace.md).
  */
 @Category(ShortDuration::class)
@@ -38,8 +38,8 @@ class RainAmountLabelPlacerTraceTest {
     }
 
     @Test
-    fun `an observed trace reads Act Trace`() {
-        assertEquals("Act Trace", labelFor(PrecipTrace.MM, "Act ", observed = true))
+    fun `an observed trace reads Act trace`() {
+        assertEquals("Act trace", labelFor(PrecipTrace.MM, "Act ", observed = true))
     }
 
     @Test

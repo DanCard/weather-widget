@@ -352,6 +352,12 @@ object DailyRainLabelPlanner {
      * It does not slide when the slid label would overlap an obstacle it was clear of, cross
      * [maxRight], or reach under [rightDigits] less than [DailyRainLabels.NIGHT_POCKET_RIGHT_CLEAR_DP]
      * below them (there it would read as the next day's label).
+     *
+     * [leadingBlankPx] is the width of the label's leading decimal point (0 for other labels). The
+     * dot is a speck at [baselineY]; when it lies below the neighbour's ink the label's ink starts
+     * that much further right, so it counts as gap. Without it the Fold's Tue ".45in" was slid 1.9 dp
+     * off centre to open a gap the dot already gave
+     * (plans/261115-night-amount-leading-dot-and-small-trace.md).
      */
     fun slideOffLeftNeighbor(
         centerX: Float,
@@ -362,16 +368,26 @@ object DailyRainLabelPlanner {
         obstacles: List<Box>,
         maxRight: Float,
         density: Float,
+        leadingBlankPx: Float = 0f,
+        baselineY: Float = top + height,
     ): Float {
         val half = width / 2f
         val bottom = top + height
         val left = centerX - half
         val slightPx = DailyRainLabels.NIGHT_SLIGHT_OVERLAP_DP * density
-        val neighborRight = obstacles
+        val neighbor = obstacles
             .filter { !it.isDegreeSign && (it.left + it.right) / 2f < left }
             .filter { minOf(bottom, it.bottom) - maxOf(top, it.top) > slightPx }
-            .maxOfOrNull { it.right } ?: return centerX
-        val gap = left - neighborRight
+            .maxByOrNull { it.right } ?: return centerX
+        val neighborRight = neighbor.right
+        val neighborInkBottom = if (neighbor.isLowDigits) {
+            neighbor.bottom - (neighbor.bottom - neighbor.top) * DailyRainLabels.DIGIT_BLANK_DESCENT_FRACTION
+        } else {
+            neighbor.bottom
+        }
+        // The dot is about as tall as it is wide.
+        val dotBelowInk = leadingBlankPx > 0f && baselineY - leadingBlankPx >= neighborInkBottom
+        val gap = left - neighborRight + if (dotBelowInk) leadingBlankPx else 0f
         val wanted = DailyRainLabels.NIGHT_POCKET_SIDE_GAP_DP * density
         if (gap >= wanted) return centerX
         val dx = minOf(wanted - gap, DailyRainLabels.NIGHT_POCKET_SIDE_SLIDE_MAX_DP * density)
