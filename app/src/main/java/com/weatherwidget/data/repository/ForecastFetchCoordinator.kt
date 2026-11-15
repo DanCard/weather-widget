@@ -297,19 +297,22 @@ internal class ForecastFetchCoordinator(
         longitude: Double,
         sourcesToFetch: Set<WeatherSource>,
         fetchContext: ForecastFetchContext? = null,
-    ) = fetchFromAllApis(latitude, longitude, sourcesToFetch.associateWith { ForecastParts.BOTH }, fetchContext)
+    ): Set<WeatherSource> = fetchFromAllApis(latitude, longitude, sourcesToFetch.associateWith { ForecastParts.BOTH }, fetchContext)
 
     /**
      * Each source in [plan] with its [ForecastParts]. Daily rows are saved only when the plan asked
      * for them — an hourly-only fetch of a source that cannot split (WeatherAPI, OpenWeatherMap) gets
      * daily rows back and drops them, so its daily stays on the daily cadence.
+     *
+     * Returns the sources that answered and were stored. A failed source is excluded, so a retry
+     * queued for it is not coalesced away as already satisfied (`ForecastRepository.lastCompletedFetch`).
      */
     suspend fun fetchFromAllApis(
         latitude: Double,
         longitude: Double,
         plan: Map<WeatherSource, ForecastParts>,
         fetchContext: ForecastFetchContext? = null,
-    ) = coroutineScope {
+    ): Set<WeatherSource> = coroutineScope {
         val sourcesToFetch = plan.keys
         val horizons = sourcesToFetch.associateWith { fetchHorizon(fetchContext) }
         val registry = buildFetchRegistry(fetchContext, horizons, plan)
@@ -321,7 +324,7 @@ internal class ForecastFetchCoordinator(
         val fetchedBySource = servable.mapNotNull { source ->
             val entry = registry[source] ?: return@mapNotNull null
             async {
-                source to safeFetch(entry.tag, source, latitude, longitude, requested = fetchContext?.allSources == true) {
+                source to safeFetch(entry.tag, source, latitude, longitude) {
                     entry.fetch(latitude, longitude)?.also {
                         persistFetch(source, it, latitude, longitude, fetchContext, horizons[source], plan.getValue(source))
                     }
@@ -338,6 +341,7 @@ internal class ForecastFetchCoordinator(
         fetchedBySource.forEach { (source, fetched) ->
             SourceFetchTable.runFollowUps(source, plan.getValue(source), stored = fetched != null, jobs)
         }
+        fetchedBySource.filter { (_, fetched) -> fetched != null }.mapTo(LinkedHashSet()) { (source, _) -> source }
     }
 
     /** This site's [SourceFetchTable.FollowUpJobs]: each one the `:shared` runner's Room host. */
@@ -460,8 +464,6 @@ internal class ForecastFetchCoordinator(
         source: WeatherSource,
         latitude: Double,
         longitude: Double,
-        /** The fetch is the user's Settings → Refresh data: its failure is retried even for a source no widget shows. */
-        requested: Boolean = false,
         block: suspend () -> T,
     ): T? = try {
         val result = block()
@@ -488,11 +490,10 @@ internal class ForecastFetchCoordinator(
             detail = ApiKeyRedaction.redact(exception.message ?: exception.javaClass.simpleName),
         )
         logFetchFailure(tag, source, exception)
-        // A displayed source that timed out is tried again on its own, not hours later at its cadence.
+        // A source that timed out is tried again on its own, not hours later at its cadence — shown or not.
         com.weatherwidget.shared.util.SourceRetry.onFailure(
             com.weatherwidget.widget.AndroidSourceRetryHost(context, widgetStateManager, appLogDao),
             source.id, errorCode, trigger = tag, nowMs = System.currentTimeMillis(),
-            requested = requested,
         )
         null
     }

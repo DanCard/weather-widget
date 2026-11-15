@@ -3,9 +3,7 @@ package com.weatherwidget.shared.contract
 import com.weatherwidget.shared.util.SourceRetry
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -28,13 +26,6 @@ abstract class SourceRetryHostContract {
     @Test
     fun `nothing armed reads back as nothing`() {
         assertNull(open("OPEN_METEO").pending("OPEN_METEO"))
-    }
-
-    @Test
-    fun `the displayed source is displayed and no other`() {
-        val host = open("OPEN_METEO")
-        assertTrue(host.isDisplayed("OPEN_METEO"))
-        assertFalse(host.isDisplayed("NWS"))
     }
 
     @Test

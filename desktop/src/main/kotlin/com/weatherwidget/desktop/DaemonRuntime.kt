@@ -93,13 +93,12 @@ internal class DaemonRuntime(
     }
 
     /**
-     * Desktop's [SourceRetry.Host]: the displayed source, or a refresh-all's failed one ([SourceRetry.onFailure] `requested`); armed as a [SourceRetryLog] row the forecast
+     * Desktop's [SourceRetry.Host]: any failed source, shown or not; armed as a [SourceRetryLog] row the forecast
      * loop sleeps toward (plans/261112-refresh-failure-reason-and-retry.md).
      */
     private val sourceRetryState by lazy { DesktopSourceRetryState(weatherDao) }
     private fun sourceRetryHost(wakeLoop: Boolean) = DesktopSourceRetryHost(
         weatherDao,
-        displayedSource = { currentConfig?.displaySource },
         charging = { PowerDetector.getPowerState().isCharging },
         screenOn = { ScreenStateDetector.isScreenOn() },
         wake = if (wakeLoop) ({ wakeForecastLoop("source_retry_armed") }) else null,
@@ -149,7 +148,7 @@ internal class DaemonRuntime(
                 log = weatherDao::log,
                 // The user asked for every source: a timed-out one is retried though no screen shows it.
                 onFailure = { sourceId, e ->
-                    onForecastFetchFailed(sourceId, e, trigger = "request:${request.origin}", wakeLoop = true, requested = true)
+                    onForecastFetchFailed(sourceId, e, trigger = "request:${request.origin}", wakeLoop = true)
                 },
             )
             notifyDataUpdated()
@@ -211,9 +210,8 @@ internal class DaemonRuntime(
         e: Exception,
         trigger: String,
         wakeLoop: Boolean,
-        requested: Boolean = false,
     ) {
-        SourceRetry.onFailure(sourceRetryHost(wakeLoop), sourceId, FetchErrorCode.of(e), trigger, System.currentTimeMillis(), requested)
+        SourceRetry.onFailure(sourceRetryHost(wakeLoop), sourceId, FetchErrorCode.of(e), trigger, System.currentTimeMillis())
     }
 
     /**
@@ -1460,8 +1458,8 @@ internal class DaemonRuntime(
                         }
                     }
 
-                    // A refresh-all's failed source retries on its own schedule, shown or not (SourceRetry
-                    // `requested`). Same once-only rule as the displayed source's retry above.
+                    // A non-displayed source's armed retry fires here, on its own schedule (SourceRetry
+                    // retries every source, shown or not). Same once-only rule as the displayed source's retry above.
                     for (retrySource in config.effectiveSources.filter { it != activeSource }) {
                         if (!sourceRetryState.isDue(retrySource, planNow, ForecastSchedule.DUE_GRACE_MS)) continue
                         sourceRetryState.consume(retrySource)

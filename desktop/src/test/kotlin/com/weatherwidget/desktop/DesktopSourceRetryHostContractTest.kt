@@ -19,7 +19,7 @@ class DesktopSourceRetryHostContractTest : SourceRetryHostContract() {
 
     override fun open(displayed: String): SourceRetry.Host {
         dao = DesktopWeatherDao(DesktopWeatherDatabase(dbFile.toPath()).apply { initialize() })
-        val host = DesktopSourceRetryHost(dao, { displayed }, { true }, { true }) { lastArmed?.let { wakes += it } }
+        val host = DesktopSourceRetryHost(dao, { true }, { true }) { lastArmed?.let { wakes += it } }
         // Record what was armed so the wake reports it, as Android's enqueue does.
         return object : SourceRetry.Host by host {
             override suspend fun arm(sourceId: String, retry: SourceRetry.Pending) {

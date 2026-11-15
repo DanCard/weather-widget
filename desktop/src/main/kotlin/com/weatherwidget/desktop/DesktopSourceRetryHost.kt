@@ -5,13 +5,12 @@ import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.shared.util.SourceRetry
 
 /**
- * Desktop's [SourceRetry.Host]: the daemon's displayed source only; armed as a `SOURCE_RETRY_ARMED` row
+ * Desktop's [SourceRetry.Host]: any source, shown or not; armed as a `SOURCE_RETRY_ARMED` row
  * ([DesktopSourceRetryState]) that the forecast loop sleeps toward, woken by [wake] when the loop is not
  * the caller (plans/261112-refresh-failure-reason-and-retry.md).
  */
 internal class DesktopSourceRetryHost(
     private val weatherDao: DesktopWeatherDao,
-    private val displayedSource: () -> String?,
     private val charging: () -> Boolean,
     private val screenOn: () -> Boolean,
     private val wake: (() -> Unit)?,
@@ -21,8 +20,6 @@ internal class DesktopSourceRetryHost(
     override val isCharging: Boolean get() = charging()
 
     override val isScreenOn: Boolean get() = screenOn()
-
-    override fun isDisplayed(sourceId: String) = displayedSource() == sourceId
 
     override fun pending(sourceId: String) = state.pending(sourceId)
 

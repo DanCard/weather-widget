@@ -5,6 +5,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.testutil.TestDatabase
 import com.weatherwidget.widget.WidgetStateManager
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
@@ -42,6 +43,7 @@ class ForecastRepositoryForcedCoalesceRoboTest {
 
     private lateinit var db: WeatherDatabase
     private lateinit var repository: ForecastRepository
+    private val openMeteoApi = mockk<com.weatherwidget.data.remote.OpenMeteoApi>(relaxed = true)
 
     @Before
     fun setUp() {
@@ -56,7 +58,7 @@ class ForecastRepositoryForcedCoalesceRoboTest {
             hourlyForecastHistoryDao = db.hourlyForecastHistoryDao(),
             appLogDao = db.appLogDao(),
             nwsApi = mockk(relaxed = true),
-            openMeteoApi = mockk(relaxed = true),
+            openMeteoApi = openMeteoApi,
             weatherApi = mockk(relaxed = true),
             silurianApi = mockk(relaxed = true),
             widgetStateManager = stateManager,
@@ -135,6 +137,25 @@ class ForecastRepositoryForcedCoalesceRoboTest {
         )
 
         assertEquals(2, starts())
+    }
+
+    /**
+     * Pixel 2026-11-15 00:07:09: Open-Meteo timed out, its retry was stamped a few ms before the
+     * failed fetch completed, and was then coalesced as `satisfied_under_lock` — so it never
+     * re-fetched and attempts 2–4 were never scheduled. A failed source must not satisfy a retry.
+     */
+    @Test
+    fun `a retry for a source that failed in the completed fetch still fetches`() = runBlocking {
+        coEvery { openMeteoApi.getForecast(any(), any(), any(), any(), any()) } throws RuntimeException("Request timeout has expired")
+        repository.getWeatherData(lat, lon, forceRefresh = true, targetSourceId = WeatherSource.OPEN_METEO.id)
+        val completedAt = db.appLogDao().getLogsByTag("NET_FETCH_COMPLETE", 10).single().timestamp
+
+        repository.getWeatherData(
+            lat, lon, forceRefresh = true, targetSourceId = WeatherSource.OPEN_METEO.id, requestedAtMs = completedAt - 500,
+        )
+
+        assertEquals(2, starts())
+        assertEquals(0, db.appLogDao().getLogsByTag("NET_FETCH_COALESCED", 10).size)
     }
 
     /** Pixel 2026-10-30: OWM due, other sources fetched 90 s ago; the global throttle held it. */

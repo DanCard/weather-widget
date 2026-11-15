@@ -27,8 +27,6 @@ internal class AndroidSourceRetryHost(
 
     override val isScreenOn: Boolean get() = power().second
 
-    override fun isDisplayed(sourceId: String): Boolean = sourceId in widgetStateManager.getActiveDisplaySourceIds()
-
     override fun pending(sourceId: String): SourceRetry.Pending? =
         widgetStateManager.getSourceRetry(WeatherSource.fromId(sourceId))
 

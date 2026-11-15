@@ -327,7 +327,7 @@ class ForecastRepository
                     triedSourceIds = syncPlan.due.keys
                     // `FETCH_PLAN parts=… horizons=…`: one line, both platforms (:shared ForecastFetchPlan).
                     appLogDao.log(com.weatherwidget.data.model.ForecastParts.PLAN_TAG, syncPlan.line, "INFO")
-                    fetchCoordinator.fetchFromAllApis(
+                    val storedSources = fetchCoordinator.fetchFromAllApis(
                         latitude,
                         longitude,
                         fetchPlan,
@@ -348,7 +348,11 @@ class ForecastRepository
                         lat = latitude,
                         lon = longitude,
                         targetSourceId = targetSourceId,
-                        sourceIds = sourcesToFetch.map { it.id }.toSet(),
+                        // Only sources that answered: a source that failed (e.g. Open-Meteo
+                        // timing out, Pixel 2026-11-15 00:07:09) schedules a retry stamped a few ms
+                        // before this completion; counting the failed source here made that retry
+                        // "satisfied_under_lock" and it never re-fetched.
+                        sourceIds = storedSources.map { it.id }.toSet(),
                         completedAtMs = lastFetchTime,
                     )
                     appLogDao.log(

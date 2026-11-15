@@ -68,7 +68,7 @@ object SettingsRefreshAllSources {
      * Each of [sourceIds] (the click's [Partition.fetch] less the displayed source), one at a time,
      * through [refresh] (a forced daily + hourly fetch that throws on failure). One source failing is logged and the rest still
      * run; cancellation propagates. [onFailure] hears every failed source, so the platform can arm its
-     * retry ([SourceRetry.onFailure] with `requested = true`): the user asked for this source.
+     * retry ([SourceRetry.onFailure]).
      */
     suspend fun refreshOthers(
         displayedId: String,
