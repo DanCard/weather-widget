@@ -1,5 +1,7 @@
 package com.weatherwidget.desktop
 
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
 import com.weatherwidget.shared.sourceview.SourceViewKind
@@ -213,5 +215,26 @@ class DesktopSourceViewsTest {
             }
         }
         assertEquals(1, count)
+    }
+
+    @Test
+    fun `down arrow advances to next api and up arrow goes to previous api`() {
+        var current = config
+        val update: (DesktopConfig) -> Unit = { current = it }
+
+        assertTrue(handlePopupKeyEvent(Key.DirectionDown, KeyEventType.KeyDown, current, {}, update, null))
+        assertEquals("OPEN_METEO", current.settings.weatherSource)
+
+        assertTrue(handlePopupKeyEvent(Key.DirectionDown, KeyEventType.KeyDown, current, {}, update, null))
+        assertEquals("SILURIAN", current.settings.weatherSource)
+
+        assertTrue(handlePopupKeyEvent(Key.DirectionUp, KeyEventType.KeyDown, current, {}, update, null))
+        assertEquals("OPEN_METEO", current.settings.weatherSource)
+
+        assertTrue(handlePopupKeyEvent(Key.DirectionUp, KeyEventType.KeyDown, current, {}, update, null))
+        assertEquals("NWS", current.settings.weatherSource)
+
+        assertFalse(handlePopupKeyEvent(Key.DirectionDown, KeyEventType.KeyUp, current, {}, update, null))
+        assertEquals("NWS", current.settings.weatherSource)
     }
 }

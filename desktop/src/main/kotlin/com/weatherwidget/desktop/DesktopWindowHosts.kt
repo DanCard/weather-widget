@@ -292,19 +292,14 @@ internal fun PopupWindowHost(
         title = "Weather Widget",
         icon = icon,
         onKeyEvent = { keyEvent ->
-            if (keyEvent.type != KeyEventType.KeyDown) {
-                false
-            } else {
-                when (keyEvent.key) {
-                    Key.Escape -> {
-                        onClose()
-                        true
-                    }
-                    Key.DirectionLeft -> arrowKeyHandler?.invoke(true) ?: false
-                    Key.DirectionRight -> arrowKeyHandler?.invoke(false) ?: false
-                    else -> false
-                }
-            }
+            handlePopupKeyEvent(
+                key = keyEvent.key,
+                type = keyEvent.type,
+                config = latestConfig.value,
+                onClose = onClose,
+                onUpdateConfig = onUpdateConfig,
+                arrowKeyHandler = arrowKeyHandler,
+            )
         },
     ) {
         LaunchedEffect(Unit) { Log.i(TAG, "Window composed/visible now") }
@@ -345,5 +340,33 @@ internal fun PopupWindowHost(
             )
             RefreshNoticePill(RefreshNoticeSurface.POPUP, Modifier.align(Alignment.BottomCenter))
         }
+    }
+}
+
+internal fun handlePopupKeyEvent(
+    key: Key,
+    type: KeyEventType,
+    config: DesktopConfig,
+    onClose: () -> Unit,
+    onUpdateConfig: (DesktopConfig) -> Unit,
+    arrowKeyHandler: ((left: Boolean) -> Boolean)?,
+): Boolean {
+    if (type != KeyEventType.KeyDown) return false
+    return when (key) {
+        Key.Escape -> {
+            onClose()
+            true
+        }
+        Key.DirectionLeft -> arrowKeyHandler?.invoke(true) ?: false
+        Key.DirectionRight -> arrowKeyHandler?.invoke(false) ?: false
+        Key.DirectionDown -> {
+            cycleDisplaySource(config, forward = true, onUpdateConfig = onUpdateConfig)
+            true
+        }
+        Key.DirectionUp -> {
+            cycleDisplaySource(config, forward = false, onUpdateConfig = onUpdateConfig)
+            true
+        }
+        else -> false
     }
 }
