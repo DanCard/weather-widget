@@ -110,11 +110,9 @@ object ForecastEvolutionRenderer {
         }
 
         val axisScale = NiceAxisScale.compute(allTemps.minOrNull() ?: 0f, allTemps.maxOrNull() ?: 100f)
-        val layout = computeLayout(context, widthPx, heightPx)
         val paints = EvolutionGraphStyle.getPaints(context)
         val dp = { dp: Float -> dpToPx(context, dp) }
-
-        val timeAxis = TimeAxis(series.map { it.fetchedAt }, ForecastEvolutionGeometry.tickDivisionsForWidth(layout.graphWidth))
+        val (layout, timeAxis) = fitLayoutToTimeLabels(context, widthPx, heightPx, series.map { it.fetchedAt }, paints)
 
         drawGridAndAxes(canvas, layout, axisScale, timeAxis, paints, dp, isError = false, useCelsius = useCelsius)
 
@@ -164,11 +162,9 @@ object ForecastEvolutionRenderer {
         val yBound = maxOf(3f, ceil(maxAbsError) + 1f)
         val axisScale = NiceAxisScale.computeSymmetric(yBound, minRange = 6f)
 
-        val layout = computeLayout(context, widthPx, heightPx)
         val paints = EvolutionGraphStyle.getPaints(context)
         val dp = { dp: Float -> dpToPx(context, dp) }
-
-        val timeAxis = TimeAxis(errorSamples.map { it.fetchedAt }, ForecastEvolutionGeometry.tickDivisionsForWidth(layout.graphWidth))
+        val (layout, timeAxis) = fitLayoutToTimeLabels(context, widthPx, heightPx, errorSamples.map { it.fetchedAt }, paints)
 
         drawGridAndAxes(canvas, layout, axisScale, timeAxis, paints, dp, isError = true, useCelsius = useCelsius)
 
@@ -339,6 +335,44 @@ object ForecastEvolutionRenderer {
             graphTop = dp(EvolutionGraphStyle.PADDING_TOP_DP),
             graphBottom = heightPx - dp(EvolutionGraphStyle.PADDING_BOTTOM_DP),
         )
+    }
+
+    /**
+     * The layout and time axis with room for the slanted x labels. Each label is right-anchored at its
+     * tick and rotated [EvolutionGraphStyle.X_LABEL_SLANT_DEG], so it swings ~width·sin(slant) below its
+     * baseline and the first one ~width·cos(slant) left of the plot. The fixed 48dp bottom / 40dp left
+     * padding clipped "11/10 8 AM"-length labels at both edges (emulator, 2026-11-15). Desktop sizes
+     * its slanted footer the same way (DesktopGraphUtils `maxDownSwing`). Padding only ever grows.
+     */
+    private fun fitLayoutToTimeLabels(
+        context: Context,
+        widthPx: Int,
+        heightPx: Int,
+        times: List<Long>,
+        paints: EvolutionGraphStyle.PaintSet,
+    ): Pair<GraphLayout, TimeAxis> {
+        val dp = { d: Float -> dpToPx(context, d) }
+        val base = computeLayout(context, widthPx, heightPx)
+        val probe = TimeAxis(times, ForecastEvolutionGeometry.tickDivisionsForWidth(base.graphWidth))
+        val widths = probe.ticks.map { paints.xLabel.measureText(probe.formatLabel(it)) }
+        if (widths.isEmpty()) return base to probe
+
+        val slant = Math.toRadians(abs(EvolutionGraphStyle.X_LABEL_SLANT_DEG).toDouble())
+        val sin = kotlin.math.sin(slant).toFloat()
+        val cos = kotlin.math.cos(slant).toFloat()
+        val metrics = paints.xLabel.fontMetrics
+        val margin = dp(2f)
+        // Same baseline offset as drawGridAndAxes.
+        val baselineOffset = dp(EvolutionGraphStyle.LABEL_GAP_DP) + dp(8f)
+        val bottomNeeded = baselineOffset + widths.max() * sin + metrics.descent * cos + margin
+        val leftNeeded = widths.first() * cos + abs(metrics.ascent) * sin + margin
+
+        val layout = base.copy(
+            graphLeft = maxOf(base.graphLeft, leftNeeded),
+            // Keep at least half the height for the plot on a very short bitmap.
+            graphBottom = minOf(base.graphBottom, maxOf(heightPx - bottomNeeded, base.graphTop + (heightPx - base.graphTop) / 2f)),
+        )
+        return layout to TimeAxis(times, ForecastEvolutionGeometry.tickDivisionsForWidth(layout.graphWidth))
     }
 
     private fun drawGridAndAxes(
