@@ -266,7 +266,83 @@ class DailyRainLabelsTest {
         assertEquals("6mm", label)
     }
 
+    private fun futureDayLabel(probability: Int, amountMm: Float?) = DailyRainLabels.buildDailyRainLabel(
+        date = today.plusDays(2),
+        today = today,
+        isPastDate = false,
+        precipAmountMm = amountMm,
+        dayPrecipProbability = probability,
+        allowTodayRainChanceLabel = true,
+        observedPrecipAmountMm = null,
+    )
+
+    @Test
+    fun futureHeavyRainShowsAmountAbove95Percent() {
+        Locale.setDefault(Locale.US)
+        // 2.6in at 97%: heavy rain beats the chance (old rule needed 99% and showed "97%").
+        val label = futureDayLabel(probability = 97, amountMm = 2.6f * 25.4f)
+        println("future 97% / 2.6in -> $label")
+        assertEquals("2.6in", label)
+        assertEquals("1.5in", futureDayLabel(probability = 96, amountMm = 1.5f * 25.4f))
+    }
+
+    @Test
+    fun futureHeavyRainKeepsPercentAtOrBelow95Percent() {
+        Locale.setDefault(Locale.US)
+        assertEquals("95%", futureDayLabel(probability = 95, amountMm = 2.6f * 25.4f))
+        assertEquals("80%", futureDayLabel(probability = 80, amountMm = 2.6f * 25.4f))
+    }
+
+    @Test
+    fun futureAmountOfOneInchOrLessKeepsPercentBelow99() {
+        Locale.setDefault(Locale.US)
+        assertEquals("97%", futureDayLabel(probability = 97, amountMm = 25.4f))
+        assertEquals("97%", futureDayLabel(probability = 97, amountMm = 10f))
+        assertEquals("97%", futureDayLabel(probability = 97, amountMm = null))
+    }
+
+    @Test
+    fun todayHeavyRuleUnchanged() {
+        Locale.setDefault(Locale.US)
+        // Today already shows the amount from 95%; the heavy rule is future-only.
+        val label = DailyRainLabels.buildDailyRainLabel(
+            date = today,
+            today = today,
+            isPastDate = false,
+            precipAmountMm = 50f,
+            dayPrecipProbability = 94,
+            allowTodayRainChanceLabel = true,
+            observedPrecipAmountMm = null,
+        )
+        assertEquals("94%", label)
+    }
+
     // ---- buildNightRainLabel ----
+
+    private fun laterNightLabel(probability: Int, amountMm: Float?) = DailyRainLabels.buildNightRainLabel(
+        date = today.plusDays(2),
+        today = today,
+        isPastDate = false,
+        nightPrecipProbability = probability,
+        observedNightPrecipMm = null,
+        forecastNightAmountMm = amountMm,
+    )
+
+    @Test
+    fun laterNightHeavyRainShowsAmountAbove95Percent() {
+        Locale.setDefault(Locale.US)
+        val label = laterNightLabel(probability = 96, amountMm = 1.5f * 25.4f)
+        println("later night 96% / 1.5in -> $label")
+        assertEquals("1.5in", label)
+    }
+
+    @Test
+    fun laterNightHeavyRainKeepsPercentAtOrBelowCutoffs() {
+        Locale.setDefault(Locale.US)
+        assertEquals("95%", laterNightLabel(probability = 95, amountMm = 2.6f * 25.4f))
+        assertEquals("97%", laterNightLabel(probability = 97, amountMm = 25.4f))
+        assertEquals("97%", laterNightLabel(probability = 97, amountMm = null))
+    }
 
     @Test
     fun nightPastShowsObservedAmount() {

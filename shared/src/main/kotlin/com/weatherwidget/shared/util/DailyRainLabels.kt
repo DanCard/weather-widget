@@ -658,7 +658,10 @@ object DailyRainLabels {
      * - Past days: observed amount when measurable rain fell, else the forecast chance% (so a real
      *   forecast doesn't silently vanish the moment the day turns into history), else null.
      * - Today: amount when day-prob ≥ 95% (and amount known), else day-prob% (if allowed), else null.
-     * - Future: suppressed below the distance-scaled threshold; else amount when prob ≥ 99%, else prob%.
+     * - Future: suppressed below the distance-scaled threshold; else amount when prob ≥ 99%, or when
+     *   prob > [FUTURE_HEAVY_AMOUNT_MIN_EXCLUSIVE_PERCENT] and the amount exceeds
+     *   [HEAVY_RAIN_MIN_EXCLUSIVE_MM] (user, 2026-11-15: "2.6 inches is more interesting" than 97%);
+     *   else prob%.
      */
     fun buildDailyRainLabel(
         date: LocalDate,
@@ -697,10 +700,19 @@ object DailyRainLabels {
         }
         return when {
             dayPrecip != null && dayPrecip >= 99 && precipAmountMm != null -> formatPrecipAmount(precipAmountMm)
+            dayPrecip != null && dayPrecip > FUTURE_HEAVY_AMOUNT_MIN_EXCLUSIVE_PERCENT &&
+                precipAmountMm != null && precipAmountMm > HEAVY_RAIN_MIN_EXCLUSIVE_MM ->
+                formatPrecipAmount(precipAmountMm)
             dayPrecip != null && dayPrecip > 0 -> "$dayPrecip%"
             else -> null
         }
     }
+
+    /** A future day's or later night's amount above this (1 inch) is heavy enough to show below 99%. */
+    const val HEAVY_RAIN_MIN_EXCLUSIVE_MM = 25.4f
+
+    /** Chance (exclusive) above which a heavy future day or later-night amount replaces the %. */
+    const val FUTURE_HEAVY_AMOUNT_MIN_EXCLUSIVE_PERCENT = 95
 
     /** Night chance from which tonight (or the night under way) reads as an amount, as today's day label. */
     const val NIGHT_AMOUNT_MIN_PERCENT_NEAR = 95
@@ -719,7 +731,8 @@ object DailyRainLabels {
      *   measured 0 keeps the %: a gauge saw no rain, so a forecast total would contradict it.
      * - Tonight: forecast total at ≥ 95%, else as a later night.
      * - Later nights: suppressed below the distance-scaled threshold; else forecast total at ≥ 99%,
-     *   else night-prob%.
+     *   or above [FUTURE_HEAVY_AMOUNT_MIN_EXCLUSIVE_PERCENT] when the total exceeds
+     *   [HEAVY_RAIN_MIN_EXCLUSIVE_MM] (as a future day's label), else night-prob%.
      */
     fun buildNightRainLabel(
         date: LocalDate,
@@ -760,6 +773,11 @@ object DailyRainLabels {
 
         val amountFrom = if (daysFromToday == 0) NIGHT_AMOUNT_MIN_PERCENT_NEAR else NIGHT_AMOUNT_MIN_PERCENT_LATER
         if (forecastAmount != null && probability >= amountFrom) return formatPrecipAmount(forecastAmount)
+        if (forecastAmount != null && probability > FUTURE_HEAVY_AMOUNT_MIN_EXCLUSIVE_PERCENT &&
+            forecastAmount > HEAVY_RAIN_MIN_EXCLUSIVE_MM
+        ) {
+            return formatPrecipAmount(forecastAmount)
+        }
 
         return "$probability%"
     }
