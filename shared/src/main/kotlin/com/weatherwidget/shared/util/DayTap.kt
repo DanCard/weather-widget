@@ -3,8 +3,9 @@ package com.weatherwidget.shared.util
 /**
  * What a daily-view day tap does once its view is chosen ([DayClickResolver]) and its source's
  * coverage judged ([com.weatherwidget.data.remote.HourlyOnDemand.hoursToCover], [NoHourlyChecker]),
- * and its two log lines — both platforms. The day's hourly view opens in every case; the outcome only
- * says what is shown over it. Was Android's `WidgetDayClickCoordinator.navigateToHourlyView` and the
+ * and its two log lines — both platforms. [Outcome.Fetch] and [Outcome.Open] open the day's hourly
+ * view; [Outcome.NoData] stays on the daily view under its banner — an hourly graph with nothing to
+ * draw is not opened (2026-11-15, plans/261115-hourly-empty-window-message.md). Was Android's `WidgetDayClickCoordinator.navigateToHourlyView` and the
  * desktop popup's `handleDayClick`: desktop never wrote [NO_HOURLY_TAG], and the two [TAG] lines
  * carried different fields (audit plans/261023-duplicate-logic-audit-different-names.md §3).
  */
@@ -16,7 +17,7 @@ object DayTap {
         /** Fetch the source on demand [hours] deep under the "Fetching…" banner. */
         data class Fetch(val hours: Int) : Outcome
 
-        /** No fetch can help and the day has no hourly: say where the data ends. */
+        /** No fetch can help and the day has no hourly: stay on the daily view and say where the data ends. */
         data object NoData : Outcome
 
         /** The day is covered: open it, clearing any old banner. */

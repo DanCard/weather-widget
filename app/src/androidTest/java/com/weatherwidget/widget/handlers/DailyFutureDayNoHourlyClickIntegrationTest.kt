@@ -141,15 +141,18 @@ class DailyFutureDayNoHourlyClickIntegrationTest : IsolatedIntegrationTest("dail
         assertEquals("Settings must not be launched on a day tap", 0, settingsMonitor.hits)
         instrumentation.removeMonitor(settingsMonitor)
 
-        // AND: the day's hourly view opened at once, empty under the banner
-        // (plans/261009-google-hourly-on-demand-past-72h.md). The handler publishes the message
-        // before it switches the view, so wait for the switch too: read straight after the message,
-        // a freshly booted emulator under unit-test load still showed DAILY (2026-10-22).
-        val viewMode = waitForViewModeChange(from = ViewMode.DAILY)
-        assertTrue(
-            "Should open the hourly view for the tapped day, got $viewMode",
-            viewMode != ViewMode.DAILY,
-        )
+        // AND: a fetchable day opens its hourly view at once, empty under "Fetching…"
+        // (plans/261009-google-hourly-on-demand-past-72h.md); a day no fetch can help stays on the
+        // daily view under its banner (plans/261115-hourly-empty-window-message.md). The handler
+        // publishes the message before it switches the view, so wait for the switch: read straight
+        // after the message, a freshly booted emulator under unit-test load still showed DAILY (2026-10-22).
+        if (fetchable) {
+            val viewMode = waitForViewModeChange(from = ViewMode.DAILY)
+            assertTrue("Should open the hourly view for the tapped day, got $viewMode", viewMode != ViewMode.DAILY)
+        } else {
+            Thread.sleep(1_000L)
+            assertEquals("A day with no hourly stays on the daily view", ViewMode.DAILY, stateManager.getViewMode(testWidgetId))
+        }
 
         // AND: the missing-hourly branch logged its decision.
         val logged = db.appLogDao().getLogsByTag("CLICK_DAILY_NO_HOURLY", 5)

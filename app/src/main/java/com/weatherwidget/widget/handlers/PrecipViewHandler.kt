@@ -321,7 +321,14 @@ object PrecipViewHandler {
                 }
             }
 
-            if (hours.isEmpty() && hourlyForecasts.isNotEmpty()) {
+            // A view of future hours the source has no data for: say so on the graph rather than
+            // keep the previous bitmap below (HourlyEmptyNoticeRenderer).
+            val emptyNotice = com.weatherwidget.widget.HourlyEmptyNoticeRenderer.message(
+                context, stateManager, appWidgetId, hourlyForecasts, displaySource.id,
+                com.weatherwidget.shared.util.HourSpan(startHour, endHour), now, lat, lon,
+            )
+
+            if (hours.isEmpty() && hourlyForecasts.isNotEmpty() && emptyNotice == null) {
                 Log.w(TAG, "buildPrecipHourDataList returned empty despite ${hourlyForecasts.size} hourly rows — " +
                     "centerTime=$centerTime zoom=$zoom offset=$hourlyOffset, skipping bitmap update")
                 com.weatherwidget.widget.WidgetPushDispatcher.push(
@@ -394,6 +401,11 @@ object PrecipViewHandler {
                 },
                 nowcastSlots = nowcastBandSlots(context, lat, lon, displaySource),
             )
+            emptyNotice?.let {
+                com.weatherwidget.widget.HourlyEmptyNoticeRenderer.draw(
+                    bitmap, it, context.resources.displayMetrics.density * bitmapDims.bitmapScale,
+                )
+            }
             renderLogs.forEach { appLogDao.log("PrecipGraph", it) }
             renderMs = SystemClock.elapsedRealtime() - renderStartMs
             views.setImageViewBitmap(R.id.graph_view, bitmap)

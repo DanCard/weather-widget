@@ -168,7 +168,14 @@ Repaints can therefore be more frequent than observation requests without changi
 A day tap or graph navigation can request missing hourly coverage through `HourlyOnDemand` rather
 than forcing every source to sync. Only this site's stored rows (`LocationMatch.sameSite`) count as
 covering a day or as a recent fetch, on both platforms — the view shows the site's rows, so a nearby
-town's rows in the read box must not skip a fetch. User Refresh, source switches, history-specific refills, and
+town's rows in the read box must not skip a fetch. Coverage counts the hours the view draws, not the
+whole day: ≥2 distinct hours of the shown source inside the view (`NoHourlyChecker.hasHourlyForDay`;
+a tap judges `DayClickResolver.dayTapView`, WIDE around noon). A tap on a day no fetch can cover stays
+on the daily view under "No hourly forecast for {day} — data ends …" (`DayTap.Outcome.NoData`); a
+fetchable day opens empty under "Fetching…". An hourly view of future hours the source has no data for,
+reached by panning, draws the same text on the graph once any banner with it clears
+(`NoHourlyChecker.emptyViewDay`; `HOURLY_EMPTY_NOTICE`; `plans/261115-hourly-empty-window-message.md`).
+User Refresh, source switches, history-specific refills, and
 location changes have their own targeted scope. These paths do not make routine forecast cadence
 equivalent to "fetch everything on every interaction."
 

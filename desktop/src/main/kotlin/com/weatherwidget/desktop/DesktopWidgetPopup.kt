@@ -198,6 +198,15 @@ internal fun WidgetPopup(
                         }
                     }
                     val hourlySourceIds = config.effectiveSources.toSet()
+                    // The hours the hourly graph shows now (temperatureGraphHourWindow's framing):
+                    // coverage is judged on these, not the whole day (NoHourlyChecker.hasHourlyForDay).
+                    val currentView: () -> com.weatherwidget.shared.util.HourSpan = {
+                        com.weatherwidget.shared.util.WeatherTimeUtils.hourWindow(
+                            LocalDateTime.now().plusHours(config.hourlyOffset.toLong()),
+                            DesktopGraphUtils.backHoursFor(config.zoomFactor).toLong(),
+                            DesktopGraphUtils.forwardHoursFor(config.zoomFactor).toLong(),
+                        )
+                    }
                     // A day tap or a pan settling on a day Google has not covered: fetch that day
                     // under the "Fetching…" banner (HourlyOnDemand); the banner clears when its hours
                     // arrive, else says where the data ends.
@@ -211,7 +220,7 @@ internal fun WidgetPopup(
                             "action=shown date=$date trigger=$trigger source=${config.displaySource}",
                         )
                         onNeedHourlyRefresh(date) { newHourly ->
-                            val hasDay = NoHourlyChecker.hasHourlyForDay(newHourly, date, hourlySourceIds)
+                            val hasDay = NoHourlyChecker.hasHourlyForDay(newHourly, date, hourlySourceIds, DayClickResolver.dayTapView(LocalDateTime.now(), date))
                             onHourlyAudit(
                                 "HOURLY_FETCH_BANNER",
                                 "action=${if (hasDay) "cleared" else "no_data"} date=$date trigger=$trigger " +
@@ -321,6 +330,7 @@ internal fun WidgetPopup(
                                 kotlinx.coroutines.delay(HourlyOnDemand.PAN_SETTLE_MS)
                                 if (noHourlyFetching) return@LaunchedEffect
                                 val hourly = latestHourly
+                                val panView = currentView()
                                 val action = HourlyOnDemand.panAction(
                                     config.displaySource,
                                     panStartMs,
@@ -330,7 +340,7 @@ internal fun WidgetPopup(
                                     hourly.filter { it.source == null || it.source == config.displaySource },
                                     config.lat,
                                     config.lon,
-                                ) { day -> NoHourlyChecker.hasHourlyForDay(hourly, day, hourlySourceIds) }
+                                ) { day -> NoHourlyChecker.hasHourlyForDay(hourly, day, hourlySourceIds, panView) }
                                 if (action != HourlyOnDemand.PanAction.Nothing) {
                                     onHourlyAudit(
                                         "HOURLY_PAN_CHECK",
@@ -422,6 +432,34 @@ internal fun WidgetPopup(
                                     nowMs = nowOverrideMs ?: clockMs,
                                     onForecastDeltaPlaced = onForecastDeltaPlaced,
                                 )
+                            }
+                            // A view of future hours the shown source has no data for draws nothing:
+                            // say so on the graph (NoHourlyChecker.emptyViewDay; Android draws the same
+                            // text on its bitmap). Not while a no-hourly banner ("Fetching…" or this same
+                            // news) is up: the notice follows once it clears.
+                            val emptyView = currentView()
+                            val emptyNotice = if (snapshotIsSelectedSource && !noHourlyFetching && noHourlyMessage == null) {
+                                NoHourlyChecker.emptyViewDay(
+                                    snapshot.raw.hourly, emptyView, setOf(snapshot.sourceId), LocalDateTime.now(),
+                                )?.let { day ->
+                                    NoHourlyChecker.buildMessage(
+                                        NoHourlyChecker.formatDayLabel(day),
+                                        NoHourlyChecker.lastHourlyEndLabel(snapshot.raw.hourly, setOf(snapshot.sourceId)),
+                                    )
+                                }
+                            } else {
+                                null
+                            }
+                            if (emptyNotice != null) {
+                                LaunchedEffect(emptyNotice) {
+                                    onHourlyAudit(
+                                        NoHourlyChecker.EMPTY_NOTICE_TAG,
+                                        NoHourlyChecker.emptyNoticeLine(snapshot.sourceId, emptyView, emptyNotice),
+                                    )
+                                }
+                                Box(Modifier.fillMaxSize().testTag("hourly_empty_notice")) {
+                                    CenteredMessage(emptyNotice, fontSize = (13f * uiScale).sp)
+                                }
                             }
                             NavArrow(
                                 alignment = Alignment.CenterStart,
@@ -607,7 +645,11 @@ internal fun WidgetPopup(
                                     config, clickedDate, dailyState.days, zone, clickNow,
                                     snapshot.raw.hourly, snapshot.sourceId,
                                 )
-                                val hasHourly = NoHourlyChecker.hasHourlyForDay(snapshot.raw.hourly, clickedDate, visibleSourceIds)
+                                // The hours the tap opens (WIDE around noon), not the whole day (Fold 4, 2026-11-15).
+                                val hasHourly = NoHourlyChecker.hasHourlyForDay(
+                                    snapshot.raw.hourly, clickedDate, visibleSourceIds,
+                                    DayClickResolver.dayTapView(clickNow, clickedDate),
+                                )
                                 // Google keeps 72 h of hourly; a later day is fetched now (HourlyOnDemand).
                                 // Mid-switch the rows to judge are not here yet; the hourly view's pan
                                 // check decides once they are.
@@ -624,9 +666,10 @@ internal fun WidgetPopup(
                                 } else {
                                     null
                                 }
-                                // The day's hourly view opens either way, empty where data is missing.
-                                onUpdateConfig(nextConfig)
                                 val outcome = DayTap.outcome(onDemandHours, hasHourly)
+                                // NoData stays on the daily view under its banner (DayTap); a fetch or a
+                                // covered day opens the day's hourly view.
+                                if (outcome != DayTap.Outcome.NoData) onUpdateConfig(nextConfig)
                                 when (outcome) {
                                     is DayTap.Outcome.Fetch -> startHourlyFetch(clickedDate, "day_tap")
                                     DayTap.Outcome.NoData -> showNoHourlyData(clickedDate, snapshot.raw.hourly)

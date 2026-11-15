@@ -478,6 +478,14 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                 null
             }
 
+            // A view of future hours the source has no data for: one notice on the graph
+            // (HourlyEmptyNoticeRenderer) in place of the "Cloud data missing" diagnostic.
+            val emptyNotice = com.weatherwidget.widget.HourlyEmptyNoticeRenderer.message(
+                context, stateManager, appWidgetId, hourlyForecasts, effectiveDisplaySource.id,
+                com.weatherwidget.shared.util.WeatherTimeUtils.hourWindow(centerTime, zoom.backHours, zoom.forwardHours),
+                now, siteLat ?: lat, siteLon ?: lon,
+            )
+
             val hourLabelSpacingDp = if (zoom.stage == com.weatherwidget.widget.ZoomStage.NARROW) 18f else 28f
             val renderStartMs = SystemClock.elapsedRealtime()
             val bitmap = CloudCoverGraphRenderer.renderGraph(
@@ -491,8 +499,8 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                     smoothIterations = zoom.smoothIterations,
                     actualSeries = actualSeries,
                     hourLabelSpacingDp = hourLabelSpacingDp,
-                    missingHours = missingHours,
-                    totalHours = totalWindowHours,
+                    missingHours = if (emptyNotice != null) 0 else missingHours,
+                    totalHours = if (emptyNotice != null) 0 else totalWindowHours,
                     numColumns = numColumns,
                     missingDescription = missingDescription,
                     missingReason = missingReason,
@@ -506,6 +514,11 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                     dominantStationLabel = dominantStationLabel,
                 ),
             )
+            emptyNotice?.let {
+                com.weatherwidget.widget.HourlyEmptyNoticeRenderer.draw(
+                    bitmap, it, context.resources.displayMetrics.density * bitmapDims.bitmapScale,
+                )
+            }
             renderMs = SystemClock.elapsedRealtime() - renderStartMs
 
             views.setImageViewBitmap(R.id.graph_view, bitmap)

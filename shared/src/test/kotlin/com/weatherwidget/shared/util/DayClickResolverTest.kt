@@ -496,4 +496,12 @@ class DayClickResolverTest {
         assertEquals(DayClickResolver.PrecipGateSource.DAILY, fallbackDailyResult.gateSource)
         assertEquals(10, fallbackDailyResult.probability)
     }
+
+    @Test
+    fun `dayTapView for a future day is the WIDE window around noon`() {
+        val view = DayClickResolver.dayTapView(java.time.LocalDateTime.of(2026, 11, 15, 14, 43), java.time.LocalDate.of(2026, 11, 22))
+        println("dayTapView=$view")
+        assertEquals(java.time.LocalDateTime.of(2026, 11, 22, 3, 0), view.start)
+        assertEquals(java.time.LocalDateTime.of(2026, 11, 22, 21, 0), view.end)
+    }
 }

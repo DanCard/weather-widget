@@ -36,7 +36,8 @@ import org.junit.experimental.categories.Category
  *     clears when the hours arrive, or turns into the "no hourly data" result when they don't.
  *   - Every source stores 72 h routinely since 2026-10-10, so an NWS day past that is fetched the
  *     same way; once a fresh on-demand fetch has stored NWS's whole horizon and it still ends before
- *     the day, the hourly view opens with the "no hourly forecast" message and nothing is fetched
+ *     the day, the tap stays on the daily view under the "no hourly forecast" message and nothing
+ *     is fetched (2026-11-15); an empty future hourly view reached otherwise says so on the graph
  *     (`performance/261010-daily-view-summaries-instead-of-far-hourly.md`).
  *
  * The fetch is [WidgetPopup]'s `onNeedHourlyRefresh` callback, captured and completed by hand — no
@@ -141,7 +142,7 @@ class DesktopNoHourlyDayClickTest {
 
     @Test
     fun panningOntoACoveredDayDoesNothing() {
-        renderHourlyAt(google, googleToday + hourly(google, targetDate to 0, targetDate to 12, targetDate to 23), targetDate)
+        renderHourlyAt(google, googleToday + hourly(google, targetDate to 0, targetDate to 9, targetDate to 12, targetDate to 15, targetDate to 23), targetDate)
         settle()
 
         assertNull(fetchedDate)
@@ -191,7 +192,7 @@ class DesktopNoHourlyDayClickTest {
 
     @Test
     fun googleDayAlreadyStoredToItsLastHourFetchesNothing() {
-        render(google, googleToday + hourly(google, targetDate to 0, targetDate to 12, targetDate to 23))
+        render(google, googleToday + hourly(google, targetDate to 0, targetDate to 9, targetDate to 12, targetDate to 15, targetDate to 23))
 
         assert(shownConfig!!.viewMode.isHourly)
         assertNull(fetchedDate)
@@ -210,12 +211,33 @@ class DesktopNoHourlyDayClickTest {
     }
 
     @Test
-    fun nwsDayWithNoHourlyOpensHourlyViewWithoutFetching() {
+    fun nwsDayWithNoHourlyStaysOnTheDailyViewWithoutFetching() {
         render(WeatherSource.NWS, nwsWholeHorizonEndingDay4)
 
-        assert(shownConfig!!.viewMode.isHourly)
+        assertEquals("an hourly graph with nothing to draw is not opened", ViewMode.DAILY, shownConfig!!.viewMode)
         assertNull("a fresh fetch already stored NWS's whole horizon; nothing to fetch", fetchedDate)
         composeTestRule.onNodeWithText("No hourly forecast for", substring = true).assertIsDisplayed()
+    }
+
+    /** Fold 4, 2026-11-15: NWS ends at the tapped day's 00:00 (rows at two sites); the tap opens 03:00–21:00. */
+    private val nwsEndingAtTargetMidnight =
+        hourly(WeatherSource.NWS, today to 9, today to 12, targetDate to 0) + hourly(WeatherSource.NWS, targetDate to 0)
+
+    @Test
+    fun nwsEndingAtTheTappedDaysMidnightStaysOnTheDailyView() {
+        render(WeatherSource.NWS, nwsEndingAtTargetMidnight)
+
+        assertEquals(ViewMode.DAILY, shownConfig!!.viewMode)
+        assertNull(fetchedDate)
+        composeTestRule.onNodeWithText("No hourly forecast for", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun anEmptyFutureHourlyViewSaysSoOnTheGraph() {
+        renderHourlyAt(WeatherSource.NWS, nwsEndingAtTargetMidnight, targetDate)
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithTag("hourly_empty_notice").assertIsDisplayed()
     }
 
     /** Stored to 72 h only, NWS's day 5 is on demand like Google's. */

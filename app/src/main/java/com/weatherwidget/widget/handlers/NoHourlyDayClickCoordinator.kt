@@ -7,9 +7,12 @@ import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.HourlyOnDemand
+import com.weatherwidget.shared.util.HourSpan
 import com.weatherwidget.shared.util.NoHourlyChecker
+import com.weatherwidget.shared.util.WeatherTimeUtils
 import com.weatherwidget.widget.WidgetStateManager
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.concurrent.TimeUnit
 
@@ -48,6 +51,11 @@ object NoHourlyDayClickCoordinator {
                 context.getString(R.string.widget_no_hourly_result_still_missing_unknown, dayLabel)
         }
 
+    /**
+     * Whether the widget's display source draws [dateStr] in [view] (the hours the graph shows; null:
+     * the whole day) — :shared [NoHourlyChecker.hasHourlyForDay], as on desktop. A past day with no
+     * forecast still counts when any observation exists for it.
+     */
     suspend fun hasHourlyForTappedDay(
         database: WeatherDatabase,
         stateManager: WidgetStateManager,
@@ -55,6 +63,7 @@ object NoHourlyDayClickCoordinator {
         dateStr: String,
         lat: Double,
         lon: Double,
+        view: HourSpan? = null,
     ): Boolean {
         val targetDate =
             try {
@@ -72,13 +81,15 @@ object NoHourlyDayClickCoordinator {
         val endMs = targetDate.atTime(23, 59).atZone(zoneId).toInstant().toEpochMilli()
         val hourlyForDay = database.hourlyForecastDao().getHourlyForecasts(startMs, endMs, effectiveLat, effectiveLon)
 
-        val hasForecasts =
+        val sourceIds =
             if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) {
-                hourlyForDay.isNotEmpty()
+                null
             } else {
-                val displaySource = stateManager.getCurrentDisplaySource(appWidgetId).id
-                hourlyForDay.any { it.source == displaySource || it.source == WeatherSource.GENERIC_GAP.id }
+                setOf(stateManager.getCurrentDisplaySource(appWidgetId).id)
             }
+        val hasForecasts = NoHourlyChecker.hasHourlyForDay(
+            hourlyForDay.map { it.toHourlyForecast() }, targetDate, sourceIds, view, zoneId,
+        )
 
         if (hasForecasts) return true
 
@@ -92,6 +103,13 @@ object NoHourlyDayClickCoordinator {
         }
 
         return false
+    }
+
+    /** The hours the widget's hourly graph shows now: the renderer's centre and zoom ([WeatherTimeUtils.hourWindow]). */
+    fun currentView(stateManager: WidgetStateManager, appWidgetId: Int, now: LocalDateTime = LocalDateTime.now()): HourSpan {
+        val zoom = stateManager.getZoomWindow(appWidgetId)
+        val center = stateManager.resolveHourlyCenterTime(appWidgetId, now, zoom)
+        return WeatherTimeUtils.hourWindow(center, zoom.backHours, zoom.forwardHours)
     }
 
     /**

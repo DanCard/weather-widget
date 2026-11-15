@@ -86,7 +86,7 @@ class WeatherWidgetProviderNoHourlyRoboTest {
 
     private fun googleRowsFor(day: LocalDate) = runBlocking {
         db.hourlyForecastDao().insertAll(
-            listOf(0, 12, 23).map { h ->
+            (0..23).map { h -> // every hour, as a fetch stores: coverage counts the hours the tap opens
                 HourlyForecastEntity(
                     dateTime = day.atTime(h, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
                     locationLat = lat,
@@ -113,7 +113,8 @@ class WeatherWidgetProviderNoHourlyRoboTest {
         assertTrue("$message", message!!.startsWith("No hourly forecast for"))
         assertTrue(message.contains(NoHourlyDayClickCoordinator.formatDayLabel(targetDay.toString())))
         assertTrue(message.contains("data ends"))
-        assertEquals("the day's hourly view opens anyway", ViewMode.TEMPERATURE, stateManager.getViewMode(widgetId))
+        // An hourly graph with nothing to draw is not opened: the banner says so over the daily view.
+        assertEquals("stays on the daily view", ViewMode.DAILY, stateManager.getViewMode(widgetId))
         assertTrue(onDemandRequests().isEmpty())
     }
 

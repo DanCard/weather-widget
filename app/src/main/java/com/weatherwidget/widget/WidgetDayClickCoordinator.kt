@@ -111,6 +111,9 @@ internal object WidgetDayClickCoordinator {
                 dateStr = date,
                 lat = lat,
                 lon = lon,
+                // The hours a tap on the day opens — what the banner was raised about.
+                view = runCatching { LocalDate.parse(date) }.getOrNull()
+                    ?.let { com.weatherwidget.shared.util.DayClickResolver.dayTapView(java.time.LocalDateTime.now(), it) },
             )
         if (hasHourly) {
             // FetchBanner.clear also pushes the banner GONE: RemoteViews visibility is sticky.
@@ -282,9 +285,12 @@ internal object WidgetDayClickCoordinator {
         val daysInView = generateSequence(java.time.Instant.ofEpochMilli(windowStartMs).atZone(zone).toLocalDate()) { it.plusDays(1) }
             .takeWhile { !it.isAfter(java.time.Instant.ofEpochMilli(windowEndMs).atZone(zone).toLocalDate()) }
             .toList()
+        val view = NoHourlyDayClickCoordinator.currentView(
+            stateManager, appWidgetId, java.time.Instant.ofEpochMilli(nowMs).atZone(zone).toLocalDateTime(),
+        )
         val hasHourlyByDay = daysInView.associateWith { day ->
             NoHourlyDayClickCoordinator.hasHourlyForTappedDay(
-                database, stateManager, appWidgetId, day.toString(), latest.locationLat, latest.locationLon,
+                database, stateManager, appWidgetId, day.toString(), latest.locationLat, latest.locationLon, view,
             )
         }
         val action = HourlyOnDemand.panAction(sourceId, windowStartMs, windowEndMs, zone, nowMs, stored, latest.locationLat, latest.locationLon) { hasHourlyByDay[it] ?: false }
@@ -375,20 +381,24 @@ internal object WidgetDayClickCoordinator {
                 dateStr = date,
                 lat = lat,
                 lon = lon,
+                // The hours the tap opens (WIDE around noon), not the whole day: NWS ending at
+                // Sun 00:00 counted as covered and opened 03:00–21:00 blank (Fold 4, 2026-11-15).
+                view = runCatching { LocalDate.parse(date) }.getOrNull()
+                    ?.let { com.weatherwidget.shared.util.DayClickResolver.dayTapView(java.time.LocalDateTime.now(), it) },
             )
         val requiresHourly =
             targetMode == ViewMode.PRECIPITATION ||
                 targetMode == ViewMode.TEMPERATURE ||
                 targetMode == ViewMode.CLOUD_COVER
         // A day the source's stored hourly does not cover is fetched now, from that source alone
-        // (HourlyOnDemand; any source). Its hourly view opens either way, empty where data is missing.
+        // (HourlyOnDemand; any source). Its hourly view opens; empty where data is still missing.
         val onDemandHours =
             if (requiresHourly) {
                 NoHourlyDayClickCoordinator.onDemandHours(database, stateManager, appWidgetId, date, lat, lon)
             } else {
                 null
             }
-        // The view opens either way; what goes over it is :shared DayTap, as on desktop.
+        // What the tap does is :shared DayTap, as on desktop: NoData stays on the daily view.
         val outcome = if (requiresHourly) DayTap.outcome(onDemandHours, hasHourly) else DayTap.Outcome.Open
         when (outcome) {
             is DayTap.Outcome.Fetch -> {
@@ -414,27 +424,21 @@ internal object WidgetDayClickCoordinator {
                 )
             }
             DayTap.Outcome.NoData -> {
-                // Nothing a fetch can bring: say where the data ends, over the empty view.
+                // Nothing a fetch can bring: stay on the daily view and say where the data ends,
+                // rather than open an hourly graph with nothing to draw (user, 2026-11-15).
                 val message = NoHourlyDayClickCoordinator.buildNoDataMessage(
                     context,
                     NoHourlyDayClickCoordinator.formatDayLabel(date),
                     NoHourlyDayClickCoordinator.lastHourlyEndLabelForSource(database, stateManager, appWidgetId, lat, lon),
                 )
-                stateManager.setTransientMessage(
-                    appWidgetId,
-                    message,
-                    System.currentTimeMillis() + WidgetTransientMessagePolicy.NO_HOURLY_MESSAGE_DURATION_MS,
-                )
-                WidgetWorkScheduler.enqueueDelayedUiRepaint(
-                    context = context,
-                    appWidgetId = appWidgetId,
-                    reason = "clear_no_hourly_msg",
-                    initialDelayMs =
-                        WidgetTransientMessagePolicy.NO_HOURLY_MESSAGE_DURATION_MS +
-                            WidgetTransientMessagePolicy.CLEAR_BUFFER_MS,
+                FetchBanner.show(
+                    context, message, intArrayOf(appWidgetId), "clear_no_hourly_msg", System.currentTimeMillis(),
+                    showMs = WidgetTransientMessagePolicy.NO_HOURLY_MESSAGE_DURATION_MS,
                 )
                 DayTap.noHourlyLine(outcome, date, targetMode.name, hasHourly, message)
                     ?.let { database.appLogDao().log(DayTap.NO_HOURLY_TAG, it) }
+                logTiming(database, appWidgetId, "no_hourly_stay_daily", date, receiveTimeMs)
+                return
             }
             DayTap.Outcome.Open -> Unit
         }

@@ -454,6 +454,17 @@ internal object TemperatureStateResolver {
                     headerBandBottomPx = headerBandBottomPx,
                 )
             }
+            bitmap?.let { drawn ->
+                com.weatherwidget.widget.HourlyEmptyNoticeRenderer.message(
+                    context, stateManager, appWidgetId, hourlyForecasts, displaySource.id,
+                    com.weatherwidget.shared.util.WeatherTimeUtils.hourWindow(centerTime, zoom.backHours, zoom.forwardHours),
+                    now, lat, lon,
+                )?.let { notice ->
+                    com.weatherwidget.widget.HourlyEmptyNoticeRenderer.draw(
+                        drawn, notice, context.resources.displayMetrics.density * bitmapDims.bitmapScale,
+                    )
+                }
+            }
             renderMs = System.currentTimeMillis() - renderStartMs
         }
 

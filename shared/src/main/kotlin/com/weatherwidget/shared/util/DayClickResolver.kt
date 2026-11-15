@@ -145,4 +145,11 @@ object DayClickResolver {
         val targetCenter = targetDay.atTime(12, 0).plusHours(shiftHours)
         return Duration.between(alignedNow, targetCenter).toHours().toInt()
     }
+
+    /** The hours a day tap on [targetDay] opens ([calculateHourlyOffset] at WIDE): what its coverage is judged on. */
+    fun dayTapView(now: LocalDateTime, targetDay: LocalDate): HourSpan {
+        val window = com.weatherwidget.shared.graph.ZoomStage.WIDE.window()
+        val center = now.plusHours(calculateHourlyOffset(now, targetDay).toLong())
+        return WeatherTimeUtils.hourWindow(center, window.backHours, window.forwardHours)
+    }
 }

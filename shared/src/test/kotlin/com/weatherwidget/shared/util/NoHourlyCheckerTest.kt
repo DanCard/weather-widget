@@ -27,6 +27,59 @@ class NoHourlyCheckerTest {
             source = source,
         )
 
+    // ── the view the graph draws (Fold 4, 2026-11-15) ───────────────────────
+
+    private val sunday = LocalDate.of(2026, 11, 22)
+    private val tapNow = java.time.LocalDateTime.of(2026, 11, 15, 14, 43)
+    private val tapView = DayClickResolver.dayTapView(tapNow, sunday)
+
+    @Test
+    fun `NWS ending at the tapped day's midnight is not covered - rows repeated at 00 00 are one hour`() {
+        // The Fold: NWS hourly ends at Sun 00:00, stored at two sites; the tap opens 03:00-21:00.
+        val list = listOf(hourly(sunday, 0), hourly(sunday, 0), hourly(sunday, 0, "GOOGLE_WEATHER"))
+        println("tapView=$tapView")
+        assertFalse(NoHourlyChecker.hasHourlyForDay(list, sunday, setOf("NWS"), tapView))
+        // The whole-day question too: one distinct hour draws no line.
+        assertFalse(NoHourlyChecker.hasHourlyForDay(list, sunday, setOf("NWS")))
+    }
+
+    @Test
+    fun `two hours inside the view are covered`() {
+        val list = listOf(hourly(sunday, 9), hourly(sunday, 10))
+        assertTrue(NoHourlyChecker.hasHourlyForDay(list, sunday, setOf("NWS"), tapView))
+    }
+
+    @Test
+    fun `hours only outside the view are not covered`() {
+        val list = listOf(hourly(sunday, 0), hourly(sunday, 1), hourly(sunday, 2), hourly(sunday, 22), hourly(sunday, 23))
+        assertFalse(NoHourlyChecker.hasHourlyForDay(list, sunday, setOf("NWS"), tapView))
+        assertTrue(NoHourlyChecker.hasHourlyForDay(list, sunday, setOf("NWS")))
+    }
+
+    @Test
+    fun `a day the view does not reach counts as covered`() {
+        assertTrue(NoHourlyChecker.hasHourlyForDay(emptyList(), sunday.plusDays(1), setOf("NWS"), tapView))
+    }
+
+    @Test
+    fun `emptyViewDay names the tapped day for an empty future view`() {
+        val list = listOf(hourly(sunday, 0))
+        assertEquals(sunday, NoHourlyChecker.emptyViewDay(list, tapView, setOf("NWS"), tapNow))
+    }
+
+    @Test
+    fun `emptyViewDay is null when the view draws a line`() {
+        val list = listOf(hourly(sunday, 3), hourly(sunday, 4))
+        assertNull(NoHourlyChecker.emptyViewDay(list, tapView, setOf("NWS"), tapNow))
+    }
+
+    @Test
+    fun `emptyViewDay is null for a view reaching before the current hour - observations may draw`() {
+        val now = sunday.atTime(12, 20)
+        val view = WeatherTimeUtils.hourWindow(now, 9, 9) // 03:00..21:00, straddles now
+        assertNull(NoHourlyChecker.emptyViewDay(emptyList(), view, setOf("NWS"), now))
+    }
+
     // ── hasHourlyForDay ──────────────────────────────────────────────────────
 
     @Test
