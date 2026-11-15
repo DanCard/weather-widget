@@ -1,3 +1,18 @@
+I previously asked for fold-4 type of display to add an extra column.
+Today it looks too busy.
+Should we:
+1. undo that change
+2. or add a setting for more or less dense
+3. or try to make it dynamic, when the display is busy have one less few column
+4. something else?
+5. complete UI redesign?
+
+
+Does the widget somewhere indicate predicted rainfall amounts vs actual?
+For example: for today it is raining.  Rainfall amounts per api vary widely.
+Tomorrow I'd like to know which API was most accurate predicted the daily rainfall amount.
+
+
 To save db space, I'm thinking that views older than 10 days are a desktop only feature.  What do you think?
 
 Give me an overview of how hourly rows pruning works.

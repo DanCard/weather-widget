@@ -1,0 +1,1 @@
+Give extra-wide daily widgets (608dp and up) slightly wider columns for a less crowded 10-day layout, and center night rain labels that ease off a right icon.
