@@ -340,6 +340,56 @@ object DailyRainLabelPlanner {
     }
 
     /**
+     * Slides a placed night label right, off a left neighbour it is pressed against (an icon or a
+     * low's digits, level with it, whose centre is left of the label's left edge), until
+     * [DailyRainLabels.NIGHT_POCKET_SIDE_GAP_DP] separates them; at most
+     * [DailyRainLabels.NIGHT_POCKET_SIDE_SLIDE_MAX_DP]. A ° is not a neighbour here: the ° steps own
+     * that contact. Fold Tue "97%" in its ° pocket read "45°97%", and emulator Tue "97%" was accepted
+     * 4 px into Tue's cloud icon box by the slight-overlap allowance; [easeOffNeighbors] slides right only
+     * with something level on the right, and the pocket placement skips it
+     * (plans/261115-night-rain-label-pocket-side-gap.md).
+     *
+     * It does not slide when the slid label would overlap an obstacle it was clear of, cross
+     * [maxRight], or reach under [rightDigits] less than [DailyRainLabels.NIGHT_POCKET_RIGHT_CLEAR_DP]
+     * below them (there it would read as the next day's label).
+     */
+    fun slideOffLeftNeighbor(
+        centerX: Float,
+        top: Float,
+        width: Float,
+        height: Float,
+        rightDigits: Box?,
+        obstacles: List<Box>,
+        maxRight: Float,
+        density: Float,
+    ): Float {
+        val half = width / 2f
+        val bottom = top + height
+        val left = centerX - half
+        val slightPx = DailyRainLabels.NIGHT_SLIGHT_OVERLAP_DP * density
+        val neighborRight = obstacles
+            .filter { !it.isDegreeSign && (it.left + it.right) / 2f < left }
+            .filter { minOf(bottom, it.bottom) - maxOf(top, it.top) > slightPx }
+            .maxOfOrNull { it.right } ?: return centerX
+        val gap = left - neighborRight
+        val wanted = DailyRainLabels.NIGHT_POCKET_SIDE_GAP_DP * density
+        if (gap >= wanted) return centerX
+        val dx = minOf(wanted - gap, DailyRainLabels.NIGHT_POCKET_SIDE_SLIDE_MAX_DP * density)
+        val cx = centerX + dx
+        if (cx + half > maxRight) return centerX
+        fun overlaps(o: Box, l: Float, r: Float) =
+            minOf(r, o.right) > maxOf(l, o.left) && minOf(bottom, o.bottom) > maxOf(top, o.top)
+        val newlyHit = obstacles.any { overlaps(it, cx - half, cx + half) && !overlaps(it, left, centerX + half) }
+        if (newlyHit) return centerX
+        if (rightDigits != null && minOf(cx + half, rightDigits.right) > maxOf(cx - half, rightDigits.left) &&
+            top - rightDigits.bottom < DailyRainLabels.NIGHT_POCKET_RIGHT_CLEAR_DP * density
+        ) {
+            return centerX
+        }
+        return cx
+    }
+
+    /**
      * Moves a placed night label off a neighbour it hugs: within [DailyRainLabels.NIGHT_HUG_DP] of it,
      * or overlapping it, with at least [DailyRainLabels.NIGHT_ROOMY_SIDE_DP] free on the other side.
      *

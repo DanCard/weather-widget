@@ -185,7 +185,8 @@ object DailyRainLabelLayout {
      *
      * It is the left day's label. When the search can only clear by going mostly under the next day's
      * low, it takes the pocket under its own day's ° instead, even a little past the day-name floor
-     * (only its blank descent crosses); such a placement is final. If it still ends up under the next
+     * (only its blank descent crosses); such a placement is final, apart from a slide of at most 2 dp
+     * off its own low's digits ([DailyRainLabelPlanner.slideOffLeftNeighbor]). If it still ends up under the next
      * day's low, it is laid out again at [NIGHT_REDUCED_SCALE] and the smaller label is used when that
      * keeps it on its own day's side (plans/261114-night-rain-label-own-degree-pocket.md).
      */
@@ -292,15 +293,26 @@ object DailyRainLabelLayout {
             " obstacles=${input.obstacles.joinToString(";", "[", "]") { "${it.left.r()},${it.top.r()},${it.right.r()},${it.bottom.r()}" }}"
         if (placed.inPocket) {
             // Under its own ° and past the floor: final. The later steps all work to [maxBottom] and
-            // would slide it back out toward the next day's low.
+            // would slide it back out toward the next day's low. Only a small slide off its own low's
+            // digits, which the pocket can press it against.
+            val pocketX = DailyRainLabelPlanner.slideOffLeftNeighbor(
+                centerX = placed.centerX,
+                top = placed.top,
+                width = size.width,
+                height = size.height,
+                rightDigits = rightDigits,
+                obstacles = input.obstacles,
+                maxRight = input.canvasWidth - edge,
+                density = p,
+            )
             return NightAttempt(
                 Placed(
-                    Kind.NIGHT, input.text, fontScale, placed.centerX, placed.top, size.width, size.height,
+                    Kind.NIGHT, input.text, fontScale, pocketX, placed.top, size.width, size.height,
                     placed.top + size.baseline, placement, anchorBottom,
                 ),
                 placed.underRightLow,
                 " fit=$placement home=(${homeCenterX.r()},${homeTop.r()}) size=${size.width.r()}x${size.height.r()}" +
-                    " resolved=(${placed.centerX.r()},${placed.top.r()}) pocket=true$searchTrace",
+                    " resolved=(${pocketX.r()},${placed.top.r()}) pocket=true sideSlideDp=${((pocketX - placed.centerX) / p).r()}$searchTrace",
             )
         }
         val sunk = placed.dyPx > 0f && placed.top + size.height > lowerLowBottom
@@ -414,17 +426,32 @@ object DailyRainLabelLayout {
         } else {
             floorTop
         }
+        // Last: off a left icon or low the steps above left it pressed against. A sunk label has
+        // its own tuned slide off the left low (slideRightAfterSinking).
+        val sideX = if (sunk) floorEased.centerX else DailyRainLabelPlanner.slideOffLeftNeighbor(
+            centerX = floorEased.centerX,
+            top = tuckedTop,
+            width = size.width,
+            height = size.height,
+            rightDigits = rightDigits,
+            obstacles = input.obstacles,
+            maxRight = input.canvasWidth - edge,
+            density = p,
+        )
         val label = Placed(
-            Kind.NIGHT, input.text, fontScale, floorEased.centerX, tuckedTop, size.width, size.height,
+            Kind.NIGHT, input.text, fontScale, sideX, tuckedTop, size.width, size.height,
             tuckedTop + size.baseline, placement, anchorBottom,
         )
+        // Judged before the side slide: that slide only runs well below the next low's digits, and
+        // counting it here dropped the emulator's shrunk Tue "97%" back to full size (2026-11-15).
+        val preSlideLeft = floorEased.centerX - size.width / 2f
         val halfUnderRight = rightDigits != null &&
-            minOf(label.right, rightDigits.right) - maxOf(label.left, rightDigits.left) > size.width / 2f
+            minOf(preSlideLeft + size.width, rightDigits.right) - maxOf(preSlideLeft, rightDigits.left) > size.width / 2f
         return NightAttempt(
             label,
             halfUnderRight,
             " fit=$placement home=(${homeCenterX.r()},${homeTop.r()}) size=${size.width.r()}x${size.height.r()}" +
-                " resolved=(${floorEased.centerX.r()},${tuckedTop.r()}) pocket=false ownLowTuckDp=${((floorTop - tuckedTop) / p).r()} sunk=$sunk" +
+                " resolved=(${sideX.r()},${tuckedTop.r()}) pocket=false sideSlideDp=${((sideX - floorEased.centerX) / p).r()} ownLowTuckDp=${((floorTop - tuckedTop) / p).r()} sunk=$sunk" +
                 " recentered=${final != eased} inkDropDp=${((offInkTop - final.top) / p).r()} inkSlideDp=${((finalCenterX - final.centerX) / p).r()} degreeDropDp=${((finalTop - offInkTop) / p).r()} degreeSlideDp=${((placedCenterXFinal - finalCenterX) / p).r()} floorEaseDp=(${((floorEased.centerX - placedCenterXFinal) / p).r()},${((floorEased.top - finalTop) / p).r()}) floorDegreeDropDp=${((floorTop - floorEased.top) / p).r()}" +
                 " easedDp=(${((eased.centerX - placedCenterX) / p).r()},${((eased.top - placed.top) / p).r()})$searchTrace",
         )

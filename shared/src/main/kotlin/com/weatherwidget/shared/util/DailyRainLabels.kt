@@ -65,6 +65,18 @@ object DailyRainLabels {
     // Night rain label collision nudge (DailyRainLabelPlanner.placeNightLabel).
     /** Furthest right a night label slides to clear the left low after sinking below both lows. */
     const val NIGHT_SINK_RIGHT_DP = 3f
+
+    /**
+     * Gap a night label in its own day's ° pocket keeps from that low's digits: the pocket put Fold
+     * Tue night "97%" against "45" so it read "45°97%" (user, 2026-11-15).
+     */
+    const val NIGHT_POCKET_SIDE_GAP_DP = 1.5f
+
+    /** Furthest a pocket label slides right to open [NIGHT_POCKET_SIDE_GAP_DP]. */
+    const val NIGHT_POCKET_SIDE_SLIDE_MAX_DP = 2f
+
+    /** A pocket label may slide toward the next day's low only while this far below its digits. */
+    const val NIGHT_POCKET_RIGHT_CLEAR_DP = 2.5f
     /** Top fraction of a low label's line box that is blank (measured on the Fold and desktop). */
     const val LOW_BLANK_ASCENT_FRACTION = 0.2f
     /** Bottom fraction of a low label's digit box that is blank descent (measured on the Fold and desktop). */
