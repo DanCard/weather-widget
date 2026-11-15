@@ -12,12 +12,12 @@ import java.time.ZoneId
 
 /**
  * Source-agnostic view-state logic for the forecast-history screen, shared between Android
- * (`ForecastHistoryActivity`) and desktop (`ForecastHistoryWindow`). Pure functions only — no DB,
+ * (`ForecastComparisonActivity`) and desktop (`ForecastComparisonWindow`). Pure functions only — no DB,
  * no platform types — so both UIs make the same decisions about which graph mode and button label
  * to show and how to look up actuals.
  */
-object ForecastHistoryViewLogic {
-    private const val TAG = "ForecastHistoryViewLogic"
+object ForecastComparisonViewLogic {
+    private const val TAG = "ForecastComparisonViewLogic"
 
     const val MAX_HISTORY_DAYS_BACK = 395L // 13 months
 

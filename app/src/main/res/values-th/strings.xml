@@ -124,18 +124,18 @@
     <string name="refresh_policy_battery_mid">นโยบายรีเฟรช: ทุก 8 ชม. (แบตเตอรี่ %1$d%%)</string>
     <string name="refresh_policy_battery_low">นโยบายรีเฟรช: หยุดชั่วคราว (แบตเตอรี่ %1$d%%)</string>
     <string name="freshness_just_now">เมื่อสักครู่</string>
-    <string name="forecast_history">"การเปรียบเทียบพยากรณ์สำหรับ "</string>
-    <string name="forecast_history_summary_single">สแนปช็อตพยากรณ์ %2$s จำนวน %1$d รายการ</string>
-    <string name="forecast_history_summary_combined">สแนปช็อต NWS %1$d + Visual Crossing %2$d + Open-Meteo %3$d + WeatherAPI %4$d รายการ</string>
-    <string name="forecast_history_summary_climate_fill"> • จุดเติมข้อมูลภูมิอากาศ %1$d จุด</string>
-    <string name="forecast_history_api_fallback_label">API</string>
-    <string name="forecast_history_api_actual">ค่าจริงจาก API %1$s: %2$s / %3$s</string>
-    <string name="forecast_history_location_actual">ค่าจริงของตำแหน่ง: %1$s / %2$s</string>
-    <string name="forecast_history_no_history_yet">ยังไม่มีข้อมูลพยากรณ์ย้อนหลัง\nสแนปช็อตพยากรณ์ถูกบันทึกทุกวัน กลับมาพรุ่งนี้เพื่อดูการเปรียบเทียบความแม่นยำครั้งแรกของคุณ</string>
-    <string name="forecast_history_no_data_fallback_source">แหล่งข้อมูลที่เลือก</string>
-    <string name="forecast_history_prev_day">วันก่อนหน้า</string>
-    <string name="forecast_history_next_day">วันถัดไป</string>
-    <string name="forecast_history_subtitle">การเปรียบเทียบพยากรณ์</string>
+    <string name="forecast_comparison">"การเปรียบเทียบพยากรณ์สำหรับ "</string>
+    <string name="forecast_comparison_summary_single">สแนปช็อตพยากรณ์ %2$s จำนวน %1$d รายการ</string>
+    <string name="forecast_comparison_summary_combined">สแนปช็อต NWS %1$d + Visual Crossing %2$d + Open-Meteo %3$d + WeatherAPI %4$d รายการ</string>
+    <string name="forecast_comparison_summary_climate_fill"> • จุดเติมข้อมูลภูมิอากาศ %1$d จุด</string>
+    <string name="forecast_comparison_api_fallback_label">API</string>
+    <string name="forecast_comparison_api_actual">ค่าจริงจาก API %1$s: %2$s / %3$s</string>
+    <string name="forecast_comparison_location_actual">ค่าจริงของตำแหน่ง: %1$s / %2$s</string>
+    <string name="forecast_comparison_no_history_yet">ยังไม่มีข้อมูลพยากรณ์ย้อนหลัง\nสแนปช็อตพยากรณ์ถูกบันทึกทุกวัน กลับมาพรุ่งนี้เพื่อดูการเปรียบเทียบความแม่นยำครั้งแรกของคุณ</string>
+    <string name="forecast_comparison_no_data_fallback_source">แหล่งข้อมูลที่เลือก</string>
+    <string name="forecast_comparison_prev_day">วันก่อนหน้า</string>
+    <string name="forecast_comparison_next_day">วันถัดไป</string>
+    <string name="forecast_comparison_subtitle">การเปรียบเทียบพยากรณ์</string>
     <string name="freshness_forecast_fetch_ago">ดึงพยากรณ์: %1$s ที่แล้ว</string>
     <string name="freshness_forecast_fetch_never">ดึงพยากรณ์: ยังไม่เคย</string>
     <string name="freshness_displayed_data">ข้อมูลที่แสดง (%1$s): ดึงเมื่อ %2$s ที่แล้ว</string>
@@ -147,12 +147,11 @@
     <string name="forecast_error_high_title">ค่าคลาดเคลื่อนอุณหภูมิสูงสุด</string>
     <string name="forecast_error_low_title">ค่าคลาดเคลื่อนอุณหภูมิต่ำสุด</string>
     <string name="forecast_show_hourly">พยากรณ์อุณหภูมิ</string>
-    <string name="forecast_show_evolution">กลับไปยังประวัติพยากรณ์</string>
     <string name="forecast_hourly_title">พยากรณ์อุณหภูมิ</string>
     <string name="forecast_hourly_subtitle">รายละเอียดรายชั่วโมง</string>
     <string name="forecast_hourly_no_data">ไม่มีพยากรณ์อุณหภูมิรายชั่วโมงสำหรับวันที่นี้</string>
     <string name="forecast_hourly_legend">ตอนนี้</string>
-    <string name="forecast_history_no_data_for_source">ไม่มีประวัติพยากรณ์สำหรับวันที่นี้ (%1$s)</string>
+    <string name="forecast_comparison_no_data_for_source">ไม่มีประวัติพยากรณ์สำหรับวันที่นี้ (%1$s)</string>
     <string name="forecast_error_requires_actuals">มุมมองค่าคลาดเคลื่อนจะใช้ได้หลังจากบันทึกอุณหภูมิจริงของวันนี้แล้ว</string>
     <string name="legend_actual">ค่าจริงจาก API</string>
     <string name="legend_zero_error">ค่าคลาดเคลื่อนศูนย์</string>
@@ -310,7 +309,7 @@
     <string name="obs_subtitle_stale">ไม่มีการตรวจวัดล่าสุดของ %1$s — แสดงค่าล่าสุดเมื่อ %2$s ที่แล้ว</string>
     <string name="obs_no_location_to_refresh">ไม่มีตำแหน่งให้รีเฟรช</string>
     <string name="obs_refreshed_source">รีเฟรช %1$s แล้ว</string>
-    <string name="forecast_history_refresh_failed">รีเฟรช %1$s ไม่ได้</string>
+    <string name="forecast_comparison_refresh_failed">รีเฟรช %1$s ไม่ได้</string>
     <string name="refresh_retrying_at">ลองใหม่ %1$s</string>
     <string name="obs_reported_prefix">"รายงานเมื่อ "</string>
     <string name="obs_fetched_separator">" • ดึงเมื่อ "</string>
@@ -351,8 +350,8 @@
     <string name="rain_pred_act_format">พยากรณ์ %1$s / จริง %2$s</string>
 
     <!-- Forecast history screen -->
-    <string name="forecast_history_high_temp_title">อุณหภูมิสูงสุด</string>
-    <string name="forecast_history_low_temp_title">อุณหภูมิต่ำสุด</string>
+    <string name="forecast_comparison_high_temp_title">อุณหภูมิสูงสุด</string>
+    <string name="forecast_comparison_low_temp_title">อุณหภูมิต่ำสุด</string>
     <string name="legend_location_actual">ค่าจริงของตำแหน่ง</string>
     <string name="evolution_api_actual_format">ค่าจริงจาก API: %1$s</string>
     <string name="evolution_location_actual_format">ค่าจริงของตำแหน่ง: %1$s</string>
@@ -379,7 +378,7 @@
     <string name="stats_baseline_explainer_blended">รวมสถานีใกล้เคียงทั้งหมดแล้วประมาณค่าไปยังพิกัดของคุณ ใกล้เคียงที่อยู่ของคุณมากกว่า แต่ช่วงว่างระหว่างการตรวจวัดถูกเติมด้วยค่าพยากรณ์ ทำให้ค่าคลาดเคลื่อนของการพยากรณ์ต่ำกว่าความจริงเล็กน้อย</string>
     <string name="stats_baseline_vs_source">เทียบกับ %1$s</string>
     <string name="stats_baseline_blend_fallback">ค่าผสม (ไม่มีสถานี)</string>
-    <string name="forecast_history_actual_from_cache">จากค่าที่บันทึกไว้</string>
+    <string name="forecast_comparison_actual_from_cache">จากค่าที่บันทึกไว้</string>
     <string name="notifications_title">การแจ้งเตือน</string>
     <string name="notify_dominant_temp_change_label">แจ้งเตือนครั้งเดียวเมื่อค่าจากสถานีหลักเปลี่ยน</string>
     <string name="notify_dominant_temp_change_description">ส่งการแจ้งเตือนหนึ่งครั้งเมื่อสถานีหลักของแหล่งข้อมูลหลักของคุณรายงานอุณหภูมิที่ต่างออกไป หรือเมื่อมีสถานีอื่นเข้ามาแทน — เช่น \"KNUQ 69.9°, was 68°\" และจะปิดตัวเองหลังจากแจ้งเตือนแล้ว</string>

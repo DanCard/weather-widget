@@ -15,7 +15,7 @@ import com.weatherwidget.stats.AccuracyCalculator
 import java.time.Instant
 import java.time.ZoneOffset
 
-/** Room reads for the shared [DaySourceComparison] runner (Forecast History "All sources"). */
+/** Room reads for the shared [DaySourceComparison] runner (Forecast Comparison "All sources"). */
 internal class RoomDaySourceComparisonHost(
     private val forecastDao: ForecastDao,
     private val dailyHistoryDao: DailyHistoryDao,

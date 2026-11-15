@@ -520,7 +520,7 @@ internal fun headerButtonTag(button: HeaderButton, isHourly: Boolean): String = 
     HeaderButton.OBSERVATIONS -> if (isHourly) "open_observations_header" else "open_observations_header_daily"
     HeaderButton.GRAPH_SELECTOR -> "graph_selector"
     HeaderButton.MONTHS -> "open_months_view_daily"
-    HeaderButton.HISTORY -> if (isHourly) "open_forecast_history" else "open_forecast_history_daily"
+    HeaderButton.HISTORY -> if (isHourly) "open_forecast_comparison" else "open_forecast_comparison_daily"
 }
 
 /** One header button's icon, drawn centred in its zone (the zone is the click target). */
@@ -569,7 +569,7 @@ private fun HeaderButtonGlyph(
             modifier = iconModifier,
         )
         HeaderButton.HISTORY -> Icon(
-            painter = painterResource("drawable/ic_forecast_history_line.xml"),
+            painter = painterResource("drawable/ic_forecast_comparison_line.xml"),
             contentDescription = "Forecast comparison",
             tint = Color.White.copy(alpha = 0.6f),
             modifier = iconModifier,

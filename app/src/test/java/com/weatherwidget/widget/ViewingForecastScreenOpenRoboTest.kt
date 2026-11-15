@@ -21,7 +21,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-/** Opening Forecast History or Observations holds that one source to the 2-hour limit (user, 2026-11-01). */
+/** Opening Forecast Comparison or Observations holds that one source to the 2-hour limit (user, 2026-11-01). */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 @Category(LongDuration::class)

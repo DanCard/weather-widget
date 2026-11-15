@@ -151,7 +151,7 @@ data class DesktopConfig(
     val historyWindowY: Float? = null,
     val historyWindowWidth: Float? = null,
     val historyWindowHeight: Float? = null,
-    // History of Forecasts "All sources" column sort, DaySourceComparison.Sort.encode() text
+    // Forecast Comparison "All sources" column sort, DaySourceComparison.Sort.encode() text
     // (Android: `source_compare_sort` pref). null = the default high sort.
     val sourceCompareSort: String? = null,
     // Settings window bounds, mirroring the popup/observations/history windows. Popup-owned, NOT

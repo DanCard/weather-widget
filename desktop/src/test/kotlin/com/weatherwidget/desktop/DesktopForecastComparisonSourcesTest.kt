@@ -24,12 +24,12 @@ import java.time.format.TextStyle
 import java.util.Locale
 
 /**
- * History of Forecasts' "All sources for <day>" card through [ForecastHistoryContent] and the real
- * SQLite reads: sorted by high with Android's short names (`ForecastHistorySourceComparisonRoboTest`).
+ * Forecast Comparison' "All sources for <day>" card through [ForecastComparisonContent] and the real
+ * SQLite reads: sorted by high with Android's short names (`ForecastComparisonSourcesRoboTest`).
  * plans/261105-all-sources-day-comparison.md
  */
 @Category(LongDuration::class)
-class DesktopForecastHistorySourceComparisonTest {
+class DesktopForecastComparisonSourcesTest {
     @get:Rule
     val composeTestRule = createComposeRule()
 
@@ -81,7 +81,7 @@ class DesktopForecastHistorySourceComparisonTest {
         val tomorrow = LocalDate.now().plusDays(1)
 
         composeTestRule.setContent {
-            ForecastHistoryContent(weatherDao = DesktopWeatherDao(db), config = config, initialDate = tomorrow, onClose = {})
+            ForecastComparisonContent(weatherDao = DesktopWeatherDao(db), config = config, initialDate = tomorrow, onClose = {})
         }
         composeTestRule.waitForIdle()
         composeTestRule.waitUntil(timeoutMillis = 10_000) {
@@ -95,7 +95,7 @@ class DesktopForecastHistorySourceComparisonTest {
             composeTestRule.onNodeWithTag("source_compare_row_$i", useUnmergedTree = true)
                 .fetchSemanticsNode().children.map { it.config[SemanticsProperties.Text].joinToString() }
         val rows = (0..2).map { rowTexts(it) }
-        println("DesktopForecastHistorySourceComparisonTest rows: $rows")
+        println("DesktopForecastComparisonSourcesTest rows: $rows")
         assertEquals(listOf("Meteo", "NWS", "Silur"), rows.map { it.first() })
         assertEquals(listOf("Meteo", "68°", "52°", "15%", "—", "—", "40%", "—", "2h"), rows[0])
         assertEquals("1h", rows[1].last())
@@ -106,7 +106,7 @@ class DesktopForecastHistorySourceComparisonTest {
         assertTrue(composeTestRule.onAllNodesWithText("1h").fetchSemanticsNodes().isNotEmpty())
         val legend = composeTestRule.onNodeWithTag("source_compare_legend", useUnmergedTree = true)
             .fetchSemanticsNode().config[SemanticsProperties.Text].joinToString()
-        println("DesktopForecastHistorySourceComparisonTest legend: $legend")
+        println("DesktopForecastComparisonSourcesTest legend: $legend")
         assertTrue(legend, legend.startsWith("Rain highest hourly chance, 8am–8pm\nPeak hour of the highest daytime chance\n"))
         assertTrue(legend, legend.contains("\nCloud cloud cover at noon\n"))
         assertTrue(legend, legend.endsWith("Age time since the source last confirmed this forecast; grey after 24 h"))
@@ -122,7 +122,7 @@ class DesktopForecastHistorySourceComparisonTest {
         val saved = mutableListOf<String>()
 
         composeTestRule.setContent {
-            ForecastHistoryContent(
+            ForecastComparisonContent(
                 weatherDao = DesktopWeatherDao(db), config = config, initialDate = tomorrow, onClose = {},
                 onSourceCompareSort = { saved += it.encode() },
             )
@@ -133,7 +133,7 @@ class DesktopForecastHistorySourceComparisonTest {
         fun sourcesInOrder(): List<String> = (0..2).map {
             composeTestRule.onNodeWithTag("source_compare_row_$it", useUnmergedTree = true)
                 .fetchSemanticsNode().children.first().config[SemanticsProperties.Text].joinToString()
-        }.also { println("DesktopForecastHistorySourceComparisonTest order: $it saved=$saved") }
+        }.also { println("DesktopForecastComparisonSourcesTest order: $it saved=$saved") }
 
         assertEquals(listOf("NWS", "Meteo", "Silur"), sourcesInOrder())
         composeTestRule.onNodeWithText("High ▾").assertExists()
@@ -157,7 +157,7 @@ class DesktopForecastHistorySourceComparisonTest {
         seed("OPEN_METEO", 68f, 52f, ageMs = 2 * 3_600_000L, dayMax = 60)
         val tomorrow = LocalDate.now().plusDays(1)
         composeTestRule.setContent {
-            ForecastHistoryContent(
+            ForecastComparisonContent(
                 weatherDao = DesktopWeatherDao(db), config = config.copy(sourceCompareSort = "DAY_RAIN:desc"),
                 initialDate = tomorrow, onClose = {},
             )
@@ -167,7 +167,7 @@ class DesktopForecastHistorySourceComparisonTest {
         }
         val first = composeTestRule.onNodeWithTag("source_compare_row_0", useUnmergedTree = true)
             .fetchSemanticsNode().children.first().config[SemanticsProperties.Text].joinToString()
-        println("DesktopForecastHistorySourceComparisonTest saved-sort first row: $first")
+        println("DesktopForecastComparisonSourcesTest saved-sort first row: $first")
         assertEquals("Meteo", first)
         composeTestRule.onNodeWithText("Rain ▾").assertExists()
     }
@@ -180,7 +180,7 @@ class DesktopForecastHistorySourceComparisonTest {
         seed("SILURIAN", 64f, 53f, ageMs = 5 * 3_600_000L, dayOffset = 0)
         seed("SILURIAN", 66f, 50f, ageMs = 12 * 60_000L, dayOffset = 1)
         composeTestRule.setContent {
-            ForecastHistoryContent(weatherDao = DesktopWeatherDao(db), config = config, initialDate = LocalDate.now(), onClose = {})
+            ForecastComparisonContent(weatherDao = DesktopWeatherDao(db), config = config, initialDate = LocalDate.now(), onClose = {})
         }
         composeTestRule.waitForIdle()
         composeTestRule.waitUntil(timeoutMillis = 10_000) {
@@ -188,7 +188,7 @@ class DesktopForecastHistorySourceComparisonTest {
         }
         val legend = composeTestRule.onNodeWithTag("source_compare_legend", useUnmergedTree = true)
             .fetchSemanticsNode().config[SemanticsProperties.Text].joinToString()
-        println("DesktopForecastHistorySourceComparisonTest today legend: $legend")
+        println("DesktopForecastComparisonSourcesTest today legend: $legend")
         assertTrue(legend, legend.endsWith("grey after 24 h\n* $STAR_NOTE"))
         assertTrue("NWS is not starred", composeTestRule.onAllNodesWithText("1m").fetchSemanticsNodes().isNotEmpty())
     }

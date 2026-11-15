@@ -18,7 +18,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 
-/** The Forecast History "All sources for <day>" rule (plans/261105-all-sources-day-comparison.md). */
+/** The Forecast Comparison "All sources for <day>" rule (plans/261105-all-sources-day-comparison.md). */
 @Category(ShortDuration::class)
 class DaySourceComparisonTest {
     private val zone = ZoneId.of("America/Los_Angeles")

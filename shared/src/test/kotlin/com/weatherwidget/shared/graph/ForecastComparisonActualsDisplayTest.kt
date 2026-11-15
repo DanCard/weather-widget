@@ -1,7 +1,7 @@
 package com.weatherwidget.shared.graph
 
-import com.weatherwidget.shared.graph.ForecastHistoryViewLogic.ActualPair
-import com.weatherwidget.shared.graph.ForecastHistoryViewLogic.LocationActuals
+import com.weatherwidget.shared.graph.ForecastComparisonViewLogic.ActualPair
+import com.weatherwidget.shared.graph.ForecastComparisonViewLogic.LocationActuals
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -10,15 +10,15 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.experimental.categories.Category
 
-/** The one legend, footer and error-graph decision behind both History of Forecasts screens. */
+/** The one legend, footer and error-graph decision behind both Forecast Comparison screens. */
 @Category(ShortDuration::class)
-class ForecastHistoryActualsDisplayTest {
+class ForecastComparisonActualsDisplayTest {
 
     private val both = LocationActuals(71f, 52f, 1L, 2L)
     private val lowOnly = LocationActuals(null, 52f, null, 2L)
 
     private fun display(isPast: Boolean, apiHigh: Float? = null, apiLow: Float? = null, actuals: LocationActuals) =
-        ForecastHistoryViewLogic.actualsDisplay(isPast, apiHigh, apiLow, actuals)
+        ForecastComparisonViewLogic.actualsDisplay(isPast, apiHigh, apiLow, actuals)
 
     @Test
     fun `past day shows every legend, both footers and the error graph`() {

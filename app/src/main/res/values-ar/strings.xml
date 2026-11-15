@@ -124,18 +124,18 @@
     <string name="refresh_policy_battery_mid">سياسة التحديث: كل 8 ساعات (البطارية %1$d%%)</string>
     <string name="refresh_policy_battery_low">سياسة التحديث: متوقفة مؤقتًا (البطارية %1$d%%)</string>
     <string name="freshness_just_now">للتو</string>
-    <string name="forecast_history">"مقارنة التوقعات لـ "</string>
-    <string name="forecast_history_summary_single">%1$d لقطة توقعات %2$s</string>
-    <string name="forecast_history_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI لقطة</string>
-    <string name="forecast_history_summary_climate_fill"> • %1$d نقطة تعبئة مناخية</string>
-    <string name="forecast_history_api_fallback_label">API</string>
-    <string name="forecast_history_api_actual">فعلي واجهة %1$s: %2$s / %3$s</string>
-    <string name="forecast_history_location_actual">فعلي الموقع: %1$s / %2$s</string>
-    <string name="forecast_history_no_history_yet">لا توجد بيانات توقعات تاريخية بعد.\nتُحفظ لقطات التوقعات يوميًا. عد غدًا لأول مقارنة للدقة.</string>
-    <string name="forecast_history_no_data_fallback_source">المصدر المحدد</string>
-    <string name="forecast_history_prev_day">اليوم السابق</string>
-    <string name="forecast_history_next_day">اليوم التالي</string>
-    <string name="forecast_history_subtitle">مقارنة التوقعات</string>
+    <string name="forecast_comparison">"مقارنة التوقعات لـ "</string>
+    <string name="forecast_comparison_summary_single">%1$d لقطة توقعات %2$s</string>
+    <string name="forecast_comparison_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI لقطة</string>
+    <string name="forecast_comparison_summary_climate_fill"> • %1$d نقطة تعبئة مناخية</string>
+    <string name="forecast_comparison_api_fallback_label">API</string>
+    <string name="forecast_comparison_api_actual">فعلي واجهة %1$s: %2$s / %3$s</string>
+    <string name="forecast_comparison_location_actual">فعلي الموقع: %1$s / %2$s</string>
+    <string name="forecast_comparison_no_history_yet">لا توجد بيانات توقعات تاريخية بعد.\nتُحفظ لقطات التوقعات يوميًا. عد غدًا لأول مقارنة للدقة.</string>
+    <string name="forecast_comparison_no_data_fallback_source">المصدر المحدد</string>
+    <string name="forecast_comparison_prev_day">اليوم السابق</string>
+    <string name="forecast_comparison_next_day">اليوم التالي</string>
+    <string name="forecast_comparison_subtitle">مقارنة التوقعات</string>
     <string name="freshness_forecast_fetch_ago">جلب التوقعات: قبل %1$s</string>
     <string name="freshness_forecast_fetch_never">جلب التوقعات: أبدًا</string>
     <string name="freshness_displayed_data">البيانات المعروضة (%1$s): جُلبت قبل %2$s</string>
@@ -147,12 +147,11 @@
     <string name="forecast_error_high_title">خطأ درجة الحرارة العظمى</string>
     <string name="forecast_error_low_title">خطأ درجة الحرارة الصغرى</string>
     <string name="forecast_show_hourly">توقعات درجة الحرارة</string>
-    <string name="forecast_show_evolution">العودة إلى سجل التوقعات</string>
     <string name="forecast_hourly_title">توقعات درجة الحرارة</string>
     <string name="forecast_hourly_subtitle">تفاصيل بالساعة</string>
     <string name="forecast_hourly_no_data">لا تتوفر توقعات درجة الحرارة بالساعة لهذا التاريخ.</string>
     <string name="forecast_hourly_legend">الآن</string>
-    <string name="forecast_history_no_data_for_source">لا يوجد سجل توقعات لهذا التاريخ (%1$s).</string>
+    <string name="forecast_comparison_no_data_for_source">لا يوجد سجل توقعات لهذا التاريخ (%1$s).</string>
     <string name="forecast_error_requires_actuals">يتوفر عرض الخطأ بعد تسجيل درجات الحرارة الفعلية لهذا اليوم.</string>
     <string name="legend_actual">فعلي الواجهة</string>
     <string name="legend_zero_error">خطأ صفري</string>
@@ -310,7 +309,7 @@
     <string name="obs_subtitle_stale">لا توجد أرصاد حديثة لـ %1$s — يتم عرض الأحدث، قبل %2$s.</string>
     <string name="obs_no_location_to_refresh">لا يوجد موقع متاح للتحديث</string>
     <string name="obs_refreshed_source">تم تحديث %1$s</string>
-    <string name="forecast_history_refresh_failed">تعذّر تحديث %1$s</string>
+    <string name="forecast_comparison_refresh_failed">تعذّر تحديث %1$s</string>
     <string name="refresh_retrying_at">إعادة المحاولة %1$s</string>
     <string name="obs_reported_prefix">"أُبلغ "</string>
     <string name="obs_fetched_separator">" • جُلب "</string>
@@ -351,8 +350,8 @@
     <string name="rain_pred_act_format">متوقع %1$s / فعلي %2$s</string>
 
     <!-- Forecast history screen -->
-    <string name="forecast_history_high_temp_title">درجة الحرارة العظمى</string>
-    <string name="forecast_history_low_temp_title">درجة الحرارة الصغرى</string>
+    <string name="forecast_comparison_high_temp_title">درجة الحرارة العظمى</string>
+    <string name="forecast_comparison_low_temp_title">درجة الحرارة الصغرى</string>
     <string name="legend_location_actual">فعلي الموقع</string>
     <string name="evolution_api_actual_format">فعلي الواجهة: %1$s</string>
     <string name="evolution_location_actual_format">فعلي الموقع: %1$s</string>
@@ -379,7 +378,7 @@
     <string name="stats_baseline_explainer_blended">دمج جميع المحطات القريبة واستيفاؤها عند إحداثياتك. أقرب إلى عنوانك، لكن الفجوات بين القراءات تُسدّ باستخدام التوقعات، لذا يظهر خطأ التوقعات أقل قليلاً مما هو عليه.</string>
     <string name="stats_baseline_vs_source">مقابل %1$s</string>
     <string name="stats_baseline_blend_fallback">مُدمج (بلا محطة)</string>
-    <string name="forecast_history_actual_from_cache">من القراءات المخزّنة</string>
+    <string name="forecast_comparison_actual_from_cache">من القراءات المخزّنة</string>
     <string name="notifications_title">الإشعارات</string>
     <string name="notify_dominant_temp_change_label">إشعار لمرة واحدة عند تغيّر قراءة المحطة المهيمنة</string>
     <string name="notify_dominant_temp_change_description">يرسل إشعارًا واحدًا عندما تُبلّغ المحطة المهيمنة لمصدرك الأساسي عن درجة حرارة مختلفة، أو عندما تحلّ محطة أخرى محلّها — مثل \"KNUQ 69.9°, was 68°\". يُلغى تلقائيًا بعد إرساله.</string>

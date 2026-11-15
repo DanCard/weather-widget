@@ -10,7 +10,7 @@ import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.remote.HourlyOnDemand
 import com.weatherwidget.data.repository.WeatherRepository
-import com.weatherwidget.ui.ForecastHistoryActivity
+import com.weatherwidget.ui.ForecastComparisonActivity
 import com.weatherwidget.widget.handlers.NoHourlyDayClickCoordinator
 import com.weatherwidget.widget.handlers.WidgetIntentActionHandler
 import java.time.LocalDate
@@ -296,13 +296,13 @@ internal object WidgetDayClickCoordinator {
         if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) return false
         val date = intent.getStringExtra(EXTRA_DATE)
         if (date.isNullOrBlank() || runCatching { LocalDate.parse(date) }.isFailure) return false
-        if (!intent.hasExtra(ForecastHistoryActivity.EXTRA_LAT) ||
-            !intent.hasExtra(ForecastHistoryActivity.EXTRA_LON)
+        if (!intent.hasExtra(ForecastComparisonActivity.EXTRA_LAT) ||
+            !intent.hasExtra(ForecastComparisonActivity.EXTRA_LON)
         ) {
             return false
         }
-        val lat = intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LAT, Double.NaN)
-        val lon = intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LON, Double.NaN)
+        val lat = intent.getDoubleExtra(ForecastComparisonActivity.EXTRA_LAT, Double.NaN)
+        val lon = intent.getDoubleExtra(ForecastComparisonActivity.EXTRA_LON, Double.NaN)
         if (!lat.isFinite() || !lon.isFinite()) return false
         return when (intent.action) {
             WidgetActions.ACTION_DAY_CLICK -> {
@@ -329,19 +329,19 @@ internal object WidgetDayClickCoordinator {
         receiveTimeMs: Long,
     ) {
         val historyIntent =
-            Intent(context, ForecastHistoryActivity::class.java).apply {
-                putExtra(ForecastHistoryActivity.EXTRA_TARGET_DATE, date)
+            Intent(context, ForecastComparisonActivity::class.java).apply {
+                putExtra(ForecastComparisonActivity.EXTRA_TARGET_DATE, date)
                 putExtra(
-                    ForecastHistoryActivity.EXTRA_LAT,
-                    intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LAT, 0.0),
+                    ForecastComparisonActivity.EXTRA_LAT,
+                    intent.getDoubleExtra(ForecastComparisonActivity.EXTRA_LAT, 0.0),
                 )
                 putExtra(
-                    ForecastHistoryActivity.EXTRA_LON,
-                    intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LON, 0.0),
+                    ForecastComparisonActivity.EXTRA_LON,
+                    intent.getDoubleExtra(ForecastComparisonActivity.EXTRA_LON, 0.0),
                 )
                 putExtra(
-                    ForecastHistoryActivity.EXTRA_SOURCE,
-                    intent.getStringExtra(ForecastHistoryActivity.EXTRA_SOURCE).orEmpty(),
+                    ForecastComparisonActivity.EXTRA_SOURCE,
+                    intent.getStringExtra(ForecastComparisonActivity.EXTRA_SOURCE).orEmpty(),
                 )
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                 // CLEAR_TASK: the screen reads its extras only in onCreate, and NEW_TASK alone brings a
@@ -365,8 +365,8 @@ internal object WidgetDayClickCoordinator {
     ) {
         val targetMode = ViewMode.parseOrDefault(targetViewName, ViewMode.PRECIPITATION)
         val stateManager = WidgetStateManager(context)
-        val lat = intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LAT, 0.0)
-        val lon = intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LON, 0.0)
+        val lat = intent.getDoubleExtra(ForecastComparisonActivity.EXTRA_LAT, 0.0)
+        val lon = intent.getDoubleExtra(ForecastComparisonActivity.EXTRA_LON, 0.0)
         val hasHourly =
             NoHourlyDayClickCoordinator.hasHourlyForTappedDay(
                 database = database,

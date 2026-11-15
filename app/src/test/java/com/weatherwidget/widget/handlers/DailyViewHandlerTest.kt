@@ -863,7 +863,7 @@ class DailyViewHandlerTest {
         assertTrue(intent.getBooleanExtra("isHistory", false))
         assertFalse(intent.getBooleanExtra("showHistory", true))
         assertEquals("TEMPERATURE", intent.getStringExtra(com.weatherwidget.widget.WidgetActions.EXTRA_TARGET_VIEW))
-        assertEquals(37.0, intent.getDoubleExtra(com.weatherwidget.ui.ForecastHistoryActivity.EXTRA_LAT, 0.0), 0.1)
+        assertEquals(37.0, intent.getDoubleExtra(com.weatherwidget.ui.ForecastComparisonActivity.EXTRA_LAT, 0.0), 0.1)
     }
 
     // partialPush=true must deliver the paint via partiallyUpdateAppWidget (in-place patch, no

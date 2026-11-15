@@ -31,14 +31,14 @@ import org.robolectric.annotation.Config
 import java.time.LocalDate
 
 /**
- * The Forecast History "All sources for <day>" card renders the shared [com.weatherwidget.shared.graph.DaySourceComparison]
+ * The Forecast Comparison "All sources for <day>" card renders the shared [com.weatherwidget.shared.graph.DaySourceComparison]
  * rows from Room through the screen's real Hilt-injected DAOs: sorted by high, short names, the viewed source bold, a missing source last.
  * plans/261105-all-sources-day-comparison.md
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 @Category(LongDuration::class)
-class ForecastHistorySourceComparisonRoboTest {
+class ForecastComparisonSourcesRoboTest {
     private lateinit var context: Context
     private lateinit var db: WeatherDatabase
     private val lat = 37.422
@@ -84,13 +84,13 @@ class ForecastHistorySourceComparisonRoboTest {
         WidgetStateManager(context).setVisibleSourcesOrder(
             listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN),
         )
-        val intent = Intent(context, ForecastHistoryActivity::class.java).apply {
-            putExtra(ForecastHistoryActivity.EXTRA_TARGET_DATE, tomorrow.toString())
-            putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
-            putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
-            putExtra(ForecastHistoryActivity.EXTRA_SOURCE, WeatherSource.NWS.displayName)
+        val intent = Intent(context, ForecastComparisonActivity::class.java).apply {
+            putExtra(ForecastComparisonActivity.EXTRA_TARGET_DATE, tomorrow.toString())
+            putExtra(ForecastComparisonActivity.EXTRA_LAT, lat)
+            putExtra(ForecastComparisonActivity.EXTRA_LON, lon)
+            putExtra(ForecastComparisonActivity.EXTRA_SOURCE, WeatherSource.NWS.displayName)
         }
-        val controller = Robolectric.buildActivity(ForecastHistoryActivity::class.java, intent)
+        val controller = Robolectric.buildActivity(ForecastComparisonActivity::class.java, intent)
         val activity = controller.get()
         controller.setup()
 
@@ -101,7 +101,7 @@ class ForecastHistorySourceComparisonRoboTest {
             shadowOf(Looper.getMainLooper()).idle()
         }
         fun cellTexts(row: Int) = (table.getChildAt(row) as LinearLayout).let { r -> (0 until r.childCount).map { (r.getChildAt(it) as TextView).text.toString() } }
-        println("ForecastHistorySourceComparisonRoboTest rows: " + (0 until table.childCount).map { cellTexts(it) })
+        println("ForecastComparisonSourcesRoboTest rows: " + (0 until table.childCount).map { cellTexts(it) })
 
         assertEquals(View.VISIBLE, activity.findViewById<View>(R.id.source_comparison_card).visibility)
         assertEquals("header + 3 sources", 4, table.childCount)
@@ -121,7 +121,7 @@ class ForecastHistorySourceComparisonRoboTest {
         assertTrue("other sources are not bold", (meteoSource.typeface?.style ?: 0) and Typeface.BOLD == 0)
         // Legend: the shared column choice (no Amount: its column is dropped here), desktop's wording.
         val legend = activity.findViewById<TextView>(R.id.source_comparison_legend).text.toString()
-        println("ForecastHistorySourceComparisonRoboTest legend: $legend")
+        println("ForecastComparisonSourcesRoboTest legend: $legend")
         assertEquals(listOf(SortColumn.DAY_RAIN, SortColumn.PEAK, SortColumn.NIGHT_RAIN, SortColumn.CLOUD, SortColumn.BIAS, SortColumn.AGE),
             DaySourceComparison.legendColumns(showAmount = false))
         assertEquals(
@@ -162,13 +162,13 @@ class ForecastHistorySourceComparisonRoboTest {
         state.setSourceCompareSort(com.weatherwidget.shared.graph.DaySourceComparison.Sort.DEFAULT.encode())
 
         fun open(): LinearLayout {
-            val intent = Intent(context, ForecastHistoryActivity::class.java).apply {
-                putExtra(ForecastHistoryActivity.EXTRA_TARGET_DATE, tomorrow.toString())
-                putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
-                putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
-                putExtra(ForecastHistoryActivity.EXTRA_SOURCE, WeatherSource.NWS.displayName)
+            val intent = Intent(context, ForecastComparisonActivity::class.java).apply {
+                putExtra(ForecastComparisonActivity.EXTRA_TARGET_DATE, tomorrow.toString())
+                putExtra(ForecastComparisonActivity.EXTRA_LAT, lat)
+                putExtra(ForecastComparisonActivity.EXTRA_LON, lon)
+                putExtra(ForecastComparisonActivity.EXTRA_SOURCE, WeatherSource.NWS.displayName)
             }
-            val controller = Robolectric.buildActivity(ForecastHistoryActivity::class.java, intent)
+            val controller = Robolectric.buildActivity(ForecastComparisonActivity::class.java, intent)
             controller.setup()
             val table = controller.get().findViewById<LinearLayout>(R.id.source_comparison_table)
             val deadline = System.currentTimeMillis() + 10_000
@@ -180,7 +180,7 @@ class ForecastHistorySourceComparisonRoboTest {
         }
         fun cell(table: LinearLayout, row: Int, col: Int) = ((table.getChildAt(row) as LinearLayout).getChildAt(col) as TextView)
         fun order(table: LinearLayout) = (1 until table.childCount).map { cell(table, it, 0).text.toString() }
-            .also { println("ForecastHistorySourceComparisonRoboTest order: $it header=${(0 until (table.getChildAt(0) as LinearLayout).childCount).map { c -> cell(table, 0, c).text }}") }
+            .also { println("ForecastComparisonSourcesRoboTest order: $it header=${(0 until (table.getChildAt(0) as LinearLayout).childCount).map { c -> cell(table, 0, c).text }}") }
 
         val table = open()
         assertEquals(listOf("NWS", "Meteo", "Silur"), order(table))
@@ -223,13 +223,13 @@ class ForecastHistorySourceComparisonRoboTest {
             )
         }
         WidgetStateManager(context).setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.SILURIAN))
-        val intent = Intent(context, ForecastHistoryActivity::class.java).apply {
-            putExtra(ForecastHistoryActivity.EXTRA_TARGET_DATE, today.toString())
-            putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
-            putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
-            putExtra(ForecastHistoryActivity.EXTRA_SOURCE, WeatherSource.NWS.displayName)
+        val intent = Intent(context, ForecastComparisonActivity::class.java).apply {
+            putExtra(ForecastComparisonActivity.EXTRA_TARGET_DATE, today.toString())
+            putExtra(ForecastComparisonActivity.EXTRA_LAT, lat)
+            putExtra(ForecastComparisonActivity.EXTRA_LON, lon)
+            putExtra(ForecastComparisonActivity.EXTRA_SOURCE, WeatherSource.NWS.displayName)
         }
-        val controller = Robolectric.buildActivity(ForecastHistoryActivity::class.java, intent)
+        val controller = Robolectric.buildActivity(ForecastComparisonActivity::class.java, intent)
         val activity = controller.get()
         controller.setup()
         val table = activity.findViewById<LinearLayout>(R.id.source_comparison_table)
@@ -240,11 +240,11 @@ class ForecastHistorySourceComparisonRoboTest {
         }
         fun cellTexts(row: Int) = (table.getChildAt(row) as LinearLayout).let { r -> (0 until r.childCount).map { (r.getChildAt(it) as TextView).text.toString() } }
         val rows = (1 until table.childCount).map { cellTexts(it) }
-        println("ForecastHistorySourceComparisonRoboTest today rows: $rows")
+        println("ForecastComparisonSourcesRoboTest today rows: $rows")
         assertEquals("5h*", rows.single { it[0] == "Silur" }.last())
         assertEquals("1m", rows.single { it[0] == "NWS" }.last())
         val legend = activity.findViewById<TextView>(R.id.source_comparison_legend).text.toString()
-        println("ForecastHistorySourceComparisonRoboTest today legend: $legend")
+        println("ForecastComparisonSourcesRoboTest today legend: $legend")
         assertTrue(legend, legend.endsWith("grey after 24 h\n* " + context.getString(R.string.source_compare_legend_star)))
     }
 }

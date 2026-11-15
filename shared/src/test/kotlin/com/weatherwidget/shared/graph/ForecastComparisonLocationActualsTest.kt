@@ -1,7 +1,7 @@
 package com.weatherwidget.shared.graph
 
-import com.weatherwidget.shared.graph.ForecastHistoryViewLogic.LocationActualRow
-import com.weatherwidget.shared.graph.ForecastHistoryViewLogic.LocationActuals
+import com.weatherwidget.shared.graph.ForecastComparisonViewLogic.LocationActualRow
+import com.weatherwidget.shared.graph.ForecastComparisonViewLogic.LocationActuals
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -12,9 +12,9 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 
-/** Which "Location actual" lines Forecast History draws: past both, today each once settled. */
+/** Which "Location actual" lines Forecast Comparison draws: past both, today each once settled. */
 @Category(ShortDuration::class)
-class ForecastHistoryLocationActualsTest {
+class ForecastComparisonLocationActualsTest {
 
     private val pacific = ZoneId.of("America/Los_Angeles")
     private val oct13 = LocalDate.of(2026, 10, 13) // Mountain View sunrise ≈ 07:17 → cutoff ≈ 07:47
@@ -44,7 +44,7 @@ class ForecastHistoryLocationActualsTest {
         low: Float? = 52f,
         hourly: List<Hour> = emptyList(),
         rows: List<LocationActualRow> = listOf(row(NWS, high = 71f, low = low)),
-    ): LocationActuals = ForecastHistoryViewLogic.locationActuals(
+    ): LocationActuals = ForecastComparisonViewLogic.locationActuals(
         date = date, now = now, zone = pacific, lat = siteLat, lon = siteLon,
         sourceId = NWS, rows = rows,
         todayHourly = hourly, epochMs = { it.ms }, temperature = { it.temp },
@@ -133,7 +133,7 @@ class ForecastHistoryLocationActualsTest {
 
     @Test
     fun `only today needs hourly`() {
-        assertTrue(ForecastHistoryViewLogic.needsTodayHourly(oct13, today = oct13))
-        assertFalse(ForecastHistoryViewLogic.needsTodayHourly(oct13.minusDays(1), today = oct13))
+        assertTrue(ForecastComparisonViewLogic.needsTodayHourly(oct13, today = oct13))
+        assertFalse(ForecastComparisonViewLogic.needsTodayHourly(oct13.minusDays(1), today = oct13))
     }
 }

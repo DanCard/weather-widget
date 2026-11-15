@@ -20,7 +20,7 @@ import java.time.ZoneId
  * [ActualsAggregator] must not emit a daily-history group for a feed the user cannot select.
  *
  * Such a row is only ever written, retained a month and recomputed: every reader selects by display
- * source — `DailyActualsStore` filters `it.source in activeSources`, `ForecastHistoryActivity`
+ * source — `DailyActualsStore` filters `it.source in activeSources`, `ForecastComparisonActivity`
  * matches `requestedSource`, and `ActualsBaselineResolver` walks `orderedVisibleSources` alone.
  *
  * The filter used to name METAR specifically while its comment described the whole category, so

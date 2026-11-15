@@ -31,7 +31,7 @@ import org.junit.experimental.categories.Category
 
 
 /**
- * Robolectric test verifying that cycling the API in ForecastHistoryActivity
+ * Robolectric test verifying that cycling the API in ForecastComparisonActivity
  * correctly synchronizes the choice back to the widget and triggers a UI update.
  */
 @RunWith(RobolectricTestRunner::class)
@@ -59,18 +59,18 @@ class HistoryActivitySyncRoboTest {
         assertEquals(WeatherSource.NWS, stateManager.getCurrentDisplaySource(testWidgetId))
 
         // Launch activity with specific widget ID and history extras
-        val intent = Intent(context, ForecastHistoryActivity::class.java).apply {
+        val intent = Intent(context, ForecastComparisonActivity::class.java).apply {
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, testWidgetId)
-            putExtra(ForecastHistoryActivity.EXTRA_TARGET_DATE, "2030-01-01")
-            putExtra(ForecastHistoryActivity.EXTRA_LAT, 37.0)
-            putExtra(ForecastHistoryActivity.EXTRA_LON, -122.0)
-            putExtra(ForecastHistoryActivity.EXTRA_SOURCE, WeatherSource.NWS.displayName)
+            putExtra(ForecastComparisonActivity.EXTRA_TARGET_DATE, "2030-01-01")
+            putExtra(ForecastComparisonActivity.EXTRA_LAT, 37.0)
+            putExtra(ForecastComparisonActivity.EXTRA_LON, -122.0)
+            putExtra(ForecastComparisonActivity.EXTRA_SOURCE, WeatherSource.NWS.displayName)
         }
 
         // We use buildActivity().get() to get the activity instance
-        // ForecastHistoryActivity uses Hilt for @Inject fields, so we must mock them 
+        // ForecastComparisonActivity uses Hilt for @Inject fields, so we must mock them 
         // if we are not running a full Hilt test.
-        val controller = Robolectric.buildActivity(ForecastHistoryActivity::class.java, intent)
+        val controller = Robolectric.buildActivity(ForecastComparisonActivity::class.java, intent)
         val activity = controller.get()
         
         // Manual injection of required DAOs (mocked) to avoid Hilt @Inject failures during onCreate
@@ -117,15 +117,15 @@ class HistoryActivitySyncRoboTest {
         stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.SILURIAN, WeatherSource.OPEN_METEO))
         stateManager.setCurrentDisplaySource(testWidgetId, WeatherSource.NWS)
 
-        val intent = Intent(context, ForecastHistoryActivity::class.java).apply {
+        val intent = Intent(context, ForecastComparisonActivity::class.java).apply {
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, testWidgetId)
-            putExtra(ForecastHistoryActivity.EXTRA_TARGET_DATE, "2030-01-01")
-            putExtra(ForecastHistoryActivity.EXTRA_LAT, 37.0)
-            putExtra(ForecastHistoryActivity.EXTRA_LON, -122.0)
-            putExtra(ForecastHistoryActivity.EXTRA_SOURCE, WeatherSource.SILURIAN.displayName)
+            putExtra(ForecastComparisonActivity.EXTRA_TARGET_DATE, "2030-01-01")
+            putExtra(ForecastComparisonActivity.EXTRA_LAT, 37.0)
+            putExtra(ForecastComparisonActivity.EXTRA_LON, -122.0)
+            putExtra(ForecastComparisonActivity.EXTRA_SOURCE, WeatherSource.SILURIAN.displayName)
         }
 
-        val controller = Robolectric.buildActivity(ForecastHistoryActivity::class.java, intent)
+        val controller = Robolectric.buildActivity(ForecastComparisonActivity::class.java, intent)
         val activity = controller.get()
         activity.forecastDao = mockk(relaxed = true)
         activity.dailyHistoryDao = mockk(relaxed = true)

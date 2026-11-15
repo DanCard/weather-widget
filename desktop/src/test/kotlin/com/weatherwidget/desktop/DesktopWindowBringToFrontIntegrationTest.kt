@@ -32,7 +32,7 @@ class DesktopWindowBringToFrontIntegrationTest {
     fun `all desktop window composables wire showRequestId and use BringToFrontOnShow`() {
         val windowHosts = sourceRoot.resolve("DesktopWindowHosts.kt").readText()
         val observations = sourceRoot.resolve("ObservationsWindow.kt").readText()
-        val history = sourceRoot.resolve("ForecastHistoryWindow.kt").readText()
+        val history = sourceRoot.resolve("ForecastComparisonWindow.kt").readText()
         val logs = sourceRoot.resolve("AppLogsWindow.kt").readText()
         val stats = sourceRoot.resolve("StatisticsWindow.kt").readText()
 
@@ -42,7 +42,7 @@ class DesktopWindowBringToFrontIntegrationTest {
             "LocationPickerWindowHost in DesktopWindowHosts" to (windowHosts.contains("fun LocationPickerWindowHost") && windowHosts.contains("showRequestId: Int")),
             "IconGalleryWindowHost in DesktopWindowHosts" to (windowHosts.contains("fun IconGalleryWindowHost") && windowHosts.contains("showRequestId: Int")),
             "ObservationsWindow" to (observations.contains("BringToFrontOnShow") && observations.contains("showRequestId")),
-            "ForecastHistoryWindow" to (history.contains("BringToFrontOnShow") && history.contains("showRequestId")),
+            "ForecastComparisonWindow" to (history.contains("BringToFrontOnShow") && history.contains("showRequestId")),
             "AppLogsWindow" to (logs.contains("BringToFrontOnShow") && logs.contains("showRequestId")),
             "StatisticsWindow" to (stats.contains("BringToFrontOnShow") && stats.contains("showRequestId")),
         )

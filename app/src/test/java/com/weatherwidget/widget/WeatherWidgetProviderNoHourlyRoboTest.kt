@@ -13,7 +13,7 @@ import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.testutil.TestDatabase
-import com.weatherwidget.ui.ForecastHistoryActivity
+import com.weatherwidget.ui.ForecastComparisonActivity
 import com.weatherwidget.widget.handlers.NoHourlyDayClickCoordinator
 import io.mockk.every
 import io.mockk.mockk
@@ -454,9 +454,9 @@ class WeatherWidgetProviderNoHourlyRoboTest {
             putExtra("index", 8)
             putExtra(WidgetActions.EXTRA_TARGET_VIEW, ViewMode.TEMPERATURE.name)
             putExtra(WidgetActions.EXTRA_HOURLY_OFFSET, 0)
-            putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
-            putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
-            putExtra(ForecastHistoryActivity.EXTRA_SOURCE, source.displayName)
+            putExtra(ForecastComparisonActivity.EXTRA_LAT, lat)
+            putExtra(ForecastComparisonActivity.EXTRA_LON, lon)
+            putExtra(ForecastComparisonActivity.EXTRA_SOURCE, source.displayName)
         }
 
     @org.junit.After

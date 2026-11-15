@@ -18,7 +18,7 @@ import java.util.Locale
 import kotlin.math.roundToInt
 
 /**
- * The Forecast History screen's "All sources for <day>" table, both platforms
+ * The Forecast Comparison screen's "All sources for <day>" table, both platforms
  * (plans/261105-all-sources-day-comparison.md): every visible source's forecast for one day,
  * sorted by high.
  *

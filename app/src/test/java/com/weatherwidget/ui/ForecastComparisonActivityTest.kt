@@ -10,23 +10,23 @@ import java.time.LocalDate
 
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.TestData.dateEpoch
-import com.weatherwidget.shared.graph.ForecastHistoryViewLogic.ActualLookupMode
-import com.weatherwidget.shared.graph.ForecastHistoryViewLogic.ButtonMode
-import com.weatherwidget.ui.ForecastHistoryActivity.Companion.hasRequiredHistoryExtras
-import com.weatherwidget.shared.graph.ForecastHistoryViewLogic.normalizeSource
-import com.weatherwidget.shared.graph.ForecastHistoryViewLogic.resolveActualLookupMode
-import com.weatherwidget.shared.graph.ForecastHistoryViewLogic.resolveButtonMode
-import com.weatherwidget.ui.ForecastHistoryActivity.Companion.selectLatestCompleteActualFromForecasts
-import com.weatherwidget.shared.graph.ForecastHistoryViewLogic.shouldLaunchTemperature
-import com.weatherwidget.shared.graph.ForecastHistoryViewLogic.shouldShowTemperatureButton
-import com.weatherwidget.shared.graph.ForecastHistoryViewLogic.GraphMode
+import com.weatherwidget.shared.graph.ForecastComparisonViewLogic.ActualLookupMode
+import com.weatherwidget.shared.graph.ForecastComparisonViewLogic.ButtonMode
+import com.weatherwidget.ui.ForecastComparisonActivity.Companion.hasRequiredHistoryExtras
+import com.weatherwidget.shared.graph.ForecastComparisonViewLogic.normalizeSource
+import com.weatherwidget.shared.graph.ForecastComparisonViewLogic.resolveActualLookupMode
+import com.weatherwidget.shared.graph.ForecastComparisonViewLogic.resolveButtonMode
+import com.weatherwidget.ui.ForecastComparisonActivity.Companion.selectLatestCompleteActualFromForecasts
+import com.weatherwidget.shared.graph.ForecastComparisonViewLogic.shouldLaunchTemperature
+import com.weatherwidget.shared.graph.ForecastComparisonViewLogic.shouldShowTemperatureButton
+import com.weatherwidget.shared.graph.ForecastComparisonViewLogic.GraphMode
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.experimental.categories.Category
 
 
 
 @Category(ShortDuration::class)
-class ForecastHistoryActivityTest {
+class ForecastComparisonActivityTest {
 
     // --- shouldLaunchTemperature ---
 
@@ -245,16 +245,16 @@ class ForecastHistoryActivityTest {
 
     @Test
     fun `resolveForecastFetchTime - source success time present - prefers source success time`() {
-        assertEquals(5000L, ForecastHistoryActivity.resolveForecastFetchTime(sourceSuccessMs = 5000L, lastFullFetchMs = 1000L))
+        assertEquals(5000L, ForecastComparisonActivity.resolveForecastFetchTime(sourceSuccessMs = 5000L, lastFullFetchMs = 1000L))
     }
 
     @Test
     fun `resolveForecastFetchTime - source success time zero - falls back to last full fetch time`() {
-        assertEquals(1000L, ForecastHistoryActivity.resolveForecastFetchTime(sourceSuccessMs = 0L, lastFullFetchMs = 1000L))
+        assertEquals(1000L, ForecastComparisonActivity.resolveForecastFetchTime(sourceSuccessMs = 0L, lastFullFetchMs = 1000L))
     }
 
     @Test
     fun `resolveForecastFetchTime - both zero - returns zero`() {
-        assertEquals(0L, ForecastHistoryActivity.resolveForecastFetchTime(sourceSuccessMs = 0L, lastFullFetchMs = 0L))
+        assertEquals(0L, ForecastComparisonActivity.resolveForecastFetchTime(sourceSuccessMs = 0L, lastFullFetchMs = 0L))
     }
 }

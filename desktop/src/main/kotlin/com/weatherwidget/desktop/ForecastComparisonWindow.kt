@@ -50,9 +50,9 @@ import com.weatherwidget.shared.graph.ForecastEvolutionGeometry.ErrorSample
 import com.weatherwidget.shared.graph.ForecastEvolutionGeometry.EvolutionPoint
 import com.weatherwidget.shared.graph.ForecastEvolutionGeometry.TimeAxis
 import com.weatherwidget.shared.graph.ForecastEvolutionStyle
-import com.weatherwidget.shared.graph.ForecastHistoryHeader
-import com.weatherwidget.shared.graph.ForecastHistoryViewLogic
-import com.weatherwidget.shared.graph.ForecastHistoryViewLogic.GraphMode
+import com.weatherwidget.shared.graph.ForecastComparisonHeader
+import com.weatherwidget.shared.graph.ForecastComparisonViewLogic
+import com.weatherwidget.shared.graph.ForecastComparisonViewLogic.GraphMode
 import com.weatherwidget.shared.graph.NiceAxisScale
 import com.weatherwidget.shared.util.TempUtils
 import com.weatherwidget.stats.desktop.DesktopAccuracyCalculator
@@ -68,7 +68,7 @@ import kotlin.math.ceil
 private const val MS_IN_A_DAY = 86_400_000L
 
 /** When a History reload may blank the window. Pure so the rule is unit-tested. */
-internal object ForecastHistoryReload {
+internal object ForecastComparisonReload {
     data class View(val date: LocalDate, val source: WeatherSource, val lat: Double, val lon: Double)
 
     /** Blank to "Loading…" only when [next] is a different view than the one on screen. */
@@ -82,7 +82,7 @@ private data class HistoryData(
     val apiLow: Float?,
     val appHigh: Float?,
     val appLow: Float?,
-    val display: ForecastHistoryViewLogic.ActualsDisplay,
+    val display: ForecastComparisonViewLogic.ActualsDisplay,
     /** Some "Location actual" line is drawn (past day, or today's settled low). */
     val snapshotCount: Int,
     val newestFetchAgeMs: Long?,
@@ -94,14 +94,14 @@ private data class HistoryData(
 )
 
 /**
- * Desktop port of Android's `ForecastHistoryActivity`: shows how the forecast for one target day
+ * Desktop port of Android's `ForecastComparisonActivity`: shows how the forecast for one target day
  * evolved across successive fetches (Evolution mode) and the error vs actuals (Error mode), with
  * day navigation, source cycling, an accuracy summary, and a freshness line. Graph geometry is the
  * shared [ForecastEvolutionGeometry]; drawing is Compose `DrawScope` (Android draws the same
  * geometry with `Canvas`/`Bitmap`).
  */
 @Composable
-internal fun ForecastHistoryWindow(
+internal fun ForecastComparisonWindow(
     weatherDao: DesktopWeatherDao,
     config: DesktopConfig,
     showRequestId: Int = 0,
@@ -159,7 +159,7 @@ internal fun ForecastHistoryWindow(
             windowState = state,
             showRequestId = showRequestId,
         )
-        ForecastHistoryContent(
+        ForecastComparisonContent(
             weatherDao = weatherDao,
             config = config,
             showRequestId = showRequestId,
@@ -175,12 +175,12 @@ internal fun ForecastHistoryWindow(
 }
 
 /**
- * Everything inside the History of Forecasts window, apart from the window itself, as
+ * Everything inside the Forecast Comparison window, apart from the window itself, as
  * [SettingsWindow] is to `SettingsWindowHost`: tests render it in the test's own window, where
  * clicks land reliably (into a real [Window] they are dropped at random).
  */
 @Composable
-internal fun ForecastHistoryContent(
+internal fun ForecastComparisonContent(
     weatherDao: DesktopWeatherDao,
     config: DesktopConfig,
     showRequestId: Int = 0,
@@ -213,11 +213,11 @@ internal fun ForecastHistoryContent(
     // The view the current [data] belongs to. A reload for the SAME view (a dataUpdateCount bump,
     // e.g. the popup's source toggle landing its refresh) keeps the content on screen and swaps the
     // result in place; "Loading…" is only for a different date, source, or location.
-    var loadedView by remember { mutableStateOf<ForecastHistoryReload.View?>(null) }
+    var loadedView by remember { mutableStateOf<ForecastComparisonReload.View?>(null) }
 
     LaunchedEffect(targetDate, source, config.lat, config.lon, dataUpdateCount) {
-        val view = ForecastHistoryReload.View(targetDate, source, config.lat, config.lon)
-        if (ForecastHistoryReload.showsLoading(loadedView, view)) loading = true
+        val view = ForecastComparisonReload.View(targetDate, source, config.lat, config.lon)
+        if (ForecastComparisonReload.showsLoading(loadedView, view)) loading = true
         data = withContext(Dispatchers.IO) {
             loadHistory(weatherDao, config, targetDate, source, visibleSources)
         }
@@ -233,7 +233,7 @@ internal fun ForecastHistoryContent(
                 targetDate = targetDate,
                 source = source,
                 graphMode = graphMode,
-                canGoBack = ForecastHistoryHeader.canGoBack(targetDate),
+                canGoBack = ForecastComparisonHeader.canGoBack(targetDate),
                 onBack = onClose,
                 onPrev = { targetDate = targetDate.minusDays(1) },
                 onNext = { targetDate = targetDate.plusDays(1) },
@@ -269,8 +269,8 @@ internal fun ForecastHistoryContent(
 }
 
 /**
- * `[←] [‹] date [›] … [source] [⟳] [⚙]` — the Android header's order (`activity_forecast_history.xml`),
- * with its rules from [ForecastHistoryHeader]; styled like the Observations window. ← closes the
+ * `[←] [‹] date [›] … [source] [⟳] [⚙]` — the Android header's order (`activity_forecast_comparison.xml`),
+ * with its rules from [ForecastComparisonHeader]; styled like the Observations window. ← closes the
  * window, as Android's back finishes the screen.
  */
 @Composable
@@ -296,7 +296,7 @@ private fun Header(
             IconButton(onClick = onPrev, enabled = canGoBack) {
                 Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Previous day")
             }
-            Text(ForecastHistoryHeader.dateLabel(targetDate), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text(ForecastComparisonHeader.dateLabel(targetDate), fontSize = 18.sp, fontWeight = FontWeight.Bold)
             IconButton(onClick = onNext) {
                 Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Next day")
             }
@@ -414,7 +414,7 @@ private fun GraphCard(title: String, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun Legend(source: WeatherSource, display: ForecastHistoryViewLogic.ActualsDisplay) {
+private fun Legend(source: WeatherSource, display: ForecastComparisonViewLogic.ActualsDisplay) {
     Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         // One forecast color for every API; the dot is labeled with the selected source.
         LegendDot(parseHexColor(ForecastEvolutionStyle.FORECAST_COLOR), source.shortDisplayName)
@@ -635,7 +635,7 @@ private suspend fun loadHistory(
 
     val rows = dao.getForecastEvolution(targetEpoch, lat, lon).filter { it.source == source.id }
     val zone = ZoneId.systemDefault()
-    val needsTodayHourly = ForecastHistoryViewLogic.needsTodayHourly(targetDate)
+    val needsTodayHourly = ForecastComparisonViewLogic.needsTodayHourly(targetDate)
     val historyRows =
         if (isPast || needsTodayHourly) dao.getExtremesInRange(targetEpoch, targetEpoch, lat, lon) else emptyList()
     val todayHourly = if (needsTodayHourly) {
@@ -653,7 +653,7 @@ private suspend fun loadHistory(
         emptyList()
     }
     // Past day: both extremes; today: each extreme once settled (shared with Android).
-    val locationActuals = ForecastHistoryViewLogic.locationActuals(
+    val locationActuals = ForecastComparisonViewLogic.locationActuals(
         date = targetDate,
         now = LocalDateTime.now(zone),
         zone = zone,
@@ -661,7 +661,7 @@ private suspend fun loadHistory(
         lon = lon,
         sourceId = source.id,
         rows = historyRows.map {
-            ForecastHistoryViewLogic.LocationActualRow(
+            ForecastComparisonViewLogic.LocationActualRow(
                 it.source, it.locationLat, it.locationLon,
                 it.computedHighTemp, it.computedLowTemp, it.computedHighAt, it.computedLowAt,
             )
@@ -720,8 +720,8 @@ private suspend fun loadHistory(
                 val highErr = TempUtils.displayDelta(stats.avgHighError, useCelsius)
                 val lowErr = TempUtils.displayDelta(stats.avgLowError, useCelsius)
                 append("High ±%.1f°%s  Low ±%.1f°%s\n".format(
-                    highErr, ForecastHistoryViewLogic.formatBias(stats.highBias, useCelsius),
-                    lowErr, ForecastHistoryViewLogic.formatBias(stats.lowBias, useCelsius),
+                    highErr, ForecastComparisonViewLogic.formatBias(stats.highBias, useCelsius),
+                    lowErr, ForecastComparisonViewLogic.formatBias(stats.lowBias, useCelsius),
                 ))
                 val limitDeg = if (useCelsius) 1.7 else 3.0
                 append("%% within %.1f°: %.0f%%  ·  %d days".format(limitDeg, stats.percentWithin3Degrees, stats.totalForecasts))
@@ -739,7 +739,7 @@ private suspend fun loadHistory(
     } catch (e: kotlinx.coroutines.CancellationException) {
         throw e
     } catch (e: Exception) {
-        Log.e("ForecastHistoryWindow", "Error loading rain accuracy", e)
+        Log.e("ForecastComparisonWindow", "Error loading rain accuracy", e)
         null
     }
 
@@ -759,7 +759,7 @@ private suspend fun loadHistory(
         points = points,
         apiHigh = apiHigh, apiLow = apiLow,
         appHigh = locationActuals.high, appLow = locationActuals.low,
-        display = ForecastHistoryViewLogic.actualsDisplay(isPast, apiHigh, apiLow, locationActuals),
+        display = ForecastComparisonViewLogic.actualsDisplay(isPast, apiHigh, apiLow, locationActuals),
         snapshotCount = points.size,
         newestFetchAgeMs = newestAge,
         accuracySummary = summary,

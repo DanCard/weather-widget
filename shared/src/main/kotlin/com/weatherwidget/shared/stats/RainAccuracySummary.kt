@@ -7,7 +7,7 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
- * The "Rain amount" section of History of Forecasts' accuracy card, decided once for both platforms:
+ * The "Rain amount" section of Forecast Comparison' accuracy card, decided once for both platforms:
  * which lines appear, in what order, and which source wears the ★. Android renders these with
  * localized string resources; desktop renders English in `DesktopRainAccuracyText` (`:desktop`).
  */

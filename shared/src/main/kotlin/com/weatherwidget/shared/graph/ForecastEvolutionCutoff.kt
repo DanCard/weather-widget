@@ -8,7 +8,7 @@ import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 
 /**
- * The "History of Forecasts" graphs show forecasts only: a high fetched after the high was reached
+ * The "Forecast Comparison" graphs show forecasts only: a high fetched after the high was reached
  * (or a low after the low) is a hindcast and is removed (user, 2026-10-09: "remove them entirely").
  * Same rule as the past-day overlay ([com.weatherwidget.shared.actuals.ForecastOverlaySettle]).
  *
@@ -30,7 +30,7 @@ object ForecastEvolutionCutoff {
 
     /**
      * The graph points for [targetDate]: rows predicted on or before it, then [apply]. The one
-     * builder Android (`ForecastHistoryActivity`) and desktop (`ForecastHistoryWindow`) share.
+     * builder Android (`ForecastComparisonActivity`) and desktop (`ForecastComparisonWindow`) share.
      * When a forecast row was re-confirmed at [Row.lastConfirmedAt] > [Row.fetchedAt], a trailing
      * point is included so the curve and newest-fetch indicator reach the latest confirmed fetch.
      */

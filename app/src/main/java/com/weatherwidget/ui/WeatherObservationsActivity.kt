@@ -248,7 +248,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
                     this@WeatherObservationsActivity,
                     origin,
                     outcome,
-                    ForecastHistoryActivity.refreshOutcomeText(this@WeatherObservationsActivity, outcome, source.shortDisplayName),
+                    ForecastComparisonActivity.refreshOutcomeText(this@WeatherObservationsActivity, outcome, source.shortDisplayName),
                 )
             }
         }

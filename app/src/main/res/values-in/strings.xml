@@ -124,18 +124,18 @@
     <string name="refresh_policy_battery_mid">Kebijakan penyegaran: Setiap 8 jam (baterai %1$d%%)</string>
     <string name="refresh_policy_battery_low">Kebijakan penyegaran: Dijeda (baterai %1$d%%)</string>
     <string name="freshness_just_now">baru saja</string>
-    <string name="forecast_history">"Perbandingan prakiraan untuk "</string>
-    <string name="forecast_history_summary_single">%1$d snapshot prakiraan %2$s</string>
-    <string name="forecast_history_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI snapshot</string>
-    <string name="forecast_history_summary_climate_fill"> • %1$d titik pengisi iklim</string>
-    <string name="forecast_history_api_fallback_label">API</string>
-    <string name="forecast_history_api_actual">Aktual API %1$s: %2$s / %3$s</string>
-    <string name="forecast_history_location_actual">Aktual lokasi: %1$s / %2$s</string>
-    <string name="forecast_history_no_history_yet">Belum ada data riwayat prakiraan.\nSnapshot prakiraan disimpan setiap hari. Kembali besok untuk perbandingan akurasi pertama Anda.</string>
-    <string name="forecast_history_no_data_fallback_source">sumber terpilih</string>
-    <string name="forecast_history_prev_day">Hari sebelumnya</string>
-    <string name="forecast_history_next_day">Hari berikutnya</string>
-    <string name="forecast_history_subtitle">Perbandingan prakiraan</string>
+    <string name="forecast_comparison">"Perbandingan prakiraan untuk "</string>
+    <string name="forecast_comparison_summary_single">%1$d snapshot prakiraan %2$s</string>
+    <string name="forecast_comparison_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI snapshot</string>
+    <string name="forecast_comparison_summary_climate_fill"> • %1$d titik pengisi iklim</string>
+    <string name="forecast_comparison_api_fallback_label">API</string>
+    <string name="forecast_comparison_api_actual">Aktual API %1$s: %2$s / %3$s</string>
+    <string name="forecast_comparison_location_actual">Aktual lokasi: %1$s / %2$s</string>
+    <string name="forecast_comparison_no_history_yet">Belum ada data riwayat prakiraan.\nSnapshot prakiraan disimpan setiap hari. Kembali besok untuk perbandingan akurasi pertama Anda.</string>
+    <string name="forecast_comparison_no_data_fallback_source">sumber terpilih</string>
+    <string name="forecast_comparison_prev_day">Hari sebelumnya</string>
+    <string name="forecast_comparison_next_day">Hari berikutnya</string>
+    <string name="forecast_comparison_subtitle">Perbandingan prakiraan</string>
     <string name="freshness_forecast_fetch_ago">Pengambilan prakiraan: %1$s yang lalu</string>
     <string name="freshness_forecast_fetch_never">Pengambilan prakiraan: belum pernah</string>
     <string name="freshness_displayed_data">Data yang ditampilkan (%1$s): diambil %2$s yang lalu</string>
@@ -147,12 +147,11 @@
     <string name="forecast_error_high_title">Galat suhu tertinggi</string>
     <string name="forecast_error_low_title">Galat suhu terendah</string>
     <string name="forecast_show_hourly">Prakiraan suhu</string>
-    <string name="forecast_show_evolution">Kembali ke riwayat prakiraan</string>
     <string name="forecast_hourly_title">Prakiraan suhu</string>
     <string name="forecast_hourly_subtitle">Detail per jam</string>
     <string name="forecast_hourly_no_data">Tidak ada prakiraan suhu per jam untuk tanggal ini.</string>
     <string name="forecast_hourly_legend">Sekarang</string>
-    <string name="forecast_history_no_data_for_source">Tidak ada riwayat prakiraan untuk tanggal ini (%1$s).</string>
+    <string name="forecast_comparison_no_data_for_source">Tidak ada riwayat prakiraan untuk tanggal ini (%1$s).</string>
     <string name="forecast_error_requires_actuals">Tampilan galat tersedia setelah suhu aktual hari ini tercatat.</string>
     <string name="legend_actual">Aktual API</string>
     <string name="legend_zero_error">Galat nol</string>
@@ -310,7 +309,7 @@
     <string name="obs_subtitle_stale">Tidak ada observasi terbaru untuk %1$s — menampilkan yang terakhir, %2$s lalu.</string>
     <string name="obs_no_location_to_refresh">Tidak ada lokasi untuk disegarkan</string>
     <string name="obs_refreshed_source">%1$s disegarkan</string>
-    <string name="forecast_history_refresh_failed">Tidak dapat memuat ulang %1$s</string>
+    <string name="forecast_comparison_refresh_failed">Tidak dapat memuat ulang %1$s</string>
     <string name="refresh_retrying_at">mencoba lagi %1$s</string>
     <string name="obs_reported_prefix">"Dilaporkan "</string>
     <string name="obs_fetched_separator">" • Diambil "</string>
@@ -351,8 +350,8 @@
     <string name="rain_pred_act_format">prakiraan %1$s / aktual %2$s</string>
 
     <!-- Forecast history screen -->
-    <string name="forecast_history_high_temp_title">Suhu tertinggi</string>
-    <string name="forecast_history_low_temp_title">Suhu terendah</string>
+    <string name="forecast_comparison_high_temp_title">Suhu tertinggi</string>
+    <string name="forecast_comparison_low_temp_title">Suhu terendah</string>
     <string name="legend_location_actual">Aktual lokasi</string>
     <string name="evolution_api_actual_format">Aktual API: %1$s</string>
     <string name="evolution_location_actual_format">Aktual lokasi: %1$s</string>
@@ -379,7 +378,7 @@
     <string name="stats_baseline_explainer_blended">Semua stasiun terdekat digabungkan dan diinterpolasikan ke koordinat Anda. Lebih dekat dengan alamat Anda, tetapi celah antar pembacaan dijembatani dengan prakiraan, sehingga galat prakiraan sedikit terlalu kecil.</string>
     <string name="stats_baseline_vs_source">vs %1$s</string>
     <string name="stats_baseline_blend_fallback">gabungan (tanpa stasiun)</string>
-    <string name="forecast_history_actual_from_cache">dari pembacaan tersimpan</string>
+    <string name="forecast_comparison_actual_from_cache">dari pembacaan tersimpan</string>
     <string name="notifications_title">Notifikasi</string>
     <string name="notify_dominant_temp_change_label">Beri tahu sekali saat bacaan stasiun dominan berubah</string>
     <string name="notify_dominant_temp_change_description">Mengirim satu notifikasi saat stasiun dominan dari sumber utama Anda melaporkan suhu yang berbeda, atau saat stasiun lain mengambil alih — misalnya \"KNUQ 69.9°, was 68°\". Otomatis nonaktif setelah terkirim.</string>

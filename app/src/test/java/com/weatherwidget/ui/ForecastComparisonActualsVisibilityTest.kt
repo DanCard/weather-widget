@@ -29,7 +29,7 @@ import org.robolectric.shadows.ShadowLooper
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 @Category(LongDuration::class)
-class ForecastHistoryActualsVisibilityTest {
+class ForecastComparisonActualsVisibilityTest {
 
     private lateinit var context: Context
 
@@ -44,15 +44,15 @@ class ForecastHistoryActualsVisibilityTest {
         val today = todayDate.toString()
         val testWidgetId = 101
 
-        val intent = Intent(context, ForecastHistoryActivity::class.java).apply {
+        val intent = Intent(context, ForecastComparisonActivity::class.java).apply {
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, testWidgetId)
-            putExtra(ForecastHistoryActivity.EXTRA_TARGET_DATE, today)
-            putExtra(ForecastHistoryActivity.EXTRA_LAT, 37.0)
-            putExtra(ForecastHistoryActivity.EXTRA_LON, -122.0)
-            putExtra(ForecastHistoryActivity.EXTRA_SOURCE, WeatherSource.NWS.displayName)
+            putExtra(ForecastComparisonActivity.EXTRA_TARGET_DATE, today)
+            putExtra(ForecastComparisonActivity.EXTRA_LAT, 37.0)
+            putExtra(ForecastComparisonActivity.EXTRA_LON, -122.0)
+            putExtra(ForecastComparisonActivity.EXTRA_SOURCE, WeatherSource.NWS.displayName)
         }
 
-        val controller = Robolectric.buildActivity(ForecastHistoryActivity::class.java, intent)
+        val controller = Robolectric.buildActivity(ForecastComparisonActivity::class.java, intent)
         val activity = controller.get()
         
         activity.forecastDao = mockk(relaxed = true)
@@ -105,14 +105,14 @@ class ForecastHistoryActualsVisibilityTest {
         val quantizedLat = 37.417
         val quantizedLon = -122.089
 
-        val intent = Intent(context, ForecastHistoryActivity::class.java).apply {
-            putExtra(ForecastHistoryActivity.EXTRA_TARGET_DATE, yesterdayDate.toString())
-            putExtra(ForecastHistoryActivity.EXTRA_LAT, quantizedLat)
-            putExtra(ForecastHistoryActivity.EXTRA_LON, quantizedLon)
-            putExtra(ForecastHistoryActivity.EXTRA_SOURCE, WeatherSource.NWS.displayName)
+        val intent = Intent(context, ForecastComparisonActivity::class.java).apply {
+            putExtra(ForecastComparisonActivity.EXTRA_TARGET_DATE, yesterdayDate.toString())
+            putExtra(ForecastComparisonActivity.EXTRA_LAT, quantizedLat)
+            putExtra(ForecastComparisonActivity.EXTRA_LON, quantizedLon)
+            putExtra(ForecastComparisonActivity.EXTRA_SOURCE, WeatherSource.NWS.displayName)
         }
 
-        val controller = Robolectric.buildActivity(ForecastHistoryActivity::class.java, intent)
+        val controller = Robolectric.buildActivity(ForecastComparisonActivity::class.java, intent)
         val activity = controller.get()
 
         // @AndroidEntryPoint injects real DAOs during onCreate (controller.setup()), overwriting

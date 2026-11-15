@@ -124,18 +124,18 @@
     <string name="refresh_policy_battery_mid">Обновление: каждые 8 ч (батарея %1$d%%)</string>
     <string name="refresh_policy_battery_low">Обновление: приостановлено (батарея %1$d%%)</string>
     <string name="freshness_just_now">только что</string>
-    <string name="forecast_history">"Сравнение прогнозов для "</string>
-    <string name="forecast_history_summary_single">%1$d снимков прогноза %2$s</string>
-    <string name="forecast_history_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI снимков</string>
-    <string name="forecast_history_summary_climate_fill"> • %1$d климатических точек</string>
-    <string name="forecast_history_api_fallback_label">API</string>
-    <string name="forecast_history_api_actual">Факт API %1$s: %2$s / %3$s</string>
-    <string name="forecast_history_location_actual">Факт по месту: %1$s / %2$s</string>
-    <string name="forecast_history_no_history_yet">Исторических данных прогнозов пока нет.\nСнимки прогнозов сохраняются ежедневно. Загляните завтра для первого сравнения точности.</string>
-    <string name="forecast_history_no_data_fallback_source">выбранный источник</string>
-    <string name="forecast_history_prev_day">Предыдущий день</string>
-    <string name="forecast_history_next_day">Следующий день</string>
-    <string name="forecast_history_subtitle">Сравнение прогнозов</string>
+    <string name="forecast_comparison">"Сравнение прогнозов для "</string>
+    <string name="forecast_comparison_summary_single">%1$d снимков прогноза %2$s</string>
+    <string name="forecast_comparison_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI снимков</string>
+    <string name="forecast_comparison_summary_climate_fill"> • %1$d климатических точек</string>
+    <string name="forecast_comparison_api_fallback_label">API</string>
+    <string name="forecast_comparison_api_actual">Факт API %1$s: %2$s / %3$s</string>
+    <string name="forecast_comparison_location_actual">Факт по месту: %1$s / %2$s</string>
+    <string name="forecast_comparison_no_history_yet">Исторических данных прогнозов пока нет.\nСнимки прогнозов сохраняются ежедневно. Загляните завтра для первого сравнения точности.</string>
+    <string name="forecast_comparison_no_data_fallback_source">выбранный источник</string>
+    <string name="forecast_comparison_prev_day">Предыдущий день</string>
+    <string name="forecast_comparison_next_day">Следующий день</string>
+    <string name="forecast_comparison_subtitle">Сравнение прогнозов</string>
     <string name="freshness_forecast_fetch_ago">Загрузка прогноза: %1$s назад</string>
     <string name="freshness_forecast_fetch_never">Загрузка прогноза: никогда</string>
     <string name="freshness_displayed_data">Отображаемые данные (%1$s): получены %2$s назад</string>
@@ -147,12 +147,11 @@
     <string name="forecast_error_high_title">Ошибка максимальной температуры</string>
     <string name="forecast_error_low_title">Ошибка минимальной температуры</string>
     <string name="forecast_show_hourly">Прогноз температуры</string>
-    <string name="forecast_show_evolution">Назад к истории прогнозов</string>
     <string name="forecast_hourly_title">Прогноз температуры</string>
     <string name="forecast_hourly_subtitle">Почасовые данные</string>
     <string name="forecast_hourly_no_data">Почасовой прогноз температуры для этой даты недоступен.</string>
     <string name="forecast_hourly_legend">Сейчас</string>
-    <string name="forecast_history_no_data_for_source">Нет истории прогнозов для этой даты (%1$s).</string>
+    <string name="forecast_comparison_no_data_for_source">Нет истории прогнозов для этой даты (%1$s).</string>
     <string name="forecast_error_requires_actuals">Вид ошибок доступен после записи фактических температур за этот день.</string>
     <string name="legend_actual">Факт API</string>
     <string name="legend_zero_error">Нулевая ошибка</string>
@@ -310,7 +309,7 @@
     <string name="obs_subtitle_stale">Свежих наблюдений для %1$s нет — показано последнее, %2$s назад.</string>
     <string name="obs_no_location_to_refresh">Нет местоположения для обновления</string>
     <string name="obs_refreshed_source">Обновлено: %1$s</string>
-    <string name="forecast_history_refresh_failed">Не удалось обновить %1$s</string>
+    <string name="forecast_comparison_refresh_failed">Не удалось обновить %1$s</string>
     <string name="refresh_retrying_at">повтор в %1$s</string>
     <string name="obs_reported_prefix">"Передано "</string>
     <string name="obs_fetched_separator">" • Получено "</string>
@@ -351,8 +350,8 @@
     <string name="rain_pred_act_format">прогноз %1$s / факт %2$s</string>
 
     <!-- Forecast history screen -->
-    <string name="forecast_history_high_temp_title">Максимальная температура</string>
-    <string name="forecast_history_low_temp_title">Минимальная температура</string>
+    <string name="forecast_comparison_high_temp_title">Максимальная температура</string>
+    <string name="forecast_comparison_low_temp_title">Минимальная температура</string>
     <string name="legend_location_actual">Факт по месту</string>
     <string name="evolution_api_actual_format">Факт API: %1$s</string>
     <string name="evolution_location_actual_format">Факт по месту: %1$s</string>
@@ -379,7 +378,7 @@
     <string name="stats_baseline_explainer_blended">Все ближайшие станции объединены и интерполированы к вашим координатам. Ближе к вашему адресу, но промежутки между измерениями заполняются прогнозом, поэтому ошибка прогноза немного занижается.</string>
     <string name="stats_baseline_vs_source">против %1$s</string>
     <string name="stats_baseline_blend_fallback">смешанные (нет станции)</string>
-    <string name="forecast_history_actual_from_cache">из сохранённых измерений</string>
+    <string name="forecast_comparison_actual_from_cache">из сохранённых измерений</string>
     <string name="notifications_title">Уведомления</string>
     <string name="notify_dominant_temp_change_label">Уведомить один раз при изменении показаний доминирующей станции</string>
     <string name="notify_dominant_temp_change_description">Отправит одно уведомление, когда доминирующая станция вашего основного источника сообщит другую температуру или когда её заменит другая станция — например \"KNUQ 69.9°, was 68°\". После срабатывания настройка отключается сама.</string>

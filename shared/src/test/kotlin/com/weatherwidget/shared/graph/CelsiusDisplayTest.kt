@@ -1,6 +1,6 @@
 package com.weatherwidget.shared.graph
 
-import com.weatherwidget.shared.graph.ForecastHistoryViewLogic
+import com.weatherwidget.shared.graph.ForecastComparisonViewLogic
 import com.weatherwidget.test.category.ShortDuration
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import org.junit.Assert.assertEquals
@@ -62,12 +62,12 @@ class CelsiusDisplayTest {
 
     @Test
     fun `bias scales as a delta and keeps its display threshold`() {
-        assertEquals(" (0.6° low)", ForecastHistoryViewLogic.formatBias(0.6, useCelsius = false))
-        assertEquals(" (1.0° low)", ForecastHistoryViewLogic.formatBias(1.8, useCelsius = true))
-        assertEquals(" (2.0° high)", ForecastHistoryViewLogic.formatBias(-3.6, useCelsius = true))
+        assertEquals(" (0.6° low)", ForecastComparisonViewLogic.formatBias(0.6, useCelsius = false))
+        assertEquals(" (1.0° low)", ForecastComparisonViewLogic.formatBias(1.8, useCelsius = true))
+        assertEquals(" (2.0° high)", ForecastComparisonViewLogic.formatBias(-3.6, useCelsius = true))
         // 0.4 °F bias = 0.22 °C: below the (scaled) suppression threshold in both units.
-        assertEquals("", ForecastHistoryViewLogic.formatBias(0.4, useCelsius = false))
-        assertEquals("", ForecastHistoryViewLogic.formatBias(0.4, useCelsius = true))
+        assertEquals("", ForecastComparisonViewLogic.formatBias(0.4, useCelsius = false))
+        assertEquals("", ForecastComparisonViewLogic.formatBias(0.4, useCelsius = true))
     }
 
     // ------------------------------------------------------------------ forecast delta

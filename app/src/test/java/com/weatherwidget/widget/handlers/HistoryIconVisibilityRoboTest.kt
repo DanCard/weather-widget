@@ -84,12 +84,12 @@ class HistoryIconVisibilityRoboTest {
         val homeIcon = applied.findViewById<View>(R.id.home_icon)
         val homeTouchZone = applied.findViewById<View>(R.id.home_touch_zone)
         val historyIcon = applied.findViewById<View>(R.id.history_icon)
-        val forecastHistoryActivityTouchZone = applied.findViewById<View>(R.id.forecast_history_activity_touch_zone)
+        val forecastComparisonActivityTouchZone = applied.findViewById<View>(R.id.forecast_comparison_activity_touch_zone)
 
         assertEquals("Home icon should be VISIBLE in hourly view", View.VISIBLE, homeIcon.visibility)
         assertEquals("Home touch zone should be VISIBLE in hourly view", View.VISIBLE, homeTouchZone.visibility)
         assertEquals("History icon should be VISIBLE in hourly view", View.VISIBLE, historyIcon.visibility)
-        assertEquals("History touch zone should be VISIBLE in hourly view", View.VISIBLE, forecastHistoryActivityTouchZone.visibility)
+        assertEquals("History touch zone should be VISIBLE in hourly view", View.VISIBLE, forecastComparisonActivityTouchZone.visibility)
     }
 
     @Test
@@ -129,8 +129,8 @@ class HistoryIconVisibilityRoboTest {
 
         for (id in listOf(
             R.id.history_icon,
-            R.id.forecast_history_activity_touch_zone,
-            R.id.forecast_history_activity_touch_zone_inline,
+            R.id.forecast_comparison_activity_touch_zone,
+            R.id.forecast_comparison_activity_touch_zone_inline,
             R.id.weather_stations_icon,
             R.id.weather_stations_touch_zone,
             R.id.weather_stations_touch_zone_inline,

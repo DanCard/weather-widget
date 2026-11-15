@@ -7,7 +7,7 @@ import com.weatherwidget.data.model.ForecastProduct
 import com.weatherwidget.shared.util.RefreshOutcome
 
 /**
- * What a Forecast History Refresh of [sourceId] did ([RefreshOutcome.of]), read from the rows the
+ * What a Forecast Comparison Refresh of [sourceId] did ([RefreshOutcome.of]), read from the rows the
  * refresh itself writes, through the same [DesktopQuotaState] the popup banners from. [ok] = the refresh did not throw — a
  * failed one already wrote its `CURRENT_TEMP_STATUS ok=false` and rethrew. Android reads the same facts
  * from `WidgetStateManager` (plans/261016-history-refresh-outcome-shared-desktop-parity.md).

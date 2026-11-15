@@ -537,7 +537,7 @@ internal fun ObservationsContent(
 }
 
 /**
- * The navy API-source pill of the data screens (Observations, History of Forecasts). Left-click
+ * The navy API-source pill of the data screens (Observations, Forecast Comparison). Left-click
  * shows the next source; right-click, via [onSecondaryClick], the previous one.
  */
 @OptIn(ExperimentalFoundationApi::class)

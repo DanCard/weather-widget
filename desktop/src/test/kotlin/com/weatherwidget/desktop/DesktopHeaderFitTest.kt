@@ -101,7 +101,7 @@ class DesktopHeaderFitTest {
         fun text(t: String) = composeTestRule.onAllNodesWithText(t, useUnmergedTree = true).fetchSemanticsNodes().size
         val temp = text("64.0°")
         val rain = text("40%")
-        val buttons = tag("open_forecast_history_daily")
+        val buttons = tag("open_forecast_comparison_daily")
         val icon = tag("header_weather_icon")
         val date = tag("daily_header_date")
         val counts = "temp=$temp rain=$rain buttons=$buttons icon=$icon date=$date of ${widths.size}"
@@ -135,7 +135,7 @@ class DesktopHeaderFitTest {
             }
         }
         composeTestRule.waitForIdle()
-        val bounds = composeTestRule.onAllNodesWithTag("open_forecast_history_daily_icon", useUnmergedTree = true)
+        val bounds = composeTestRule.onAllNodesWithTag("open_forecast_comparison_daily_icon", useUnmergedTree = true)
             .fetchSemanticsNodes().single().boundsInRoot
         // History, the last button, ends its zone on the line 70dp right of the middle (the icon half
         // the shared air before it); the date starts after it.
@@ -163,7 +163,7 @@ class DesktopHeaderFitTest {
             }
         }
         composeTestRule.waitForIdle()
-        val history = composeTestRule.onAllNodesWithTag("open_forecast_history_icon", useUnmergedTree = true)
+        val history = composeTestRule.onAllNodesWithTag("open_forecast_comparison_icon", useUnmergedTree = true)
             .fetchSemanticsNodes().single().boundsInRoot
         val rightDp = with(composeTestRule.density) { history.right.toDp().value }
         assertEquals(LINE_ICON_RIGHT_DP, rightDp, 1f)
@@ -204,7 +204,7 @@ class DesktopHeaderFitTest {
     fun hourlyRowIsHomeObservationsSelectorHistory() {
         // plans/261022-home-button-first-shared-header-buttons.md: home first, history last.
         header(config.copy(viewMode = ViewMode.TEMPERATURE))
-        val xs = listOf("switch_to_daily", "open_observations_header", "graph_selector", "open_forecast_history")
+        val xs = listOf("switch_to_daily", "open_observations_header", "graph_selector", "open_forecast_comparison")
             .map { tag -> tag to (leftDp(tag) ?: error("$tag missing")) }
         assertEquals("left to right: $xs", xs.sortedBy { it.second }, xs)
     }
@@ -213,7 +213,7 @@ class DesktopHeaderFitTest {
     fun hourlyObservationsHideWhenTodayIsOffScreenAndOnlyHomeMoves() {
         header(config.copy(viewMode = ViewMode.TEMPERATURE), headerTime = LocalDateTime.now().plusHours(48))
         assertEquals("observations: no today on screen", null, leftDp("open_observations_header"))
-        val history = composeTestRule.onAllNodesWithTag("open_forecast_history_icon", useUnmergedTree = true)
+        val history = composeTestRule.onAllNodesWithTag("open_forecast_comparison_icon", useUnmergedTree = true)
             .fetchSemanticsNodes().single().boundsInRoot
         assertEquals(LINE_ICON_RIGHT_DP, with(composeTestRule.density) { history.right.toDp().value }, 1f)
         assertTrue("home still leftmost", leftDp("switch_to_daily")!! < leftDp("graph_selector")!!)
@@ -249,7 +249,7 @@ class DesktopHeaderFitTest {
             .map { with(composeTestRule.density) { it.boundsInRoot.left.toDp().value } }
         val home = lefts("daily_home_button")
         val obs = lefts("open_observations_header_daily")
-        val history = lefts("open_forecast_history_daily")
+        val history = lefts("open_forecast_comparison_daily")
         assertEquals("home only on the panned header", 1, home.size)
         assertEquals("observations in both", 2, obs.size)
         assertEquals("observations did not move", obs[0], obs[1], 0.5f)
@@ -285,7 +285,7 @@ class DesktopHeaderFitTest {
         fun lefts(tag: String) = composeTestRule.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes()
             .sortedBy { it.boundsInRoot.top }
             .map { with(composeTestRule.density) { it.boundsInRoot.left.toDp().value } }
-        for (tag in listOf("open_forecast_history_daily_icon", "open_observations_header_daily_icon", "daily_header_date")) {
+        for (tag in listOf("open_forecast_comparison_daily_icon", "open_observations_header_daily_icon", "daily_header_date")) {
             val found = lefts(tag)
             assertEquals("$tag on both headers: $found", 2, found.size)
             assertEquals("$tag did not move", found[0], found[1], 0.5f)
@@ -334,7 +334,7 @@ class DesktopHeaderFitTest {
         fun lefts(tag: String) = composeTestRule.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes()
             .sortedBy { it.boundsInRoot.top }
             .map { with(composeTestRule.density) { it.boundsInRoot.left.toDp().value } }
-        for (tag in listOf("open_forecast_history_daily_icon", "open_observations_header_daily_icon")) {
+        for (tag in listOf("open_forecast_comparison_daily_icon", "open_observations_header_daily_icon")) {
             val found = lefts(tag)
             assertEquals("$tag on both headers: $found", 2, found.size)
             assertEquals("$tag did not move", found[0], found[1], 0.5f)

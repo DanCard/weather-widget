@@ -43,8 +43,8 @@ Provenance matters: Synoptic web-fallback rows filed under NWS represent redistr
 observations, while a forecast-only provider's elapsed forecast hours must not become measured
 actuals.
 
-History of Forecasts draws today's Location actual from the selected source's row by one shared rule
-(`ForecastHistoryViewLogic.locationActuals`): the low once `TodayLowSettle` settles it, and the high
+Forecast Comparison draws today's Location actual from the selected source's row by one shared rule
+(`ForecastComparisonViewLogic.locationActuals`): the low once `TodayLowSettle` settles it, and the high
 from 5pm (`DailyDayValueResolver.isHighSettled`, the today column's rule). Another source's row is
 never used. Rows can differ between sources: an inactive source's row stops advancing during the day,
 but the screen only shows visible sources. The footer card and error graph stay past-only
@@ -110,7 +110,7 @@ Those documents explain prior bugs; the current rules are the shared code descri
 
 ## Rain amount accuracy
 
-`RainAccuracyRunner` (`:shared`) grades each source's rain-amount forecast for History of Forecasts'
+`RainAccuracyRunner` (`:shared`) grades each source's rain-amount forecast for Forecast Comparison'
 accuracy card ("Rain amount" section) and the Statistics day/night list. Android reads through
 `RoomRainAccuracyHost`, desktop through `DesktopRainAccuracyHost`; `RainAccuracyHostContract` holds
 both to one scenario.

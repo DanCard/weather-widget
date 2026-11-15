@@ -11,7 +11,7 @@ import java.time.ZoneId
 
 /**
  * Today's peak hour names the first hour of a plateau at the day max, and stays all day.
- * Desktop History of Forecasts 2026-11-13 12:12: OWM 100% from 10am to 1pm stored peak 10am, and the
+ * Desktop Forecast Comparison 2026-11-13 12:12: OWM 100% from 10am to 1pm stored peak 10am, and the
  * Peak cell read "—" from 11:00. (plans/261113-today-rain-peak-plateau-hide.md)
  */
 @Category(ShortDuration::class)

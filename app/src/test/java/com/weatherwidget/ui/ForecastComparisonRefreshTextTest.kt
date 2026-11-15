@@ -14,7 +14,7 @@ import org.junit.experimental.categories.Category
  * desktop's [RefreshOutcome.text] says (plans/261016-history-refresh-outcome-shared-desktop-parity.md).
  */
 @Category(LongDuration::class)
-class ForecastHistoryRefreshTextTest : RobolectricTest() {
+class ForecastComparisonRefreshTextTest : RobolectricTest() {
     private val context = ApplicationProvider.getApplicationContext<android.content.Context>()
 
     private val outcomes = listOf(
@@ -36,21 +36,21 @@ class ForecastHistoryRefreshTextTest : RobolectricTest() {
             assertEquals(
                 outcome.toString(),
                 RefreshOutcome.text(outcome, "Google", androidTime),
-                ForecastHistoryActivity.refreshOutcomeText(context, outcome, "Google"),
+                ForecastComparisonActivity.refreshOutcomeText(context, outcome, "Google"),
             )
         }
     }
 
     @Test
     fun `timeout names the reason and the retry time`() {
-        val text = ForecastHistoryActivity.refreshOutcomeText(context, RefreshOutcome.Failed("TIMEOUT", 1_792_220_400_000L), "Meteo")
+        val text = ForecastComparisonActivity.refreshOutcomeText(context, RefreshOutcome.Failed("TIMEOUT", 1_792_220_400_000L), "Meteo")
         println("timeout text: $text")
         assertEquals(true, text.startsWith("Meteo: Timed Out · retrying "))
     }
 
     @Test
     fun `hourly quota names the hourly forecast and its reset`() {
-        val text = ForecastHistoryActivity.refreshOutcomeText(context, RefreshOutcome.Refused(QuotaScope.HOURLY_FORECAST, 1_792_220_400_000L), "Google")
+        val text = ForecastComparisonActivity.refreshOutcomeText(context, RefreshOutcome.Refused(QuotaScope.HOURLY_FORECAST, 1_792_220_400_000L), "Google")
         assertEquals(true, text.startsWith("Google refreshed · Hourly forecast quota used · resets "))
     }
 }

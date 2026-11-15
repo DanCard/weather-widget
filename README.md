@@ -41,7 +41,7 @@ It also includes a **Linux desktop companion** (Compose for Desktop) that shares
   * Captures forecast snapshots throughout each day's evolution for later comparison with actuals.
   * Retrieves historical observations from NWS (with up to 5 nearby fallback stations for resilience).
   * Compares predictions vs. observations to compute detailed 30-day statistics: high/low error margins, directional temperature bias, and a 0-5 rating score.
-  * *Forecast History Activity:* Inspect forecast evolution over time relative to actual weather.
+  * *Forecast Comparison Activity:* Inspect forecast evolution over time relative to actual weather.
 * **Battery & Power-Aware Sync System:**
   * Lightweight UI refreshes use cached data separately from forecast and observation network fetches.
   * Fetch scheduling adapts to battery level, charging, and screen state, reducing or suspending background work when power is limited.

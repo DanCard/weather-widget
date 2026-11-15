@@ -124,18 +124,18 @@
     <string name="refresh_policy_battery_mid">Yenileme: Her 8 sa (pil %1$d%%)</string>
     <string name="refresh_policy_battery_low">Yenileme: Duraklatıldı (pil %1$d%%)</string>
     <string name="freshness_just_now">az önce</string>
-    <string name="forecast_history">"Tahmin karşılaştırması: "</string>
-    <string name="forecast_history_summary_single">%1$d %2$s tahmin anlık görüntüsü</string>
-    <string name="forecast_history_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI anlık görüntüsü</string>
-    <string name="forecast_history_summary_climate_fill"> • %1$d iklim dolgu noktası</string>
-    <string name="forecast_history_api_fallback_label">API</string>
-    <string name="forecast_history_api_actual">%1$s API gerçek: %2$s / %3$s</string>
-    <string name="forecast_history_location_actual">Konum gerçek: %1$s / %2$s</string>
-    <string name="forecast_history_no_history_yet">Henüz geçmiş tahmin verisi yok.\nTahmin anlık görüntüleri her gün kaydedilir. İlk doğruluk karşılaştırmanız için yarın tekrar bakın.</string>
-    <string name="forecast_history_no_data_fallback_source">seçilen kaynak</string>
-    <string name="forecast_history_prev_day">Önceki gün</string>
-    <string name="forecast_history_next_day">Sonraki gün</string>
-    <string name="forecast_history_subtitle">Tahmin karşılaştırması</string>
+    <string name="forecast_comparison">"Tahmin karşılaştırması: "</string>
+    <string name="forecast_comparison_summary_single">%1$d %2$s tahmin anlık görüntüsü</string>
+    <string name="forecast_comparison_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI anlık görüntüsü</string>
+    <string name="forecast_comparison_summary_climate_fill"> • %1$d iklim dolgu noktası</string>
+    <string name="forecast_comparison_api_fallback_label">API</string>
+    <string name="forecast_comparison_api_actual">%1$s API gerçek: %2$s / %3$s</string>
+    <string name="forecast_comparison_location_actual">Konum gerçek: %1$s / %2$s</string>
+    <string name="forecast_comparison_no_history_yet">Henüz geçmiş tahmin verisi yok.\nTahmin anlık görüntüleri her gün kaydedilir. İlk doğruluk karşılaştırmanız için yarın tekrar bakın.</string>
+    <string name="forecast_comparison_no_data_fallback_source">seçilen kaynak</string>
+    <string name="forecast_comparison_prev_day">Önceki gün</string>
+    <string name="forecast_comparison_next_day">Sonraki gün</string>
+    <string name="forecast_comparison_subtitle">Tahmin karşılaştırması</string>
     <string name="freshness_forecast_fetch_ago">Tahmin indirme: %1$s önce</string>
     <string name="freshness_forecast_fetch_never">Tahmin indirme: hiç</string>
     <string name="freshness_displayed_data">Gösterilen veriler (%1$s): %2$s önce alındı</string>
@@ -147,12 +147,11 @@
     <string name="forecast_error_high_title">En yüksek sıcaklık hatası</string>
     <string name="forecast_error_low_title">En düşük sıcaklık hatası</string>
     <string name="forecast_show_hourly">Sıcaklık tahmini</string>
-    <string name="forecast_show_evolution">Tahmin geçmişine dön</string>
     <string name="forecast_hourly_title">Sıcaklık tahmini</string>
     <string name="forecast_hourly_subtitle">Saatlik ayrıntı</string>
     <string name="forecast_hourly_no_data">Bu tarih için saatlik sıcaklık tahmini yok.</string>
     <string name="forecast_hourly_legend">Şimdi</string>
-    <string name="forecast_history_no_data_for_source">Bu tarih için tahmin geçmişi yok (%1$s).</string>
+    <string name="forecast_comparison_no_data_for_source">Bu tarih için tahmin geçmişi yok (%1$s).</string>
     <string name="forecast_error_requires_actuals">Hata görünümü, bu gün için gerçek sıcaklıklar kaydedildikten sonra kullanılabilir.</string>
     <string name="legend_actual">API gerçek</string>
     <string name="legend_zero_error">Sıfır hata</string>
@@ -310,7 +309,7 @@
     <string name="obs_subtitle_stale">%1$s için yeni gözlem yok — en son veri gösteriliyor, %2$s önce.</string>
     <string name="obs_no_location_to_refresh">Yenilenecek konum yok</string>
     <string name="obs_refreshed_source">%1$s yenilendi</string>
-    <string name="forecast_history_refresh_failed">%1$s yenilenemedi</string>
+    <string name="forecast_comparison_refresh_failed">%1$s yenilenemedi</string>
     <string name="refresh_retrying_at">%1$s yeniden denenecek</string>
     <string name="obs_reported_prefix">"Bildirildi "</string>
     <string name="obs_fetched_separator">" • Alındı "</string>
@@ -351,8 +350,8 @@
     <string name="rain_pred_act_format">tah %1$s / ger %2$s</string>
 
     <!-- Forecast history screen -->
-    <string name="forecast_history_high_temp_title">En yüksek sıcaklık</string>
-    <string name="forecast_history_low_temp_title">En düşük sıcaklık</string>
+    <string name="forecast_comparison_high_temp_title">En yüksek sıcaklık</string>
+    <string name="forecast_comparison_low_temp_title">En düşük sıcaklık</string>
     <string name="legend_location_actual">Konum gerçek</string>
     <string name="evolution_api_actual_format">API gerçek: %1$s</string>
     <string name="evolution_location_actual_format">Konum gerçek: %1$s</string>
@@ -379,7 +378,7 @@
     <string name="stats_baseline_explainer_blended">Yakındaki tüm istasyonlar birleştirilip koordinatlarınıza göre enterpole edilir. Adresinize daha yakındır, ancak ölçümler arasındaki boşluklar tahmin kullanılarak doldurulur, bu yüzden tahmin hatası biraz olduğundan az görünür.</string>
     <string name="stats_baseline_vs_source">%1$s ile</string>
     <string name="stats_baseline_blend_fallback">karma (istasyon yok)</string>
-    <string name="forecast_history_actual_from_cache">kayıtlı ölçümlerden</string>
+    <string name="forecast_comparison_actual_from_cache">kayıtlı ölçümlerden</string>
     <string name="notifications_title">Bildirimler</string>
     <string name="notify_dominant_temp_change_label">Baskın istasyonun ölçümü değiştiğinde bir kez bildir</string>
     <string name="notify_dominant_temp_change_description">Birincil kaynağınızın baskın istasyonu farklı bir sıcaklık bildirdiğinde ya da yerini başka bir istasyon aldığında tek bir bildirim gönderir — örneğin \"KNUQ 69.9°, was 68°\". Bildirimden sonra kendini kapatır.</string>

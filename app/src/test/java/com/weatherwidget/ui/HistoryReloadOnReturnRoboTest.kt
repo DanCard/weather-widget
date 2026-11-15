@@ -29,7 +29,7 @@ import org.robolectric.annotation.Config
 
 /**
  * plans/261113-android-data-screens-reload-after-settings-refresh.md. Fold 4 2026-11-13: Settings → Refresh
- * data ran on top of History of Forecasts, which kept the pre-refresh rows (Age `1h` two minutes after).
+ * data ran on top of Forecast Comparison, which kept the pre-refresh rows (Age `1h` two minutes after).
  * Back on top it must reload once if stored data was written meanwhile, and not otherwise. A reload logs
  * one `SCREEN_RELOAD` line, which is what the test counts.
  */
@@ -55,15 +55,15 @@ class HistoryReloadOnReturnRoboTest {
         db.close()
     }
 
-    private fun openHistory(): ActivityController<ForecastHistoryActivity> {
-        val intent = Intent(context, ForecastHistoryActivity::class.java).apply {
+    private fun openHistory(): ActivityController<ForecastComparisonActivity> {
+        val intent = Intent(context, ForecastComparisonActivity::class.java).apply {
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, 101)
-            putExtra(ForecastHistoryActivity.EXTRA_TARGET_DATE, "2030-01-01")
-            putExtra(ForecastHistoryActivity.EXTRA_LAT, 37.0)
-            putExtra(ForecastHistoryActivity.EXTRA_LON, -122.0)
-            putExtra(ForecastHistoryActivity.EXTRA_SOURCE, WeatherSource.NWS.displayName)
+            putExtra(ForecastComparisonActivity.EXTRA_TARGET_DATE, "2030-01-01")
+            putExtra(ForecastComparisonActivity.EXTRA_LAT, 37.0)
+            putExtra(ForecastComparisonActivity.EXTRA_LON, -122.0)
+            putExtra(ForecastComparisonActivity.EXTRA_SOURCE, WeatherSource.NWS.displayName)
         }
-        val controller = Robolectric.buildActivity(ForecastHistoryActivity::class.java, intent)
+        val controller = Robolectric.buildActivity(ForecastComparisonActivity::class.java, intent)
         val activity = controller.get()
         activity.forecastDao = mockk(relaxed = true)
         activity.dailyHistoryDao = mockk(relaxed = true)
@@ -81,7 +81,7 @@ class HistoryReloadOnReturnRoboTest {
     private fun reloadLines(): Int = org.robolectric.shadows.ShadowLog.getLogsForTag(StoredDataSeen.LOG_TAG).size
 
     /** The reloads themselves: `loadData` logs one "Found N snapshots" line per load. */
-    private fun loadsSoFar() = org.robolectric.shadows.ShadowLog.getLogsForTag("ForecastHistoryActivity").count { it.msg.startsWith("Found ") }
+    private fun loadsSoFar() = org.robolectric.shadows.ShadowLog.getLogsForTag("ForecastComparisonActivity").count { it.msg.startsWith("Found ") }
 
     /** The log is written from a launched coroutine: wait for the expected count, then let a stray extra one land. */
     private fun settledReloadLines(expected: Int): Int {

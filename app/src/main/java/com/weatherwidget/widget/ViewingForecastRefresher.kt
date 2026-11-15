@@ -77,7 +77,7 @@ internal object ViewingForecastRefresher {
         }
     }
 
-    /** Forecast History or Observations opened on [source]; the screen supplies a [fetch] that reports on screen. */
+    /** Forecast Comparison or Observations opened on [source]; the screen supplies a [fetch] that reports on screen. */
     suspend fun onScreenOpen(
         context: Context,
         source: WeatherSource,

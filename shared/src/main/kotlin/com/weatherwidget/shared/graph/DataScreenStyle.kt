@@ -1,8 +1,8 @@
 package com.weatherwidget.shared.graph
 
 /**
- * The palette of the data screens — Current Observations and History of Forecasts — on Android and
- * desktop (user, 2026-10-09: History of Forecasts takes the Observations look). `#RRGGBB` strings;
+ * The palette of the data screens — Current Observations and Forecast Comparison — on Android and
+ * desktop (user, 2026-10-09: Forecast Comparison takes the Observations look). `#RRGGBB` strings;
  * each platform parses them into its own color type.
  */
 object DataScreenStyle {

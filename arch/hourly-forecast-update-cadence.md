@@ -26,7 +26,7 @@ for the source's full supported horizon; there is no shorter three-day forecast 
   first is skipped.
 - **A source the user reaches for stays within 2 hours** at battery ≥ 70% or on a charger: neither
   platform can tell what is on screen, so a screen coming on never fetches. Tapping a widget (Android),
-  opening the popup (desktop), or opening Forecast History or Observations (both) checks that one source,
+  opening the popup (desktop), or opening Forecast Comparison or Observations (both) checks that one source,
   and past the limit forces a fetch of it alone (`ViewingForecastRefresh`; log `VIEWING_FORECAST`). "Last
   fetched" is the newest of the fetch marker and the source's last successful check. A refresh repaint or
   resize is not a tap, so it checks nothing. Any refresh a tap or click starts, a source switch or arrow
@@ -204,7 +204,7 @@ force only the displayed source.
 ### User-initiated refresh throttle (10-minute limit)
 
 User-initiated manual refresh triggers (Android widget tap-to-refresh, Settings "Refresh data",
-Forecast History refresh, Observations refresh, and Desktop UI refresh buttons) bypass routine
+Forecast Comparison refresh, Observations refresh, and Desktop UI refresh buttons) bypass routine
 background cadence checks so that an explicit user tap can fetch immediately. However, a source's
 forecast refreshes at most once every 10 minutes on both platforms (`UserRefreshThrottle`): a request is
 refused when the source was refreshed by the user **or fetched by anything** (popup open, viewing refresh,
@@ -235,7 +235,7 @@ refresh counts only its own user refreshes (observations scope); the forecast fe
     can take seconds. Only Settings' Refresh data covers every source, so its messages name none
     ("Refresh complete", "Refresh failed"); every other refresh request forces one source.
 - **A screen under Settings reloads on return.** Settings → Refresh data starts on top of the screen that opened
-  it, so that screen's rows predate the refresh. Android's History of Forecasts (and the Source Error Details
+  it, so that screen's rows predate the refresh. Android's Forecast Comparison (and the Source Error Details
   screen) remember the process's `StoredDataVersion` at each load (`StoredDataSeen.markLoaded`, before the read)
   and reload in `onResume` only when it moved (`SCREEN_RELOAD screen=<name> reason=stored_data_changed`, one INFO
   line per reload). Weather Observations re-collects its Room flows when it returns to STARTED, and desktop

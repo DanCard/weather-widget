@@ -17,7 +17,7 @@ import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
 import androidx.test.runner.lifecycle.Stage
 import com.weatherwidget.R
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.ui.ForecastHistoryActivity
+import com.weatherwidget.ui.ForecastComparisonActivity
 import com.weatherwidget.ui.WeatherObservationsActivity
 import com.weatherwidget.widget.handlers.setupWeatherStationsShortcut
 import org.junit.After
@@ -29,7 +29,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Emulator bug 2026-10-21: widget on NWS, "History of Forecasts" opened on Silurian; Observations
+ * Emulator bug 2026-10-21: widget on NWS, "Forecast Comparison" opened on Silurian; Observations
  * did the same. The widget's screens have `taskAffinity=""` and read their source only in onCreate,
  * so a NEW_TASK-only launch brought the still-alive task from an earlier open to the front
  * unchanged. Robolectric has no task stack and cannot see this; here the real ActivityManager runs:
@@ -61,9 +61,9 @@ class WidgetScreenReopenSourceIntegrationTest {
 
     @Test
     fun historyReopenedAfterSourceChangeShowsTheNewSource() {
-        val firstScreen = openAndAwait(ForecastHistoryActivity::class.java, first) { openHistory(first) }
-        goHome(ForecastHistoryActivity::class.java)
-        val secondScreen = openAndAwait(ForecastHistoryActivity::class.java, second) { openHistory(second) }
+        val firstScreen = openAndAwait(ForecastComparisonActivity::class.java, first) { openHistory(first) }
+        goHome(ForecastComparisonActivity::class.java)
+        val secondScreen = openAndAwait(ForecastComparisonActivity::class.java, second) { openHistory(second) }
         assertNotSame("history task was resurfaced instead of recreated", firstScreen, secondScreen)
     }
 
@@ -82,9 +82,9 @@ class WidgetScreenReopenSourceIntegrationTest {
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
             putExtra("date", java.time.LocalDate.now().toString())
             putExtra("showHistory", true)
-            putExtra(ForecastHistoryActivity.EXTRA_LAT, TestLocations.LAT)
-            putExtra(ForecastHistoryActivity.EXTRA_LON, TestLocations.LON)
-            putExtra(ForecastHistoryActivity.EXTRA_SOURCE, source.displayName)
+            putExtra(ForecastComparisonActivity.EXTRA_LAT, TestLocations.LAT)
+            putExtra(ForecastComparisonActivity.EXTRA_LON, TestLocations.LON)
+            putExtra(ForecastComparisonActivity.EXTRA_SOURCE, source.displayName)
         }
         context.sendBroadcast(click)
     }

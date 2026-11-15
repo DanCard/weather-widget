@@ -14,7 +14,7 @@ object DailyDayValueResolver {
 
     /**
      * Whether today's high counts as settled at local hour [nowHour]: the one 5pm rule behind the
-     * today column and the History of Forecasts high line. Null disables the cutoff.
+     * today column and the Forecast Comparison high line. Null disables the cutoff.
      */
     fun isHighSettled(nowHour: Int?): Boolean = nowHour != null && nowHour >= ACTUAL_HIGH_CUTOFF_HOUR
 

@@ -8,7 +8,7 @@ import com.weatherwidget.data.model.ForecastProduct
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.FetchMetadata
 import com.weatherwidget.shared.util.RefreshOutcome
-import com.weatherwidget.ui.ForecastHistoryActivity
+import com.weatherwidget.ui.ForecastComparisonActivity
 import kotlinx.coroutines.CancellationException
 
 /**
@@ -56,7 +56,7 @@ internal object SyncDoneNotice {
                 context,
                 input.currentTempReason,
                 outcome,
-                ForecastHistoryActivity.refreshOutcomeText(context, outcome, source.shortDisplayName),
+                ForecastComparisonActivity.refreshOutcomeText(context, outcome, source.shortDisplayName),
                 input.targetSourceId?.let { target ->
                     widgetIds(context).filter { stateManager.getCurrentDisplaySource(it).id == target }.toIntArray()
                 } ?: widgetIds(context),

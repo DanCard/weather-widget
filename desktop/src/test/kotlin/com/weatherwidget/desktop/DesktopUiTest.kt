@@ -228,7 +228,7 @@ currentCondition = "Sunny"),
 
     @Test
     fun testDataScreenSourceButtonLeftClickCyclesNextRightClickCyclesPrevious() {
-        // The pill on History of Forecasts and Stations: right-click must step back, as the header does.
+        // The pill on Forecast Comparison and Stations: right-click must step back, as the header does.
         val order = listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.TOMORROW_IO)
         var source by mutableStateOf(WeatherSource.NWS)
         composeTestRule.setContent {
@@ -350,7 +350,7 @@ currentCondition = "Sunny"),
 
         composeTestRule.onNodeWithTag("daily_home_button").assertDoesNotExist()
         // The buttons it sits between are unaffected by its absence.
-        composeTestRule.onNodeWithTag("open_forecast_history_daily").assertExists()
+        composeTestRule.onNodeWithTag("open_forecast_comparison_daily").assertExists()
     }
 
     /**
@@ -784,7 +784,7 @@ currentCondition = "Sunny"),
     }
 
     @Test
-    fun dailyHeaderForecastHistoryButtonOpensTodaysHistory() {
+    fun dailyHeaderForecastComparisonButtonOpensTodaysHistory() {
         var opened: java.time.LocalDate? = null
         composeTestRule.setContent {
             WidgetPopup(
@@ -799,7 +799,7 @@ currentCondition = "Sunny"),
             )
         }
 
-        composeTestRule.onNodeWithTag("open_forecast_history_daily").performClick()
+        composeTestRule.onNodeWithTag("open_forecast_comparison_daily").performClick()
         assertEquals(java.time.LocalDate.now(), opened)
     }
 
@@ -883,8 +883,8 @@ currentCondition = "Sunny"),
             )
         }
 
-        composeTestRule.onNodeWithTag("open_forecast_history").assertExists()
-        composeTestRule.onNodeWithTag("open_forecast_history_daily").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("open_forecast_comparison").assertExists()
+        composeTestRule.onNodeWithTag("open_forecast_comparison_daily").assertDoesNotExist()
         composeTestRule.onNodeWithTag("open_observations_header_daily").assertDoesNotExist()
     }
 

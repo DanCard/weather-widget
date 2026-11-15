@@ -12,7 +12,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 /**
- * The peak hour is shown on every day the % has one, whatever the clock. Fold 4 History of Forecasts
+ * The peak hour is shown on every day the % has one, whatever the clock. Fold 4 Forecast Comparison
  * 2026-11-13 1:11 PM: NWS 99% peaking at noon only (97 at 11am, 89 at 1pm) read "—"; past days never
  * showed an hour. (plans/261113-today-rain-peak-never-hidden.md)
  */

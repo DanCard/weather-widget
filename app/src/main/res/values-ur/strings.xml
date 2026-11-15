@@ -124,18 +124,18 @@
     <string name="refresh_policy_battery_mid">ریفریش پالیسی: ہر 8 گھنٹے (بیٹری %1$d%%)</string>
     <string name="refresh_policy_battery_low">ریفریش پالیسی: موقوف (بیٹری %1$d%%)</string>
     <string name="freshness_just_now">ابھی ابھی</string>
-    <string name="forecast_history">"پیش گوئی کا موازنہ: "</string>
-    <string name="forecast_history_summary_single">%1$d %2$s پیشن گوئی سنیپ شاٹس</string>
-    <string name="forecast_history_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI سنیپ شاٹس</string>
-    <string name="forecast_history_summary_climate_fill"> • %1$d آب و ہوا بھرائی پوائنٹس</string>
-    <string name="forecast_history_api_fallback_label">API</string>
-    <string name="forecast_history_api_actual">%1$s API اصل: %2$s / %3$s</string>
-    <string name="forecast_history_location_actual">مقام کا اصل: %1$s / %2$s</string>
-    <string name="forecast_history_no_history_yet">ابھی تک کوئی تاریخی پیشن گوئی ڈیٹا نہیں۔\nپیشن گوئی سنیپ شاٹس روزانہ محفوظ ہوتے ہیں۔ پہلی درستگی کے موازنے کے لیے کل دوبارہ دیکھیں۔</string>
-    <string name="forecast_history_no_data_fallback_source">منتخب ماخذ</string>
-    <string name="forecast_history_prev_day">پچھلا دن</string>
-    <string name="forecast_history_next_day">اگلا دن</string>
-    <string name="forecast_history_subtitle">پیش گوئی کا موازنہ</string>
+    <string name="forecast_comparison">"پیش گوئی کا موازنہ: "</string>
+    <string name="forecast_comparison_summary_single">%1$d %2$s پیشن گوئی سنیپ شاٹس</string>
+    <string name="forecast_comparison_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI سنیپ شاٹس</string>
+    <string name="forecast_comparison_summary_climate_fill"> • %1$d آب و ہوا بھرائی پوائنٹس</string>
+    <string name="forecast_comparison_api_fallback_label">API</string>
+    <string name="forecast_comparison_api_actual">%1$s API اصل: %2$s / %3$s</string>
+    <string name="forecast_comparison_location_actual">مقام کا اصل: %1$s / %2$s</string>
+    <string name="forecast_comparison_no_history_yet">ابھی تک کوئی تاریخی پیشن گوئی ڈیٹا نہیں۔\nپیشن گوئی سنیپ شاٹس روزانہ محفوظ ہوتے ہیں۔ پہلی درستگی کے موازنے کے لیے کل دوبارہ دیکھیں۔</string>
+    <string name="forecast_comparison_no_data_fallback_source">منتخب ماخذ</string>
+    <string name="forecast_comparison_prev_day">پچھلا دن</string>
+    <string name="forecast_comparison_next_day">اگلا دن</string>
+    <string name="forecast_comparison_subtitle">پیش گوئی کا موازنہ</string>
     <string name="freshness_forecast_fetch_ago">پیشن گوئی ڈاؤن لوڈ: %1$s پہلے</string>
     <string name="freshness_forecast_fetch_never">پیشن گوئی ڈاؤن لوڈ: کبھی نہیں</string>
     <string name="freshness_displayed_data">دکھایا گیا ڈیٹا (%1$s): %2$s پہلے حاصل ہوا</string>
@@ -147,12 +147,11 @@
     <string name="forecast_error_high_title">زیادہ سے زیادہ درجہ حرارت کی خطا</string>
     <string name="forecast_error_low_title">کم سے کم درجہ حرارت کی خطا</string>
     <string name="forecast_show_hourly">درجہ حرارت کی پیشن گوئی</string>
-    <string name="forecast_show_evolution">پیشن گوئیوں کی تاریخ پر واپس</string>
     <string name="forecast_hourly_title">درجہ حرارت کی پیشن گوئی</string>
     <string name="forecast_hourly_subtitle">گھنٹہ وار تفصیل</string>
     <string name="forecast_hourly_no_data">اس تاریخ کے لیے گھنٹہ وار درجہ حرارت کی پیشن گوئی دستیاب نہیں۔</string>
     <string name="forecast_hourly_legend">ابھی</string>
-    <string name="forecast_history_no_data_for_source">اس تاریخ کے لیے کوئی پیشن گوئی تاریخ نہیں (%1$s)۔</string>
+    <string name="forecast_comparison_no_data_for_source">اس تاریخ کے لیے کوئی پیشن گوئی تاریخ نہیں (%1$s)۔</string>
     <string name="forecast_error_requires_actuals">خطا کا منظر اس دن کے اصل درجہ حرارت ریکارڈ ہونے کے بعد دستیاب ہوگا۔</string>
     <string name="legend_actual">API اصل</string>
     <string name="legend_zero_error">صفر خطا</string>
@@ -310,7 +309,7 @@
     <string name="obs_subtitle_stale">%1$s کے لیے کوئی حالیہ مشاہدات نہیں — %2$s پہلے کا تازہ ترین دکھایا جا رہا ہے۔</string>
     <string name="obs_no_location_to_refresh">ریفریش کے لیے کوئی مقام دستیاب نہیں</string>
     <string name="obs_refreshed_source">%1$s ریفریش ہو گیا</string>
-    <string name="forecast_history_refresh_failed">%1$s ریفریش نہیں ہو سکا</string>
+    <string name="forecast_comparison_refresh_failed">%1$s ریفریش نہیں ہو سکا</string>
     <string name="refresh_retrying_at">دوبارہ کوشش %1$s</string>
     <string name="obs_reported_prefix">"رپورٹ شدہ "</string>
     <string name="obs_fetched_separator">" • حاصل شدہ "</string>
@@ -351,8 +350,8 @@
     <string name="rain_pred_act_format">پیشن گوئی %1$s / اصل %2$s</string>
 
     <!-- Forecast history screen -->
-    <string name="forecast_history_high_temp_title">زیادہ سے زیادہ درجہ حرارت</string>
-    <string name="forecast_history_low_temp_title">کم سے کم درجہ حرارت</string>
+    <string name="forecast_comparison_high_temp_title">زیادہ سے زیادہ درجہ حرارت</string>
+    <string name="forecast_comparison_low_temp_title">کم سے کم درجہ حرارت</string>
     <string name="legend_location_actual">مقام کا اصل</string>
     <string name="evolution_api_actual_format">API اصل: %1$s</string>
     <string name="evolution_location_actual_format">مقام کا اصل: %1$s</string>
@@ -379,7 +378,7 @@
     <string name="stats_baseline_explainer_blended">قریبی تمام اسٹیشنوں کو ملا کر آپ کے کوآرڈینیٹس پر انٹرپولیٹ کیا جاتا ہے۔ آپ کے پتے کے زیادہ قریب، مگر ریڈنگز کے درمیان خلا پیش گوئی سے پُر کیا جاتا ہے، اس لیے پیش گوئی کی خامی کچھ کم دکھائی دیتی ہے۔</string>
     <string name="stats_baseline_vs_source">بمقابلہ %1$s</string>
     <string name="stats_baseline_blend_fallback">مخلوط (کوئی اسٹیشن نہیں)</string>
-    <string name="forecast_history_actual_from_cache">محفوظ ریڈنگز سے</string>
+    <string name="forecast_comparison_actual_from_cache">محفوظ ریڈنگز سے</string>
     <string name="notifications_title">اطلاعات</string>
     <string name="notify_dominant_temp_change_label">غالب اسٹیشن کی ریڈنگ بدلنے پر ایک بار اطلاع دیں</string>
     <string name="notify_dominant_temp_change_description">جب آپ کے بنیادی ماخذ کا غالب اسٹیشن مختلف درجہ حرارت بتائے گا، یا کوئی دوسرا اسٹیشن اس کی جگہ لے گا، تو ایک اطلاع بھیجی جائے گی — مثلاً \"KNUQ 69.9°, was 68°\"۔ اطلاع کے بعد یہ خود بند ہو جاتی ہے۔</string>

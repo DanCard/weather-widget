@@ -12,7 +12,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.test.category.MediumDuration
 import com.weatherwidget.testutil.TestDatabase
-import com.weatherwidget.ui.ForecastHistoryActivity
+import com.weatherwidget.ui.ForecastComparisonActivity
 import com.weatherwidget.ui.MonthsViewActivity
 import com.weatherwidget.ui.SourceErrorDetailsActivity
 import com.weatherwidget.ui.WeatherObservationsActivity
@@ -68,15 +68,15 @@ class WidgetScreenLaunchFlagsRoboTest {
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
             putExtra("date", "2026-10-21")
             putExtra("showHistory", true)
-            putExtra(ForecastHistoryActivity.EXTRA_LAT, 37.42)
-            putExtra(ForecastHistoryActivity.EXTRA_LON, -122.08)
-            putExtra(ForecastHistoryActivity.EXTRA_SOURCE, WeatherSource.NWS.displayName)
+            putExtra(ForecastComparisonActivity.EXTRA_LAT, 37.42)
+            putExtra(ForecastComparisonActivity.EXTRA_LON, -122.08)
+            putExtra(ForecastComparisonActivity.EXTRA_SOURCE, WeatherSource.NWS.displayName)
         }
 
         runBlocking { WidgetDayClickCoordinator.handleDayClick(app, click, mockk<WeatherRepository>()) }
 
-        val started = startedActivity(ForecastHistoryActivity::class.java)
-        assertEquals(WeatherSource.NWS.displayName, started.getStringExtra(ForecastHistoryActivity.EXTRA_SOURCE))
+        val started = startedActivity(ForecastComparisonActivity::class.java)
+        assertEquals(WeatherSource.NWS.displayName, started.getStringExtra(ForecastComparisonActivity.EXTRA_SOURCE))
         assertClearsTask(started)
     }
 

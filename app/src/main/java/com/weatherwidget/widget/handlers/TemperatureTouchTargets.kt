@@ -17,7 +17,7 @@ import com.weatherwidget.BuildConfig
 import com.weatherwidget.R
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.ui.ForecastHistoryActivity
+import com.weatherwidget.ui.ForecastComparisonActivity
 import com.weatherwidget.ui.SettingsActivity
 import com.weatherwidget.ui.WeatherObservationsActivity
 import com.weatherwidget.widget.HourlyTouchZoneMapper
@@ -187,7 +187,7 @@ internal fun setupHistoryShortcut(
     scale: Float = 1.0f,
 ) {
     // Unlike the sun-position sites, these coordinates leave the widget: they become Intent extras
-    // that open ForecastHistoryActivity. A placeholder here would open the history screen at Google
+    // that open ForecastComparisonActivity. A placeholder here would open the history screen at Google
     // HQ, so with no location the shortcut is simply not bound — there is no history to show.
     val lat = hourlyForecasts.firstOrNull()?.locationLat
     val lon = hourlyForecasts.firstOrNull()?.locationLon
@@ -231,9 +231,9 @@ internal fun setupHistoryShortcutAt(
         putExtra("date", dateStr)
         putExtra("showHistory", true)
         putExtra("isHistory", centerTime.toLocalDate().isBefore(LocalDate.now()))
-        putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
-        putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
-        putExtra(ForecastHistoryActivity.EXTRA_SOURCE, displaySource.displayName)
+        putExtra(ForecastComparisonActivity.EXTRA_LAT, lat)
+        putExtra(ForecastComparisonActivity.EXTRA_LON, lon)
+        putExtra(ForecastComparisonActivity.EXTRA_SOURCE, displaySource.displayName)
     }
 
     val pendingIntent = PendingIntent.getBroadcast(
@@ -246,7 +246,7 @@ internal fun setupHistoryShortcutAt(
         context = context,
         views = views,
         viewId = R.id.history_icon,
-        iconRes = R.drawable.ic_forecast_history_line,
+        iconRes = R.drawable.ic_forecast_comparison_line,
         sizeDp = HeaderConstants.CENTER_ICON_SIZE_DP,
         scale = scale,
         tintColor = 0xAAFFFFFF.toInt()
@@ -255,17 +255,17 @@ internal fun setupHistoryShortcutAt(
         context = context,
         views = views,
         viewId = R.id.history_icon_inline,
-        iconRes = R.drawable.ic_forecast_history_line,
+        iconRes = R.drawable.ic_forecast_comparison_line,
         sizeDp = HeaderConstants.CENTER_ICON_SIZE_DP,
         scale = scale,
         tintColor = 0xAAFFFFFF.toInt()
     )
     views.setOnClickPendingIntent(R.id.history_icon, pendingIntent)
-    views.setOnClickPendingIntent(R.id.forecast_history_activity_touch_zone, pendingIntent)
-    views.setOnClickPendingIntent(R.id.forecast_history_activity_touch_zone_inline, pendingIntent)
+    views.setOnClickPendingIntent(R.id.forecast_comparison_activity_touch_zone, pendingIntent)
+    views.setOnClickPendingIntent(R.id.forecast_comparison_activity_touch_zone_inline, pendingIntent)
     if (setVisibility) {
         views.setViewVisibility(R.id.history_icon, View.VISIBLE)
-        views.setViewVisibility(R.id.forecast_history_activity_touch_zone, View.VISIBLE)
+        views.setViewVisibility(R.id.forecast_comparison_activity_touch_zone, View.VISIBLE)
     }
 }
 
@@ -389,7 +389,7 @@ internal fun setupMonthsViewShortcut(
     val intent = com.weatherwidget.ui.MonthsViewActivity.intent(context, displaySource, lat, lon).apply {
         putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
         // CLEAR_TASK: this screen reads its source only in onCreate; NEW_TASK alone would bring a
-        // still-alive copy to the front unchanged (see ForecastHistory launch).
+        // still-alive copy to the front unchanged (see ForecastComparison launch).
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
     }
     val pendingIntent = PendingIntent.getActivity(
@@ -424,7 +424,7 @@ internal fun setupWeatherStationsShortcut(
     val obsIntent = Intent(context, WeatherObservationsActivity::class.java).apply {
         putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
         // CLEAR_TASK: this screen reads its source only in onCreate; NEW_TASK alone would bring a
-        // still-alive copy to the front unchanged (see ForecastHistory launch).
+        // still-alive copy to the front unchanged (see ForecastComparison launch).
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
     }
 
@@ -504,7 +504,7 @@ internal fun positionCenterIcons(
     if (inlineVis == View.VISIBLE && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         val touchWidthDp = inlineZoneWidthDp ?: HeaderWidthChecker.nominalInlineZoneWidthDp(widthDp)
         val touchWidthPx = (touchWidthDp * density).toInt()
-        for (id in listOf(R.id.graph_selector_touch_zone_inline, R.id.weather_stations_touch_zone_inline, R.id.home_touch_zone_inline, R.id.forecast_history_activity_touch_zone_inline)) {
+        for (id in listOf(R.id.graph_selector_touch_zone_inline, R.id.weather_stations_touch_zone_inline, R.id.home_touch_zone_inline, R.id.forecast_comparison_activity_touch_zone_inline)) {
             views.setViewLayoutWidth(id, touchWidthPx.toFloat(), android.util.TypedValue.COMPLEX_UNIT_PX)
         }
         Log.d("HomeShortcut", "positionCenterIcons: inline touch zones resized to ${touchWidthDp}dp for widthDp=$widthDp")
@@ -561,8 +561,8 @@ internal enum class HeaderButtonViews(
         R.id.months_view_icon_inline, R.id.months_view_touch_zone_inline,
     ),
     HISTORY(
-        HeaderButton.HISTORY, R.id.history_icon, R.id.forecast_history_activity_touch_zone,
-        R.id.history_icon_inline, R.id.forecast_history_activity_touch_zone_inline,
+        HeaderButton.HISTORY, R.id.history_icon, R.id.forecast_comparison_activity_touch_zone,
+        R.id.history_icon_inline, R.id.forecast_comparison_activity_touch_zone_inline,
     ),
     ;
 
@@ -695,7 +695,7 @@ internal fun positionDailyIcons(
                 R.id.weather_stations_touch_zone_inline,
                 R.id.home_touch_zone_inline,
                 R.id.months_view_touch_zone_inline,
-                R.id.forecast_history_activity_touch_zone_inline,
+                R.id.forecast_comparison_activity_touch_zone_inline,
             )) {
                 views.setViewLayoutWidth(id, widthPx, android.util.TypedValue.COMPLEX_UNIT_PX)
             }

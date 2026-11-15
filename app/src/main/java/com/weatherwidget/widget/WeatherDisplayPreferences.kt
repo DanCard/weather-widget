@@ -101,7 +101,7 @@ internal class WeatherDisplayPreferences(
         prefs.edit().putBoolean(KEY_SHOW_FUTURE_PRIOR_FORECAST, value).apply()
     }
 
-    /** History of Forecasts "All sources" column sort, `DaySourceComparison.Sort.encode()` text; null = default. */
+    /** Forecast Comparison "All sources" column sort, `DaySourceComparison.Sort.encode()` text; null = default. */
     fun sourceCompareSort(): String? = prefs.getString(KEY_SOURCE_COMPARE_SORT, null)
 
     fun setSourceCompareSort(value: String) {

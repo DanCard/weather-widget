@@ -34,7 +34,7 @@
             android:layout_height="36dp"
             android:src="@drawable/ic_chevron_left"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/forecast_history_prev_day" />
+            android:contentDescription="@string/forecast_comparison_prev_day" />
 
         <TextView
             android:id="@+id/title"
@@ -42,7 +42,7 @@
             android:layout_height="wrap_content"
             android:clickable="true"
             android:focusable="true"
-            android:text="@string/forecast_history"
+            android:text="@string/forecast_comparison"
             android:textSize="18sp"
             android:textColor="@color/widget_text_primary"
             android:textStyle="bold"
@@ -55,7 +55,7 @@
             android:layout_marginStart="4dp"
             android:src="@drawable/ic_chevron_right"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/forecast_history_next_day" />
+            android:contentDescription="@string/forecast_comparison_next_day" />
 
         <!-- Pushes the source / refresh / settings group to the right edge; the group wraps as one. -->
         <Space
@@ -112,7 +112,7 @@
         android:paddingStart="12dp"
         android:paddingEnd="12dp"
         android:paddingTop="-4dp"
-        android:text="@string/forecast_history_subtitle"
+        android:text="@string/forecast_comparison_subtitle"
         android:textSize="20sp"
         android:textColor="@color/widget_text_secondary" />
 
@@ -313,7 +313,7 @@
                     android:id="@+id/high_graph_title"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/forecast_history_high_temp_title"
+                    android:text="@string/forecast_comparison_high_temp_title"
                     android:textSize="18sp"
                     android:textColor="@color/widget_text_primary"
                     android:textStyle="bold"
@@ -344,7 +344,7 @@
                     android:id="@+id/low_graph_title"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/forecast_history_low_temp_title"
+                    android:text="@string/forecast_comparison_low_temp_title"
                     android:textSize="18sp"
                     android:textColor="@color/widget_text_primary"
                     android:textStyle="bold"

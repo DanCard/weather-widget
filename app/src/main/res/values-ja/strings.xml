@@ -124,18 +124,18 @@
     <string name="refresh_policy_battery_mid">更新ポリシー：8 時間ごと（バッテリー %1$d%%）</string>
     <string name="refresh_policy_battery_low">更新ポリシー：一時停止（バッテリー %1$d%%）</string>
     <string name="freshness_just_now">たった今</string>
-    <string name="forecast_history">"予報の比較："</string>
-    <string name="forecast_history_summary_single">%1$d 件の %2$s 予報スナップショット</string>
-    <string name="forecast_history_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI スナップショット</string>
-    <string name="forecast_history_summary_climate_fill"> • %1$d 件の気候補完ポイント</string>
-    <string name="forecast_history_api_fallback_label">API</string>
-    <string name="forecast_history_api_actual">%1$s API 実測：%2$s / %3$s</string>
-    <string name="forecast_history_location_actual">地点の実測：%1$s / %2$s</string>
-    <string name="forecast_history_no_history_yet">過去の予報データはまだありません。\n予報スナップショットは毎日保存されます。初回の精度比較は明日ご確認ください。</string>
-    <string name="forecast_history_no_data_fallback_source">選択中のソース</string>
-    <string name="forecast_history_prev_day">前日</string>
-    <string name="forecast_history_next_day">翌日</string>
-    <string name="forecast_history_subtitle">予報の比較</string>
+    <string name="forecast_comparison">"予報の比較："</string>
+    <string name="forecast_comparison_summary_single">%1$d 件の %2$s 予報スナップショット</string>
+    <string name="forecast_comparison_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI スナップショット</string>
+    <string name="forecast_comparison_summary_climate_fill"> • %1$d 件の気候補完ポイント</string>
+    <string name="forecast_comparison_api_fallback_label">API</string>
+    <string name="forecast_comparison_api_actual">%1$s API 実測：%2$s / %3$s</string>
+    <string name="forecast_comparison_location_actual">地点の実測：%1$s / %2$s</string>
+    <string name="forecast_comparison_no_history_yet">過去の予報データはまだありません。\n予報スナップショットは毎日保存されます。初回の精度比較は明日ご確認ください。</string>
+    <string name="forecast_comparison_no_data_fallback_source">選択中のソース</string>
+    <string name="forecast_comparison_prev_day">前日</string>
+    <string name="forecast_comparison_next_day">翌日</string>
+    <string name="forecast_comparison_subtitle">予報の比較</string>
     <string name="freshness_forecast_fetch_ago">予報取得：%1$s前</string>
     <string name="freshness_forecast_fetch_never">予報取得：未実行</string>
     <string name="freshness_displayed_data">表示中のデータ（%1$s）：%2$s前に取得</string>
@@ -147,12 +147,11 @@
     <string name="forecast_error_high_title">最高気温の誤差</string>
     <string name="forecast_error_low_title">最低気温の誤差</string>
     <string name="forecast_show_hourly">気温予報</string>
-    <string name="forecast_show_evolution">予報履歴に戻る</string>
     <string name="forecast_hourly_title">気温予報</string>
     <string name="forecast_hourly_subtitle">1 時間ごとの詳細</string>
     <string name="forecast_hourly_no_data">この日付の 1 時間ごとの気温予報はありません。</string>
     <string name="forecast_hourly_legend">現在</string>
-    <string name="forecast_history_no_data_for_source">この日付の予報履歴はありません（%1$s）。</string>
+    <string name="forecast_comparison_no_data_for_source">この日付の予報履歴はありません（%1$s）。</string>
     <string name="forecast_error_requires_actuals">誤差表示は、その日の実測気温が記録された後に利用できます。</string>
     <string name="legend_actual">API 実測</string>
     <string name="legend_zero_error">誤差ゼロ</string>
@@ -310,7 +309,7 @@
     <string name="obs_subtitle_stale">%1$s の最近の観測データはありません — %2$s前の最新データを表示しています。</string>
     <string name="obs_no_location_to_refresh">更新できる位置がありません</string>
     <string name="obs_refreshed_source">%1$s を更新しました</string>
-    <string name="forecast_history_refresh_failed">%1$s を更新できませんでした</string>
+    <string name="forecast_comparison_refresh_failed">%1$s を更新できませんでした</string>
     <string name="refresh_retrying_at">%1$sに再試行</string>
     <string name="obs_reported_prefix">"観測 "</string>
     <string name="obs_fetched_separator">" • 取得 "</string>
@@ -351,8 +350,8 @@
     <string name="rain_pred_act_format">予報 %1$s / 実測 %2$s</string>
 
     <!-- Forecast history screen -->
-    <string name="forecast_history_high_temp_title">最高気温</string>
-    <string name="forecast_history_low_temp_title">最低気温</string>
+    <string name="forecast_comparison_high_temp_title">最高気温</string>
+    <string name="forecast_comparison_low_temp_title">最低気温</string>
     <string name="legend_location_actual">地点の実測</string>
     <string name="evolution_api_actual_format">API 実測：%1$s</string>
     <string name="evolution_location_actual_format">地点の実測：%1$s</string>
@@ -379,7 +378,7 @@
     <string name="stats_baseline_explainer_blended">近隣のすべての観測所を合成し、お客様の座標へ内挿した値です。ご住所により近くなりますが、観測の空白は予報で補間するため、予報誤差がわずかに小さく見積もられます。</string>
     <string name="stats_baseline_vs_source">対 %1$s</string>
     <string name="stats_baseline_blend_fallback">合成値（観測所なし）</string>
-    <string name="forecast_history_actual_from_cache">保存済みの観測値から</string>
+    <string name="forecast_comparison_actual_from_cache">保存済みの観測値から</string>
     <string name="notifications_title">通知</string>
     <string name="notify_dominant_temp_change_label">主力観測所の値が変わったら一度だけ通知</string>
     <string name="notify_dominant_temp_change_description">主要ソースの主力観測所が異なる気温を報告したとき、または別の観測所が主力になったとき、一度だけ通知します（例: \"KNUQ 69.9°, was 68°\"）。通知後は自動的に解除されます。</string>

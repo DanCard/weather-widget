@@ -72,7 +72,7 @@ class ForecastDaoPlausibilityTest {
         dao.insertForecast(poisonedRow())
 
         // Backward-reaching history paths — these are the ones that actually leaked. The Android
-        // today-column snapshot reads through getAllForecastsInRange; ForecastHistoryActivity and
+        // today-column snapshot reads through getAllForecastsInRange; ForecastComparisonActivity and
         // AccuracyCalculator read through getForecastsInRangeBySource and getForecastEvolution.
         assertNull(
             "getAllForecastsInRange",

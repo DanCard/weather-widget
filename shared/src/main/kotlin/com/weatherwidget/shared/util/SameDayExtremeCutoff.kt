@@ -20,7 +20,7 @@ import com.weatherwidget.data.model.HindcastGuard
  *
  * The age limit is what the earlier freezes lacked: the 06:00 low freeze (removed 2026-11-06) held a
  * 53 h-old 57° low against a fresh 46.6° hourly. With [HindcastGuard] off (0 h), every fetch writes.
- * [LOW_CUTOFF] is also the D−1 anchor for [PriorDayForecast] and the History of Forecasts trim.
+ * [LOW_CUTOFF] is also the D−1 anchor for [PriorDayForecast] and the Forecast Comparison trim.
  * See plans/261113-no-hindcasts-unless-prior-missing.md.
  *
  * Wired from the shared daily writer ([DailyForecastWrite]) used by both platforms. Display reads

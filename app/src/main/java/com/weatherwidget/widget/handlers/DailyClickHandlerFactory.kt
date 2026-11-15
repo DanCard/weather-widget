@@ -12,7 +12,7 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.util.DayClickResolver
-import com.weatherwidget.ui.ForecastHistoryActivity
+import com.weatherwidget.ui.ForecastComparisonActivity
 import com.weatherwidget.widget.DailyForecastGraphRenderer
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WidgetActions
@@ -120,9 +120,9 @@ internal object DailyClickHandlerFactory {
             // from the dedicated forecast-history shortcut.
             putExtra("showHistory", false)
             putExtra("index", dayIndex)
-            putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
-            putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
-            putExtra(ForecastHistoryActivity.EXTRA_SOURCE, displaySource.displayName)
+            putExtra(ForecastComparisonActivity.EXTRA_LAT, lat)
+            putExtra(ForecastComparisonActivity.EXTRA_LON, lon)
+            putExtra(ForecastComparisonActivity.EXTRA_SOURCE, displaySource.displayName)
             clickSource?.let { putExtra(WidgetActions.EXTRA_CLICK_SOURCE, it) }
             putExtra(WidgetActions.EXTRA_PRECIP_GATE, routingPrecip.auditText())
 

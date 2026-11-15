@@ -58,7 +58,7 @@ class DesktopSourceCycleIntegrationTest {
     @Test
     fun `history of forecasts source pill - left click next, right click previous`() {
         composeTestRule.setContent {
-            ForecastHistoryContent(weatherDao = dao, config = config, onClose = {})
+            ForecastComparisonContent(weatherDao = dao, config = config, onClose = {})
         }
 
         assertCyclesBothWays()

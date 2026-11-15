@@ -9,7 +9,7 @@ import kotlin.math.abs
 /**
  * Fills yesterday, when the current site never measured it, with the same source's measured history from
  * another site — typically where the user was before a move. Display-only: nothing here is written
- * back, and accuracy/Forecast History reads stay strictly location-scoped.
+ * back, and accuracy/Forecast Comparison reads stay strictly location-scoped.
  *
  * Why: every history read is scoped to the [LocationMatch] box, so after a move the past columns
  * showed forecast-only bars even though the same source had measured those days a few hundred km

@@ -802,7 +802,7 @@ internal fun runDesktopUiApplication() = application {
             }
         }
 
-        // Opening the popup, Forecast History or Observations are the desktop moments the user is known
+        // Opening the popup, Forecast Comparison or Observations are the desktop moments the user is known
         // to be looking: the source refreshes past the limit and says so (ViewingForecastRefresh; user, 2026-11-01).
         val viewingForecastRequests = remember { java.util.concurrent.ConcurrentHashMap<String, Long>() }
         suspend fun checkViewedSource(origin: String, surface: RefreshNoticeSurface) {
@@ -1075,7 +1075,7 @@ internal fun runDesktopUiApplication() = application {
         }
 
         /**
-         * History of Forecasts' refresh: the viewed source only (user, 2026-10-09). The displayed
+         * Forecast Comparison' refresh: the viewed source only (user, 2026-10-09). The displayed
          * source goes through [requestFullRefresh] — this window's repository is built for it — and
          * any other source through a repository of its own, as the daemon's non-active loop does.
          */
@@ -1159,7 +1159,7 @@ internal fun runDesktopUiApplication() = application {
         }
 
         if (historyVisible && currentConfig != null) {
-            CompositionLocalProvider(LocalRefreshNotice provides refreshNotice) { ForecastHistoryWindow(
+            CompositionLocalProvider(LocalRefreshNotice provides refreshNotice) { ForecastComparisonWindow(
                 weatherDao = weatherDao,
                 config = currentConfig,
                 showRequestId = historyShowRequestId,

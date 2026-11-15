@@ -278,7 +278,7 @@ object ActualsAggregator {
         // Feeds that cannot be DISPLAYED are dropped from the output. A daily-history row filed
         // under one is never read — only written, retained a month and recomputed — because every
         // reader selects by display source: DailyActualsStore filters `it.source in activeSources`,
-        // ForecastHistoryActivity matches `requestedSource`, and AccuracyBreakdown's baseline
+        // ForecastComparisonActivity matches `requestedSource`, and AccuracyBreakdown's baseline
         // resolver walks `orderedVisibleSources` only. The rows still do their work through
         // `borrowedGroups`, which is built from `byApi` ABOVE this filter.
         //

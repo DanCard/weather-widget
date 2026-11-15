@@ -6,11 +6,11 @@ import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.TestData.dateEpoch
-import com.weatherwidget.shared.graph.ForecastHistoryViewLogic.ButtonMode
-import com.weatherwidget.shared.graph.ForecastHistoryViewLogic.resolveButtonMode
-import com.weatherwidget.shared.graph.ForecastHistoryViewLogic.shouldShowTemperatureButton
-import com.weatherwidget.shared.graph.ForecastHistoryViewLogic.shouldLaunchTemperature
-import com.weatherwidget.shared.graph.ForecastHistoryViewLogic.GraphMode
+import com.weatherwidget.shared.graph.ForecastComparisonViewLogic.ButtonMode
+import com.weatherwidget.shared.graph.ForecastComparisonViewLogic.resolveButtonMode
+import com.weatherwidget.shared.graph.ForecastComparisonViewLogic.shouldShowTemperatureButton
+import com.weatherwidget.shared.graph.ForecastComparisonViewLogic.shouldLaunchTemperature
+import com.weatherwidget.shared.graph.ForecastComparisonViewLogic.GraphMode
 import com.weatherwidget.testutil.TestDatabase
 import kotlinx.coroutines.runBlocking
 import com.weatherwidget.data.local.ForecastEntity
@@ -32,7 +32,7 @@ import org.junit.experimental.categories.Category
 @Category(LongDuration::class)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
-class ForecastHistoryButtonRoboTest {
+class ForecastComparisonButtonRoboTest {
     private lateinit var db: WeatherDatabase
     private val lat = 37.422
     private val lon = -122.084
@@ -167,7 +167,7 @@ class ForecastHistoryButtonRoboTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val pm = context.packageManager
         val historyInfo = pm.getActivityInfo(
-            ComponentName(context, ForecastHistoryActivity::class.java), 0)
+            ComponentName(context, ForecastComparisonActivity::class.java), 0)
         val mainInfo = pm.getActivityInfo(
             ComponentName(context, MainActivity::class.java), 0)
         assertNotEquals(

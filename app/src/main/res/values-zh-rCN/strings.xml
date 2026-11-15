@@ -124,18 +124,18 @@
     <string name="refresh_policy_battery_mid">刷新策略：每 8 小时（电量 %1$d%%）</string>
     <string name="refresh_policy_battery_low">刷新策略：已暂停（电量 %1$d%%）</string>
     <string name="freshness_just_now">刚刚</string>
-    <string name="forecast_history">"预报对比："</string>
-    <string name="forecast_history_summary_single">%1$d 个 %2$s 预报快照</string>
-    <string name="forecast_history_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI 快照</string>
-    <string name="forecast_history_summary_climate_fill"> • %1$d 个气候填充点</string>
-    <string name="forecast_history_api_fallback_label">API</string>
-    <string name="forecast_history_api_actual">%1$s API 实测：%2$s / %3$s</string>
-    <string name="forecast_history_location_actual">位置实测：%1$s / %2$s</string>
-    <string name="forecast_history_no_history_yet">尚无历史预报数据。\n预报快照每天保存。明天再来查看您的首次准确度对比。</string>
-    <string name="forecast_history_no_data_fallback_source">所选数据源</string>
-    <string name="forecast_history_prev_day">前一天</string>
-    <string name="forecast_history_next_day">后一天</string>
-    <string name="forecast_history_subtitle">预报对比</string>
+    <string name="forecast_comparison">"预报对比："</string>
+    <string name="forecast_comparison_summary_single">%1$d 个 %2$s 预报快照</string>
+    <string name="forecast_comparison_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI 快照</string>
+    <string name="forecast_comparison_summary_climate_fill"> • %1$d 个气候填充点</string>
+    <string name="forecast_comparison_api_fallback_label">API</string>
+    <string name="forecast_comparison_api_actual">%1$s API 实测：%2$s / %3$s</string>
+    <string name="forecast_comparison_location_actual">位置实测：%1$s / %2$s</string>
+    <string name="forecast_comparison_no_history_yet">尚无历史预报数据。\n预报快照每天保存。明天再来查看您的首次准确度对比。</string>
+    <string name="forecast_comparison_no_data_fallback_source">所选数据源</string>
+    <string name="forecast_comparison_prev_day">前一天</string>
+    <string name="forecast_comparison_next_day">后一天</string>
+    <string name="forecast_comparison_subtitle">预报对比</string>
     <string name="freshness_forecast_fetch_ago">预报获取：%1$s前</string>
     <string name="freshness_forecast_fetch_never">预报获取：从未</string>
     <string name="freshness_displayed_data">显示的数据（%1$s）：%2$s前获取</string>
@@ -147,12 +147,11 @@
     <string name="forecast_error_high_title">最高温度误差</string>
     <string name="forecast_error_low_title">最低温度误差</string>
     <string name="forecast_show_hourly">温度预报</string>
-    <string name="forecast_show_evolution">返回预报历史</string>
     <string name="forecast_hourly_title">温度预报</string>
     <string name="forecast_hourly_subtitle">逐小时详情</string>
     <string name="forecast_hourly_no_data">该日期没有逐小时温度预报。</string>
     <string name="forecast_hourly_legend">现在</string>
-    <string name="forecast_history_no_data_for_source">该日期没有预报历史（%1$s）。</string>
+    <string name="forecast_comparison_no_data_for_source">该日期没有预报历史（%1$s）。</string>
     <string name="forecast_error_requires_actuals">记录当天实测温度后即可查看误差视图。</string>
     <string name="legend_actual">API 实测</string>
     <string name="legend_zero_error">零误差</string>
@@ -310,7 +309,7 @@
     <string name="obs_subtitle_stale">没有 %1$s 的最新观测数据 — 显示 %2$s 前的最后一条。</string>
     <string name="obs_no_location_to_refresh">没有可刷新的位置</string>
     <string name="obs_refreshed_source">已刷新 %1$s</string>
-    <string name="forecast_history_refresh_failed">无法刷新 %1$s</string>
+    <string name="forecast_comparison_refresh_failed">无法刷新 %1$s</string>
     <string name="refresh_retrying_at">%1$s 重试</string>
     <string name="obs_reported_prefix">"报告于 "</string>
     <string name="obs_fetched_separator">" • 获取于 "</string>
@@ -351,8 +350,8 @@
     <string name="rain_pred_act_format">预报 %1$s / 实测 %2$s</string>
 
     <!-- Forecast history screen -->
-    <string name="forecast_history_high_temp_title">最高温度</string>
-    <string name="forecast_history_low_temp_title">最低温度</string>
+    <string name="forecast_comparison_high_temp_title">最高温度</string>
+    <string name="forecast_comparison_low_temp_title">最低温度</string>
     <string name="legend_location_actual">位置实测</string>
     <string name="evolution_api_actual_format">API 实测：%1$s</string>
     <string name="evolution_location_actual_format">位置实测：%1$s</string>
@@ -379,7 +378,7 @@
     <string name="stats_baseline_explainer_blended">将附近所有气象站合并并插值到您的坐标。更贴近您的地址，但观测之间的空档使用预报补齐，因此预报误差会被略微低估。</string>
     <string name="stats_baseline_vs_source">对比 %1$s</string>
     <string name="stats_baseline_blend_fallback">混合值（无气象站）</string>
-    <string name="forecast_history_actual_from_cache">来自已存观测数据</string>
+    <string name="forecast_comparison_actual_from_cache">来自已存观测数据</string>
     <string name="notifications_title">通知</string>
     <string name="notify_dominant_temp_change_label">主导站点读数变化时通知一次</string>
     <string name="notify_dominant_temp_change_description">当主数据源的主导站点报告不同温度，或换成另一个站点主导时，发送一条通知 — 例如 \"KNUQ 69.9°, was 68°\"。通知发出后该选项会自动清除。</string>

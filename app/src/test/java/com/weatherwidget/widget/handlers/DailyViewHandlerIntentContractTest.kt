@@ -6,7 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.R
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.util.DayClickResolver
-import com.weatherwidget.ui.ForecastHistoryActivity
+import com.weatherwidget.ui.ForecastComparisonActivity
 import com.weatherwidget.widget.WidgetActions
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -58,9 +58,9 @@ class DailyViewHandlerIntentContractTest {
         assertTrue(intent.getBooleanExtra("isHistory", false))
         assertFalse(intent.getBooleanExtra("showHistory", true))
         assertEquals(1, intent.getIntExtra("index", -1))
-        assertEquals(LAT, intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LAT, 0.0), 0.00001)
-        assertEquals(LON, intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LON, 0.0), 0.00001)
-        assertEquals(WeatherSource.NWS.displayName, intent.getStringExtra(ForecastHistoryActivity.EXTRA_SOURCE))
+        assertEquals(LAT, intent.getDoubleExtra(ForecastComparisonActivity.EXTRA_LAT, 0.0), 0.00001)
+        assertEquals(LON, intent.getDoubleExtra(ForecastComparisonActivity.EXTRA_LON, 0.0), 0.00001)
+        assertEquals(WeatherSource.NWS.displayName, intent.getStringExtra(ForecastComparisonActivity.EXTRA_SOURCE))
         // History days always force TEMPERATURE — the icon is irrelevant since we're looking at past data
         assertEquals("TEMPERATURE", intent.getStringExtra(WidgetActions.EXTRA_TARGET_VIEW))
     }
@@ -95,9 +95,9 @@ class DailyViewHandlerIntentContractTest {
         assertFalse(intent.getBooleanExtra("showHistory", true))
         assertEquals("PRECIPITATION", intent.getStringExtra(WidgetActions.EXTRA_TARGET_VIEW))
         assertEquals(expectedOffset, intent.getIntExtra(WidgetActions.EXTRA_HOURLY_OFFSET, Int.MIN_VALUE))
-        assertEquals(LAT, intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LAT, 0.0), 0.00001)
-        assertEquals(LON, intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LON, 0.0), 0.00001)
-        assertEquals(WeatherSource.NWS.displayName, intent.getStringExtra(ForecastHistoryActivity.EXTRA_SOURCE))
+        assertEquals(LAT, intent.getDoubleExtra(ForecastComparisonActivity.EXTRA_LAT, 0.0), 0.00001)
+        assertEquals(LON, intent.getDoubleExtra(ForecastComparisonActivity.EXTRA_LON, 0.0), 0.00001)
+        assertEquals(WeatherSource.NWS.displayName, intent.getStringExtra(ForecastComparisonActivity.EXTRA_SOURCE))
     }
 
     @Test

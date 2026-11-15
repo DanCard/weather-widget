@@ -41,7 +41,7 @@ Examples include:
   and the `app_logs` row follow, and `SOURCE_SWITCH_E2E` times each phase. Hosts: Android
   `WidgetIntentActionHandler` (toggle and home reset; the deferred phase joins the receiver's job),
   desktop `DesktopSourceSwitch` (refresh is the daemon's `source_change` check).
-- `DaySourceComparison`: the Forecast History screen's "All sources for <day>" table. Each visible
+- `DaySourceComparison`: the Forecast Comparison screen's "All sources for <day>" table. Each visible
   source's newest forecast for the day at the nearest site, run through `DailyColumnBuilder` with that
   source as the display source (so the high, rain %, peak hour and noon cloud match the widget's daily
   view), sorted by high by default; a source with no row is listed last. Columns: short name, high, low, day rain %,
@@ -116,7 +116,7 @@ At a high level:
 Temperatures are stored at the provider's precision on every day; nothing rounds before storage, and
 accuracy scores the raw difference. Display rounds: a daily column prints whole degrees only for a
 future provider forecast (`DailyColumn.printsWholeDegrees`, `TempUtils.formatDayTemp`); today, past
-days, climate normals and History of Forecasts (graphs and the all-sources table) print the tenth.
+days, climate normals and Forecast Comparison (graphs and the all-sources table) print the tenth.
 
 A daily column's left slot is the forecast from a day earlier (`:shared` `PriorDayForecast`,
 `PriorBarSlot`). Today and past columns always draw it in their triple bar. The left bar's anchors:

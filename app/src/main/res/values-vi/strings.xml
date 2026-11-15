@@ -124,18 +124,18 @@
     <string name="refresh_policy_battery_mid">Chính sách làm mới: Mỗi 8 giờ (pin %1$d%%)</string>
     <string name="refresh_policy_battery_low">Chính sách làm mới: Tạm dừng (pin %1$d%%)</string>
     <string name="freshness_just_now">vừa xong</string>
-    <string name="forecast_history">"So sánh dự báo cho "</string>
-    <string name="forecast_history_summary_single">%1$d ảnh chụp dự báo %2$s</string>
-    <string name="forecast_history_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI ảnh chụp</string>
-    <string name="forecast_history_summary_climate_fill"> • %1$d điểm bù khí hậu</string>
-    <string name="forecast_history_api_fallback_label">API</string>
-    <string name="forecast_history_api_actual">Thực tế API %1$s: %2$s / %3$s</string>
-    <string name="forecast_history_location_actual">Thực tế tại vị trí: %1$s / %2$s</string>
-    <string name="forecast_history_no_history_yet">Chưa có dữ liệu dự báo lịch sử.\nẢnh chụp dự báo được lưu hằng ngày. Hãy quay lại vào ngày mai để xem so sánh độ chính xác đầu tiên.</string>
-    <string name="forecast_history_no_data_fallback_source">nguồn đã chọn</string>
-    <string name="forecast_history_prev_day">Ngày trước</string>
-    <string name="forecast_history_next_day">Ngày sau</string>
-    <string name="forecast_history_subtitle">So sánh dự báo</string>
+    <string name="forecast_comparison">"So sánh dự báo cho "</string>
+    <string name="forecast_comparison_summary_single">%1$d ảnh chụp dự báo %2$s</string>
+    <string name="forecast_comparison_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI ảnh chụp</string>
+    <string name="forecast_comparison_summary_climate_fill"> • %1$d điểm bù khí hậu</string>
+    <string name="forecast_comparison_api_fallback_label">API</string>
+    <string name="forecast_comparison_api_actual">Thực tế API %1$s: %2$s / %3$s</string>
+    <string name="forecast_comparison_location_actual">Thực tế tại vị trí: %1$s / %2$s</string>
+    <string name="forecast_comparison_no_history_yet">Chưa có dữ liệu dự báo lịch sử.\nẢnh chụp dự báo được lưu hằng ngày. Hãy quay lại vào ngày mai để xem so sánh độ chính xác đầu tiên.</string>
+    <string name="forecast_comparison_no_data_fallback_source">nguồn đã chọn</string>
+    <string name="forecast_comparison_prev_day">Ngày trước</string>
+    <string name="forecast_comparison_next_day">Ngày sau</string>
+    <string name="forecast_comparison_subtitle">So sánh dự báo</string>
     <string name="freshness_forecast_fetch_ago">Tải dự báo: %1$s trước</string>
     <string name="freshness_forecast_fetch_never">Tải dự báo: chưa bao giờ</string>
     <string name="freshness_displayed_data">Dữ liệu hiển thị (%1$s): đã tải %2$s trước</string>
@@ -147,12 +147,11 @@
     <string name="forecast_error_high_title">Sai số nhiệt độ cao nhất</string>
     <string name="forecast_error_low_title">Sai số nhiệt độ thấp nhất</string>
     <string name="forecast_show_hourly">Dự báo nhiệt độ</string>
-    <string name="forecast_show_evolution">Quay về lịch sử dự báo</string>
     <string name="forecast_hourly_title">Dự báo nhiệt độ</string>
     <string name="forecast_hourly_subtitle">Chi tiết theo giờ</string>
     <string name="forecast_hourly_no_data">Không có dự báo nhiệt độ theo giờ cho ngày này.</string>
     <string name="forecast_hourly_legend">Bây giờ</string>
-    <string name="forecast_history_no_data_for_source">Không có lịch sử dự báo cho ngày này (%1$s).</string>
+    <string name="forecast_comparison_no_data_for_source">Không có lịch sử dự báo cho ngày này (%1$s).</string>
     <string name="forecast_error_requires_actuals">Chế độ xem sai số khả dụng sau khi nhiệt độ thực tế của ngày này được ghi nhận.</string>
     <string name="legend_actual">Thực tế API</string>
     <string name="legend_zero_error">Sai số bằng 0</string>
@@ -310,7 +309,7 @@
     <string name="obs_subtitle_stale">Không có quan trắc gần đây cho %1$s — hiển thị số liệu mới nhất, %2$s trước.</string>
     <string name="obs_no_location_to_refresh">Không có vị trí để làm mới</string>
     <string name="obs_refreshed_source">Đã làm mới %1$s</string>
-    <string name="forecast_history_refresh_failed">Không thể làm mới %1$s</string>
+    <string name="forecast_comparison_refresh_failed">Không thể làm mới %1$s</string>
     <string name="refresh_retrying_at">thử lại lúc %1$s</string>
     <string name="obs_reported_prefix">"Báo lúc "</string>
     <string name="obs_fetched_separator">" • Lấy lúc "</string>
@@ -351,8 +350,8 @@
     <string name="rain_pred_act_format">dự báo %1$s / thực tế %2$s</string>
 
     <!-- Forecast history screen -->
-    <string name="forecast_history_high_temp_title">Nhiệt độ cao nhất</string>
-    <string name="forecast_history_low_temp_title">Nhiệt độ thấp nhất</string>
+    <string name="forecast_comparison_high_temp_title">Nhiệt độ cao nhất</string>
+    <string name="forecast_comparison_low_temp_title">Nhiệt độ thấp nhất</string>
     <string name="legend_location_actual">Thực tế tại vị trí</string>
     <string name="evolution_api_actual_format">Thực tế API: %1$s</string>
     <string name="evolution_location_actual_format">Thực tế tại vị trí: %1$s</string>
@@ -379,7 +378,7 @@
     <string name="stats_baseline_explainer_blended">Kết hợp mọi trạm lân cận và nội suy về tọa độ của bạn. Gần địa chỉ của bạn hơn, nhưng khoảng trống giữa các lần đo được lấp bằng dự báo, nên sai số dự báo bị đánh giá thấp một chút.</string>
     <string name="stats_baseline_vs_source">so với %1$s</string>
     <string name="stats_baseline_blend_fallback">kết hợp (không có trạm)</string>
-    <string name="forecast_history_actual_from_cache">từ số đo đã lưu</string>
+    <string name="forecast_comparison_actual_from_cache">từ số đo đã lưu</string>
     <string name="notifications_title">Thông báo</string>
     <string name="notify_dominant_temp_change_label">Báo một lần khi số đo của trạm chủ đạo thay đổi</string>
     <string name="notify_dominant_temp_change_description">Gửi một thông báo vào lần tới khi trạm chủ đạo của nguồn chính báo một nhiệt độ khác, hoặc khi một trạm khác thay thế nó — ví dụ \"KNUQ 69.9°, was 68°\". Tùy chọn tự tắt sau khi báo.</string>

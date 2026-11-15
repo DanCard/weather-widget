@@ -124,18 +124,18 @@
     <string name="refresh_policy_battery_mid">Aggiornamento: ogni 8 h (batteria %1$d%%)</string>
     <string name="refresh_policy_battery_low">Aggiornamento: in pausa (batteria %1$d%%)</string>
     <string name="freshness_just_now">proprio ora</string>
-    <string name="forecast_history">"Confronto delle previsioni per "</string>
-    <string name="forecast_history_summary_single">%1$d istantanee di previsione %2$s</string>
-    <string name="forecast_history_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI istantanee</string>
-    <string name="forecast_history_summary_climate_fill"> • %1$d punti di riempimento climatico</string>
-    <string name="forecast_history_api_fallback_label">API</string>
-    <string name="forecast_history_api_actual">Reale API %1$s: %2$s / %3$s</string>
-    <string name="forecast_history_location_actual">Reale della località: %1$s / %2$s</string>
-    <string name="forecast_history_no_history_yet">Non ci sono ancora dati storici delle previsioni.\nLe istantanee delle previsioni vengono salvate ogni giorno. Torna domani per il tuo primo confronto di accuratezza.</string>
-    <string name="forecast_history_no_data_fallback_source">fonte selezionata</string>
-    <string name="forecast_history_prev_day">Giorno precedente</string>
-    <string name="forecast_history_next_day">Giorno successivo</string>
-    <string name="forecast_history_subtitle">Confronto delle previsioni</string>
+    <string name="forecast_comparison">"Confronto delle previsioni per "</string>
+    <string name="forecast_comparison_summary_single">%1$d istantanee di previsione %2$s</string>
+    <string name="forecast_comparison_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI istantanee</string>
+    <string name="forecast_comparison_summary_climate_fill"> • %1$d punti di riempimento climatico</string>
+    <string name="forecast_comparison_api_fallback_label">API</string>
+    <string name="forecast_comparison_api_actual">Reale API %1$s: %2$s / %3$s</string>
+    <string name="forecast_comparison_location_actual">Reale della località: %1$s / %2$s</string>
+    <string name="forecast_comparison_no_history_yet">Non ci sono ancora dati storici delle previsioni.\nLe istantanee delle previsioni vengono salvate ogni giorno. Torna domani per il tuo primo confronto di accuratezza.</string>
+    <string name="forecast_comparison_no_data_fallback_source">fonte selezionata</string>
+    <string name="forecast_comparison_prev_day">Giorno precedente</string>
+    <string name="forecast_comparison_next_day">Giorno successivo</string>
+    <string name="forecast_comparison_subtitle">Confronto delle previsioni</string>
     <string name="freshness_forecast_fetch_ago">Recupero previsioni: %1$s fa</string>
     <string name="freshness_forecast_fetch_never">Recupero previsioni: mai</string>
     <string name="freshness_displayed_data">Dati mostrati (%1$s): recuperati %2$s fa</string>
@@ -147,12 +147,11 @@
     <string name="forecast_error_high_title">Errore della temperatura massima</string>
     <string name="forecast_error_low_title">Errore della temperatura minima</string>
     <string name="forecast_show_hourly">Previsione della temperatura</string>
-    <string name="forecast_show_evolution">Torna alla cronologia delle previsioni</string>
     <string name="forecast_hourly_title">Previsione della temperatura</string>
     <string name="forecast_hourly_subtitle">Dettaglio orario</string>
     <string name="forecast_hourly_no_data">Nessuna previsione oraria della temperatura disponibile per questa data.</string>
     <string name="forecast_hourly_legend">Ora</string>
-    <string name="forecast_history_no_data_for_source">Nessuna cronologia di previsioni per questa data (%1$s).</string>
+    <string name="forecast_comparison_no_data_for_source">Nessuna cronologia di previsioni per questa data (%1$s).</string>
     <string name="forecast_error_requires_actuals">La vista degli errori è disponibile dopo la registrazione delle temperature reali di questo giorno.</string>
     <string name="legend_actual">Reale API</string>
     <string name="legend_zero_error">Errore zero</string>
@@ -310,7 +309,7 @@
     <string name="obs_subtitle_stale">Nessuna osservazione recente per %1$s: mostrata la più recente, %2$s fa.</string>
     <string name="obs_no_location_to_refresh">Nessuna posizione disponibile da aggiornare</string>
     <string name="obs_refreshed_source">%1$s aggiornato</string>
-    <string name="forecast_history_refresh_failed">Impossibile aggiornare %1$s</string>
+    <string name="forecast_comparison_refresh_failed">Impossibile aggiornare %1$s</string>
     <string name="refresh_retrying_at">nuovo tentativo alle %1$s</string>
     <string name="obs_reported_prefix">"Rilevato "</string>
     <string name="obs_fetched_separator">" • Recuperato "</string>
@@ -351,8 +350,8 @@
     <string name="rain_pred_act_format">prev %1$s / reale %2$s</string>
 
     <!-- Forecast history screen -->
-    <string name="forecast_history_high_temp_title">Temperatura massima</string>
-    <string name="forecast_history_low_temp_title">Temperatura minima</string>
+    <string name="forecast_comparison_high_temp_title">Temperatura massima</string>
+    <string name="forecast_comparison_low_temp_title">Temperatura minima</string>
     <string name="legend_location_actual">Reale della località</string>
     <string name="evolution_api_actual_format">Reale API: %1$s</string>
     <string name="evolution_location_actual_format">Reale della località: %1$s</string>
@@ -379,7 +378,7 @@
     <string name="stats_baseline_explainer_blended">Tutte le stazioni vicine combinate e interpolate alle tue coordinate. Più vicino al tuo indirizzo, ma gli intervalli tra le letture vengono colmati con la previsione, quindi l\'errore di previsione risulta leggermente sottostimato.</string>
     <string name="stats_baseline_vs_source">vs %1$s</string>
     <string name="stats_baseline_blend_fallback">combinato (nessuna stazione)</string>
-    <string name="forecast_history_actual_from_cache">da letture memorizzate</string>
+    <string name="forecast_comparison_actual_from_cache">da letture memorizzate</string>
     <string name="notifications_title">Notifiche</string>
     <string name="notify_dominant_temp_change_label">Avvisami una volta quando cambia la lettura della stazione dominante</string>
     <string name="notify_dominant_temp_change_description">Invia una notifica la prossima volta che la stazione dominante della tua fonte principale segnala una temperatura diversa, o quando un\'altra stazione prende il suo posto — ad esempio \"KNUQ 69.9°, was 68°\". Si disattiva da sola dopo l\'invio.</string>

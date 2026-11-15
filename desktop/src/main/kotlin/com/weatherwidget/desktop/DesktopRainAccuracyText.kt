@@ -1,6 +1,6 @@
 package com.weatherwidget.desktop
 
-import com.weatherwidget.shared.graph.ForecastHistoryHeader
+import com.weatherwidget.shared.graph.ForecastComparisonHeader
 import com.weatherwidget.shared.stats.RainAccuracyReport
 import com.weatherwidget.shared.stats.RainAccuracySummary
 import com.weatherwidget.shared.stats.RainAccuracySummary.DayLine
@@ -10,7 +10,7 @@ import java.time.LocalDate
 /**
  * Desktop's English for the accuracy card's "Rain amount" section. Which lines appear, their order
  * and the ★ come from the shared [RainAccuracySummary]; Android renders the same lines from string
- * resources (`ForecastHistoryActivity.rainScoreText` / `rainDayText`).
+ * resources (`ForecastComparisonActivity.rainScoreText` / `rainDayText`).
  */
 internal object DesktopRainAccuracyText {
     fun score(line: ScoreLine): String = when (line) {
@@ -30,12 +30,12 @@ internal object DesktopRainAccuracyText {
     }
 
     fun day(line: DayLine): String = when (line) {
-        is DayLine.Result -> "${ForecastHistoryHeader.dateLabel(line.date)}: actual " +
+        is DayLine.Result -> "${ForecastComparisonHeader.dateLabel(line.date)}: actual " +
             "${RainAccuracySummary.measuredAmount(line.actualMm)}\n" +
             line.entries.joinToString(" · ") { e ->
                 (if (e.closest) "★ " else "") + "${e.source.displayName} ${e.predMm?.let(RainAccuracySummary::amount) ?: "—"}"
             }
-        is DayLine.Insufficient -> "${ForecastHistoryHeader.dateLabel(line.date)}: not enough measured hours (${line.hours} of 24)"
+        is DayLine.Insufficient -> "${ForecastComparisonHeader.dateLabel(line.date)}: not enough measured hours (${line.hours} of 24)"
         DayLine.Today -> "Today: scored after midnight"
     }
 

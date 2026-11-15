@@ -12,7 +12,7 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 
 /**
- * The Forecast History "All sources" table through each platform's real database reads
+ * The Forecast Comparison "All sources" table through each platform's real database reads
  * (`RoomDaySourceComparisonHost`, `DesktopDaySourceComparisonHost`) into the shared
  * [DaySourceComparison] runner. Same seeds, same rows: a host that drops a column, a site or a
  * fetch fails here. plans/261105-all-sources-day-comparison.md

@@ -124,18 +124,18 @@
     <string name="refresh_policy_battery_mid">রিফ্রেশ নীতি: প্রতি ৮ ঘণ্টায় (ব্যাটারি %1$d%%)</string>
     <string name="refresh_policy_battery_low">রিফ্রেশ নীতি: স্থগিত (ব্যাটারি %1$d%%)</string>
     <string name="freshness_just_now">এইমাত্র</string>
-    <string name="forecast_history">"পূর্বাভাসের তুলনা: "</string>
-    <string name="forecast_history_summary_single">%1$dটি %2$s পূর্বাভাস স্ন্যাপশট</string>
-    <string name="forecast_history_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI স্ন্যাপশট</string>
-    <string name="forecast_history_summary_climate_fill"> • %1$dটি জলবায়ু-পূরণ বিন্দু</string>
-    <string name="forecast_history_api_fallback_label">API</string>
-    <string name="forecast_history_api_actual">%1$s API প্রকৃত: %2$s / %3$s</string>
-    <string name="forecast_history_location_actual">অবস্থানের প্রকৃত: %1$s / %2$s</string>
-    <string name="forecast_history_no_history_yet">এখনও কোনো ঐতিহাসিক পূর্বাভাস ডেটা নেই।\nপূর্বাভাস স্ন্যাপশট প্রতিদিন সংরক্ষিত হয়। প্রথম নির্ভুলতা তুলনার জন্য আগামীকাল আবার দেখুন।</string>
-    <string name="forecast_history_no_data_fallback_source">নির্বাচিত উৎস</string>
-    <string name="forecast_history_prev_day">আগের দিন</string>
-    <string name="forecast_history_next_day">পরের দিন</string>
-    <string name="forecast_history_subtitle">পূর্বাভাসের তুলনা</string>
+    <string name="forecast_comparison">"পূর্বাভাসের তুলনা: "</string>
+    <string name="forecast_comparison_summary_single">%1$dটি %2$s পূর্বাভাস স্ন্যাপশট</string>
+    <string name="forecast_comparison_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI স্ন্যাপশট</string>
+    <string name="forecast_comparison_summary_climate_fill"> • %1$dটি জলবায়ু-পূরণ বিন্দু</string>
+    <string name="forecast_comparison_api_fallback_label">API</string>
+    <string name="forecast_comparison_api_actual">%1$s API প্রকৃত: %2$s / %3$s</string>
+    <string name="forecast_comparison_location_actual">অবস্থানের প্রকৃত: %1$s / %2$s</string>
+    <string name="forecast_comparison_no_history_yet">এখনও কোনো ঐতিহাসিক পূর্বাভাস ডেটা নেই।\nপূর্বাভাস স্ন্যাপশট প্রতিদিন সংরক্ষিত হয়। প্রথম নির্ভুলতা তুলনার জন্য আগামীকাল আবার দেখুন।</string>
+    <string name="forecast_comparison_no_data_fallback_source">নির্বাচিত উৎস</string>
+    <string name="forecast_comparison_prev_day">আগের দিন</string>
+    <string name="forecast_comparison_next_day">পরের দিন</string>
+    <string name="forecast_comparison_subtitle">পূর্বাভাসের তুলনা</string>
     <string name="freshness_forecast_fetch_ago">পূর্বাভাস আনা: %1$s আগে</string>
     <string name="freshness_forecast_fetch_never">পূর্বাভাস আনা: কখনো নয়</string>
     <string name="freshness_displayed_data">প্রদর্শিত ডেটা (%1$s): %2$s আগে আনা</string>
@@ -147,12 +147,11 @@
     <string name="forecast_error_high_title">সর্বোচ্চ তাপমাত্রার ত্রুটি</string>
     <string name="forecast_error_low_title">সর্বনিম্ন তাপমাত্রার ত্রুটি</string>
     <string name="forecast_show_hourly">তাপমাত্রার পূর্বাভাস</string>
-    <string name="forecast_show_evolution">পূর্বাভাসের ইতিহাসে ফিরুন</string>
     <string name="forecast_hourly_title">তাপমাত্রার পূর্বাভাস</string>
     <string name="forecast_hourly_subtitle">ঘণ্টাভিত্তিক বিবরণ</string>
     <string name="forecast_hourly_no_data">এই তারিখের জন্য ঘণ্টাভিত্তিক তাপমাত্রার পূর্বাভাস নেই।</string>
     <string name="forecast_hourly_legend">এখন</string>
-    <string name="forecast_history_no_data_for_source">এই তারিখের জন্য কোনো পূর্বাভাস ইতিহাস নেই (%1$s)।</string>
+    <string name="forecast_comparison_no_data_for_source">এই তারিখের জন্য কোনো পূর্বাভাস ইতিহাস নেই (%1$s)।</string>
     <string name="forecast_error_requires_actuals">এই দিনের প্রকৃত তাপমাত্রা রেকর্ড হওয়ার পরে ত্রুটি ভিউ পাওয়া যাবে।</string>
     <string name="legend_actual">API প্রকৃত</string>
     <string name="legend_zero_error">শূন্য ত্রুটি</string>
@@ -310,7 +309,7 @@
     <string name="obs_subtitle_stale">%1$s-এর সাম্প্রতিক পর্যবেক্ষণ নেই — %2$s আগের সর্বশেষটি দেখানো হচ্ছে।</string>
     <string name="obs_no_location_to_refresh">রিফ্রেশ করার মতো কোনো অবস্থান নেই</string>
     <string name="obs_refreshed_source">%1$s রিফ্রেশ হয়েছে</string>
-    <string name="forecast_history_refresh_failed">%1$s রিফ্রেশ করা যায়নি</string>
+    <string name="forecast_comparison_refresh_failed">%1$s রিফ্রেশ করা যায়নি</string>
     <string name="refresh_retrying_at">আবার চেষ্টা %1$s</string>
     <string name="obs_reported_prefix">"রিপোর্ট "</string>
     <string name="obs_fetched_separator">" • আনা "</string>
@@ -351,8 +350,8 @@
     <string name="rain_pred_act_format">পূর্বা. %1$s / প্রকৃত %2$s</string>
 
     <!-- Forecast history screen -->
-    <string name="forecast_history_high_temp_title">সর্বোচ্চ তাপমাত্রা</string>
-    <string name="forecast_history_low_temp_title">সর্বনিম্ন তাপমাত্রা</string>
+    <string name="forecast_comparison_high_temp_title">সর্বোচ্চ তাপমাত্রা</string>
+    <string name="forecast_comparison_low_temp_title">সর্বনিম্ন তাপমাত্রা</string>
     <string name="legend_location_actual">অবস্থানের প্রকৃত</string>
     <string name="evolution_api_actual_format">API প্রকৃত: %1$s</string>
     <string name="evolution_location_actual_format">অবস্থানের প্রকৃত: %1$s</string>
@@ -379,7 +378,7 @@
     <string name="stats_baseline_explainer_blended">কাছাকাছি সব স্টেশন একত্র করে আপনার স্থানাঙ্কে ইন্টারপোলেট করা হয়। আপনার ঠিকানার আরও কাছাকাছি, তবে পাঠের মধ্যেকার ফাঁক পূর্বাভাস দিয়ে পূরণ করা হয়, ফলে পূর্বাভাসের ত্রুটি সামান্য কম দেখায়।</string>
     <string name="stats_baseline_vs_source">বনাম %1$s</string>
     <string name="stats_baseline_blend_fallback">মিশ্র (স্টেশন নেই)</string>
-    <string name="forecast_history_actual_from_cache">সংরক্ষিত পাঠ থেকে</string>
+    <string name="forecast_comparison_actual_from_cache">সংরক্ষিত পাঠ থেকে</string>
     <string name="notifications_title">বিজ্ঞপ্তি</string>
     <string name="notify_dominant_temp_change_label">প্রভাবশালী স্টেশনের রিডিং বদলালে একবার জানান</string>
     <string name="notify_dominant_temp_change_description">আপনার প্রধান উৎসের প্রভাবশালী স্টেশন ভিন্ন তাপমাত্রা জানালে, বা অন্য কোনো স্টেশন দায়িত্ব নিলে একটি বিজ্ঞপ্তি পাঠানো হবে — যেমন \"KNUQ 69.9°, was 68°\"। পাঠানোর পর এটি নিজেই বন্ধ হয়ে যায়।</string>

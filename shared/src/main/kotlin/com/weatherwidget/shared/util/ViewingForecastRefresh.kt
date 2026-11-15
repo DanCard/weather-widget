@@ -3,7 +3,7 @@ package com.weatherwidget.shared.util
 /**
  * Keeps a source the user just reached for within [ViewingRefreshPolicy.FORECAST_STALE_WHILE_VIEWING_MS]
  * at ≥ 70 % or on a charger. Each platform calls [run] only on a known look (Android: a widget tap;
- * desktop: opening the popup; both: opening Forecast History or Observations): a screen coming on does not count, because neither says what is being
+ * desktop: opening the popup; both: opening Forecast Comparison or Observations): a screen coming on does not count, because neither says what is being
  * looked at. A refresh it starts shows its messages. The rule, its cooldown and its log line live here; the
  * [Host] supplies state and starts a fetch that is forced for that one source, because a normal sync
  * judges it by the longer background cadence and would fetch nothing.

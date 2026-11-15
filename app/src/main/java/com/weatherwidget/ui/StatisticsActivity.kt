@@ -11,7 +11,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.weatherwidget.R
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.shared.graph.ForecastHistoryViewLogic
+import com.weatherwidget.shared.graph.ForecastComparisonViewLogic
 import com.weatherwidget.shared.stats.AccuracyBaselineField
 import com.weatherwidget.stats.AccuracyCalculator
 import com.weatherwidget.stats.AccuracyPreferences
@@ -183,7 +183,7 @@ class StatisticsActivity : AppCompatActivity() {
     }
 
     private fun formatBias(bias: Double, useCelsius: Boolean): String =
-        ForecastHistoryViewLogic.formatBias(bias, useCelsius) { v, low ->
+        ForecastComparisonViewLogic.formatBias(bias, useCelsius) { v, low ->
             getString(if (low) R.string.bias_low_suffix else R.string.bias_high_suffix, v)
         }
 }

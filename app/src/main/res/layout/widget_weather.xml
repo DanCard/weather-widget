@@ -1822,7 +1822,7 @@
         </FrameLayout>
 
         <FrameLayout
-            android:id="@+id/forecast_history_activity_touch_zone_inline"
+            android:id="@+id/forecast_comparison_activity_touch_zone_inline"
             android:layout_width="36dp"
             android:layout_height="40dp"
             android:layout_marginStart="0dp"
@@ -1836,8 +1836,8 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
                 android:layout_marginTop="-10dp"
-                android:src="@drawable/ic_forecast_history_line"
-                android:contentDescription="@string/forecast_history"
+                android:src="@drawable/ic_forecast_comparison_line"
+                android:contentDescription="@string/forecast_comparison"
                 android:tint="#AAFFFFFF" />
         </FrameLayout>
 
@@ -1943,7 +1943,7 @@
 
         <!-- History -->
         <FrameLayout
-            android:id="@+id/forecast_history_activity_touch_zone"
+            android:id="@+id/forecast_comparison_activity_touch_zone"
             android:layout_width="24dp"
             android:layout_height="48dp"
             android:background="@android:color/transparent"
@@ -1957,8 +1957,8 @@
                 android:layout_gravity="center"
                 android:layout_marginTop="-10dp"
                 android:paddingTop="-4dp"
-                android:src="@drawable/ic_forecast_history_line"
-                android:contentDescription="@string/forecast_history"
+                android:src="@drawable/ic_forecast_comparison_line"
+                android:contentDescription="@string/forecast_comparison"
                 android:tint="#AAFFFFFF" />
         </FrameLayout>
 

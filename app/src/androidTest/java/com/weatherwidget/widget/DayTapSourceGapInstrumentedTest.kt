@@ -7,7 +7,7 @@ import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.IsolatedIntegrationTest
-import com.weatherwidget.ui.ForecastHistoryActivity
+import com.weatherwidget.ui.ForecastComparisonActivity
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -152,8 +152,8 @@ class DayTapSourceGapInstrumentedTest : IsolatedIntegrationTest("day_tap_source_
             putExtra("index", 2)
             putExtra(WidgetActions.EXTRA_TARGET_VIEW, ViewMode.TEMPERATURE.name)
             putExtra(WidgetActions.EXTRA_HOURLY_OFFSET, 0)
-            putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
-            putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
-            putExtra(ForecastHistoryActivity.EXTRA_SOURCE, source.displayName)
+            putExtra(ForecastComparisonActivity.EXTRA_LAT, lat)
+            putExtra(ForecastComparisonActivity.EXTRA_LON, lon)
+            putExtra(ForecastComparisonActivity.EXTRA_SOURCE, source.displayName)
         }
 }

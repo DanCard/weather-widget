@@ -2713,7 +2713,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
 
     /**
      * Every stored forecast row for [targetDate] in the [LocationMatch] box, all sources, with its
-     * storage-key site: the input of the Forecast History "All sources" table
+     * storage-key site: the input of the Forecast Comparison "All sources" table
      * ([com.weatherwidget.shared.graph.DaySourceComparison], which picks the site and the row).
      * Same rows as Android's `ForecastDao.getForecastEvolution`; implausible temperatures read as null.
      */

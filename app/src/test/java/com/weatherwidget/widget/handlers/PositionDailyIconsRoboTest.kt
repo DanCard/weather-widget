@@ -78,19 +78,19 @@ class PositionDailyIconsRoboTest {
     fun `center placement shows the floating pair and not the inline pair`() {
         val v = apply(HeaderFit.ButtonPlacement.CENTER, showObservations = true)
         assertEquals(View.VISIBLE, v.vis(R.id.history_icon))
-        assertEquals(View.VISIBLE, v.vis(R.id.forecast_history_activity_touch_zone))
+        assertEquals(View.VISIBLE, v.vis(R.id.forecast_comparison_activity_touch_zone))
         assertEquals(View.VISIBLE, v.vis(R.id.weather_stations_icon))
         assertEquals(View.VISIBLE, v.vis(R.id.weather_stations_touch_zone))
-        assertEquals(View.GONE, v.vis(R.id.forecast_history_activity_touch_zone_inline))
+        assertEquals(View.GONE, v.vis(R.id.forecast_comparison_activity_touch_zone_inline))
         assertEquals(View.GONE, v.vis(R.id.weather_stations_touch_zone_inline))
     }
 
     @Test
     fun `inline placement shows the inline pair and not the floating pair`() {
         val v = apply(HeaderFit.ButtonPlacement.INLINE, showObservations = true)
-        assertEquals(View.VISIBLE, v.vis(R.id.forecast_history_activity_touch_zone_inline))
+        assertEquals(View.VISIBLE, v.vis(R.id.forecast_comparison_activity_touch_zone_inline))
         assertEquals(View.VISIBLE, v.vis(R.id.weather_stations_touch_zone_inline))
-        assertEquals(View.GONE, v.vis(R.id.forecast_history_activity_touch_zone))
+        assertEquals(View.GONE, v.vis(R.id.forecast_comparison_activity_touch_zone))
         assertEquals(View.GONE, v.vis(R.id.weather_stations_touch_zone))
     }
 
@@ -102,8 +102,8 @@ class PositionDailyIconsRoboTest {
             assertEquals("$placement", View.GONE, v.vis(R.id.weather_stations_touch_zone))
             assertEquals("$placement", View.GONE, v.vis(R.id.weather_stations_touch_zone_inline))
 
-            val reachable = v.vis(R.id.forecast_history_activity_touch_zone) == View.VISIBLE ||
-                v.vis(R.id.forecast_history_activity_touch_zone_inline) == View.VISIBLE
+            val reachable = v.vis(R.id.forecast_comparison_activity_touch_zone) == View.VISIBLE ||
+                v.vis(R.id.forecast_comparison_activity_touch_zone_inline) == View.VISIBLE
             assertTrue("history must survive off-today in $placement", reachable)
         }
     }
@@ -113,8 +113,8 @@ class PositionDailyIconsRoboTest {
         val v = apply(HeaderFit.ButtonPlacement.HIDDEN, showObservations = true)
         for (id in listOf(
             R.id.history_icon,
-            R.id.forecast_history_activity_touch_zone,
-            R.id.forecast_history_activity_touch_zone_inline,
+            R.id.forecast_comparison_activity_touch_zone,
+            R.id.forecast_comparison_activity_touch_zone_inline,
             R.id.weather_stations_icon,
             R.id.weather_stations_touch_zone,
             R.id.weather_stations_touch_zone_inline,
@@ -185,7 +185,7 @@ class PositionDailyIconsRoboTest {
             centreZoneDp = 32f, extraStartDp = 10f, extraEndDp = 20f,
         )
         val obs = v.findViewById<View>(R.id.weather_stations_touch_zone)
-        val history = v.findViewById<View>(R.id.forecast_history_activity_touch_zone)
+        val history = v.findViewById<View>(R.id.forecast_comparison_activity_touch_zone)
         assertEquals((32f * density).toInt() + (10f * density).toInt(), obs.layoutParams.width)
         assertEquals((10f * density).toInt(), obs.paddingLeft)
         assertEquals(0, obs.paddingRight)
@@ -198,7 +198,7 @@ class PositionDailyIconsRoboTest {
     fun `a zone the fit narrowed is the zone laid out`() {
         val density = context.resources.displayMetrics.density
         val v = apply(HeaderFit.ButtonPlacement.CENTER, showObservations = true, widthDp = 440, centreZoneDp = 29f)
-        for (id in listOf(R.id.weather_stations_touch_zone, R.id.forecast_history_activity_touch_zone)) {
+        for (id in listOf(R.id.weather_stations_touch_zone, R.id.forecast_comparison_activity_touch_zone)) {
             assertEquals((29f * density).toInt(), v.findViewById<View>(id).layoutParams.width)
         }
     }
@@ -221,7 +221,7 @@ class PositionDailyIconsRoboTest {
             for (id in listOf(
                 R.id.weather_stations_touch_zone,
                 R.id.home_touch_zone,
-                R.id.forecast_history_activity_touch_zone,
+                R.id.forecast_comparison_activity_touch_zone,
             )) {
                 assertEquals(
                     "widthDp=$widthDp view $id",
@@ -239,8 +239,8 @@ class PositionDailyIconsRoboTest {
                 val v = apply(placement, showObservations = obs)
                 assertFalse(
                     "$placement obs=$obs history shown twice",
-                    v.vis(R.id.forecast_history_activity_touch_zone) == View.VISIBLE &&
-                        v.vis(R.id.forecast_history_activity_touch_zone_inline) == View.VISIBLE,
+                    v.vis(R.id.forecast_comparison_activity_touch_zone) == View.VISIBLE &&
+                        v.vis(R.id.forecast_comparison_activity_touch_zone_inline) == View.VISIBLE,
                 )
                 assertFalse(
                     "$placement obs=$obs observations shown twice",
@@ -258,7 +258,7 @@ class PositionDailyIconsRoboTest {
         val density = context.resources.displayMetrics.density
         for (widthDp in listOf(320, 350, 440, 560)) {
             val v = apply(HeaderFit.ButtonPlacement.CENTER, showObservations = true, widthDp = widthDp)
-            val zone = v.findViewById<View>(R.id.forecast_history_activity_touch_zone)
+            val zone = v.findViewById<View>(R.id.forecast_comparison_activity_touch_zone)
             val expectedPx =
                 (HeaderWidthChecker.centerIconZoneWidthDp(widthDp) * density).toInt()
             assertEquals(

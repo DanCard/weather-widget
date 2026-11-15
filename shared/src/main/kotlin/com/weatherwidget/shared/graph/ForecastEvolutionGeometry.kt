@@ -15,7 +15,7 @@ import kotlin.math.roundToInt
  *
  * The Android widget draws these primitives with `android.graphics.Canvas`
  * (`ForecastEvolutionRenderer`); the desktop app draws the same primitives with Compose
- * `DrawScope` (`ForecastHistoryWindow`). Keeping bucketing, axis math, the time axis, and the
+ * `DrawScope` (`ForecastComparisonWindow`). Keeping bucketing, axis math, the time axis, and the
  * label formatters here guarantees the two surfaces agree.
  */
 object ForecastEvolutionGeometry {

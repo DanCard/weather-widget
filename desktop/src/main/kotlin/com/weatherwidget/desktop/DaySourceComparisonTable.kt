@@ -55,7 +55,7 @@ internal class DesktopDaySourceComparisonHost(
 
 /**
  * "All sources for <day>": the [DaySourceComparison] rows, with Android's columns and short names
- * (`ForecastHistoryActivity.renderSourceComparison`). The viewed source is bold; an age past
+ * (`ForecastComparisonActivity.renderSourceComparison`). The viewed source is bold; an age past
  * [DaySourceComparison.STALE_AGE_MS] is dimmed. Clicking a header sorts by that column
  * ([DaySourceComparison.Sort.tapped]); the sorted header carries the arrow.
  */

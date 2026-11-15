@@ -62,7 +62,7 @@ class HourlyProximityQueryAllowlistTest {
         // nothing verifies — see plans/260806-today-column-stale-fragment-delta-opus.md. It now genuinely
         // calls HourlyForecastStitcher, and HourlyCollapseChokepointTest enforces that mechanically.
         "NoHourlyDayClickCoordinator.kt" to "presence and last-hour gates: the newest row per hour, never drawn",
-        "ForecastHistoryActivity.kt" to
+        "ForecastComparisonActivity.kt" to
             "today's settled-low look-ahead; sole call site wrapped in GraphDataLoader.unifyToNearestSite",
         "RoomDaySourceComparisonHost.kt" to
             "raw box rows for the shared DaySourceComparison runner, which picks the nearest site per source " +
