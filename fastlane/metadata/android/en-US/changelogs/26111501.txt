@@ -1,0 +1,1 @@
+Improved rain labels (heavy rain amount above 95%, peak hour on all days, cleaner night label placement), added sortable All sources table with legend, per-source rain amount score in Forecast Accuracy, provider filter chips in App Logs, button press animations, chipmunk temperature-change notification sound, and more reliable source fetch retries.
