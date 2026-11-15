@@ -119,19 +119,23 @@ class WeatherWidgetWorker
                 return fullSyncPipeline.run(input, device, stopReason)
             }
 
+            // Everything that is not a repaint runs on the low-priority sync pool, so it yields the
+            // CPU to paints and taps (SyncDispatcher). The UI-only repaint above stays where it was.
             return withSyncWakeLock {
-                if (input.observationBackfillMode) {
-                    handleObservationBackfillWork(input)
-                } else if (input.currentTempOnly) {
-                    handleCurrentTempOnlyWork(input, device).also {
-                        // Bootstraps the due-time sync after an install/upgrade on a charger; a no-op once one is pending.
-                        runCatching { DueWakePlanner.plan(context, weatherRepository, widgetStateManager, appLogDao, onlyIfMissing = true) }
-                            .onFailure { e -> if (e is kotlinx.coroutines.CancellationException) throw e else Log.w(TAG, "Due-wake planning failed", e) }
+                kotlinx.coroutines.withContext(syncDispatcherProvider()) {
+                    if (input.observationBackfillMode) {
+                        handleObservationBackfillWork(input)
+                    } else if (input.currentTempOnly) {
+                        handleCurrentTempOnlyWork(input, device).also {
+                            // Bootstraps the due-time sync after an install/upgrade on a charger; a no-op once one is pending.
+                            runCatching { DueWakePlanner.plan(context, weatherRepository, widgetStateManager, appLogDao, onlyIfMissing = true) }
+                                .onFailure { e -> if (e is kotlinx.coroutines.CancellationException) throw e else Log.w(TAG, "Due-wake planning failed", e) }
+                        }
+                    } else if (input.nonPrimaryCurrentTempOnly) {
+                        handleNonPrimaryCurrentTempOnlyWork(input, device)
+                    } else {
+                        fullSyncPipeline.run(input, device, stopReason)
                     }
-                } else if (input.nonPrimaryCurrentTempOnly) {
-                    handleNonPrimaryCurrentTempOnlyWork(input, device)
-                } else {
-                    fullSyncPipeline.run(input, device, stopReason)
                 }
             }
         }
@@ -165,8 +169,11 @@ class WeatherWidgetWorker
          */
         private suspend fun deferForStartupCooldown(input: WorkInput): Result? {
             if (input.uiOnlyRefresh) return null
-            val remainingMs = startupCooldownProvider().remainingMs(SystemClock.elapsedRealtime())
+            val cooldown = startupCooldownProvider()
+            val nowElapsedMs = SystemClock.elapsedRealtime()
+            val remainingMs = cooldown.remainingMs(nowElapsedMs)
             if (remainingMs <= 0L) return null
+            val cause = cooldown.deferCause(nowElapsedMs)
             val delayMs = remainingMs.coerceAtLeast(StartupCooldown.MIN_DEFERRAL_MS)
             // The fetch waits; the feedback must not. A setup-screen location change saved inside
             // the cooldown (open the app cold, pick a place within 30 s) would otherwise leave the
@@ -196,7 +203,7 @@ class WeatherWidgetWorker
                 "SYNC_DEFERRED_STARTUP",
                 "reason=${input.currentTempReason} force=${input.forceRefresh} " +
                     "currentOnly=${input.currentTempOnly} backfill=${input.observationBackfillMode} " +
-                    "processAgeMs=${WeatherWidgetApp.processAgeMs()} delayMs=$delayMs " +
+                    "processAgeMs=${WeatherWidgetApp.processAgeMs()} delayMs=$delayMs cause=$cause " +
                     "outcome=${outcome.logValue} $detail",
                 "INFO",
             )
@@ -678,6 +685,10 @@ class WeatherWidgetWorker
             /** Swappable so a worker test can put the process inside or outside the cooldown. */
             @androidx.annotation.VisibleForTesting
             internal var startupCooldownProvider: () -> StartupCooldown = { WeatherWidgetApp.startupCooldown() }
+
+            /** The pool non-repaint runs execute on; replaceable so a test can observe or inline it. */
+            @androidx.annotation.VisibleForTesting
+            internal var syncDispatcherProvider: () -> kotlinx.coroutines.CoroutineDispatcher = { SyncDispatcher.dispatcher }
 
             const val KEY_UI_ONLY_REFRESH = "ui_only_refresh"
             const val KEY_FORCE_REFRESH = "force_refresh"

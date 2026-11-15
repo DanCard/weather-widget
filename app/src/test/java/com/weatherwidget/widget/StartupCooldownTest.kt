@@ -68,6 +68,64 @@ class StartupCooldownTest {
         assertEquals(28_000L, c.remainingMs(start + 2_000))
     }
 
+    /** Boot, 2026-11-15: the clock lapsed at 6 s with the paint still loading; three syncs started beside it. */
+    @Test
+    fun `a pending startup paint holds background work past the clock`() {
+        val c = cooldown()
+        c.onUserFacingTrigger(start + 600)
+        c.onStartupPaintPending(start + 20_000) // cap 30 s -> 50 s; the clock ends at 30 s
+        assertEquals(3_000L, c.remainingMs(start + 45_000))
+        assertEquals(StartupCooldown.CAUSE_PAINT_PENDING, c.deferCause(start + 45_000))
+    }
+
+    @Test
+    fun `the hold ends when the paint settles`() {
+        val c = cooldown()
+        c.onUserFacingTrigger(start + 600)
+        c.onStartupPaintPending(start + 1_000)
+        c.onStartupPaintSettled()
+        assertEquals(0L, c.remainingMs(start + 45_000))
+        // The clock still applies after the paint: taps follow it.
+        assertEquals(10_000L, c.remainingMs(start + 20_000))
+        assertEquals(StartupCooldown.CAUSE_COOLDOWN, c.deferCause(start + 20_000))
+    }
+
+    @Test
+    fun `a paint that never settles stops holding at the cap`() {
+        val c = cooldown()
+        c.onUserFacingTrigger(start + 600)
+        c.onStartupPaintPending(start + 40_000) // cap 30 s -> 70 s
+        assertEquals(3_000L, c.remainingMs(start + 60_000))
+        assertEquals(1_000L, c.remainingMs(start + 69_000))
+        assertEquals(0L, c.remainingMs(start + 70_000))
+    }
+
+    @Test
+    fun `overlapping paints hold until the last settles and the cap counts from the first`() {
+        val c = cooldown()
+        c.onStartupPaintPending(start + 40_000)
+        c.onStartupPaintPending(start + 50_000)
+        c.onStartupPaintSettled()
+        assertEquals(3_000L, c.remainingMs(start + 60_000))
+        assertEquals(0L, c.remainingMs(start + 70_000))
+        c.onStartupPaintSettled()
+        assertEquals(0L, c.remainingMs(start + 60_000))
+    }
+
+    /** A pending startup paint is itself user-facing; it needs no separate trigger. */
+    @Test
+    fun `a pending paint holds even before a trigger was recorded`() {
+        val c = cooldown()
+        c.onStartupPaintPending(start + 100)
+        assertEquals(3_000L, c.remainingMs(start + 200))
+    }
+
+    @Test
+    fun `paint hold defaults are a thirty second cap in three second steps`() {
+        assertEquals(30_000L, StartupCooldown.PAINT_HOLD_CAP_MS)
+        assertEquals(3_000L, StartupCooldown.PAINT_RECHECK_MS)
+    }
+
     @Test
     fun `default constants are six seconds`() {
         assertEquals(6_000L, StartupCooldown.COOLDOWN_MS)

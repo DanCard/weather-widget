@@ -182,6 +182,55 @@ class WeatherWidgetWorkerStartupCooldownTest {
         assertEquals("a current-temp run is not a full sync", 2, deferredInfos().size)
     }
 
+    /** The clock has lapsed (process a minute old) but the startup paint has not landed. */
+    private fun paintPendingPastTheClock(): StartupCooldown =
+        StartupCooldown(processStartElapsedMs = SystemClock.elapsedRealtime() - 60_000L).also {
+            it.onStartupPaintPending(SystemClock.elapsedRealtime())
+        }
+
+    /**
+     * Pixel boot, 2026-11-15: `SYNC_DEFERRED_STARTUP processAgeMs=4313 delayMs=4172`, then the sync
+     * ran at 11 s beside a paint that needed far longer
+     * (`performance/261115-boot-first-paint-frozen-behind-startup-syncs.md`).
+     */
+    @Test
+    fun `a sync arriving while the startup paint is pending is deferred after the clock has lapsed`() = runBlocking {
+        WeatherWidgetWorker.startupCooldownProvider = { paintPendingPastTheClock() }
+        val input =
+            Data.Builder()
+                .putString(WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON, "stale_on_resize")
+                .putBoolean(WeatherWidgetWorker.KEY_CURRENT_TEMP_ONLY, true)
+                .build()
+
+        worker(input).doWork()
+
+        assertEquals(1, deferredInfos().size)
+        val logs = db.appLogDao().getRecentLogs(50)
+        assertTrue("no SYNC_START beside the paint", logs.none { it.tag == "SYNC_START" })
+        val message = logs.single { it.tag == "SYNC_DEFERRED_STARTUP" }.message
+        assertTrue(message, "cause=paint_pending" in message && "delayMs=3000" in message)
+    }
+
+    @Test
+    fun `a deferral for the clock alone says so`() = runBlocking {
+        WeatherWidgetWorker.startupCooldownProvider = { inCooldown() }
+
+        worker(Data.Builder().putBoolean(WeatherWidgetWorker.KEY_FORCE_REFRESH, true).build()).doWork()
+
+        val message = db.appLogDao().getLogsByTag("SYNC_DEFERRED_STARTUP", 10).single().message
+        assertTrue(message, "cause=cooldown" in message)
+    }
+
+    @Test
+    fun `a UI-only repaint is not deferred by a pending startup paint`() = runBlocking {
+        WeatherWidgetWorker.startupCooldownProvider = { paintPendingPastTheClock() }
+        val input = Data.Builder().putBoolean(WeatherWidgetWorker.KEY_UI_ONLY_REFRESH, true).build()
+
+        runCatching { worker(input).doWork() }
+
+        assertEquals(0, deferredInfos().size)
+    }
+
     /** The one thing a cold process owes the user. */
     @Test
     fun `a UI-only repaint is never deferred`() = runBlocking {

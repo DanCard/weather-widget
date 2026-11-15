@@ -111,6 +111,36 @@ class StartupPaintClaimRoboTest {
         assertEquals(1, logCount("STARTUP_PAINT_REPEAT"))
     }
 
+    /**
+     * Pixel boot, 2026-11-15: syncs started beside the startup paint and it took 102 s
+     * (performance/261115-boot-first-paint-frozen-behind-startup-syncs.md). The coordinator holds
+     * background runs from the claim until the batch has been pushed.
+     */
+    @Test
+    fun `background runs are held while the startup paint is pending and released after it`() = runBlocking {
+        clockMs = 1_000_000L
+        // Process a minute old: the cooldown clock has lapsed, so only the paint can hold.
+        val cooldown = StartupCooldown(processStartElapsedMs = clockMs - 60_000L)
+        val heldAtPush = mutableListOf<Long>()
+        every { appWidgetManager.updateAppWidget(widgetId, any<RemoteViews>()) } answers {
+            heldAtPush += cooldown.remainingMs(clockMs)
+        }
+        assertEquals(0L, cooldown.remainingMs(clockMs))
+
+        WidgetStartupCoordinator(mockk(relaxed = true), elapsedRealtime = { clockMs }, startupCooldown = { cooldown })
+            .updateWidgets(
+                context = context,
+                appWidgetManager = appWidgetManager,
+                appWidgetIds = intArrayOf(widgetId),
+                startupToken = "test-hold",
+                onUpdateStartMs = clockMs,
+            )
+
+        assertTrue("the paint was pushed", heldAtPush.isNotEmpty())
+        assertTrue("held at every push: $heldAtPush", heldAtPush.all { it == StartupCooldown.PAINT_RECHECK_MS })
+        assertEquals("released once the batch settled", 0L, cooldown.remainingMs(clockMs))
+    }
+
     @Test
     fun `the partner trigger inside the window is still deduped, once`() {
         val pushed = mutableListOf<Long>()

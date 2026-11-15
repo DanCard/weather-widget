@@ -14,7 +14,6 @@ import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.shared.util.LocationChangePaintPolicy.Action as LocationChangeAction
 import com.weatherwidget.data.repository.WeatherRepository
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
@@ -33,6 +32,12 @@ internal class WidgetPaintCoordinator(
     private val dataBundleLoader: WidgetDataBundleLoader,
     /** Paint-time location resampling; see the call in [updateAllWidgets]. */
     private val gpsResampler: GpsResampler,
+    /**
+     * Where the data repaints run. A sync calls them from the low-priority [SyncDispatcher]; the
+     * repaint is what the user sees, so it hops back here instead of inheriting that priority. A
+     * UI-only run is already on this dispatcher, and the hop is then a no-op.
+     */
+    private val paintDispatcher: kotlinx.coroutines.CoroutineDispatcher = kotlinx.coroutines.Dispatchers.Default,
 ) {
     private val lastRenderMs = mutableMapOf<Int, Long>()
 
@@ -243,7 +248,7 @@ internal class WidgetPaintCoordinator(
         loadedHourlySourceIds: Collection<String> = emptyList(),
         hourlyLat: Double? = null,
         hourlyLon: Double? = null,
-    ) = coroutineScope {
+    ) = kotlinx.coroutines.withContext(paintDispatcher) {
         // Nothing to draw: DailyForecastGraphRenderer paints an empty day list as a blank bitmap,
         // and pushing that over whatever is on screen — the previous site's render, the
         // "Getting weather for…" interstitial, the "Tap to refresh" fallback — is the worst outcome
@@ -251,7 +256,7 @@ internal class WidgetPaintCoordinator(
         // none). Leave the last render standing; the callers that own a placeholder paint it.
         if (weatherList.isEmpty() && hourlyForecasts.isEmpty()) {
             appLogDao.log("WIDGET_PAINT_SKIP", "reason=empty_data origin=${origin.name}", "INFO")
-            return@coroutineScope
+            return@withContext
         }
         if (!isScreenInteractive()) {
             // Record the debt. Nothing repaints on unlock — ACTION_USER_PRESENT is manifest-declared
@@ -261,7 +266,7 @@ internal class WidgetPaintCoordinator(
             // station label on screen. See plans/260818-widget-repaint-gate-data-watermark.md.
             widgetStateManager.setPaintOwed(true)
             appLogDao.log("WIDGET_PAINT_SKIP", "reason=screen_off", "INFO")
-            return@coroutineScope
+            return@withContext
         }
 
         // A paint for an interactive screen is the app's only reliable evidence that the user is
@@ -450,7 +455,9 @@ internal class WidgetPaintCoordinator(
     suspend fun refreshWidgetsFromCache(
         /** Hourly rows already loaded for the active site by the caller (the location-change probe). */
         preloadedHourly: List<HourlyForecastEntity>? = null,
-    ) {
+    ) = kotlinx.coroutines.withContext(paintDispatcher) { refreshWidgetsFromCacheOnPaintThread(preloadedHourly) }
+
+    private suspend fun refreshWidgetsFromCacheOnPaintThread(preloadedHourly: List<HourlyForecastEntity>?) {
         val location = ActiveLocationResolver.resolve(
             context, widgetStateManager, WeatherDatabase.getDatabase(context).forecastDao(),
         ) ?: run {

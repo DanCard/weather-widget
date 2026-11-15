@@ -61,6 +61,29 @@ Use focused instrumented runs through `scripts/emulator-tests.sh -c <fully.quali
 an attached physical phone is not included accidentally. Keep emulators running unless the user asks
 otherwise. See [testing strategy](testing-strategy.md) for the full test commands.
 
+### Slow first paint after a process start
+
+`COLD_START_PERF` in `app_logs` (first paints of 8 s or more) splits the delay: `firstTriggerAgeMs`
+is the OS delivering the broadcast, the rest is the app. `WIDGET_STARTUP_PERF` then names the slow
+load step.
+
+Background syncs wait for the startup paint (`StartupCooldown`): a run arriving while it is pending
+logs `SYNC_DEFERRED_STARTUP … cause=paint_pending`, and `cause=cooldown` when only the 6 s clock
+applies. Every `SYNC_START` with `uiOnly=false` should follow `WIDGET_STARTUP_BATCH`. The hold ends
+30 s after the claim even if the paint has not settled.
+
+Sync work other than a repaint runs on a two-thread background-priority pool (`SyncDispatcher`), so
+`SYNC_STAGE … thread=sync-pool-N` is expected; a `DefaultDispatcher-worker` there means the run
+bypassed the pool. The repaint a sync ends with runs on the ordinary dispatcher.
+
+A stretch where the app logs nothing at all is usually the cached-app freezer, not slow code:
+
+```bash
+$ADB -s <serial> logcat -d | grep -E "ActivityManager: (freezing|sync unfroze) .*com.weatherwidget"
+```
+
+See `performance/261115-boot-first-paint-frozen-behind-startup-syncs.md`.
+
 ### Slow source switches and desktop SQLite lock stalls
 
 A source switch (API button, daily home button) logs `SOURCE_SWITCH_E2E` on both platforms:

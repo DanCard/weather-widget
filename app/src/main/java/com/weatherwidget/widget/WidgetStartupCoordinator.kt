@@ -30,6 +30,7 @@ import kotlinx.coroutines.coroutineScope
 internal class WidgetStartupCoordinator(
     private val repository: WeatherRepository,
     private val elapsedRealtime: () -> Long = SystemClock::elapsedRealtime,
+    private val startupCooldown: () -> StartupCooldown = { com.weatherwidget.WeatherWidgetApp.startupCooldown() },
 ) {
     private val operationTimer = StartupOperationTimer(elapsedRealtime)
 
@@ -150,25 +151,34 @@ internal class WidgetStartupCoordinator(
                 // periodic schedule below are this path's own job and still run.
                 val unpaintedIds = claimStartupPaints(validWidgetIds, claimVia, appLogDao)
                 if (unpaintedIds.isNotEmpty()) {
-                    queryResult =
-                        loadStartupData(
-                            database = database,
-                            forecastDao = forecastDao,
-                            hourlyDao = hourlyDao,
-                            latestWeather = latestWeather,
-                            activeSourceList = activeSources.toList(),
-                            needsDailyData = needsDailyData,
-                            gapFiller = gapFiller,
-                            loadWindow = DailyLoadWindowResolver.resolve(context),
+                    // Background syncs wait for this paint, not just for the cooldown clock: started
+                    // beside it they kept a boot's paint unfinished until the process was frozen
+                    // (StartupCooldown). Settled in `finally` so a failed or cancelled paint lets go.
+                    val cooldown = startupCooldown()
+                    cooldown.onStartupPaintPending(elapsedRealtime())
+                    try {
+                        queryResult =
+                            loadStartupData(
+                                database = database,
+                                forecastDao = forecastDao,
+                                hourlyDao = hourlyDao,
+                                latestWeather = latestWeather,
+                                activeSourceList = activeSources.toList(),
+                                needsDailyData = needsDailyData,
+                                gapFiller = gapFiller,
+                                loadWindow = DailyLoadWindowResolver.resolve(context),
+                            )
+                        renderStartupWidgets(
+                            context = context,
+                            appWidgetManager = appWidgetManager,
+                            appWidgetIds = unpaintedIds,
+                            result = queryResult,
+                            startupToken = startupToken,
+                            appLogDao = appLogDao,
                         )
-                    renderStartupWidgets(
-                        context = context,
-                        appWidgetManager = appWidgetManager,
-                        appWidgetIds = unpaintedIds,
-                        result = queryResult,
-                        startupToken = startupToken,
-                        appLogDao = appLogDao,
-                    )
+                    } finally {
+                        cooldown.onStartupPaintSettled()
+                    }
                 }
                 staleCheckMs = checkStalenessAndFetch(context)
             }
