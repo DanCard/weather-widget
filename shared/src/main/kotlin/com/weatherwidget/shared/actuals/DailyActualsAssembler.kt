@@ -39,6 +39,8 @@ object DailyActualsAssembler {
         val todayObsRows: Int,
         val live: List<LiveSummary>,
         val suppressedTodayLows: List<SuppressedLow>,
+        /** What the live blend cost, for the platform's perf line. */
+        val blend: ActualsAggregator.AggregateStats = ActualsAggregator.AggregateStats(),
     )
 
     /**
@@ -98,6 +100,7 @@ object DailyActualsAssembler {
         // Hourly stays keyed on the SOURCE: borrowed actuals are compared against the borrowing
         // source's own forecast.
         val blendHourly = hourlyForecasts.filter { it.source in actualsCapable }
+        val blendStats = ActualsAggregator.AggregateStats()
         val liveBySource = ActualsAggregator.aggregate(
             observations = blendObs,
             hourlyForecasts = blendHourly,
@@ -106,6 +109,10 @@ object DailyActualsAssembler {
             zoneId = zone,
             updatedAtMs = nowMs,
             personalStationWeight = personalStationWeight,
+            // Today is always live. A past date is blended only where storage has no row for that
+            // source: `merged` below lets the stored row win, so a live one beside it is never read.
+            wanted = { source, date -> date == today || past[source]?.containsKey(date) != true },
+            stats = blendStats,
         ).groupBy { it.source }.mapValues { (_, rows) -> rows.associateBy { it.toLocalDate() } }
 
         val todayStartMs = today.atStartOfDay(zone).toInstant().toEpochMilli()
@@ -154,6 +161,7 @@ object DailyActualsAssembler {
                 LiveSummary(source, actual?.computedHighTemp, actual?.computedLowTemp, providerRows(source).size)
             },
             suppressedTodayLows = suppressed,
+            blend = blendStats,
         )
     }
 

@@ -191,6 +191,49 @@ starts with that audit, so the shared rule fits both hosts rather than Android a
 Tests: shared classification tests; Android and desktop host tests; a pipeline test that a
 resize-triggered sync with seven due sources fetches only the displayed ones and queues the rest.
 
+#### Phase 3 audit (2026-11-15): the design above needs revising
+
+Read before any phase 3 code. No code changed. Four findings:
+
+1. **A source gate already exists and was the user's decision.**
+   `performance/261010-fetch-only-sources-likely-to-be-viewed.md` (approved 2026-10-10): a source
+   is fetched in the background only if it is displayed or was viewed in the last 8 days
+   (`:shared` `SourceFetchGate`). The user also accepted losing accuracy tracking for unviewed
+   sources, which removes the reason given above for a bounded wait. On this boot all seven
+   sources passed the gate (`SOURCE_FETCH_GATE on=` all seven), so the gate did nothing here.
+2. **Desktop has the opposite policy, also the user's decision.**
+   `performance/261019-desktop-away-state-no-fetching-while-nobody-is-there.md`: while nobody is
+   at the machine the daemon fetches nothing (`:shared` `UserPresence`). "Fetch housekeeping
+   forecasts when the device is not in use" contradicts it. Desktop's untargeted forced sync
+   already takes the displayed source only.
+3. **Where due sources ride along on Android.** `ForecastFetchCoordinator.planSync` forces the
+   target and adds every gated-in source whose cadence is due. That is how a resize refresh
+   targeting NWS fetched seven sources.
+4. **The recompute cost looks like the larger problem.** `DailyBlendRecomputeRun.day` passes the
+   whole context window to `ActualsAggregator.aggregateStored` and then keeps one date
+   (`.filter { it.date == dateKey }`). Pixel rows show `contextObs` of 5,500-6,800 for a day of
+   about 2,200 observations and 12-18 s per day; a four-day range repeats that four times.
+   Whether the discarded days are fully blended has not been verified. This step is also behind
+   the 8.2 s cold `extremesMs` and probably the excessive-CPU kill.
+
+The detailed phase 3 plan is now
+`performance/261115-phase3-targeted-refresh-and-daily-blend-cost.md`; the options below are its
+summary.
+
+Revised options (Claude proposals, awaiting the user's choice):
+
+- **3A, small:** a targeted user-facing refresh (resize, unlock, source switch) fetches its
+  target only; other due sources wait for the scheduled sync, which now runs on the low-priority
+  pool. Android only; desktop already behaves this way.
+- **3B, investigation:** profile the daily blend recompute and cut its cost, as its own
+  performance plan. Shared code, so both platforms gain.
+- **3C, the original housekeeping job:** defer past-day recomputes and deep backfills to an idle
+  job. Only worth building if 3B leaves the recompute expensive.
+
+Side effect of the phase 2 benchmark: its `debug.TOGGLE_API` taps count as views, so all seven
+sources on the Pixel are inside the 8-day gate again from 2026-11-15. All seven were already
+inside it before the benchmark.
+
 ### Not planned
 
 Cooperative yielding (a running sync pausing while the user taps). The user is unsure about it;

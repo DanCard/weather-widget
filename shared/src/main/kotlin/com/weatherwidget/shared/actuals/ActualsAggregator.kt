@@ -227,6 +227,9 @@ object ActualsAggregator {
         zoneId: ZoneId = ZoneId.systemDefault(),
         updatedAtMs: Long = System.currentTimeMillis(),
         personalStationWeight: Double = 1.0,
+        /** See [aggregate]. */
+        noinline wanted: ((sourceId: String, date: LocalDate) -> Boolean)? = null,
+        stats: AggregateStats? = null,
     ): List<DailyHistory> =
         aggregate(
             observations = observations,
@@ -236,7 +239,29 @@ object ActualsAggregator {
             zoneId = zoneId,
             updatedAtMs = updatedAtMs,
             personalStationWeight = personalStationWeight,
+            wanted = wanted,
+            stats = stats,
         )
+
+    /**
+     * What one [aggregate] call did, for `DAILY_RECOMPUTE_PERF`: how many source groups it ran, how
+     * many (source, date) blends it made or skipped, and the time inside the series blend. Not
+     * thread-safe; one instance per call.
+     */
+    class AggregateStats {
+        var groups = 0
+        var datesBlended = 0
+        var datesSkipped = 0
+        var blendMs = 0L
+        var observationsBlended = 0L
+        var precipMs = 0L
+        var groupingMs = 0L
+        var totalMs = 0L
+
+        fun logFragment(): String =
+            "groups=$groups blended=$datesBlended skipped=$datesSkipped blendMs=$blendMs blendObs=$observationsBlended " +
+                "precipMs=$precipMs groupingMs=$groupingMs aggregateMs=$totalMs"
+    }
 
     /**
      * Aggregates raw observations into daily highs and lows.
@@ -248,8 +273,19 @@ object ActualsAggregator {
         locationLon: Double,
         zoneId: ZoneId = ZoneId.systemDefault(),
         updatedAtMs: Long = System.currentTimeMillis(),
-        personalStationWeight: Double = 1.0
+        personalStationWeight: Double = 1.0,
+        /**
+         * Which (source, date) rows the caller will use; null for all of them. A row is built only
+         * when this says so. The callers pass a day plus its ±[DAILY_BLEND_CONTEXT_MS] context and
+         * want that one day: the neighbours are there to steady its edges, and blending them as days
+         * of their own was at least half of a recompute's work for rows that were then dropped
+         * (performance/261115-phase3-targeted-refresh-and-daily-blend-cost.md). A wanted row is the
+         * same either way: its observations and window do not depend on this.
+         */
+        wanted: ((sourceId: String, date: LocalDate) -> Boolean)? = null,
+        stats: AggregateStats? = null,
     ): List<DailyHistory> {
+        val aggregateStartNs = System.nanoTime()
         val today = LocalDate.now(zoneId)
 
         val byApi = observations
@@ -298,12 +334,20 @@ object ActualsAggregator {
             .filter { (api, _) -> api in displayableIds && api !in redirected }
             .map { it.key to it.value } + borrowedGroups
 
-        return groups
+        stats?.groups = groups.size
+        val rows = groups
             .flatMap { (sourceId, obsList) ->
+                val groupingStartNs = System.nanoTime()
                 val sourceHourly = hourlyForecasts.filter { it.source == sourceId || it.source == "GENERIC_GAP" }
-                obsList
+                val byDate = obsList
                     .groupBy { obs -> Instant.ofEpochMilli(obs.timestamp).atZone(zoneId).toLocalDate() }
+                stats?.let { it.groupingMs += (System.nanoTime() - groupingStartNs) / 1_000_000L }
+                byDate
                     .mapNotNull { (date, dayObs) ->
+                        if (wanted != null && !wanted(sourceId, date)) {
+                            stats?.let { it.datesSkipped++ }
+                            return@mapNotNull null
+                        }
                         val dayStartMs = date.atStartOfDay(zoneId).toInstant().toEpochMilli()
                         val dayEndMs = date.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli()
 
@@ -314,7 +358,8 @@ object ActualsAggregator {
                         val windowEndMs = dayEndMs + DAILY_BLEND_CONTEXT_MS
                         val windowObs = obsList.filter { it.timestamp in windowStartMs until windowEndMs }
 
-                        val extremes = blendDailyExtremesViaSeries(
+                        val blendStartNs = System.nanoTime()
+                        val blended = blendDailyExtremesViaSeries(
                             contextObs = windowObs,
                             hourlyForecasts = sourceHourly,
                             sourceId = sourceId,
@@ -326,7 +371,13 @@ object ActualsAggregator {
                             windowEndMs = windowEndMs,
                             personalStationWeight = personalStationWeight,
                             zoneId = zoneId,
-                        ) ?: return@mapNotNull null
+                        )
+                        stats?.let {
+                            it.datesBlended++
+                            it.observationsBlended += windowObs.size
+                            it.blendMs += (System.nanoTime() - blendStartNs) / 1_000_000L
+                        }
+                        val extremes = blended ?: return@mapNotNull null
 
                         val mostCommonCondition = dayObs
                             .map { it.condition }
@@ -337,10 +388,12 @@ object ActualsAggregator {
 
                         // The context window, not just the day: a 23:58 SPECI belongs to the period
                         // the next day's first routine report closes.
+                        val precipStartNs = System.nanoTime()
                         val precip = resolveDailyPrecip(
                             windowObs, sourceHourly, date, zoneId,
                             allowForecastFallback = !date.isBefore(today),
                         )
+                        stats?.let { it.precipMs += (System.nanoTime() - precipStartNs) / 1_000_000L }
 
                         DailyHistory(
                             date = date.toEpochDay() * 86_400_000L, // UTC midnight epoch millis approximation
@@ -359,6 +412,8 @@ object ActualsAggregator {
                         )
                     }
             }
+        stats?.totalMs = (System.nanoTime() - aggregateStartNs) / 1_000_000L
+        return rows
     }
 
     /** A day's blended extremes and when the line first came within reach of each. */

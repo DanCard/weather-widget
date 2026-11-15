@@ -156,6 +156,7 @@ object DailyBlendRecomputeRun {
         var afterHourlyMs = afterQueryMs
         // apiHigh/apiLow are never derived here: the stored pool's NWS API subset is too thinly
         // sampled to carry a daily peak; NwsStationActualsRun's complete pull writes them.
+        val blendStats = ActualsAggregator.AggregateStats()
         val newRows = ActualsAggregator
             .aggregateStored(
                 observations = contextObs,
@@ -171,6 +172,9 @@ object DailyBlendRecomputeRun {
                 zoneId = zone,
                 updatedAtMs = nowMs,
                 personalStationWeight = host.personalStationWeight(),
+                // The window's other dates are this day's context, not days to reduce.
+                wanted = { _, rowDate -> rowDate == date },
+                stats = blendStats,
             )
             .filter { it.date == dateKey }
             // Each source's observed morning fog, from its own actuals provider's readings.
@@ -181,6 +185,8 @@ object DailyBlendRecomputeRun {
                 )
             }
         val afterExtremesMs = host.elapsedMs()
+        // What the blend did, always: the PERF row below appears only for a slow day.
+        host.log("DAILY_RECOMPUTE_BLEND", "date=$date ${blendStats.logFragment()}", "VERBOSE")
         logBlendBreakdown(host, date, dayObs, newRows)
         val afterBreakdownMs = host.elapsedMs()
         host.afterReduce(date, dayObs, hourly)
@@ -222,7 +228,8 @@ object DailyBlendRecomputeRun {
                     "logBreakdown=${afterBreakdownMs - afterExtremesMs}ms " +
                     "logDiag=${afterDiagMs - afterBreakdownMs}ms " +
                     "persist=${endMs - afterDiagMs}ms " +
-                    "contextObs=${contextObs.size} dayObs=${dayObs.size} hourly=${hourly.size}",
+                    "contextObs=${contextObs.size} dayObs=${dayObs.size} hourly=${hourly.size} " +
+                    blendStats.logFragment(),
                 "INFO",
             )
         }

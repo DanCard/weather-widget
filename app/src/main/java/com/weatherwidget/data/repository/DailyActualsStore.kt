@@ -61,23 +61,28 @@ class DailyActualsStore @Inject constructor(
         val tomorrowMs = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
 
         // Composition is shared with desktop (DailyActualsAssembler); this only reads and logs.
+        val readStartMs = android.os.SystemClock.elapsedRealtime()
+        val pastRows = dailyHistoryDao.getExtremesInRange(startDate, endDate, latitude, longitude)
+            .map { it.toDailyHistory() }
+        val yesterdayDonors = dailyHistoryDao.getMeasuredExtremesForDateAnySite(endDate)
+            .map { it.toDailyHistory() }
+        val observations = observationDao
+            .getObservationsInRange(
+                todayStartMs - ActualsAggregator.DAILY_BLEND_CONTEXT_MS,
+                tomorrowMs,
+                latitude,
+                longitude,
+                // Unscoped: this pass indexes actuals for every configured source at once, which
+                // is precisely the case the DAO's note says must NOT be narrowed.
+                apis = null,
+            )
+            .map { it.toReading() }
+        val assembleStartMs = android.os.SystemClock.elapsedRealtime()
         val result = DailyActualsAssembler.assemble(
             activeSources = sources,
-            pastRows = dailyHistoryDao.getExtremesInRange(startDate, endDate, latitude, longitude)
-                .map { it.toDailyHistory() },
-            yesterdayDonors = dailyHistoryDao.getMeasuredExtremesForDateAnySite(endDate)
-                .map { it.toDailyHistory() },
-            observations = observationDao
-                .getObservationsInRange(
-                    todayStartMs - ActualsAggregator.DAILY_BLEND_CONTEXT_MS,
-                    tomorrowMs,
-                    latitude,
-                    longitude,
-                    // Unscoped: this pass indexes actuals for every configured source at once, which
-                    // is precisely the case the DAO's note says must NOT be narrowed.
-                    apis = null,
-                )
-                .map { it.toReading() },
+            pastRows = pastRows,
+            yesterdayDonors = yesterdayDonors,
+            observations = observations,
             hourlyForecasts = hourlyForecasts.map { it.toHourlyForecast() },
             latitude = latitude,
             longitude = longitude,
@@ -86,6 +91,7 @@ class DailyActualsStore @Inject constructor(
             nowMs = System.currentTimeMillis(),
             personalStationWeight = personalStationWeightProvider.currentWeight(),
         )
+        val assembleDoneMs = android.os.SystemClock.elapsedRealtime()
 
         result.bySource.forEach { (source, byDate) ->
             byDate.values.filter { it.isActualsBorrowed }.forEach {
@@ -106,6 +112,12 @@ class DailyActualsStore @Inject constructor(
             TAG,
             "getDailyActualsWithLiveToday: date=$today lat=$latitude lon=$longitude " +
                 "todayObsRows=${result.todayObsRows} span=$obsSpanSummary live=[$liveSummary]",
+        )
+        // Where a slow read went: the cold startup paint's largest step is this function.
+        Log.d(
+            TAG,
+            "DAILY_ACTUALS_PERF readMs=${assembleStartMs - readStartMs} assembleMs=${assembleDoneMs - assembleStartMs} " +
+                "obs=${observations.size} pastRows=${pastRows.size} ${result.blend.logFragment()}",
         )
         DailyActualsAssembler.suppressedLowLines(result, latitude, longitude, zone).forEach { (tag, message, level) ->
             Log.d(TAG, "$tag $message")

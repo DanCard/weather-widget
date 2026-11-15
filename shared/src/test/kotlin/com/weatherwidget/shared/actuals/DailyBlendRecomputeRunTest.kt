@@ -105,6 +105,26 @@ class DailyBlendRecomputeRunTest {
         assertEquals(20, stored.noonCloudPercent)
     }
 
+    /**
+     * Pixel, 2026-11-15: `groups=7 blended=14` for one day — every date in the ±24 h window was
+     * blended per source and all but the target dropped
+     * (performance/261115-phase3-targeted-refresh-and-daily-blend-cost.md).
+     */
+    @Test
+    fun `a day is blended once per source, its neighbours only as context`() = runBlocking {
+        val day = today.minusDays(3)
+        (-1L..1L).forEach { offset -> host.obs += hourlyReadings(day.plusDays(offset)) { h -> 55f + h } }
+
+        DailyBlendRecomputeRun.day(host, day, nowMs, zone)
+
+        val line = host.logs.single { it.startsWith("DAILY_RECOMPUTE_BLEND") }
+        println("DailyBlendRecomputeRunTest: $line")
+        val fields = Regex("""(\w+)=(\d+)""").findAll(line.substringAfter("date=$day")).associate { it.groupValues[1] to it.groupValues[2].toInt() }
+        assertTrue(line, fields.getValue("groups") >= 1)
+        assertEquals("one blend per source group: $line", fields.getValue("groups"), fields.getValue("blended"))
+        assertEquals("the two neighbouring dates skipped per group: $line", 2 * fields.getValue("groups"), fields.getValue("skipped"))
+    }
+
     @Test
     fun `only the target day is written, though its context reaches the neighbours`() = runBlocking {
         val day = today.minusDays(3)
