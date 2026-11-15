@@ -59,10 +59,10 @@ class DailyTapZoneCoverageTest {
 
     @Test
     fun `the Fold inner widget fits`() {
-        // 662dp, the widget that showed the bug: 13 slots originally, 12 at 60dp, 11 at 61dp
-        // (plans/261017-daily-density-narrow-only.md) — still comfortably fits within the 14 tap zones.
+        // 662dp, the widget that showed the bug: 13 slots originally, 12 at 60dp, 11 at 61dp, 10 at
+        // 67dp (plans/261017-daily-density-narrow-only.md) — still comfortably fits within the 14 tap zones.
         val slots = com.weatherwidget.shared.graph.DailyLayoutConstants.columnsForWidthDp(662)
-        assertEquals(11, slots)
+        assertEquals(10, slots)
         assertTrue(slots <= DailyClickHandlerFactory.DAILY_TAP_ZONE_COUNT)
     }
 

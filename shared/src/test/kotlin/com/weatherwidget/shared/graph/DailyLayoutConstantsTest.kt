@@ -9,7 +9,7 @@ import org.junit.experimental.categories.Category
 /**
  * Width->columns and height->rows, one rule for the widget and the desktop popup. These pin the
  * column density: the Fold 4 cover (~337dp) and Pixel 7 Pro (~373dp) get 7 slots, the Fold 4
- * full-width widget (~574dp) 10 and the Fold 4 inner widget (~662dp) 12
+ * full-width widget (~574dp) 10 and the Fold 4 inner widget (~662dp) 10
  * (plans/261017-daily-density-narrow-only.md).
  */
 @Category(ShortDuration::class)
@@ -21,17 +21,20 @@ class DailyLayoutConstantsTest {
     }
 
     @Test
-    fun `narrow layouts use 55dp cells, 436dp and wider use 61dp`() {
+    fun `narrow layouts use 55dp cells, 436dp and wider 61dp, 608dp and wider 67dp`() {
         assertEquals(55, DailyLayoutConstants.cellWidthDp(337))
         assertEquals(55, DailyLayoutConstants.cellWidthDp(435))
         assertEquals(61, DailyLayoutConstants.cellWidthDp(436))
-        assertEquals(61, DailyLayoutConstants.cellWidthDp(662))
+        assertEquals(61, DailyLayoutConstants.cellWidthDp(607))
+        assertEquals(67, DailyLayoutConstants.cellWidthDp(608))
+        assertEquals(67, DailyLayoutConstants.cellWidthDp(662))
         assertTrue(DailyLayoutConstants.NARROW_CELL_WIDTH_DP < DailyLayoutConstants.WIDE_CELL_WIDTH_DP)
+        assertTrue(DailyLayoutConstants.WIDE_CELL_WIDTH_DP < DailyLayoutConstants.EXTRA_WIDE_CELL_WIDTH_DP)
     }
 
     @Test
     fun columns_matchDocumentedSizeTable() {
-        // Representative widths: 55dp cells below 436dp, 60dp from there; bias 30.
+        // Representative widths: 55dp cells below 436dp, 61dp to 608dp, 67dp from there; bias 30.
         assertEquals(1, DailyLayoutConstants.columnsForWidthDp(40))
         assertEquals(3, DailyLayoutConstants.columnsForWidthDp(130))
         assertEquals(4, DailyLayoutConstants.columnsForWidthDp(210))
@@ -56,18 +59,25 @@ class DailyLayoutConstantsTest {
 
     @Test
     fun columns_foldFullWidthFitsTenColumns() {
-        // Samsung Fold 4 full-width (6-span) widget reports ~574dp -> 10 columns (60dp cells).
+        // Samsung Fold 4 full-width (6-span) widget reports ~574dp -> 10 columns (61dp cells).
         assertEquals(10, DailyLayoutConstants.columnsForWidthDp(574))
     }
 
     @Test
-    fun columns_foldInnerWidgetFitsElevenSlots() {
-        // Fold 4 inner widget reports 662dp. 60dp cells gave 12 columns; 61dp cells give 11 columns.
-        // Verified on RFCT70G352Y.
-        assertEquals(11, DailyLayoutConstants.columnsForWidthDp(662))
-        // 11->12 boundary under the wide cell (61dp): (671+30)/61 = 11.49 -> 11, (672+30)/61 = 11.51 -> 12.
-        assertEquals(11, DailyLayoutConstants.columnsForWidthDp(671))
-        assertEquals(12, DailyLayoutConstants.columnsForWidthDp(672))
+    fun columns_foldInnerWidgetFitsTenSlots() {
+        // Fold 4 inner widget reports 662dp. 60dp cells gave 12 columns, 61dp gave 11 (too busy in a
+        // wet week); 67dp cells from 608dp give 10.
+        assertEquals(10, DailyLayoutConstants.columnsForWidthDp(662))
+        // 10->11 boundary under the extra-wide cell (67dp): (673+30)/67 = 10.49 -> 10, (674+30)/67 = 10.51 -> 11.
+        assertEquals(10, DailyLayoutConstants.columnsForWidthDp(673))
+        assertEquals(11, DailyLayoutConstants.columnsForWidthDp(674))
+    }
+
+    @Test
+    fun columns_switchToExtraWideCellsKeepsTheCount() {
+        // Both cell widths give 10 columns either side of the 608dp switch.
+        assertEquals(10, DailyLayoutConstants.columnsForWidthDp(607))
+        assertEquals(10, DailyLayoutConstants.columnsForWidthDp(608))
     }
 
     @Test

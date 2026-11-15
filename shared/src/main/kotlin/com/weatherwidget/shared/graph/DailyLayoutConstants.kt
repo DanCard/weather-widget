@@ -15,8 +15,9 @@ object DailyLayoutConstants {
     const val NARROW_CELL_WIDTH_DP = 55
 
     /**
-     * Per-column width assumption (dp) from [WIDE_LAYOUT_MIN_WIDTH_DP] up. 55dp everywhere made the
-     * Fold 4 inner widget (~662dp) 13 slots, too dense (plans/261017-daily-density-narrow-only.md).
+     * Per-column width assumption (dp) from [WIDE_LAYOUT_MIN_WIDTH_DP] up to
+     * [EXTRA_WIDE_LAYOUT_MIN_WIDTH_DP]. 55dp everywhere made the Fold 4 inner widget (~662dp) 13 slots,
+     * too dense (plans/261017-daily-density-narrow-only.md).
      */
     const val WIDE_CELL_WIDTH_DP = 61
 
@@ -28,24 +29,45 @@ object DailyLayoutConstants {
      */
     const val WIDE_LAYOUT_MIN_WIDTH_DP = 436
 
+    /**
+     * Per-column width assumption (dp) from [EXTRA_WIDE_LAYOUT_MIN_WIDTH_DP] up. The Fold 4 inner
+     * widget (~662dp) at 11 columns read too busy in a wet week, when a column stacks peak hour, rain
+     * amount, high, low and night chance (user, 2026-11-15); 67dp gives it 10. Not 66dp: that puts the
+     * 10->11 boundary at 663dp, one dp above that widget.
+     */
+    const val EXTRA_WIDE_CELL_WIDTH_DP = 67
+
+    /**
+     * Width (dp) at which [cellWidthDp] switches to [EXTRA_WIDE_CELL_WIDTH_DP]. As with
+     * [WIDE_LAYOUT_MIN_WIDTH_DP], it must sit where both cell widths give the same column count:
+     * 607–610dp (10 columns) for [COLUMN_FIT_BIAS_DP] (30dp).
+     */
+    const val EXTRA_WIDE_LAYOUT_MIN_WIDTH_DP = 608
+
     /** Per-column width (dp) used to turn a daily layout's width into a column count. */
     fun cellWidthDp(widthDp: Int): Int =
-        if (widthDp < WIDE_LAYOUT_MIN_WIDTH_DP) NARROW_CELL_WIDTH_DP else WIDE_CELL_WIDTH_DP
+        when {
+            widthDp < WIDE_LAYOUT_MIN_WIDTH_DP -> NARROW_CELL_WIDTH_DP
+            widthDp < EXTRA_WIDE_LAYOUT_MIN_WIDTH_DP -> WIDE_CELL_WIDTH_DP
+            else -> EXTRA_WIDE_CELL_WIDTH_DP
+        }
 
     /** Per-row height assumption (dp). */
     const val CELL_HEIGHT_DP = 90
 
     /**
-     * Bias added to the width before dividing by [cellWidthDp] (55dp below 436dp, 60dp from there).
+     * Bias added to the width before dividing by [cellWidthDp] (55dp below 436dp, 61dp to 608dp, 67dp from
+     * there).
      *
      * Combined with round-to-nearest (not floor), this rounds UP a layout that is within ~(this
      * many) dp of the next column, fitting one more forecast day. Under 61dp wide cells, 9→10
-     * lands at width >= 550dp, 10→11 at >= 611dp, and 11→12 at >= 672dp. Under 55dp narrow cells,
+     * lands at width >= 550dp. Under 67dp extra-wide cells, 10→11 lands at >= 674dp and 11→12 at
+     * >= 741dp. Under 55dp narrow cells,
      * 5→6 lands at >= 273dp, 6→7 at >= 328dp, and 7→8 at >= 383dp.
      *
      * Density is governed mainly by the cell width; this bias just nudges borderline widths up.
      * Representative results: Samsung Fold 4 cover (~337dp) → 7 columns, Pixel 7 Pro (~373dp) → 7,
-     * Samsung Fold 4 full-width (~574dp) → 10, the Fold 4 inner widget at ~662dp → 11 (11 days).
+     * Samsung Fold 4 full-width (~574dp) → 10, the Fold 4 inner widget at ~662dp → 10 (10 days).
      * Days shown == columns (see NavigationUtils.getDayOffsets).
      *
      * Data backing the rightmost columns: at >8 columns the narrow skip-yesterday rule is off
