@@ -128,6 +128,44 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
+            <!-- "All sources for <day>" (shared DaySourceComparison); rows added in code. -->
+            <LinearLayout
+                android:id="@+id/source_comparison_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="12dp"
+                android:background="@drawable/bg_surface_card"
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="12dp"
+                android:layout_marginBottom="6dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/source_comparison_title"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="16sp"
+                    android:textColor="@color/widget_text_primary"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="6dp" />
+
+                <LinearLayout
+                    android:id="@+id/source_comparison_table"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+
+                <TextView
+                    android:id="@+id/source_comparison_legend"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:lineSpacingExtra="2dp"
+                    android:textSize="12sp"
+                    android:textColor="@color/widget_text_secondary" />
+            </LinearLayout>
+
             <com.google.android.flexbox.FlexboxLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -375,44 +413,6 @@
                         android:textColor="#FF3B30"
                         android:layout_marginStart="6dp" />
                 </LinearLayout>
-            </LinearLayout>
-
-            <!-- "All sources for <day>" (shared DaySourceComparison); rows added in code. -->
-            <LinearLayout
-                android:id="@+id/source_comparison_card"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="12dp"
-                android:background="@drawable/bg_surface_card"
-                android:layout_marginStart="12dp"
-                android:layout_marginEnd="12dp"
-                android:layout_marginBottom="6dp"
-                android:visibility="gone">
-
-                <TextView
-                    android:id="@+id/source_comparison_title"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textSize="16sp"
-                    android:textColor="@color/widget_text_primary"
-                    android:textStyle="bold"
-                    android:layout_marginBottom="6dp" />
-
-                <LinearLayout
-                    android:id="@+id/source_comparison_table"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical" />
-
-                <TextView
-                    android:id="@+id/source_comparison_legend"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:lineSpacingExtra="2dp"
-                    android:textSize="12sp"
-                    android:textColor="@color/widget_text_secondary" />
             </LinearLayout>
 
             <LinearLayout

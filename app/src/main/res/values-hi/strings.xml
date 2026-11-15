@@ -124,7 +124,7 @@
     <string name="refresh_policy_battery_mid">रीफ़्रेश नीति: हर 8 घंटे (बैटरी %1$d%%)</string>
     <string name="refresh_policy_battery_low">रीफ़्रेश नीति: रुकी हुई (बैटरी %1$d%%)</string>
     <string name="freshness_just_now">अभी-अभी</string>
-    <string name="forecast_history">"पूर्वानुमान इतिहास: "</string>
+    <string name="forecast_history">"पूर्वानुमान तुलना: "</string>
     <string name="forecast_history_summary_single">%1$d %2$s पूर्वानुमान स्नैपशॉट</string>
     <string name="forecast_history_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI स्नैपशॉट</string>
     <string name="forecast_history_summary_climate_fill"> • %1$d जलवायु-पूर्ति बिंदु</string>
@@ -135,7 +135,7 @@
     <string name="forecast_history_no_data_fallback_source">चयनित स्रोत</string>
     <string name="forecast_history_prev_day">पिछला दिन</string>
     <string name="forecast_history_next_day">अगला दिन</string>
-    <string name="forecast_history_subtitle">पूर्वानुमान इतिहास</string>
+    <string name="forecast_history_subtitle">पूर्वानुमान तुलना</string>
     <string name="freshness_forecast_fetch_ago">पूर्वानुमान फ़ेच: %1$s पहले</string>
     <string name="freshness_forecast_fetch_never">पूर्वानुमान फ़ेच: कभी नहीं</string>
     <string name="freshness_displayed_data">प्रदर्शित डेटा (%1$s): %2$s पहले प्राप्त</string>

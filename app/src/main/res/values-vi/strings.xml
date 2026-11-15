@@ -124,7 +124,7 @@
     <string name="refresh_policy_battery_mid">Chính sách làm mới: Mỗi 8 giờ (pin %1$d%%)</string>
     <string name="refresh_policy_battery_low">Chính sách làm mới: Tạm dừng (pin %1$d%%)</string>
     <string name="freshness_just_now">vừa xong</string>
-    <string name="forecast_history">"Lịch sử dự báo cho "</string>
+    <string name="forecast_history">"So sánh dự báo cho "</string>
     <string name="forecast_history_summary_single">%1$d ảnh chụp dự báo %2$s</string>
     <string name="forecast_history_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI ảnh chụp</string>
     <string name="forecast_history_summary_climate_fill"> • %1$d điểm bù khí hậu</string>
@@ -135,7 +135,7 @@
     <string name="forecast_history_no_data_fallback_source">nguồn đã chọn</string>
     <string name="forecast_history_prev_day">Ngày trước</string>
     <string name="forecast_history_next_day">Ngày sau</string>
-    <string name="forecast_history_subtitle">Lịch sử dự báo</string>
+    <string name="forecast_history_subtitle">So sánh dự báo</string>
     <string name="freshness_forecast_fetch_ago">Tải dự báo: %1$s trước</string>
     <string name="freshness_forecast_fetch_never">Tải dự báo: chưa bao giờ</string>
     <string name="freshness_displayed_data">Dữ liệu hiển thị (%1$s): đã tải %2$s trước</string>

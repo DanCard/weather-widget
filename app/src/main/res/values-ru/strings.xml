@@ -124,7 +124,7 @@
     <string name="refresh_policy_battery_mid">Обновление: каждые 8 ч (батарея %1$d%%)</string>
     <string name="refresh_policy_battery_low">Обновление: приостановлено (батарея %1$d%%)</string>
     <string name="freshness_just_now">только что</string>
-    <string name="forecast_history">"История прогнозов для "</string>
+    <string name="forecast_history">"Сравнение прогнозов для "</string>
     <string name="forecast_history_summary_single">%1$d снимков прогноза %2$s</string>
     <string name="forecast_history_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI снимков</string>
     <string name="forecast_history_summary_climate_fill"> • %1$d климатических точек</string>
@@ -135,7 +135,7 @@
     <string name="forecast_history_no_data_fallback_source">выбранный источник</string>
     <string name="forecast_history_prev_day">Предыдущий день</string>
     <string name="forecast_history_next_day">Следующий день</string>
-    <string name="forecast_history_subtitle">История прогнозов</string>
+    <string name="forecast_history_subtitle">Сравнение прогнозов</string>
     <string name="freshness_forecast_fetch_ago">Загрузка прогноза: %1$s назад</string>
     <string name="freshness_forecast_fetch_never">Загрузка прогноза: никогда</string>
     <string name="freshness_displayed_data">Отображаемые данные (%1$s): получены %2$s назад</string>

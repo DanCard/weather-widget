@@ -124,7 +124,7 @@
     <string name="refresh_policy_battery_mid">Kebijakan penyegaran: Setiap 8 jam (baterai %1$d%%)</string>
     <string name="refresh_policy_battery_low">Kebijakan penyegaran: Dijeda (baterai %1$d%%)</string>
     <string name="freshness_just_now">baru saja</string>
-    <string name="forecast_history">"Riwayat prakiraan untuk "</string>
+    <string name="forecast_history">"Perbandingan prakiraan untuk "</string>
     <string name="forecast_history_summary_single">%1$d snapshot prakiraan %2$s</string>
     <string name="forecast_history_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI snapshot</string>
     <string name="forecast_history_summary_climate_fill"> • %1$d titik pengisi iklim</string>
@@ -135,7 +135,7 @@
     <string name="forecast_history_no_data_fallback_source">sumber terpilih</string>
     <string name="forecast_history_prev_day">Hari sebelumnya</string>
     <string name="forecast_history_next_day">Hari berikutnya</string>
-    <string name="forecast_history_subtitle">Riwayat prakiraan</string>
+    <string name="forecast_history_subtitle">Perbandingan prakiraan</string>
     <string name="freshness_forecast_fetch_ago">Pengambilan prakiraan: %1$s yang lalu</string>
     <string name="freshness_forecast_fetch_never">Pengambilan prakiraan: belum pernah</string>
     <string name="freshness_displayed_data">Data yang ditampilkan (%1$s): diambil %2$s yang lalu</string>

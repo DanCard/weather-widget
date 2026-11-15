@@ -124,7 +124,7 @@
     <string name="refresh_policy_battery_mid">রিফ্রেশ নীতি: প্রতি ৮ ঘণ্টায় (ব্যাটারি %1$d%%)</string>
     <string name="refresh_policy_battery_low">রিফ্রেশ নীতি: স্থগিত (ব্যাটারি %1$d%%)</string>
     <string name="freshness_just_now">এইমাত্র</string>
-    <string name="forecast_history">"পূর্বাভাসের ইতিহাস: "</string>
+    <string name="forecast_history">"পূর্বাভাসের তুলনা: "</string>
     <string name="forecast_history_summary_single">%1$dটি %2$s পূর্বাভাস স্ন্যাপশট</string>
     <string name="forecast_history_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI স্ন্যাপশট</string>
     <string name="forecast_history_summary_climate_fill"> • %1$dটি জলবায়ু-পূরণ বিন্দু</string>
@@ -135,7 +135,7 @@
     <string name="forecast_history_no_data_fallback_source">নির্বাচিত উৎস</string>
     <string name="forecast_history_prev_day">আগের দিন</string>
     <string name="forecast_history_next_day">পরের দিন</string>
-    <string name="forecast_history_subtitle">পূর্বাভাসের ইতিহাস</string>
+    <string name="forecast_history_subtitle">পূর্বাভাসের তুলনা</string>
     <string name="freshness_forecast_fetch_ago">পূর্বাভাস আনা: %1$s আগে</string>
     <string name="freshness_forecast_fetch_never">পূর্বাভাস আনা: কখনো নয়</string>
     <string name="freshness_displayed_data">প্রদর্শিত ডেটা (%1$s): %2$s আগে আনা</string>

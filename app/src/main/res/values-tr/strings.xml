@@ -124,7 +124,7 @@
     <string name="refresh_policy_battery_mid">Yenileme: Her 8 sa (pil %1$d%%)</string>
     <string name="refresh_policy_battery_low">Yenileme: Duraklatıldı (pil %1$d%%)</string>
     <string name="freshness_just_now">az önce</string>
-    <string name="forecast_history">"Tahmin geçmişi: "</string>
+    <string name="forecast_history">"Tahmin karşılaştırması: "</string>
     <string name="forecast_history_summary_single">%1$d %2$s tahmin anlık görüntüsü</string>
     <string name="forecast_history_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI anlık görüntüsü</string>
     <string name="forecast_history_summary_climate_fill"> • %1$d iklim dolgu noktası</string>
@@ -135,7 +135,7 @@
     <string name="forecast_history_no_data_fallback_source">seçilen kaynak</string>
     <string name="forecast_history_prev_day">Önceki gün</string>
     <string name="forecast_history_next_day">Sonraki gün</string>
-    <string name="forecast_history_subtitle">Tahmin geçmişi</string>
+    <string name="forecast_history_subtitle">Tahmin karşılaştırması</string>
     <string name="freshness_forecast_fetch_ago">Tahmin indirme: %1$s önce</string>
     <string name="freshness_forecast_fetch_never">Tahmin indirme: hiç</string>
     <string name="freshness_displayed_data">Gösterilen veriler (%1$s): %2$s önce alındı</string>

@@ -124,7 +124,7 @@
     <string name="refresh_policy_battery_mid">Odświeżanie: co 8 godz. (bateria %1$d%%)</string>
     <string name="refresh_policy_battery_low">Odświeżanie: wstrzymane (bateria %1$d%%)</string>
     <string name="freshness_just_now">przed chwilą</string>
-    <string name="forecast_history">"Historia prognoz dla "</string>
+    <string name="forecast_history">"Porównanie prognoz dla "</string>
     <string name="forecast_history_summary_single">%1$d migawek prognoz %2$s</string>
     <string name="forecast_history_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI migawek</string>
     <string name="forecast_history_summary_climate_fill"> • %1$d punktów klimatycznych</string>
@@ -135,7 +135,7 @@
     <string name="forecast_history_no_data_fallback_source">wybrane źródło</string>
     <string name="forecast_history_prev_day">Poprzedni dzień</string>
     <string name="forecast_history_next_day">Następny dzień</string>
-    <string name="forecast_history_subtitle">Historia prognoz</string>
+    <string name="forecast_history_subtitle">Porównanie prognoz</string>
     <string name="freshness_forecast_fetch_ago">Pobranie prognozy: %1$s temu</string>
     <string name="freshness_forecast_fetch_never">Pobranie prognozy: nigdy</string>
     <string name="freshness_displayed_data">Wyświetlane dane (%1$s): pobrane %2$s temu</string>

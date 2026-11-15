@@ -144,7 +144,7 @@ internal fun ForecastHistoryWindow(
     Window(
         onCloseRequest = onClose,
         state = state,
-        title = "History of Forecasts",
+        title = "Forecast Comparison",
         onKeyEvent = { keyEvent ->
             if (keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.Escape) {
                 onClose()
@@ -313,7 +313,7 @@ private fun Header(
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "History of Forecasts",
+                "Forecast Comparison",
                 fontSize = 20.sp,
                 color = ObsStyle.textSecondary,
                 modifier = Modifier.weight(1f).padding(start = 8.dp),
@@ -338,6 +338,13 @@ private fun Content(
     val textMeasurer = rememberTextMeasurer()
     val isError = graphMode == GraphMode.ERROR
     val hasPoints = d.points.isNotEmpty()
+
+    if (d.sourceComparison.isNotEmpty()) {
+        DaySourceComparisonTable(
+            targetDate, d.sourceComparison, source, useCelsius, System.currentTimeMillis(), sourceCompareSort, onSortTap,
+        )
+        Spacer(Modifier.height(12.dp))
+    }
 
     if (!hasPoints) {
         Text("No forecast snapshots for ${source.displayName} on this day.", color = ObsStyle.textSecondary, fontSize = 13.sp)
@@ -382,13 +389,6 @@ private fun Content(
     }
     Text(freshness, color = ObsStyle.textSecondary, fontSize = 11.sp)
     Spacer(Modifier.height(12.dp))
-
-    if (d.sourceComparison.isNotEmpty()) {
-        DaySourceComparisonTable(
-            targetDate, d.sourceComparison, source, useCelsius, System.currentTimeMillis(), sourceCompareSort, onSortTap,
-        )
-        Spacer(Modifier.height(12.dp))
-    }
 
     Text("Accuracy (last 30 days)", fontWeight = FontWeight.Bold, fontSize = 14.sp)
     Spacer(Modifier.height(4.dp))

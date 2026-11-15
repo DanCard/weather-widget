@@ -124,7 +124,7 @@
     <string name="refresh_policy_battery_mid">Aktualisierung: Alle 8 Std. (Akku %1$d%%)</string>
     <string name="refresh_policy_battery_low">Aktualisierung: Pausiert (Akku %1$d%%)</string>
     <string name="freshness_just_now">gerade eben</string>
-    <string name="forecast_history">"Vorhersageverlauf für "</string>
+    <string name="forecast_history">"Vorhersagevergleich für "</string>
     <string name="forecast_history_summary_single">%1$d %2$s-Vorhersage-Schnappschüsse</string>
     <string name="forecast_history_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI Schnappschüsse</string>
     <string name="forecast_history_summary_climate_fill"> • %1$d Klima-Füllpunkte</string>
@@ -135,7 +135,7 @@
     <string name="forecast_history_no_data_fallback_source">gewählte Quelle</string>
     <string name="forecast_history_prev_day">Vorheriger Tag</string>
     <string name="forecast_history_next_day">Nächster Tag</string>
-    <string name="forecast_history_subtitle">Vorhersageverlauf</string>
+    <string name="forecast_history_subtitle">Vorhersagevergleich</string>
     <string name="freshness_forecast_fetch_ago">Vorhersage-Abruf: vor %1$s</string>
     <string name="freshness_forecast_fetch_never">Vorhersage-Abruf: nie</string>
     <string name="freshness_displayed_data">Angezeigte Daten (%1$s): vor %2$s abgerufen</string>

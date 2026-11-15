@@ -570,7 +570,7 @@ private fun HeaderButtonGlyph(
         )
         HeaderButton.HISTORY -> Icon(
             painter = painterResource("drawable/ic_forecast_history_line.xml"),
-            contentDescription = "Forecast history",
+            contentDescription = "Forecast comparison",
             tint = Color.White.copy(alpha = 0.6f),
             modifier = iconModifier,
         )

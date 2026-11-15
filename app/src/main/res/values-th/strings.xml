@@ -124,7 +124,7 @@
     <string name="refresh_policy_battery_mid">นโยบายรีเฟรช: ทุก 8 ชม. (แบตเตอรี่ %1$d%%)</string>
     <string name="refresh_policy_battery_low">นโยบายรีเฟรช: หยุดชั่วคราว (แบตเตอรี่ %1$d%%)</string>
     <string name="freshness_just_now">เมื่อสักครู่</string>
-    <string name="forecast_history">"ประวัติพยากรณ์ของ "</string>
+    <string name="forecast_history">"การเปรียบเทียบพยากรณ์สำหรับ "</string>
     <string name="forecast_history_summary_single">สแนปช็อตพยากรณ์ %2$s จำนวน %1$d รายการ</string>
     <string name="forecast_history_summary_combined">สแนปช็อต NWS %1$d + Visual Crossing %2$d + Open-Meteo %3$d + WeatherAPI %4$d รายการ</string>
     <string name="forecast_history_summary_climate_fill"> • จุดเติมข้อมูลภูมิอากาศ %1$d จุด</string>
@@ -135,7 +135,7 @@
     <string name="forecast_history_no_data_fallback_source">แหล่งข้อมูลที่เลือก</string>
     <string name="forecast_history_prev_day">วันก่อนหน้า</string>
     <string name="forecast_history_next_day">วันถัดไป</string>
-    <string name="forecast_history_subtitle">ประวัติพยากรณ์</string>
+    <string name="forecast_history_subtitle">การเปรียบเทียบพยากรณ์</string>
     <string name="freshness_forecast_fetch_ago">ดึงพยากรณ์: %1$s ที่แล้ว</string>
     <string name="freshness_forecast_fetch_never">ดึงพยากรณ์: ยังไม่เคย</string>
     <string name="freshness_displayed_data">ข้อมูลที่แสดง (%1$s): ดึงเมื่อ %2$s ที่แล้ว</string>

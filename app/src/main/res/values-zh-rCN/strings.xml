@@ -124,7 +124,7 @@
     <string name="refresh_policy_battery_mid">刷新策略：每 8 小时（电量 %1$d%%）</string>
     <string name="refresh_policy_battery_low">刷新策略：已暂停（电量 %1$d%%）</string>
     <string name="freshness_just_now">刚刚</string>
-    <string name="forecast_history">"预报历史："</string>
+    <string name="forecast_history">"预报对比："</string>
     <string name="forecast_history_summary_single">%1$d 个 %2$s 预报快照</string>
     <string name="forecast_history_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI 快照</string>
     <string name="forecast_history_summary_climate_fill"> • %1$d 个气候填充点</string>
@@ -135,7 +135,7 @@
     <string name="forecast_history_no_data_fallback_source">所选数据源</string>
     <string name="forecast_history_prev_day">前一天</string>
     <string name="forecast_history_next_day">后一天</string>
-    <string name="forecast_history_subtitle">预报历史</string>
+    <string name="forecast_history_subtitle">预报对比</string>
     <string name="freshness_forecast_fetch_ago">预报获取：%1$s前</string>
     <string name="freshness_forecast_fetch_never">预报获取：从未</string>
     <string name="freshness_displayed_data">显示的数据（%1$s）：%2$s前获取</string>

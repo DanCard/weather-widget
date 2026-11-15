@@ -124,7 +124,7 @@
     <string name="refresh_policy_battery_mid">Оновлення: кожні 8 год (батарея %1$d%%)</string>
     <string name="refresh_policy_battery_low">Оновлення: призупинено (батарея %1$d%%)</string>
     <string name="freshness_just_now">щойно</string>
-    <string name="forecast_history">"Історія прогнозів для "</string>
+    <string name="forecast_history">"Порівняння прогнозів для "</string>
     <string name="forecast_history_summary_single">%1$d знімків прогнозу %2$s</string>
     <string name="forecast_history_summary_combined">Знімки: %1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI</string>
     <string name="forecast_history_summary_climate_fill">" • %1$d кліматичних точок"</string>
@@ -135,7 +135,7 @@
     <string name="forecast_history_no_data_fallback_source">вибране джерело</string>
     <string name="forecast_history_prev_day">Попередній день</string>
     <string name="forecast_history_next_day">Наступний день</string>
-    <string name="forecast_history_subtitle">Історія прогнозів</string>
+    <string name="forecast_history_subtitle">Порівняння прогнозів</string>
     <string name="freshness_forecast_fetch_ago">Отримання прогнозу: %1$s тому</string>
     <string name="freshness_forecast_fetch_never">Отримання прогнозу: ніколи</string>
     <string name="freshness_displayed_data">Показані дані (%1$s): отримано %2$s тому</string>

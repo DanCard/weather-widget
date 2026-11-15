@@ -124,7 +124,7 @@
     <string name="refresh_policy_battery_mid">ریفریش پالیسی: ہر 8 گھنٹے (بیٹری %1$d%%)</string>
     <string name="refresh_policy_battery_low">ریفریش پالیسی: موقوف (بیٹری %1$d%%)</string>
     <string name="freshness_just_now">ابھی ابھی</string>
-    <string name="forecast_history">"پیشن گوئیوں کی تاریخ: "</string>
+    <string name="forecast_history">"پیش گوئی کا موازنہ: "</string>
     <string name="forecast_history_summary_single">%1$d %2$s پیشن گوئی سنیپ شاٹس</string>
     <string name="forecast_history_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI سنیپ شاٹس</string>
     <string name="forecast_history_summary_climate_fill"> • %1$d آب و ہوا بھرائی پوائنٹس</string>
@@ -135,7 +135,7 @@
     <string name="forecast_history_no_data_fallback_source">منتخب ماخذ</string>
     <string name="forecast_history_prev_day">پچھلا دن</string>
     <string name="forecast_history_next_day">اگلا دن</string>
-    <string name="forecast_history_subtitle">پیشن گوئیوں کی تاریخ</string>
+    <string name="forecast_history_subtitle">پیش گوئی کا موازنہ</string>
     <string name="freshness_forecast_fetch_ago">پیشن گوئی ڈاؤن لوڈ: %1$s پہلے</string>
     <string name="freshness_forecast_fetch_never">پیشن گوئی ڈاؤن لوڈ: کبھی نہیں</string>
     <string name="freshness_displayed_data">دکھایا گیا ڈیٹا (%1$s): %2$s پہلے حاصل ہوا</string>

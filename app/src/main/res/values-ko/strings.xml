@@ -124,7 +124,7 @@
     <string name="refresh_policy_battery_mid">새로고침 정책: 8시간마다 (배터리 %1$d%%)</string>
     <string name="refresh_policy_battery_low">새로고침 정책: 일시중지 (배터리 %1$d%%)</string>
     <string name="freshness_just_now">방금 전</string>
-    <string name="forecast_history">"예보 기록: "</string>
+    <string name="forecast_history">"예보 비교: "</string>
     <string name="forecast_history_summary_single">%2$s 예보 스냅샷 %1$d개</string>
     <string name="forecast_history_summary_combined">NWS %1$d개 + Visual Crossing %2$d개 + Open-Meteo %3$d개 + WeatherAPI %4$d개 스냅샷</string>
     <string name="forecast_history_summary_climate_fill"> • 기후 보완 포인트 %1$d개</string>
@@ -135,7 +135,7 @@
     <string name="forecast_history_no_data_fallback_source">선택한 소스</string>
     <string name="forecast_history_prev_day">전날</string>
     <string name="forecast_history_next_day">다음 날</string>
-    <string name="forecast_history_subtitle">예보 기록</string>
+    <string name="forecast_history_subtitle">예보 비교</string>
     <string name="freshness_forecast_fetch_ago">예보 가져오기: %1$s 전</string>
     <string name="freshness_forecast_fetch_never">예보 가져오기: 없음</string>
     <string name="freshness_displayed_data">표시된 데이터 (%1$s): %2$s 전에 가져옴</string>
