@@ -1,0 +1,1 @@
+Improve night rain label placement over graph curves and bars, and count isolated fog reports only while active.
