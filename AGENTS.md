@@ -81,6 +81,7 @@ Use Java 21 and plain `./gradlew` commands:
 ./scripts/emulator-tests.sh             # instrumented tests on connected emulators
 ./scripts/staggered-tests.sh            # full JVM + emulator gate
 ./scripts/staggered-tests.sh --install  # install only after the gate passes
+./scripts/staggered-tests.sh --install && ./scripts/buildStart-desktop.sh  # end-of-task cross-platform gate + deploy
 ```
 
 Prefer pure JVM tests, Robolectric for Android dependencies, and instrumented tests only for real

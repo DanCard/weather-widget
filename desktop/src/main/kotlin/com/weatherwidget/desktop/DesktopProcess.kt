@@ -331,7 +331,7 @@ class DesktopClients(private val weatherDao: com.weatherwidget.data.local.deskto
         install(HttpTimeout) {
             requestTimeoutMillis = 30_000
             connectTimeoutMillis = 10_000
-            socketTimeoutMillis = 30_000
+            socketTimeoutMillis = 15_000
         }
         install(HttpRequestRetry) {
             maxRetries = 2

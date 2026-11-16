@@ -9,6 +9,9 @@ import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import io.ktor.client.*
 import io.ktor.client.call.*
+import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.plugins.pluginOrNull
+import io.ktor.client.plugins.timeout
 import io.ktor.client.request.*
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
@@ -32,6 +35,16 @@ class OpenMeteoApi
             private const val BASE_URL = "https://api.open-meteo.com/v1"
             private const val ARCHIVE_URL = "https://archive-api.open-meteo.com/v1"
             private const val PREVIOUS_RUNS_URL = "https://previous-runs-api.open-meteo.com/v1"
+
+            /**
+             * Per-request timeouts for short-window Open-Meteo endpoints. Keeping
+             * [FORECAST_SOCKET_TIMEOUT_MS] below [FORECAST_REQUEST_TIMEOUT_MS] lets Ktor's
+             * `HttpRequestRetry` immediately retry a stalled socket within the 15 s budget
+             * instead of burning the whole request timeout on a single hung attempt.
+             */
+            const val FORECAST_CONNECT_TIMEOUT_MS = 5_000L
+            const val FORECAST_SOCKET_TIMEOUT_MS = 6_000L
+            const val FORECAST_REQUEST_TIMEOUT_MS = 15_000L
 
             /** Verified: `past_days=31` returns the full span with `_previous_day1` fully populated. */
             const val MAX_PREVIOUS_RUNS_PAST_DAYS = 31
@@ -147,6 +160,16 @@ class OpenMeteoApi
 
         }
 
+        private fun HttpRequestBuilder.applyForecastTimeout() {
+            if (httpClient.pluginOrNull(HttpTimeout) != null) {
+                timeout {
+                    connectTimeoutMillis = FORECAST_CONNECT_TIMEOUT_MS
+                    socketTimeoutMillis = FORECAST_SOCKET_TIMEOUT_MS
+                    requestTimeoutMillis = FORECAST_REQUEST_TIMEOUT_MS
+                }
+            }
+        }
+
         /**
          * [parts]: [ForecastParts.DAILY] drops `hourly=`, [ForecastParts.HOURLY] drops `daily=`.
          * `current` and `minutely_15` are always asked: they are not the hourly forecast — they feed
@@ -178,6 +201,7 @@ class OpenMeteoApi
                     parameter("timezone", "auto")
                     parameter("past_days", historyDays) // Optional archived model-output window
                     parameter("forecast_days", days)
+                    applyForecastTimeout()
                 }.body()
 
             Log.d(TAG, "getForecast: Raw response length=${response.length}")
@@ -336,6 +360,7 @@ class OpenMeteoApi
                     parameter("temperature_unit", "fahrenheit")
                     parameter("timezone", "auto")
                     parameter("forecast_days", 1)
+                    applyForecastTimeout()
                 }.body()
 
             val jsonObj = json.parseToJsonElement(response).jsonObject
@@ -404,6 +429,7 @@ class OpenMeteoApi
                     parameter("past_days", pastDays.coerceIn(1, MAX_PREVIOUS_RUNS_PAST_DAYS))
                     parameter("forecast_days", 1)
                     parameter("timezone", "auto")
+                    applyForecastTimeout()
                 }.body()
 
             return Companion.parsePriorDayCloudForecast(response, nowMs)

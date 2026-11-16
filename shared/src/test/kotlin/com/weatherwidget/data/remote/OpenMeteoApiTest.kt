@@ -2,6 +2,9 @@ package com.weatherwidget.data.remote
 
 import io.ktor.client.*
 import io.ktor.client.engine.mock.*
+import io.ktor.client.network.sockets.SocketTimeoutException
+import io.ktor.client.plugins.HttpRequestRetry
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
 import io.ktor.http.*
@@ -364,5 +367,88 @@ class OpenMeteoApiTest {
                 OpenMeteoApi(createMockClient("""{"current": {"time": "2026-03-02T14:15", "weather_code": 3}}"""), json)
                     .getCurrent(37.0, -122.0),
             )
+        }
+
+    @Test
+    fun `short-window endpoints override HttpTimeout while historical archive keeps client default`() =
+        runTest {
+            val captured = mutableListOf<HttpRequestData>()
+            val client = HttpClient(MockEngine) {
+                engine {
+                    addHandler { request ->
+                        captured += request
+                        respond(
+                            content = """{"timezone":"UTC","daily":{"time":["2026-06-20"],"temperature_2m_max":[70.0],"temperature_2m_min":[50.0],"weather_code":[0]},"current":{"time":"2026-06-20T12:00","temperature_2m":65.0,"weather_code":0},"hourly":{"time":["2026-06-20T12:00"],"cloud_cover_previous_day1":[25]}}""",
+                            status = HttpStatusCode.OK,
+                            headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                        )
+                    }
+                }
+                install(ContentNegotiation) { json(json) }
+                install(HttpTimeout) {
+                    requestTimeoutMillis = 30_000
+                    connectTimeoutMillis = 10_000
+                    socketTimeoutMillis = 15_000
+                }
+            }
+            val api = OpenMeteoApi(client, json)
+
+            api.getForecast(37.0, -122.0)
+            api.getCurrent(37.0, -122.0)
+            api.getPriorDayCloudForecast(37.0, -122.0, pastDays = 1, nowMs = Long.MAX_VALUE)
+            api.getHistoricalDailyTemps(37.0, -122.0, "2025-01-01", "2025-01-02")
+
+            assertEquals(4, captured.size)
+            for (i in 0..2) {
+                val cfg = captured[i].getCapabilityOrNull(HttpTimeout)!!
+                assertEquals(OpenMeteoApi.FORECAST_CONNECT_TIMEOUT_MS, cfg.connectTimeoutMillis)
+                assertEquals(OpenMeteoApi.FORECAST_SOCKET_TIMEOUT_MS, cfg.socketTimeoutMillis)
+                assertEquals(OpenMeteoApi.FORECAST_REQUEST_TIMEOUT_MS, cfg.requestTimeoutMillis)
+            }
+            val archiveCfg = captured[3].getCapabilityOrNull(HttpTimeout)!!
+            assertEquals(30_000L, archiveCfg.requestTimeoutMillis)
+            assertEquals(15_000L, archiveCfg.socketTimeoutMillis)
+        }
+
+    @Test
+    fun `stalled socket retries immediately and succeeds on second attempt`() =
+        runTest {
+            var attempts = 0
+            val client = HttpClient(MockEngine) {
+                engine {
+                    addHandler {
+                        attempts++
+                        if (attempts == 1) {
+                            throw SocketTimeoutException("stalled socket")
+                        }
+                        respond(
+                            content = """{"daily":{"time":["2026-06-20"],"temperature_2m_max":[70.0],"temperature_2m_min":[50.0],"weather_code":[0]}}""",
+                            status = HttpStatusCode.OK,
+                            headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                        )
+                    }
+                }
+                install(ContentNegotiation) { json(json) }
+                install(HttpTimeout) {
+                    requestTimeoutMillis = 30_000
+                    connectTimeoutMillis = 10_000
+                    socketTimeoutMillis = 15_000
+                }
+                install(HttpRequestRetry) {
+                    maxRetries = 2
+                    retryOnExceptionIf { _, cause ->
+                        cause is io.ktor.client.network.sockets.ConnectTimeoutException ||
+                            cause is SocketTimeoutException ||
+                            cause is io.ktor.client.plugins.HttpRequestTimeoutException ||
+                            cause is java.io.IOException
+                    }
+                    constantDelay(1)
+                }
+            }
+
+            val result = OpenMeteoApi(client, json).getForecast(37.0, -122.0)
+
+            assertEquals(2, attempts)
+            assertEquals(1, result.daily.size)
         }
 }
