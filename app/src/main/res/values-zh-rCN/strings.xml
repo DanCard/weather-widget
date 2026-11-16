@@ -180,6 +180,9 @@
     <string name="gallery_icon_slight_rain">小概率有雨</string>
     <string name="gallery_icon_snow">雪</string>
     <string name="gallery_icon_storm">雷暴</string>
+    <string name="gallery_icon_rain_now_light">正在下毛毛雨</string>
+    <string name="gallery_icon_rain_now">正在下雨</string>
+    <string name="gallery_icon_rain_now_heavy">正在下大雨</string>
     <string name="gallery_icon_cloudy">阴天</string>
     <string name="gallery_icon_clear">晴朗</string>
     <string name="gallery_icon_mostly_clear">大部晴朗</string>

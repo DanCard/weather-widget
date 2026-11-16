@@ -168,6 +168,21 @@ desktop's header sits above the canvas). Both shrink (`1.0/0.8/0.6`) and are omi
 fits; the actuals-source annotation also tries two lines before it is omitted
 (`DominantStationLabel.placeWrapped`).
 
+The header icon is the displayed source's forecast hour (`HeaderConditionIcon`), except while rain is
+falling now: then it is blue dots only, no cloud, sized by intensity (`ic_weather_rain_now_light` /
+`ic_weather_rain_now` / `ic_weather_rain_now_heavy`; `plans/261115-header-rain-now-dots.md`). The shared
+`RainNow` rule takes the strongest of three inputs:
+
+- the nearest official station's newest report (NWS, METAR or Synoptic rows only, ≤ 25 km, ≤ 75 min;
+  raw METAR present weather, `VC*` ignored);
+- the NOAA radar mosaic pixel at the site (`RadarNowSampler`, NWS coverage only, ≤ 25 min old), read
+  by colour family: blue → sprinkling, green → raining, red ≥ 150 → heavy;
+- Tomorrow.io's 5-minute history (≤ 30 min), only while Tomorrow.io is the displayed source.
+
+`HeaderContent.build` takes the level as a required `rainNow`; Android resolves it per render in
+`AndroidRainNow` (Room rows plus the radar sample in prefs), desktop in `desktopRainNow` (the snapshot's
+rows plus the daemon's `~/.cache/weather-widget/radar-now.txt`). `RAIN_NOW` logs each change of level.
+
 The daily view's morning fog is a see-through ellipse over each bar's cold end, wider than the bar and
 under the labels (`plans/261111-daily-bar-morning-fog.md`). `DailyColumnBuilder` resolves it through
 `DailyMorningFog`, one rule for every column:

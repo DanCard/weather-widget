@@ -249,14 +249,14 @@ internal fun runDesktopUiApplication() = application {
 
         val weatherService = remember(currentConfig?.lat, currentConfig?.lon, currentConfig?.settings?.weatherSource, currentConfig?.settings?.apiKeys, currentConfig?.personalStationWeight()) {
             currentConfig?.let {
-                DesktopWeatherService(it.lat, it.lon, it.displaySource, it.settings.apiKeys, weatherDao, isForeground = true, synopticBackoffStore = DesktopSynopticBackoffStore.default(), nowcastStore = DesktopNowcast.store, personalStationWeight = it.personalStationWeight())
+                DesktopWeatherService(it.lat, it.lon, it.displaySource, it.settings.apiKeys, weatherDao, isForeground = true, synopticBackoffStore = DesktopSynopticBackoffStore.default(), nowcastStore = DesktopNowcast.store, radarNowStore = DesktopRadarNow.store, personalStationWeight = it.personalStationWeight())
             }
         }
         val repository = remember(weatherService, currentConfig?.lat, currentConfig?.lon, currentConfig?.settings?.weatherSource, currentConfig?.settings?.personalStationDiscount) {
             val service = weatherService
             currentConfig?.let { cfg ->
                 service?.let {
-                    DesktopWeatherRepository(it, weatherDao, cfg.lat, cfg.lon, cfg.displaySource, cfg.personalStationWeight())
+                    DesktopWeatherRepository(it, weatherDao, cfg.lat, cfg.lon, cfg.displaySource, cfg.personalStationWeight(), radarNowSampler = it.radarNowSampler)
                 }
             }
         }

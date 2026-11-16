@@ -180,6 +180,9 @@
     <string name="gallery_icon_slight_rain">Невелика ймовірність дощу</string>
     <string name="gallery_icon_snow">Сніг</string>
     <string name="gallery_icon_storm">Гроза</string>
+    <string name="gallery_icon_rain_now_light">Зараз мряка</string>
+    <string name="gallery_icon_rain_now">Зараз дощ</string>
+    <string name="gallery_icon_rain_now_heavy">Зараз злива</string>
     <string name="gallery_icon_cloudy">Хмарно</string>
     <string name="gallery_icon_clear">Ясно/Сонячно</string>
     <string name="gallery_icon_mostly_clear">Переважно ясно</string>

@@ -53,6 +53,8 @@ class CurrentTempRepository
         private val observationRepository: ObservationRepository,
         private val tomorrowIoApi: TomorrowIoApi? = null,
         private val openWeatherMapApi: OpenWeatherMapApi? = null,
+        /** The header's rain-now radar input, sampled once per run (plans/261115-header-rain-now-dots.md). */
+        private val radarNowSampler: com.weatherwidget.shared.observations.RadarNowSampler? = null,
     ) {
         /** The model feeds' current conditions, shared with desktop (plans/261013-shared-current-conditions-fetch.md). */
         private val currentConditions = CurrentConditionsFetcher.of(openMeteoApi, weatherApi, openWeatherMapApi, tomorrowIoApi)
@@ -78,6 +80,7 @@ class CurrentTempRepository
                 },
                 errorCode = ::extractCurrentErrorCode,
             ),
+            radarNow = radarNowSampler,
         )
 
         suspend fun refreshCurrentTemperature(

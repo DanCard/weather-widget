@@ -180,6 +180,9 @@
     <string name="gallery_icon_slight_rain">بارش کا معمولی امکان</string>
     <string name="gallery_icon_snow">برف باری</string>
     <string name="gallery_icon_storm">طوفان</string>
+    <string name="gallery_icon_rain_now_light">ابھی بوندا باندی</string>
+    <string name="gallery_icon_rain_now">ابھی بارش</string>
+    <string name="gallery_icon_rain_now_heavy">ابھی تیز بارش</string>
     <string name="gallery_icon_cloudy">ابر آلود</string>
     <string name="gallery_icon_clear">صاف/دھوپ</string>
     <string name="gallery_icon_mostly_clear">زیادہ تر صاف</string>

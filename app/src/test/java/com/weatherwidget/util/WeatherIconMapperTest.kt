@@ -507,4 +507,12 @@ class WeatherIconMapperTest {
         val res = WeatherIconMapper.getIconResource("Overcast", isNight = true)
         assertEquals(R.drawable.ic_weather_cloudy, res)
     }
+
+    /** plans/261115-header-rain-now-dots.md: the header's rain-now dots. */
+    @Test
+    fun rainNowIconsMapToTheirDrawables() {
+        assertEquals(R.drawable.ic_weather_rain_now_light, WeatherIconMapper.fromIconName(com.weatherwidget.shared.util.WeatherConditionResolver.IC_RAIN_NOW_LIGHT))
+        assertEquals(R.drawable.ic_weather_rain_now, WeatherIconMapper.fromIconName(com.weatherwidget.shared.util.WeatherConditionResolver.IC_RAIN_NOW))
+        assertEquals(R.drawable.ic_weather_rain_now_heavy, WeatherIconMapper.fromIconName(com.weatherwidget.shared.util.WeatherConditionResolver.IC_RAIN_NOW_HEAVY))
+    }
 }

@@ -180,6 +180,9 @@
     <string name="gallery_icon_slight_rain">Ligera posibilidad de lluvia</string>
     <string name="gallery_icon_snow">Nieve</string>
     <string name="gallery_icon_storm">Tormenta</string>
+    <string name="gallery_icon_rain_now_light">Lloviznando ahora</string>
+    <string name="gallery_icon_rain_now">Lloviendo ahora</string>
+    <string name="gallery_icon_rain_now_heavy">Lluvia fuerte ahora</string>
     <string name="gallery_icon_cloudy">Nublado</string>
     <string name="gallery_icon_clear">Despejado/Soleado</string>
     <string name="gallery_icon_mostly_clear">Mayormente despejado</string>

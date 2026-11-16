@@ -2,6 +2,7 @@ package com.weatherwidget.shared.util
 
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.observations.RainNow
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -73,6 +74,11 @@ object HeaderContent {
         lon: Double,
         useCelsius: Boolean,
         widthDp: Int,
+        /**
+         * Rain falling now ([RainNow.resolve]): the icon becomes the rain-now dots in every view.
+         * Required, so a header that forgets it does not compile.
+         */
+        rainNow: RainNow.Level?,
         /** Rows for the icon when they differ from [hourly] (Android's current-temp series). */
         iconHourly: List<HourlyForecast> = hourly,
         /**
@@ -85,7 +91,7 @@ object HeaderContent {
         val precip = precipitation(view, hourly, displaySourceId, fallbackDailyPrecip, now, centerTime)
         val precipText = precip.probability?.let { "$it%" }
         return Content(
-            iconName = iconName(view, iconHourly, displaySourceId, dailyFallback, now, lat, lon, zone),
+            iconName = rainNowIcon(rainNow) ?: iconName(view, iconHourly, displaySourceId, dailyFallback, now, lat, lon, zone),
             tempText = currentTemp?.let {
                 CurrentTemperatureResolver.formatDisplayTemperature(it, numColumns, isStaleEstimate, useCelsius)
             },
@@ -175,6 +181,14 @@ object HeaderContent {
             latitude = lat,
             longitude = lon,
         )
+    }
+
+    /** The rain-now dots for [level]; null when it is not raining now (the forecast icon applies). */
+    fun rainNowIcon(level: RainNow.Level?): String? = when (level) {
+        null -> null
+        RainNow.Level.SPRINKLING -> WeatherConditionResolver.IC_RAIN_NOW_LIGHT
+        RainNow.Level.RAINING -> WeatherConditionResolver.IC_RAIN_NOW
+        RainNow.Level.HEAVY -> WeatherConditionResolver.IC_RAIN_NOW_HEAVY
     }
 
     /** Shown in the daily and temperature headers only; the precip and cloud views have no delta. */

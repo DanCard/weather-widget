@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Raining now: 10 dots (10). Rain falling now, header only: blue dots, no cloud (plans/261115-header-rain-now-dots.md, option E). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#2E9BF0"
+        android:pathData="M3.1,4a1.9,1.9 0 1,0 3.8,0a1.9,1.9 0 1,0 -3.8,0zM10.6,4a1.9,1.9 0 1,0 3.8,0a1.9,1.9 0 1,0 -3.8,0zM18.1,4a1.9,1.9 0 1,0 3.8,0a1.9,1.9 0 1,0 -3.8,0zM6.6,10a1.9,1.9 0 1,0 3.8,0a1.9,1.9 0 1,0 -3.8,0zM14.1,10a1.9,1.9 0 1,0 3.8,0a1.9,1.9 0 1,0 -3.8,0zM3.1,16a1.9,1.9 0 1,0 3.8,0a1.9,1.9 0 1,0 -3.8,0zM10.6,16a1.9,1.9 0 1,0 3.8,0a1.9,1.9 0 1,0 -3.8,0zM18.1,16a1.9,1.9 0 1,0 3.8,0a1.9,1.9 0 1,0 -3.8,0zM6.6,22a1.9,1.9 0 1,0 3.8,0a1.9,1.9 0 1,0 -3.8,0zM14.1,22a1.9,1.9 0 1,0 3.8,0a1.9,1.9 0 1,0 -3.8,0z"/>
+</vector>

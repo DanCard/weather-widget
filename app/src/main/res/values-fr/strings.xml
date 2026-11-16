@@ -180,6 +180,9 @@
     <string name="gallery_icon_slight_rain">Faible risque de pluie</string>
     <string name="gallery_icon_snow">Neige</string>
     <string name="gallery_icon_storm">Orage</string>
+    <string name="gallery_icon_rain_now_light">Bruine en cours</string>
+    <string name="gallery_icon_rain_now">Pluie en cours</string>
+    <string name="gallery_icon_rain_now_heavy">Forte pluie en cours</string>
     <string name="gallery_icon_cloudy">Nuageux</string>
     <string name="gallery_icon_clear">Dégagé/Ensoleillé</string>
     <string name="gallery_icon_mostly_clear">Plutôt dégagé</string>

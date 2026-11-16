@@ -180,6 +180,9 @@
     <string name="gallery_icon_slight_rain">Niewielka szansa na deszcz</string>
     <string name="gallery_icon_snow">Śnieg</string>
     <string name="gallery_icon_storm">Burza</string>
+    <string name="gallery_icon_rain_now_light">Teraz mży</string>
+    <string name="gallery_icon_rain_now">Teraz pada</string>
+    <string name="gallery_icon_rain_now_heavy">Teraz ulewa</string>
     <string name="gallery_icon_cloudy">Pochmurno</string>
     <string name="gallery_icon_clear">Bezchmurnie/Słonecznie</string>
     <string name="gallery_icon_mostly_clear">Przeważnie bezchmurnie</string>

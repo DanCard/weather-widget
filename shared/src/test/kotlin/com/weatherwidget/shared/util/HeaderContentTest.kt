@@ -38,6 +38,7 @@ class HeaderContentTest {
         centerTime: LocalDateTime = now,
         fallbackDailyPrecip: Int? = null,
         delta: Float? = 2.9f,
+        rainNow: com.weatherwidget.shared.observations.RainNow.Level? = null,
     ) = HeaderContent.build(
         view = view,
         hourly = hourly,
@@ -54,6 +55,7 @@ class HeaderContentTest {
         lon = lon,
         useCelsius = false,
         widthDp = 400,
+        rainNow = rainNow,
     )
 
     @Test
@@ -75,6 +77,7 @@ class HeaderContentTest {
             lon = lon,
             useCelsius = false,
             widthDp = 400,
+            rainNow = null,
             labelSourceId = labelSourceId,
         )
 
@@ -178,11 +181,31 @@ class HeaderContentTest {
                     view = view, hourly = hourly, displaySourceId = source, dailyFallback = null,
                     fallbackDailyPrecip = null, currentTemp = 62.7f, isStaleEstimate = false, numColumns = 5,
                     deltaFromYesterday = 2.9f, now = now, centerTime = now, lat = lat, lon = lon,
-                    useCelsius = false, widthDp = 400,
+                    useCelsius = false, widthDp = 400, rainNow = null,
                 )
                 assertEquals("$view $source", HeaderContent.PrecipLabel(shown.precipText!!, shown.precipFontScale!!), labels[source])
             }
             assertNull("$view dry source", labels["SILURIAN"])
+        }
+    }
+
+    /** plans/261115-header-rain-now-dots.md: rain falling now draws blue dots in every view, over a clear forecast. */
+    @Test
+    fun rainNowDotsReplaceTheForecastIconInEveryView() {
+        val now = LocalDateTime.of(2026, 6, 1, 13, 0)
+        val hourly = (12..20).map { row(now.withHour(it), precip = 0, condition = "Clear", cloud = 0, source = "NWS") }
+        val levels = mapOf(
+            com.weatherwidget.shared.observations.RainNow.Level.SPRINKLING to WeatherConditionResolver.IC_RAIN_NOW_LIGHT,
+            com.weatherwidget.shared.observations.RainNow.Level.RAINING to WeatherConditionResolver.IC_RAIN_NOW,
+            com.weatherwidget.shared.observations.RainNow.Level.HEAVY to WeatherConditionResolver.IC_RAIN_NOW_HEAVY,
+        )
+        for (view in View.entries) {
+            val forecastIcon = build(view, hourly, now).iconName
+            println("view=$view forecastIcon=$forecastIcon")
+            assertEquals("$view without rain keeps the forecast icon", WeatherConditionResolver.IC_CLEAR, forecastIcon)
+            for ((level, icon) in levels) {
+                assertEquals("$view $level", icon, build(view, hourly, now, rainNow = level).iconName)
+            }
         }
     }
 }

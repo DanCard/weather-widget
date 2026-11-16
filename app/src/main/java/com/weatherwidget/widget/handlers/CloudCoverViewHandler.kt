@@ -279,6 +279,7 @@ object CloudCoverViewHandler {
             lon = lon,
             useCelsius = stateManager.useCelsius(),
             widthDp = dimensions.widthDp,
+            rainNow = com.weatherwidget.widget.AndroidRainNow.level(context, lat, lon, effectiveDisplaySource, where = "cloud"),
         )
         val iconRes = content.iconName?.let(WeatherIconMapper::fromIconName) ?: 0
         val sourceIndicator = content.sourceLabel

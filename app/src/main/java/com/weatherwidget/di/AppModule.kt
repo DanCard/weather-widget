@@ -337,9 +337,14 @@ object AppModule {
         tomorrowIoApi: TomorrowIoApi,
         openWeatherMapApi: OpenWeatherMapApi,
         googleWeatherApi: GoogleWeatherApi,
+        httpClient: HttpClient,
     ): CurrentTempRepository = CurrentTempRepository(
         context, observationDao, appLogDao,
         nwsApi, openMeteoApi, weatherApi, widgetStateManager, dailyHistoryDao, observationRepository, tomorrowIoApi, openWeatherMapApi,
+        radarNowSampler = com.weatherwidget.shared.observations.RadarNowSampler(
+            httpClient,
+            com.weatherwidget.data.repository.AndroidRadarNowStore(context),
+        ),
     )
 
     @Provides

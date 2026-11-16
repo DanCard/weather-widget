@@ -180,6 +180,9 @@
     <string name="gallery_icon_slight_rain">โอกาสฝนตกเล็กน้อย</string>
     <string name="gallery_icon_snow">หิมะ</string>
     <string name="gallery_icon_storm">พายุฝนฟ้าคะนอง</string>
+    <string name="gallery_icon_rain_now_light">ฝนปรอยตอนนี้</string>
+    <string name="gallery_icon_rain_now">ฝนตกตอนนี้</string>
+    <string name="gallery_icon_rain_now_heavy">ฝนตกหนักตอนนี้</string>
     <string name="gallery_icon_cloudy">เมฆมาก</string>
     <string name="gallery_icon_clear">ท้องฟ้าแจ่มใส/แดดจัด</string>
     <string name="gallery_icon_mostly_clear">ส่วนใหญ่แจ่มใส</string>

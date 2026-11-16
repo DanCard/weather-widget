@@ -64,6 +64,8 @@ internal object DailyHeaderResolver {
         deltaFromYesterday: Float?,
         dateOffset: Int,
         skipYesterday: Boolean,
+        /** Rain falling now ([com.weatherwidget.widget.AndroidRainNow]): the icon becomes blue dots. */
+        rainNow: com.weatherwidget.shared.observations.RainNow.Level?,
         /** What every visible source would show now ([HeaderWidthChecker.lineInputs]); null: fixed line. */
         line: com.weatherwidget.shared.util.HeaderLine.Inputs? = null,
     ): HeaderResolution {
@@ -88,6 +90,7 @@ internal object DailyHeaderResolver {
             deltaFromYesterday = deltaFromYesterday,
             dateOffset = dateOffset,
             skipYesterday = skipYesterday,
+            rainNow = rainNow,
             line = line,
         )
         bind(
@@ -123,6 +126,8 @@ internal object DailyHeaderResolver {
         deltaFromYesterday: Float?,
         dateOffset: Int,
         skipYesterday: Boolean,
+        /** Rain falling now ([com.weatherwidget.widget.AndroidRainNow]): the icon becomes blue dots. */
+        rainNow: com.weatherwidget.shared.observations.RainNow.Level?,
         /** What every visible source would show now ([HeaderWidthChecker.lineInputs]); null: fixed line. */
         line: com.weatherwidget.shared.util.HeaderLine.Inputs? = null,
     ): HeaderResolution {
@@ -156,6 +161,7 @@ internal object DailyHeaderResolver {
             lon = lon,
             useCelsius = stateManager.useCelsius(),
             widthDp = dimensions.widthDp,
+            rainNow = rainNow,
         )
         val iconRes = WeatherIconMapper.fromIconName(content.iconName ?: WeatherConditionResolver.IC_UNKNOWN)
         val formattedTemp = content.tempText

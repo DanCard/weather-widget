@@ -180,6 +180,9 @@
     <string name="gallery_icon_slight_rain">Sedikit kemungkinan hujan</string>
     <string name="gallery_icon_snow">Salju</string>
     <string name="gallery_icon_storm">Badai</string>
+    <string name="gallery_icon_rain_now_light">Gerimis sekarang</string>
+    <string name="gallery_icon_rain_now">Hujan sekarang</string>
+    <string name="gallery_icon_rain_now_heavy">Hujan lebat sekarang</string>
     <string name="gallery_icon_cloudy">Berawan</string>
     <string name="gallery_icon_clear">Cerah</string>
     <string name="gallery_icon_mostly_clear">Sebagian besar cerah</string>

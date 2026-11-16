@@ -185,6 +185,9 @@
     <string name="gallery_icon_slight_rain">Slight Chance Rain</string>
     <string name="gallery_icon_snow">Snow</string>
     <string name="gallery_icon_storm">Storm</string>
+    <string name="gallery_icon_rain_now_light">Sprinkling Now</string>
+    <string name="gallery_icon_rain_now">Raining Now</string>
+    <string name="gallery_icon_rain_now_heavy">Heavy Rain Now</string>
     <string name="gallery_icon_cloudy">Cloudy</string>
     <string name="gallery_icon_clear">Clear/Sunny</string>
     <string name="gallery_icon_mostly_clear">Mostly Clear</string>

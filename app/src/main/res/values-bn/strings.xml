@@ -180,6 +180,9 @@
     <string name="gallery_icon_slight_rain">সামান্য বৃষ্টির সম্ভাবনা</string>
     <string name="gallery_icon_snow">তুষার</string>
     <string name="gallery_icon_storm">ঝড়</string>
+    <string name="gallery_icon_rain_now_light">এখন গুঁড়ি গুঁড়ি বৃষ্টি</string>
+    <string name="gallery_icon_rain_now">এখন বৃষ্টি হচ্ছে</string>
+    <string name="gallery_icon_rain_now_heavy">এখন ভারী বৃষ্টি</string>
     <string name="gallery_icon_cloudy">মেঘলা</string>
     <string name="gallery_icon_clear">পরিষ্কার/রৌদ্রোজ্জ্বল</string>
     <string name="gallery_icon_mostly_clear">বেশিরভাগ পরিষ্কার</string>

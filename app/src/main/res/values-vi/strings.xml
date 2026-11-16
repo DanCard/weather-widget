@@ -180,6 +180,9 @@
     <string name="gallery_icon_slight_rain">Khả năng mưa thấp</string>
     <string name="gallery_icon_snow">Tuyết</string>
     <string name="gallery_icon_storm">Dông</string>
+    <string name="gallery_icon_rain_now_light">Đang mưa phùn</string>
+    <string name="gallery_icon_rain_now">Đang mưa</string>
+    <string name="gallery_icon_rain_now_heavy">Đang mưa to</string>
     <string name="gallery_icon_cloudy">Nhiều mây</string>
     <string name="gallery_icon_clear">Quang đãng/Nắng</string>
     <string name="gallery_icon_mostly_clear">Chủ yếu quang đãng</string>

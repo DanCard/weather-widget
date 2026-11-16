@@ -180,6 +180,9 @@
     <string name="gallery_icon_slight_rain">वर्षा की हल्की संभावना</string>
     <string name="gallery_icon_snow">हिमपात</string>
     <string name="gallery_icon_storm">आँधी-तूफ़ान</string>
+    <string name="gallery_icon_rain_now_light">अभी बूँदाबाँदी</string>
+    <string name="gallery_icon_rain_now">अभी बारिश</string>
+    <string name="gallery_icon_rain_now_heavy">अभी भारी बारिश</string>
     <string name="gallery_icon_cloudy">बादल छाए</string>
     <string name="gallery_icon_clear">साफ़/धूप</string>
     <string name="gallery_icon_mostly_clear">अधिकतर साफ़</string>

@@ -180,6 +180,9 @@
     <string name="gallery_icon_slight_rain">Geringe Regenchance</string>
     <string name="gallery_icon_snow">Schnee</string>
     <string name="gallery_icon_storm">Gewitter</string>
+    <string name="gallery_icon_rain_now_light">Nieselt gerade</string>
+    <string name="gallery_icon_rain_now">Regnet gerade</string>
+    <string name="gallery_icon_rain_now_heavy">Starkregen jetzt</string>
     <string name="gallery_icon_cloudy">Bewölkt</string>
     <string name="gallery_icon_clear">Klar/Sonnig</string>
     <string name="gallery_icon_mostly_clear">Überwiegend klar</string>

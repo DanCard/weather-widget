@@ -180,6 +180,9 @@
     <string name="gallery_icon_slight_rain">Lieve possibilità di pioggia</string>
     <string name="gallery_icon_snow">Neve</string>
     <string name="gallery_icon_storm">Temporale</string>
+    <string name="gallery_icon_rain_now_light">Pioviggina ora</string>
+    <string name="gallery_icon_rain_now">Piove ora</string>
+    <string name="gallery_icon_rain_now_heavy">Pioggia forte ora</string>
     <string name="gallery_icon_cloudy">Nuvoloso</string>
     <string name="gallery_icon_clear">Sereno/Soleggiato</string>
     <string name="gallery_icon_mostly_clear">Prevalentemente sereno</string>

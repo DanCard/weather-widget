@@ -94,6 +94,12 @@ class DesktopWeatherRepository(
     private val screenOff: () -> Boolean = { !ScreenStateDetector.isScreenOn() },
     /** On a charger (no battery counts as charging): the housekeeping and daily-history upkeep gate ([DailyHistoryRun.upkeepIfDue]). */
     private val isCharging: () -> Boolean = { PowerDetector.getPowerState().isCharging },
+    /**
+     * The header's rain-now radar input, sampled once per current-conditions run
+     * (plans/261115-header-rain-now-dots.md). Production passes [DesktopWeatherService.radarNowSampler];
+     * not on [WeatherApiClient], whose strict test mocks would each need an answer for it.
+     */
+    private val radarNowSampler: com.weatherwidget.shared.observations.RadarNowSampler? = null,
 ) {
     data class RefreshOutcome(
         val snapshot: ForecastSnapshot,
@@ -928,6 +934,7 @@ class DesktopWeatherRepository(
                     // The daemon's failure banner reads the displayed feed's failure, raised below.
                     recordFailure = { feed, error -> if (feed == displayedFeed) displayedFailure = error },
                 ),
+                radarNow = radarNowSampler,
                 nowMs = currentTimeMillis,
             )
             run.run(

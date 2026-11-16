@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Heavy rain now: 14 larger dots (14). Rain falling now, header only: blue dots, no cloud (plans/261115-header-rain-now-dots.md, option E). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#2E9BF0"
+        android:pathData="M1.8,3.5a2.2,2.2 0 1,0 4.4,0a2.2,2.2 0 1,0 -4.4,0zM7.8,3.5a2.2,2.2 0 1,0 4.4,0a2.2,2.2 0 1,0 -4.4,0zM13.8,3.5a2.2,2.2 0 1,0 4.4,0a2.2,2.2 0 1,0 -4.4,0zM19.8,3.5a2.2,2.2 0 1,0 4.4,0a2.2,2.2 0 1,0 -4.4,0zM4.8,9a2.2,2.2 0 1,0 4.4,0a2.2,2.2 0 1,0 -4.4,0zM10.8,9a2.2,2.2 0 1,0 4.4,0a2.2,2.2 0 1,0 -4.4,0zM16.8,9a2.2,2.2 0 1,0 4.4,0a2.2,2.2 0 1,0 -4.4,0zM1.8,14.5a2.2,2.2 0 1,0 4.4,0a2.2,2.2 0 1,0 -4.4,0zM7.8,14.5a2.2,2.2 0 1,0 4.4,0a2.2,2.2 0 1,0 -4.4,0zM13.8,14.5a2.2,2.2 0 1,0 4.4,0a2.2,2.2 0 1,0 -4.4,0zM19.8,14.5a2.2,2.2 0 1,0 4.4,0a2.2,2.2 0 1,0 -4.4,0zM4.8,20a2.2,2.2 0 1,0 4.4,0a2.2,2.2 0 1,0 -4.4,0zM10.8,20a2.2,2.2 0 1,0 4.4,0a2.2,2.2 0 1,0 -4.4,0zM16.8,20a2.2,2.2 0 1,0 4.4,0a2.2,2.2 0 1,0 -4.4,0z"/>
+</vector>

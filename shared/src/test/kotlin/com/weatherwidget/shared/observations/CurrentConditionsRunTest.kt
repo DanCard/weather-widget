@@ -56,7 +56,7 @@ class CurrentConditionsRunTest {
         override fun actualsPreference(source: WeatherSource): WeatherSource? = providers[source]
     }
 
-    private fun run(host: FakeHost) = CurrentConditionsRun(host) { now }.also { host.clock = { now } }
+    private fun run(host: FakeHost) = CurrentConditionsRun(host, radarNow = null) { now }.also { host.clock = { now } }
 
     @Test
     fun `the user's desktop sources - one NWS fetch serves all four, never Google or Open-Meteo`() = runBlocking {
@@ -158,7 +158,7 @@ class CurrentConditionsRunTest {
     fun `each stored reading bumps the stored-data version, a failed feed does not`() = runBlocking {
         val version = com.weatherwidget.shared.util.StoredDataVersion()
         val host = FakeHost(listOf(NWS, TOMORROW_IO), displayed = setOf(NWS.id, TOMORROW_IO.id), failing = setOf(TOMORROW_IO))
-        CurrentConditionsRun(host, version) { now }.run(lat, lon, source = null, reason = "test", force = true)
+        CurrentConditionsRun(host, radarNow = null, version = version) { now }.run(lat, lon, source = null, reason = "test", force = true)
 
         assertEquals(setOf(NWS, TOMORROW_IO), host.fetched.toSet())
         assertEquals(1L, version.current())

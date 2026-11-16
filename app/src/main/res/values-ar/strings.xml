@@ -180,6 +180,9 @@
     <string name="gallery_icon_slight_rain">احتمال مطر ضئيل</string>
     <string name="gallery_icon_snow">ثلج</string>
     <string name="gallery_icon_storm">عاصفة</string>
+    <string name="gallery_icon_rain_now_light">رذاذ الآن</string>
+    <string name="gallery_icon_rain_now">تمطر الآن</string>
+    <string name="gallery_icon_rain_now_heavy">أمطار غزيرة الآن</string>
     <string name="gallery_icon_cloudy">غائم</string>
     <string name="gallery_icon_clear">صافٍ/مشمس</string>
     <string name="gallery_icon_mostly_clear">صافٍ غالبًا</string>

@@ -180,6 +180,9 @@
     <string name="gallery_icon_slight_rain">Düşük yağmur ihtimali</string>
     <string name="gallery_icon_snow">Kar</string>
     <string name="gallery_icon_storm">Fırtına</string>
+    <string name="gallery_icon_rain_now_light">Şu an çiseliyor</string>
+    <string name="gallery_icon_rain_now">Şu an yağmur yağıyor</string>
+    <string name="gallery_icon_rain_now_heavy">Şu an şiddetli yağmur</string>
     <string name="gallery_icon_cloudy">Bulutlu</string>
     <string name="gallery_icon_clear">Açık/Güneşli</string>
     <string name="gallery_icon_mostly_clear">Çoğunlukla açık</string>

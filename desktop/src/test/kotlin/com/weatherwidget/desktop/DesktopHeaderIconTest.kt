@@ -50,6 +50,7 @@ class DesktopHeaderIconTest {
             lon = lon,
             useCelsius = false,
             widthDp = 900,
+            rainNow = null,
         )
 
     @Test

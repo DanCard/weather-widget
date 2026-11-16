@@ -21,6 +21,9 @@ import androidx.compose.ui.unit.sp
 import com.weatherwidget.data.model.ForecastSnapshot
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.util.HeaderContent
+import com.weatherwidget.shared.observations.RadarNowSample
+import com.weatherwidget.shared.observations.RadarNowSampler
+import com.weatherwidget.shared.observations.RainNow
 import com.weatherwidget.shared.util.GraphSelector
 import com.weatherwidget.shared.util.HeaderButton
 import com.weatherwidget.shared.util.HeaderButtons
@@ -80,7 +83,12 @@ internal fun WidgetHeader(
     val headerWidthDp = with(density) { windowInfo.containerSize.width.toDp().value.toInt() }
     // Icon, temp, delta, rain % and source label: the shared header rule Android's headers use
     // (plans/261021-header-shared-content-audit.md).
-    val content = remember(forecast.raw, forecast.sourceId, displaySource, displayTemp, deltaVal, nowLocal, targetHour, config.viewMode, config.lat, config.lon, config.settings.useCelsius, headerWidthDp) {
+    // Rain falling now (station, radar, Tomorrow.io when displayed): the icon becomes blue dots
+    // (plans/261115-header-rain-now-dots.md). Re-read each minute: the daemon writes the radar sample.
+    val rainNow = remember(forecast.raw, forecast.sourceId, config.lat, config.lon, nowEpoch / 60_000L) {
+        desktopRainNow(forecast, config.lat, config.lon, nowEpoch)
+    }
+    val content = remember(forecast.raw, forecast.sourceId, displaySource, displayTemp, deltaVal, nowLocal, targetHour, config.viewMode, config.lat, config.lon, config.settings.useCelsius, headerWidthDp, rainNow) {
         desktopHeaderContent(
             forecast = forecast,
             // The label moves on the click; the rest waits for that source's snapshot.
@@ -95,6 +103,7 @@ internal fun WidgetHeader(
             lon = config.lon,
             useCelsius = config.settings.useCelsius,
             widthDp = headerWidthDp,
+            rainNow = rainNow,
         )
     }
 
@@ -604,6 +613,7 @@ internal fun desktopHeaderContent(
     lon: Double,
     useCelsius: Boolean,
     widthDp: Int,
+    rainNow: RainNow.Level?,
     labelSourceId: String = displaySourceId,
 ): HeaderContent.Content {
     val view = desktopHeaderView(viewMode)
@@ -627,6 +637,7 @@ internal fun desktopHeaderContent(
         lon = lon,
         useCelsius = useCelsius,
         widthDp = widthDp,
+        rainNow = rainNow,
         labelSourceId = labelSourceId,
     )
     HeaderContentLog.changed(displaySourceId, view, content)
@@ -634,6 +645,27 @@ internal fun desktopHeaderContent(
 }
 
 private const val DESKTOP_HEADER_COLUMNS = 5
+
+/**
+ * The header's rain-now level from the snapshot's observations (every API at the site), the radar
+ * sample the daemon stored and the snapshot's source; [RainNow] logs a change of level once.
+ */
+internal fun desktopRainNow(
+    forecast: ForecastSnapshot,
+    lat: Double,
+    lon: Double,
+    nowMs: Long,
+    radarStore: RadarNowSampler.Store = DesktopRadarNow.store,
+): RainNow.Level? {
+    val verdict = RainNow.resolve(
+        readings = forecast.raw.rawObservations,
+        radar = RadarNowSample.atSite(radarStore.read(), lat, lon),
+        displaySourceId = forecast.sourceId,
+        nowMs = nowMs,
+    )
+    RainNow.logTransition(verdict, "desktop", nowMs)
+    return verdict.level
+}
 
 private fun desktopHeaderView(viewMode: ViewMode): HeaderContent.View = when (viewMode) {
     ViewMode.DAILY -> HeaderContent.View.DAILY

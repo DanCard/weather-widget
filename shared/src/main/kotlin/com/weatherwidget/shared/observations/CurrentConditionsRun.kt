@@ -23,6 +23,11 @@ import java.time.format.DateTimeFormatter
  */
 class CurrentConditionsRun(
     private val host: Host,
+    /**
+     * The radar pixel for the header's rain-now dots ([RainNow]), sampled once per run that passes the
+     * freshness gate; null where no radar store exists. Required so neither platform forgets it.
+     */
+    private val radarNow: RadarNowSampler?,
     private val version: StoredDataVersion = StoredDataVersion.process,
     private val nowMs: () -> Long = System::currentTimeMillis,
 ) {
@@ -134,6 +139,7 @@ class CurrentConditionsRun(
                     }
                 }
 
+                sampleRadar(latitude, longitude, reason)
                 host.setLastRunMs(latitude, longitude, nowMs())
                 host.log(
                     "CURR_FETCH_COMPLETE",
@@ -149,6 +155,17 @@ class CurrentConditionsRun(
         } catch (e: Exception) {
             host.log("CURR_FETCH_ERROR", "Current temp fetch orchestrator failed (reason=$reason, totalMs=${nowMs() - startMs}): ${e.message}", "ERROR")
             Result.failure(e)
+        }
+    }
+
+    /** One radar sample; a changed rain level bumps [version] so cached renders repaint. */
+    private suspend fun sampleRadar(latitude: Double, longitude: Double, reason: String) {
+        val sampler = radarNow ?: return
+        val before = sampler.current(latitude, longitude)?.level()
+        val sample = sampler.sample(latitude, longitude, reason) ?: return
+        if (sample.level() != before) {
+            version.bump("radar_now level=${sample.level() ?: "none"}")
+            host.log(RadarNowSampler.TAG, "reason=$reason rgba=${sample.rgbaText()} level=${sample.level() ?: "none"} was=${before ?: "none"}", "INFO")
         }
     }
 

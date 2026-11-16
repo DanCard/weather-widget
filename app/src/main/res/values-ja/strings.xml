@@ -180,6 +180,9 @@
     <string name="gallery_icon_slight_rain">わずかな雨の可能性</string>
     <string name="gallery_icon_snow">雪</string>
     <string name="gallery_icon_storm">雷雨</string>
+    <string name="gallery_icon_rain_now_light">いま霧雨</string>
+    <string name="gallery_icon_rain_now">いま雨</string>
+    <string name="gallery_icon_rain_now_heavy">いま大雨</string>
     <string name="gallery_icon_cloudy">曇り</string>
     <string name="gallery_icon_clear">快晴/晴れ</string>
     <string name="gallery_icon_mostly_clear">おおむね晴れ</string>

@@ -97,6 +97,7 @@ class DailyHeaderNowcastRoboTest {
             deltaFromYesterday = null,
             dateOffset = 0,
             skipYesterday = false,
+            rainNow = null,
         ).state
     }
 

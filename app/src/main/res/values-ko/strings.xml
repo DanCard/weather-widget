@@ -180,6 +180,9 @@
     <string name="gallery_icon_slight_rain">약간의 비 가능성</string>
     <string name="gallery_icon_snow">눈</string>
     <string name="gallery_icon_storm">뇌우</string>
+    <string name="gallery_icon_rain_now_light">지금 이슬비</string>
+    <string name="gallery_icon_rain_now">지금 비</string>
+    <string name="gallery_icon_rain_now_heavy">지금 폭우</string>
     <string name="gallery_icon_cloudy">흐림</string>
     <string name="gallery_icon_clear">맑음</string>
     <string name="gallery_icon_mostly_clear">대체로 맑음</string>

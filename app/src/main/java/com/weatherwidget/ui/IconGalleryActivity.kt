@@ -54,6 +54,11 @@ class IconGalleryActivity : AppCompatActivity() {
         GalleryIcon(R.drawable.ic_weather_partly_cloudy_chance_rain_night, R.string.gallery_icon_partly_cloudy_chance_rain_night),
         GalleryIcon(R.drawable.ic_weather_partly_cloudy_slight_chance_rain_night, R.string.gallery_icon_partly_cloudy_slight_rain_night),
 
+        // Rain falling now (header only: blue dots, no cloud)
+        GalleryIcon(R.drawable.ic_weather_rain_now_light, R.string.gallery_icon_rain_now_light),
+        GalleryIcon(R.drawable.ic_weather_rain_now, R.string.gallery_icon_rain_now),
+        GalleryIcon(R.drawable.ic_weather_rain_now_heavy, R.string.gallery_icon_rain_now_heavy),
+
         // Fog
         GalleryIcon(R.drawable.ic_weather_fog, R.string.gallery_icon_fog),
         GalleryIcon(R.drawable.ic_weather_fog_sunny, R.string.gallery_icon_fog_sunny),

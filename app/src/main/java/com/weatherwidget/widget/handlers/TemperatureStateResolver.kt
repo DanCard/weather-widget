@@ -288,6 +288,7 @@ internal object TemperatureStateResolver {
             lon = lon,
             precipProbability = precipProbability,
             useCelsius = useCelsius,
+            rainNow = com.weatherwidget.widget.AndroidRainNow.level(context, lat, lon, displaySource, where = "temperature"),
             line = HeaderWidthChecker.lineInputs(
                 context, stateManager, HeaderContent.View.TEMPERATURE, now, centerTime, lat, lon, dimensions.widthDp,
             ),

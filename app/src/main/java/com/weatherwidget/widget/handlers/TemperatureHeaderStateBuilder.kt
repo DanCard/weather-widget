@@ -24,6 +24,8 @@ internal object TemperatureHeaderStateBuilder {
         lon: Double,
         precipProbability: Int?,
         useCelsius: Boolean,
+        /** Rain falling now ([com.weatherwidget.widget.AndroidRainNow]): the icon becomes blue dots. */
+        rainNow: com.weatherwidget.shared.observations.RainNow.Level?,
         line: com.weatherwidget.shared.util.HeaderLine.Inputs? = null,
     ): Pair<TemperatureWidgetState.HeaderState, Int?> {
         // Icon, temp, rain % and delta: the shared header rule (desktop draws the same content).
@@ -44,6 +46,7 @@ internal object TemperatureHeaderStateBuilder {
             lon = lon,
             useCelsius = useCelsius,
             widthDp = dimensions.widthDp,
+            rainNow = rainNow,
         )
         val shownPrecip = content.precipProbability
 

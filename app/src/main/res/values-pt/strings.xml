@@ -180,6 +180,9 @@
     <string name="gallery_icon_slight_rain">Chance leve de chuva</string>
     <string name="gallery_icon_snow">Neve</string>
     <string name="gallery_icon_storm">Tempestade</string>
+    <string name="gallery_icon_rain_now_light">Chuviscando agora</string>
+    <string name="gallery_icon_rain_now">Chovendo agora</string>
+    <string name="gallery_icon_rain_now_heavy">Chuva forte agora</string>
     <string name="gallery_icon_cloudy">Nublado</string>
     <string name="gallery_icon_clear">Limpo/Ensolarado</string>
     <string name="gallery_icon_mostly_clear">Predominantemente limpo</string>

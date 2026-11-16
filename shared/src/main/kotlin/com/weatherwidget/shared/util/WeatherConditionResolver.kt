@@ -23,6 +23,11 @@ object WeatherConditionResolver {
     const val IC_CLOUDY = "ic_weather_cloudy"
     const val IC_RAIN = "ic_weather_rain"
     const val IC_STORM = "ic_weather_storm"
+
+    /** Rain falling now: blue dots only, no cloud (plans/261115-header-rain-now-dots.md, option E). */
+    const val IC_RAIN_NOW_LIGHT = "ic_weather_rain_now_light"
+    const val IC_RAIN_NOW = "ic_weather_rain_now"
+    const val IC_RAIN_NOW_HEAVY = "ic_weather_rain_now_heavy"
     const val IC_SNOW = "ic_weather_snow"
     const val IC_FOG = "ic_weather_fog"
     const val IC_FOG_DENSE = "ic_weather_fog_dense"

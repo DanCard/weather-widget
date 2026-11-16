@@ -76,10 +76,17 @@ class DesktopWeatherService(
     private val personalStationWeight: Double = DesktopSettings().personalStationWeight(),
     /** Where an Open-Meteo fetch leaves its 15-minute nowcast; production passes [DesktopNowcast.store]. */
     private val nowcastStore: com.weatherwidget.shared.nowcast.NowcastStore? = null,
+    /** Where the header's rain-now radar sample goes; production passes [DesktopRadarNow.store], tests none. */
+    private val radarNowStore: com.weatherwidget.shared.observations.RadarNowSampler.Store? = null,
 ) : WeatherApiClient {
     private val json = Json {
         ignoreUnknownKeys = true
         isLenient = true
+    }
+
+    /** The header's rain-now radar sampler on this service's client; the repository's run calls it. */
+    val radarNowSampler: com.weatherwidget.shared.observations.RadarNowSampler? by lazy {
+        radarNowStore?.let { com.weatherwidget.shared.observations.RadarNowSampler(httpClient, it) }
     }
 
     private val httpClient: HttpClient = injectedHttpClient ?: HttpClient(CIO) {

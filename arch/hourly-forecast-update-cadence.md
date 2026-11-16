@@ -134,6 +134,13 @@ then counts from the last observation fetch, never from the restart. Screen-on c
 and battery policy permit it. Other enabled sources follow `NonPrimaryObservationPolicy`, not the
 displayed source's table.
 
+Each `CurrentConditionsRun` that passes its freshness gate also samples the NWS radar mosaic once at
+the site for the header's rain-now dots (`RadarNowSampler`: one WMS `GetFeatureInfo` to
+`opengeo.ncep.noaa.gov`, the Radar view's host; none outside NWS coverage). It follows the run's
+cadence and adds no run of its own; a changed rain level bumps `StoredDataVersion` and logs `RADAR_NOW`,
+a failure `RADAR_NOW_FAIL`. A sample counts for 25 minutes, the 20-minute screen-on battery interval
+plus slack.
+
 A forecast fetch never carries station observations or a current reading: NWS's is the forecast only
 on both platforms (`NwsForecastReply`). Desktop's full refresh adds the shared
 `ActualsFeedPolicy.fullRefreshFetch` observation pull for the displayed source's feed — NWS displaying
