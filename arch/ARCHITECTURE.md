@@ -168,6 +168,21 @@ desktop's header sits above the canvas). Both shrink (`1.0/0.8/0.6`) and are omi
 fits; the actuals-source annotation also tries two lines before it is omitted
 (`DominantStationLabel.placeWrapped`).
 
+Daily night rain labels (the chance or amount between two columns) are placed by one scored search,
+`:shared` `NightRainLabelPlacer`, run from `DailyRainLabelLayout.layoutNights`
+(`plans/261116-night-rain-label-scored-placement-redesign.md`). The hosts measure ink, not line
+boxes: low labels, icons, day names and the label itself become 1 px row bands
+(`InkScan.rowBands`; Android rasterizes in `TextInk`, desktop in `DailyForecastGraph`), so open glyph
+space (under a °, a 4's crossbar, between a sun's rays) is free. Every candidate on a 0.5 dp grid is
+scored: centring between the columns (per dp²), distance below the preferred row (~6 dp under the
+higher low's ink; linear plus squared, so big drops cost more), crowding inside 2 dp, and intrusion
+inside 1 dp of other ink (0.5 dp corner to corner), which is large enough that any clear spot wins.
+It never rises above the preferred row except toward a 1 dp tuck when room is short, and may pass
+the day names' ink top by 1.5 dp only between names. The 85 % size is used only when full size has
+no clear spot. Labels are placed in column order, each avoiding those already placed. Weights live
+in `NightRainLabelPlacer.Weights`; `nightRainLabel position` (tag `DailyRainLabelLayout`) logs the
+chosen spot, each score term, the runner-up, and every obstacle box.
+
 The header icon is the displayed source's forecast hour (`HeaderConditionIcon`), except while rain is
 falling now: then it is blue dots only, no cloud, sized by intensity (`ic_weather_rain_now_light` /
 `ic_weather_rain_now` / `ic_weather_rain_now_heavy`; `plans/261115-header-rain-now-dots.md`). The shared

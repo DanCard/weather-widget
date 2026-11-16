@@ -71,96 +71,12 @@ object DailyRainLabels {
     /** Edge margin (dp) keeping a rain label inside the widget bounds. */
     const val RAIN_LABEL_EDGE_MARGIN_DP = 4f
 
-    // Night rain label tuck (interstitial label sitting in the low-temp band between two columns).
+    // Night rain label (between two columns; placed by NightRainLabelPlacer).
     /** Night label font is this fraction of the day label size. */
     const val NIGHT_SCALE = 0.72f
-    const val NIGHT_TUCK_ROOM_MIN_DP = 10f
-    const val NIGHT_TUCK_ROOM_MAX_DP = 22f
-    const val NIGHT_TUCK_OVERLAP_BASE_DP = 5.0f
 
-    /**
-     * When there is room below the low-temp band, the night rain % drops a couple px below its snug
-     * tuck so it reads as its own label. Scaled by roomFraction = 1 - tightFraction, so a cramped
-     * column keeps the snug tuck. Horizontal position is not offset: the label starts at the gap
-     * midpoint and only moves sideways to clear an obstacle (DailyRainLabelPlanner.placeNightLabel).
-     */
-    const val NIGHT_TUCK_ROOMY_DOWN_DP = 2.5f
-
-    // Night rain label collision nudge (DailyRainLabelPlanner.placeNightLabel).
-    /** Furthest right a night label slides to clear the left low after sinking below both lows. */
-    const val NIGHT_SINK_RIGHT_DP = 3f
-
-    /**
-     * Gap a night label eases to off a right neighbour that is an icon (a low keeps
-     * [NIGHT_ROOMY_SIDE_DP]): Fold tonight "88%" still sat mostly under Today's column at 2.5 dp
-     * (user, 2026-11-15: "Still prefer it move to be more centered").
-     */
-    const val NIGHT_ICON_SIDE_GAP_DP = 1f
-
-    /**
-     * Gap a night label in its own day's ° pocket keeps from that low's digits: the pocket put Fold
-     * Tue night "97%" against "45" so it read "45°97%" (user, 2026-11-15).
-     */
-    const val NIGHT_POCKET_SIDE_GAP_DP = 1.5f
-
-    /** Furthest a pocket label slides right to open [NIGHT_POCKET_SIDE_GAP_DP]. */
-    const val NIGHT_POCKET_SIDE_SLIDE_MAX_DP = 2f
-
-    /** A pocket label may slide toward the next day's low only while this far below its digits. */
-    const val NIGHT_POCKET_RIGHT_CLEAR_DP = 2.5f
-    /** Top fraction of a low label's line box that is blank (measured on the Fold and desktop). */
-    const val LOW_BLANK_ASCENT_FRACTION = 0.2f
-    /** Bottom fraction of a low label's digit box that is blank descent (measured on the Fold and desktop). */
-    const val DIGIT_BLANK_DESCENT_FRACTION = 0.22f
-    /** Furthest a sideways-moved night label drops to return toward the gap's centre. */
-    const val NIGHT_RECENTER_MAX_DROP_DP = 2f
-    /** Furthest a sideways-moved night label rises to return toward the gap's centre. */
-    const val NIGHT_RECENTER_MAX_RISE_DP = 2f
-    /** A returning night label may reach this far into a neighbour's ink box vertically. */
-    const val NIGHT_RECENTER_INK_OVERLAP_DP = 1f
-    /** Furthest a night label drops to get off a low label's digit ink. */
-    const val NIGHT_INK_MAX_DROP_DP = 5f
-    /** A night label overlapping digits by no more than this sideways is not touching their ink. */
-    const val NIGHT_INK_SIDE_OVERLAP_DP = 1f
-    /** Air a night label keeps beside a neighbour's digit ink. */
-    const val NIGHT_INK_SIDE_GAP_DP = 1f
-    /** Air a night label keeps under a ° it would otherwise graze. */
-    const val NIGHT_DEGREE_GAP_DP = 1f
-    /** Furthest a night label drops for that air. */
-    const val NIGHT_DEGREE_MAX_DROP_DP = 3f
-    /** Search step, both axes. */
-    const val NIGHT_NUDGE_STEP_DP = 1f
-    /** Furthest sideways move, as a fraction of the column width. */
+    /** Furthest a night label's ink centre may move off the gap centre, as a fraction of the column width. */
     const val NIGHT_NUDGE_MAX_SHIFT_FRACTION = 0.3f
-    /** Furthest downward move below the home tuck. */
-    const val NIGHT_NUDGE_MAX_DOWN_DP = 12f
-    /** An intrusion this shallow (either axis) is a slight overlap and costs nothing. */
-    const val NIGHT_SLIGHT_OVERLAP_DP = 1.5f
-    /** An intrusion covering at most this fraction of the label's area is also slight. */
-    const val NIGHT_SLIGHT_OVERLAP_AREA_FRACTION = 0.15f
-    /** With at least this much room under the label, it prefers moving down to moving sideways. */
-    const val NIGHT_ROOMY_BELOW_DP = 10f
-    /** Sideways movement costs this many times a move down when there is lots of room below. */
-    const val NIGHT_ROOMY_SIDEWAYS_COST = 3f
-    /** A night label this close to a neighbour, or overlapping it, is hugging it. */
-    const val NIGHT_HUG_DP = 1.5f
-    /** A hugging night label eases away only with at least this much free on the other side. */
-    const val NIGHT_ROOMY_SIDE_DP = 2.5f
-    /** Furthest a hugging night label drops to reach room on its left. */
-    const val NIGHT_EASE_MAX_DROP_DP = 4f
-    /** How far left a night label slides after that drop. */
-    const val NIGHT_EASE_DROP_SLIDE_DP = 0.5f
-    /** How far back right a night label pinned on the floor under the left low slides. */
-    const val NIGHT_FLOOR_SLIDE_DP = 1.5f
-    /** How far past the floor that label drops, into the blank descent of its own line box. */
-    const val NIGHT_FLOOR_DROP_DP = 0.5f
-    /** Furthest a night label stuck on the floor beside a ° drops past it. */
-    const val NIGHT_FLOOR_DEGREE_DROP_DP = 3f
-    /**
-     * The raised ° of a low-temp label fills only this top fraction of the label's text box; the
-     * pocket under it is blank, so a night label may sit there (DailyRainLabelPlanner.lowLabelObstacles).
-     */
-    const val DEGREE_SIGN_HEIGHT_FRACTION = 0.5f
 
     // ── Rain-label font scaling (shared so Android and desktop size labels identically) ───────────
 

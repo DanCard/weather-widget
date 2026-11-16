@@ -397,7 +397,7 @@ internal fun DrawScope.drawShadowedText(
 
 // Thin black outline stroke (fraction of font size) for daily HISTORY temp labels. Larger than
 // Android's 0.12 because desktop labels are smaller (14sp), so the same fraction read too faint here.
-private const val OUTLINE_STROKE_FRACTION = 0.18f
+internal const val OUTLINE_STROKE_FRACTION = 0.18f
 
 /**
  * Draws [real] with a thin black glyph OUTLINE (a stroked copy under the fill), keeping the label

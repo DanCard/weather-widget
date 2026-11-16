@@ -1,6 +1,7 @@
 package com.weatherwidget.widget.handlers
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.util.Log
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -16,7 +17,9 @@ import java.time.LocalDate
 
 /**
  * Real fonts (Robolectric measures 1 px per character, so labels never overlap there): the widget
- * renderer with the shared night-label layout and separation draws Fri ".24in" and Sat "100%" apart.
+ * renderer with the shared night-label layout draws Fri ".24in" and Sat "100%" apart. Since the scored
+ * placement (plans/261116-night-rain-label-scored-placement-redesign.md) labels keep their INK apart, and
+ * their line boxes may overlap in blank space, so this checks the rendered pixels.
  * Columns, temperatures and the 559×402 bitmap at scale 0.4316 copy the emulator widget of
  * 2026-11-06 19:27, where the two overlapped. (plans/261106-night-rain-labels-overlap-each-other.md)
  */
@@ -69,13 +72,34 @@ class NightRainLabelSeparationInstrumentedTest {
         )
     }
 
-    private fun overlaps(a: DailyRainLabelPlacement, b: DailyRainLabelPlacement) =
-        a.leftX < b.rightX && b.leftX < a.rightX && a.topY < b.bottomY && b.topY < a.bottomY
+    /**
+     * Rain-label-coloured pixels ([com.weatherwidget.widget.DailyBarRenderer.COLOR_FORECAST] #5AC8FA, or
+     * its anti-aliased blend with the dark background) inside the rectangle where the two labels' line
+     * boxes overlap. None means their ink cannot touch: outside that rectangle the boxes are apart.
+     */
+    private fun inkInBoxOverlap(bitmap: Bitmap, a: DailyRainLabelPlacement, b: DailyRainLabelPlacement): Int {
+        // Whole pixels inside both boxes: truncating 301.97 counted row 301, which holds the upper
+        // label's own bottom edge (its ink ends at 301.7) and is 97 % outside the lower box.
+        val left = kotlin.math.ceil(maxOf(a.leftX, b.leftX)).toInt().coerceAtLeast(0)
+        val right = kotlin.math.floor(minOf(a.rightX, b.rightX)).toInt().coerceAtMost(bitmap.width)
+        val top = kotlin.math.ceil(maxOf(a.topY, b.topY)).toInt().coerceAtLeast(0)
+        val bottom = kotlin.math.floor(minOf(a.bottomY, b.bottomY)).toInt().coerceAtMost(bitmap.height)
+        var count = 0
+        for (y in top until bottom) for (x in left until right) {
+            val c = bitmap.getPixel(x, y)
+            val r = (c shr 16) and 0xFF
+            val g = (c shr 8) and 0xFF
+            val bl = c and 0xFF
+            if (bl > 60 && r < 0.55f * bl && kotlin.math.abs(g - 0.8f * bl) < 0.15f * bl) count++
+        }
+        Log.i(TAG, "box overlap ${a.text}/${b.text}: x=$left..$right y=$top..$bottom labelPixels=$count")
+        return count
+    }
 
     @Test
     fun neighbouringNightLabelsAreDrawnApart() {
         val labels = mutableListOf<DailyRainLabelPlacement>()
-        DailyForecastGraphRenderer.renderGraph(
+        val result = DailyForecastGraphRenderer.renderGraph(
             context = context,
             days = days(),
             widthPx = 559,
@@ -92,12 +116,13 @@ class NightRainLabelSeparationInstrumentedTest {
         assertEquals(listOf("40%", "40%", ".24in", "100%"), night.map { it.text })
         val fri = night.first { it.text == ".24in" }
         val sat = night.first { it.text == "100%" }
-        assertTrue(
-            "Fri .24in (${fri.leftX}..${fri.rightX}, ${fri.topY}..${fri.bottomY}) overlaps Sat 100% " +
+        assertEquals(
+            "Fri .24in (${fri.leftX}..${fri.rightX}, ${fri.topY}..${fri.bottomY}) ink touches Sat 100% " +
                 "(${sat.leftX}..${sat.rightX}, ${sat.topY}..${sat.bottomY})",
-            !overlaps(fri, sat),
+            0,
+            inkInBoxOverlap(result.bitmap, fri, sat),
         )
-        night.zipWithNext().forEach { (a, b) -> assertTrue("${a.text} overlaps ${b.text}", !overlaps(a, b)) }
+        night.zipWithNext().forEach { (a, b) -> assertEquals("${a.text} ink touches ${b.text}", 0, inkInBoxOverlap(result.bitmap, a, b)) }
         assertTrue("Sat 100% stays inside the bitmap", sat.rightX <= 559f)
     }
 

@@ -3,6 +3,7 @@ package com.weatherwidget.widget
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
+import com.weatherwidget.shared.graph.DailyRainLabelPlanner
 import com.weatherwidget.shared.graph.DualHighLabel
 import com.weatherwidget.shared.util.TempUtils
 import kotlin.math.roundToInt
@@ -51,6 +52,31 @@ internal object DailyTemperatureLabelRenderer {
             centerX + halfWidth,
             baselineY + TemperatureGraphStyle.fontDescent(paint),
         )
+    }
+
+    /**
+     * Ink of a label [draw] would draw, as the night rain placer's obstacles: row bands [bandPx] tall
+     * ([TextInk.textBands]), outline included when [drawOutline], so open glyph space (under a 4's
+     * crossbar or a °) stays free. Falls back to the glyph bounds; null when neither is available.
+     */
+    internal fun inkBoxes(
+        text: String,
+        centerX: Float,
+        baselineY: Float,
+        base: Paint,
+        bandPx: Int,
+        extraScale: Float = 1f,
+        drawOutline: Boolean = false,
+        maxWidthPx: Float = Float.MAX_VALUE,
+    ): List<DailyRainLabelPlanner.Box>? {
+        val scale = drawScale(base, text, extraScale, maxWidthPx)
+        val paint = Paint(base).apply { textSize = base.textSize * scale }
+        val outline = if (drawOutline) paint.textSize * LABEL_OUTLINE_STROKE_FRACTION else 0f
+        val startX = centerX - measureTextWidth(paint, text) / 2f
+        val relative = TextInk.textBands(paint, text, outline, bandPx)
+            ?: TextInk.bounds(paint, text)?.let { b -> listOf(b.copy(left = b.left - outline / 2f, top = b.top - outline / 2f, right = b.right + outline / 2f, bottom = b.bottom + outline / 2f)) }
+            ?: return null
+        return relative.map { DailyRainLabelPlanner.Box(startX + it.left, baselineY + it.top, startX + it.right, baselineY + it.bottom) }
     }
 
     internal fun fitScaleForWidth(

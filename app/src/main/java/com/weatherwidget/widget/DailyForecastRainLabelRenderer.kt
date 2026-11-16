@@ -2,6 +2,7 @@ package com.weatherwidget.widget
 
 import android.graphics.*
 import com.weatherwidget.shared.graph.DailyRainLabelLayout
+import com.weatherwidget.shared.graph.DailyRainLabelPlanner
 import com.weatherwidget.widget.DailyForecastGraphRenderer.DayData
 import com.weatherwidget.widget.DailyForecastGraphRenderer.DailyRainLabelPlacement
 import com.weatherwidget.widget.DailyForecastGraphRenderer.RainLabelKind
@@ -23,15 +24,33 @@ internal object DailyForecastRainLabelRenderer {
         Paint(paints.rainTextPaint).apply { textSize = paints.rainTextPaint.textSize * fontScale }
 
     /** Measures with [createRainPaint]; checked against desktop by DailyRainLabelHostContract. */
-    internal fun rainLabelHost(paints: DailyGraphPaintSet) =
-        DailyRainLabelLayout.Host { text, _, fontScale ->
-            val paint = createRainPaint(paints, fontScale)
-            val metrics = textMetrics(paint)
-            DailyRainLabelLayout.TextSize(
-                width = paint.measureText(text),
-                height = metrics.descent - metrics.ascent,
-                baseline = -metrics.ascent,
-            )
+    internal fun rainLabelHost(paints: DailyGraphPaintSet): DailyRainLabelLayout.Host =
+        object : DailyRainLabelLayout.Host {
+            override fun measure(text: String, kind: DailyRainLabelLayout.Kind, fontScale: Float): DailyRainLabelLayout.TextSize {
+                val paint = createRainPaint(paints, fontScale)
+                val metrics = textMetrics(paint)
+                return DailyRainLabelLayout.TextSize(
+                    width = paint.measureText(text),
+                    height = metrics.descent - metrics.ascent,
+                    baseline = -metrics.ascent,
+                )
+            }
+
+            /** Glyph bounds ([Paint.getTextBounds]) moved from the baseline origin to the box's top-left. */
+            override fun ink(text: String, kind: DailyRainLabelLayout.Kind, fontScale: Float): DailyRainLabelPlanner.Box? {
+                val paint = createRainPaint(paints, fontScale)
+                val bounds = TextInk.bounds(paint, text) ?: return null
+                val baseline = -textMetrics(paint).ascent
+                return DailyRainLabelPlanner.Box(bounds.left, baseline + bounds.top, bounds.right, baseline + bounds.bottom)
+            }
+
+            /** Row bands ([TextInk.textBands]) moved from the baseline origin to the box's top-left. */
+            override fun inkBands(text: String, kind: DailyRainLabelLayout.Kind, fontScale: Float): List<DailyRainLabelPlanner.Box>? {
+                val paint = createRainPaint(paints, fontScale)
+                val baseline = -textMetrics(paint).ascent
+                return TextInk.textBands(paint, text, 0f, com.weatherwidget.shared.graph.InkScan.NIGHT_OBSTACLE_BAND_PX)
+                    ?.map { DailyRainLabelPlanner.Box(it.left, baseline + it.top, it.right, baseline + it.bottom) }
+            }
         }
 
     fun drawDailyRainLabel(
@@ -119,11 +138,11 @@ internal object DailyForecastRainLabelRenderer {
         onRainLabelDrawn: ((DailyRainLabelPlacement) -> Unit)?,
         canvas: Canvas,
     ) {
-        // Lay out every night label first, so neighbours can be kept apart before any is drawn.
-        val laidOut = days.mapNotNull { (column, day) ->
+        // Lay out every night label first, in column order, so each one avoids those already placed.
+        val inputs = days.mapNotNull { (column, day) ->
             val text = day.rainData.nightRainLabelText ?: return@mapNotNull null
             val left = boundsByColumn[column] ?: return@mapNotNull null
-            val leftLow = left.lowLabel ?: return@mapNotNull null
+            val leftLowInk = left.lowInk ?: return@mapNotNull null
             val right = boundsByColumn[column + 1]
             val centerX = layout.columnCenter(column)
             val gapCenterX =
@@ -132,7 +151,7 @@ internal object DailyForecastRainLabelRenderer {
                 } else {
                     centerX + layout.columnWidth(column) / 2f
                 }
-            val input = DailyRainLabelLayout.NightInput(
+            day to DailyRainLabelLayout.NightInput(
                 date = day.date.toString(),
                 text = text,
                 probability = day.rainData.nighttimePrecipProbability,
@@ -141,24 +160,20 @@ internal object DailyForecastRainLabelRenderer {
                 columnCenterX = centerX,
                 gapCenterX = gapCenterX,
                 columnWidth = layout.columnWidth(column),
-                leftLowLabel = leftLow.toBox(),
-                rightLowLabel = right?.lowLabel?.toBox(),
+                leftLowInk = leftLowInk,
+                rightLowInk = right?.lowInk,
                 obstacles = left.nightObstacles + right?.nightObstacles.orEmpty(),
-                dayLabelTop = layout.bottomStack.dayLabelTop,
+                floorInkTop = minOf(left.dayNameInkTop, right?.dayNameInkTop ?: left.dayNameInkTop),
                 canvasWidth = layout.widthPx.toFloat(),
                 pxPerDp = layout.density,
             )
-            day to DailyRainLabelLayout.LaidOutNight(input, DailyRainLabelLayout.layoutNight(rainLabelHost(paints), input, PLATFORM))
         }
-        val separated = DailyRainLabelLayout.separateNightLabels(laidOut.map { it.second }, PLATFORM)
-        laidOut.zip(separated).forEach { (entry, label) ->
+        val placed = DailyRainLabelLayout.layoutNights(rainLabelHost(paints), inputs.map { it.second }, PLATFORM)
+        inputs.zip(placed).forEach { (entry, label) ->
             canvas.drawText(label.text, label.centerX, label.baseline, createRainPaint(paints, label.fontScale))
             onRainLabelDrawn?.invoke(label.toPlacement(entry.first, Float.NaN))
         }
     }
-
-    private fun RectF.toBox() =
-        com.weatherwidget.shared.graph.DailyRainLabelPlanner.Box(left, top, right, bottom)
 
     private fun DailyRainLabelLayout.Placed.toPlacement(day: DayData, rawTop: Float): DailyRainLabelPlacement {
         val isNight = kind == DailyRainLabelLayout.Kind.NIGHT

@@ -9,6 +9,7 @@ import com.weatherwidget.shared.util.DailyDayValueResolver
 import com.weatherwidget.widget.DailyForecastGraphRenderer.DailyRainLabelPlacement
 import com.weatherwidget.widget.DailyForecastGraphRenderer.DayData
 import com.weatherwidget.widget.DailyForecastGraphRenderer.DayLabelDrawnDebug
+import kotlin.math.roundToInt
 
 /** Draws the non-bar content of one resolved daily column. */
 internal object DailyColumnRenderer {
@@ -16,8 +17,12 @@ internal object DailyColumnRenderer {
         val dayLabel: RectF,
         val icon: RectF?,
         val lowLabel: RectF?,
-        /** Ink-shaped icon + low label (° split off), for the night rain label placer. */
+        /** Measured ink of the icon, the low label (row bands) and the day name, for the night rain label placer. */
         val nightObstacles: List<DailyRainLabelPlanner.Box> = emptyList(),
+        /** Ink of the whole low label; null when no low label is drawn. */
+        val lowInk: DailyRainLabelPlanner.Box? = null,
+        /** Top of the day name's ink: a night rain label's floor. */
+        val dayNameInkTop: Float = dayLabel.top,
     )
 
     private val COLOR_LABEL_GRAY = 0xFFAAAAAA.toInt()
@@ -48,6 +53,12 @@ internal object DailyColumnRenderer {
                 centerX + labelWidth / 2f,
                 dayLabelBaseline + TemperatureGraphStyle.fontDescent(labelPaint),
             )
+        val dayNameInk =
+            TextInk.bounds(labelPaint, dayLabel)?.let {
+                val left = centerX - labelWidth / 2f
+                DailyRainLabelPlanner.Box(left + it.left, dayLabelBaseline + it.top, left + it.right, dayLabelBaseline + it.bottom)
+            } ?: dayLabelBounds.toBox()
+        val dayNameInkTop = dayNameInk.top
         onDayLabelDrawn?.invoke(
             DayLabelDrawnDebug(
                 date = day.date,
@@ -66,10 +77,11 @@ internal object DailyColumnRenderer {
         var lowLabelBounds: RectF? = null
         var lowLabelObstacles: List<DailyRainLabelPlanner.Box> = emptyList()
         var iconBounds: RectF? = null
+        var iconInk: List<DailyRainLabelPlanner.Box> = emptyList()
 
         if (lowY != null) {
             val iconY = layout.bottomStack.iconTop(lowY)
-            drawWeatherIcon(canvas, context, day, centerX, iconY, layout.iconSize)
+            iconInk = drawWeatherIcon(canvas, context, day, centerX, iconY, layout.iconSize, com.weatherwidget.shared.graph.InkScan.NIGHT_OBSTACLE_BAND_PX)
             if (day.iconRes != null) {
                 iconBounds =
                     RectF(
@@ -136,14 +148,15 @@ internal object DailyColumnRenderer {
                         lowTempY + TemperatureGraphStyle.fontDescent(tempPaint),
                     )
                 lowLabelObstacles =
-                    DailyRainLabelPlanner.lowLabelObstacles(
+                    DailyTemperatureLabelRenderer.inkBoxes(
                         text = lowLabelText,
-                        left = lowLabelBounds.left,
-                        top = lowLabelBounds.top,
-                        right = lowLabelBounds.right,
-                        bottom = lowLabelBounds.bottom,
-                        degreeWidth = DailyTemperatureLabelRenderer.measureTextWidth(tempPaint, "°"),
-                    )
+                        centerX = centerX,
+                        baselineY = lowTempY,
+                        base = tempPaint,
+                        drawOutline = day.isPast,
+                        maxWidthPx = layout.tempLabelMaxWidthPx,
+                        bandPx = com.weatherwidget.shared.graph.InkScan.NIGHT_OBSTACLE_BAND_PX,
+                    ) ?: listOf(lowLabelBounds.toBox())
             }
         }
 
@@ -161,12 +174,21 @@ internal object DailyColumnRenderer {
             dayLabel = dayLabelBounds,
             icon = iconBounds,
             lowLabel = lowLabelBounds,
-            nightObstacles =
-                listOfNotNull(
-                    iconBounds?.let { DailyRainLabelPlanner.Box(it.left, it.top, it.right, it.bottom) },
-                ) + lowLabelObstacles,
+            nightObstacles = iconInk + lowLabelObstacles + dayNameInk,
+            lowInk =
+                lowLabelObstacles.takeIf { it.isNotEmpty() }?.let { boxes ->
+                    DailyRainLabelPlanner.Box(
+                        boxes.minOf { it.left },
+                        boxes.minOf { it.top },
+                        boxes.maxOf { it.right },
+                        boxes.maxOf { it.bottom },
+                    )
+                },
+            dayNameInkTop = dayNameInkTop,
         )
     }
+
+    private fun RectF.toBox() = DailyRainLabelPlanner.Box(left, top, right, bottom)
 
     internal fun resolveLowLabelBaseline(
         day: DayData,
@@ -192,6 +214,7 @@ internal object DailyColumnRenderer {
             snapshotBarDrawn = day.isToday || day.isPast,
         ) ?: day.bottomStackLow ?: day.solidLineLow
 
+    /** Draws the day's icon; returns its opaque pixels as row bands in canvas coordinates. */
     private fun drawWeatherIcon(
         canvas: Canvas,
         context: Context,
@@ -199,9 +222,10 @@ internal object DailyColumnRenderer {
         centerX: Float,
         iconY: Float,
         iconSize: Int,
-    ) {
-        val iconRes = day.iconRes ?: return
-        val drawable = ContextCompat.getDrawable(context, iconRes)?.mutate() ?: return
+        bandPx: Int,
+    ): List<DailyRainLabelPlanner.Box> {
+        val iconRes = day.iconRes ?: return emptyList()
+        val drawable = ContextCompat.getDrawable(context, iconRes)?.mutate() ?: return emptyList()
         val iconX = centerX - iconSize / 2f
         drawable.setBounds(
             iconX.toInt(),
@@ -213,6 +237,11 @@ internal object DailyColumnRenderer {
             drawable.setTint(if (day.isSunny) COLOR_SUNNY else COLOR_LABEL_GRAY)
         }
         drawable.draw(canvas)
+        val left = iconX.toInt().toFloat()
+        val top = iconY.toInt().toFloat()
+        return TextInk.iconBands("$iconRes", drawable, iconSize, bandPx).map {
+            DailyRainLabelPlanner.Box(left + it.left, top + it.top, left + it.right, top + it.bottom)
+        }
     }
 
 }

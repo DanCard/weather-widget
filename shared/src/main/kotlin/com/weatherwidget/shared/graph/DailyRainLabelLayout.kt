@@ -29,6 +29,15 @@ object DailyRainLabelLayout {
          * [DailyRainLabels.RAIN_PEAK_FONT_SCALE].
          */
         fun measure(text: String, kind: Kind, fontScale: Float): TextSize
+
+        /**
+         * The drawn ink of [text], relative to the top-left of the box [measure] returns. Null when the
+         * host cannot tell: the placer then takes the full width from the box top to the baseline.
+         */
+        fun ink(text: String, kind: Kind, fontScale: Float): DailyRainLabelPlanner.Box? = null
+
+        /** The same ink as row bands ([InkScan.rowBands]), relative to the box's top-left; null = [ink] alone. */
+        fun inkBands(text: String, kind: Kind, fontScale: Float): List<DailyRainLabelPlanner.Box>? = null
     }
 
     data class Placed(
@@ -162,442 +171,152 @@ object DailyRainLabelLayout {
         /** Midpoint between this column and the next (or the column's right edge for the last one). */
         val gapCenterX: Float,
         val columnWidth: Float,
-        /** This day's drawn low label. */
-        val leftLowLabel: DailyRainLabelPlanner.Box,
-        /** The next day's drawn low label; null when there is none. */
-        val rightLowLabel: DailyRainLabelPlanner.Box?,
-        /** Both neighbours' icons and low labels ([DailyRainLabelPlanner.lowLabelObstacles]). */
+        /** Ink of this day's low label (digits and °). */
+        val leftLowInk: DailyRainLabelPlanner.Box,
+        /** Ink of the next day's low label; null when there is none. */
+        val rightLowInk: DailyRainLabelPlanner.Box?,
+        /**
+         * Measured ink of both neighbours' icons, low labels and day names, as row bands
+         * ([InkScan.rowBands]) so open glyph space (under a °, a 4's crossbar) stays free.
+         */
         val obstacles: List<DailyRainLabelPlanner.Box>,
-        /** Top of the day-name row; the label never reaches into it. */
-        val dayLabelTop: Float,
+        /**
+         * Top of the day names' ink. The label's ink stays above it, except by up to
+         * [NightRainLabelPlacer.Weights.floorAllowanceDp] between names; [obstacles] carry the names' ink.
+         */
+        val floorInkTop: Float,
         val canvasWidth: Float,
-        /** dp→px for gaps, nudges and margins. */
+        /** dp→px for gaps, steps and margins. */
         val pxPerDp: Float,
     )
 
     /**
-     * The night chance starts centred in the gap, tucked under the higher of the two low labels, and
-     * nudges left, right or down around the neighbours' icons and low labels
-     * ([DailyRainLabelPlanner.placeNightLabel]), preferring down when there is lots of room below, then
-     * eases off anything it hugs ([DailyRainLabelPlanner.easeOffNeighbors]). It may sink below both
-     * lows, down to the day-name row, when nothing above is clear; a label that does slides right off the left low
-     * ([DailyRainLabelPlanner.slideRightAfterSinking]). When the lows sit on the day-name row (the coldest days), there is no room under them, so it rises until it
-     * clears the row — level with the lows, in the gap between them.
-     *
-     * It is the left day's label. When the search can only clear by going mostly under the next day's
-     * low, it takes the pocket under its own day's ° instead, even a little past the day-name floor
-     * (only its blank descent crosses); such a placement is final, apart from a slide of at most 2 dp
-     * off its own low's digits ([DailyRainLabelPlanner.slideOffLeftNeighbor]). If it still ends up under the next
-     * day's low, it is laid out again at [NIGHT_REDUCED_SCALE] and the smaller label is used when that
-     * keeps it on its own day's side (plans/261114-night-rain-label-own-degree-pocket.md).
+     * Lays out every night label of the graph in column order. Each label is placed by
+     * [NightRainLabelPlacer] against its two columns' ink and the ink of the labels already placed,
+     * so neighbouring night labels never overlap.
      */
-    fun layoutNight(host: Host, input: NightInput, platform: String): Placed {
-        val p = input.pxPerDp
-        val right = input.rightLowLabel
-        val anchorBottom = if (right != null) minOf(input.leftLowLabel.bottom, right.bottom) else input.leftLowLabel.bottom
-        val lowerLowBottom = if (right != null) maxOf(input.leftLowLabel.bottom, right.bottom) else input.leftLowLabel.bottom
-        val roomBelowDp = (input.dayLabelTop - anchorBottom).coerceAtLeast(0f) / p
-        val tuck = DailyRainLabelPlanner.calculateNightTuck(roomBelowDp)
-        val tuckTop = anchorBottom - tuck.dynamicOverlapDp * p + tuck.roomyDownDp * p
+    fun layoutNights(
+        host: Host,
+        inputs: List<NightInput>,
+        platform: String,
+        weights: NightRainLabelPlacer.Weights = NightRainLabelPlacer.DEFAULT_WEIGHTS,
+    ): List<Placed> {
+        val placedInk = mutableListOf<DailyRainLabelPlanner.Box>()
+        return inputs.map { input ->
+            val (label, ink) = layoutNight(host, input, platform, placedInk.toList(), weights)
+            placedInk += ink
+            label
+        }
+    }
 
-        // Centred in the gap at full size; else at the reduced size; else centred on the column.
+    /**
+     * One night label: centred in the gap between its column and the next at full size, else at
+     * [NIGHT_REDUCED_SCALE], else centred under its own low (the last column, or a label too wide
+     * for the gap). Within that mode [NightRainLabelPlacer] scores every spot; the reduced size is used
+     * only when full size has no clear spot.
+     * Returns the label and its ink.
+     */
+    private fun layoutNight(
+        host: Host,
+        input: NightInput,
+        platform: String,
+        placedLabels: List<DailyRainLabelPlanner.Box>,
+        weights: NightRainLabelPlacer.Weights,
+    ): Pair<Placed, DailyRainLabelPlanner.Box> {
+        val p = input.pxPerDp
         val edge = DailyRainLabels.RAIN_LABEL_EDGE_MARGIN_DP * p
-        fun fitsAt(cx: Float, width: Float) = cx - width / 2f >= edge && cx + width / 2f <= input.canvasWidth - edge
         val baseScale = DailyRainLabels.rainLabelFontScale(input.isPast, input.probability, input.daysFromToday) *
             DailyRainLabels.NIGHT_SCALE * DailyRainLabels.traceFontScale(input.text)
-        // A leading decimal point (".45in") is a speck at the baseline: blank at digit height.
-        fun leadingBlank(scale: Float) = if (input.text.startsWith(".")) host.measure(".", Kind.NIGHT, scale).width else 0f
-        var fontScale = baseScale
-        var size = host.measure(input.text, Kind.NIGHT, fontScale)
-        var homeCenterX = input.gapCenterX
-        var placement = "NIGHT_SHIFTED_LEFT"
-        if (!fitsAt(homeCenterX, size.width)) {
-            val reducedScale = baseScale * NIGHT_REDUCED_SCALE
-            val reduced = host.measure(input.text, Kind.NIGHT, reducedScale)
-            if (fitsAt(homeCenterX, reduced.width)) {
-                fontScale = reducedScale
-                size = reduced
-                placement = "NIGHT_SHIFTED_SCALED"
-            } else {
+        val reducedScale = baseScale * NIGHT_REDUCED_SCALE
+        fun fitsAt(cx: Float, width: Float) = cx - width / 2f >= edge && cx + width / 2f <= input.canvasWidth - edge
+        val obstacles = input.obstacles + placedLabels
+        val clearance = weights.clearanceDp * p
+
+        fun attempt(scale: Float, placement: String): Attempt {
+            val size = host.measure(input.text, Kind.NIGHT, scale)
+            val ink = host.ink(input.text, Kind.NIGHT, scale) ?: DailyRainLabelPlanner.Box(0f, 0f, size.width, size.baseline)
+            val centred = placement == "NIGHT_CENTERED"
+            val target = if (centred) {
                 val half = size.width / 2f
-                homeCenterX = input.columnCenterX.coerceIn(edge + half, (input.canvasWidth - edge - half).coerceAtLeast(edge + half))
-                placement = "NIGHT_CENTERED"
+                input.columnCenterX.coerceIn(edge + half, (input.canvasWidth - edge - half).coerceAtLeast(edge + half))
+            } else {
+                input.gapCenterX
             }
+            val right = input.rightLowInk.takeUnless { centred }
+            // Preferred row: [rowGapDp] under the higher low's ink; it may rise to [clearanceDp] under it.
+            val anchorInkBottom = minOf(input.leftLowInk.bottom, right?.bottom ?: Float.MAX_VALUE)
+            val tuckTop = anchorInkBottom + clearance - ink.top
+            val preferredTop = anchorInkBottom + weights.rowGapDp * p - ink.top
+            val result = NightRainLabelPlacer.place(
+                width = size.width,
+                ink = ink,
+                inkBands = host.inkBands(input.text, Kind.NIGHT, scale)?.takeIf { it.isNotEmpty() } ?: listOf(ink),
+                targetCenterX = target,
+                preferredTop = preferredTop,
+                minTop = tuckTop,
+                maxInkBottom = input.floorInkTop + weights.floorAllowanceDp * p,
+                minLeft = edge,
+                maxRight = input.canvasWidth - edge,
+                maxShift = input.columnWidth * DailyRainLabels.NIGHT_NUDGE_MAX_SHIFT_FRACTION,
+                obstacles = obstacles,
+                density = p,
+                weights = weights,
+            )
+            return Attempt(scale, placement, size, ink, target, preferredTop, anchorInkBottom, result)
         }
 
-        val head = "nightRainLabel position: platform=$platform date=${input.date} text=\"${input.text}\"" +
-            " anchorBottom=${anchorBottom.r()} lowerLowBottom=${lowerLowBottom.r()} roomBelowDp=${roomBelowDp.r()}" +
-            " tuckTop=${tuckTop.r()}"
-        var night = resolveNight(input, size, fontScale, homeCenterX, placement, tuckTop, anchorBottom, lowerLowBottom, edge, leadingBlank(fontScale))
-        var shrunk = false
-        if (night.underRightLow && placement == "NIGHT_SHIFTED_LEFT") {
-            val reducedScale = baseScale * NIGHT_REDUCED_SCALE
-            val reduced = resolveNight(
-                input, host.measure(input.text, Kind.NIGHT, reducedScale), reducedScale, homeCenterX,
-                "NIGHT_SHIFTED_SCALED", tuckTop, anchorBottom, lowerLowBottom, edge, leadingBlank(reducedScale),
-            )
-            if (!reduced.underRightLow) {
-                night = reduced
-                shrunk = true
+        val chosen = when {
+            fitsAt(input.gapCenterX, host.measure(input.text, Kind.NIGHT, baseScale).width) -> {
+                // The smaller size only when full size has no clear spot (user's fallback, 2026-11-14):
+                // shrinking to win a few score points squeezed ".51in" and "94%" beside icons (Fold 2026-11-16).
+                val full = attempt(baseScale, "NIGHT_SHIFTED_LEFT")
+                if (full.result.best.clear) {
+                    full
+                } else {
+                    attempt(reducedScale, "NIGHT_SHIFTED_SCALED").takeIf { it.result.best.clear } ?: full
+                }
             }
+            fitsAt(input.gapCenterX, host.measure(input.text, Kind.NIGHT, reducedScale).width) ->
+                attempt(reducedScale, "NIGHT_SHIFTED_SCALED")
+            else -> attempt(baseScale, "NIGHT_CENTERED")
         }
-        Log.v(TAG, "$head${night.trace} shrunkForOwnDay=$shrunk")
-        return night.label
-    }
 
-    /** One [layoutNight] attempt at a given size: the label, whether it lies under the next day's low, and its trace. */
-    private data class NightAttempt(val label: Placed, val underRightLow: Boolean, val trace: String)
-
-    private fun resolveNight(
-        input: NightInput,
-        size: TextSize,
-        fontScale: Float,
-        homeCenterX: Float,
-        placement: String,
-        tuckTop: Float,
-        anchorBottom: Float,
-        lowerLowBottom: Float,
-        edge: Float,
-        leadingBlankPx: Float,
-    ): NightAttempt {
-        val p = input.pxPerDp
-        val homeTop = minOf(tuckTop, input.dayLabelTop - size.height)
-        val maxBottom = input.dayLabelTop
-        val leftDigits = input.obstacles.firstOrNull { it.isLowDigits && it.left == input.leftLowLabel.left }
-        val leftDegree = leftDigits?.let { d -> input.obstacles.firstOrNull { it.isDegreeSign && it.left == d.right && it.top == d.top } }
-        val rightDigits = input.rightLowLabel?.let { r -> input.obstacles.firstOrNull { it.isLowDigits && it.left == r.left } }
-        // The pocket under the left °: past the floor by the label's blank descent at most, and
-        // never below that low's own line box.
-        val pocketMaxBottom = minOf(
-            input.leftLowLabel.bottom,
-            maxBottom + minOf(size.height - size.baseline, DailyRainLabels.NIGHT_FLOOR_DEGREE_DROP_DP * p),
-        ).coerceAtLeast(maxBottom)
-        val roomyBelow = input.dayLabelTop - (homeTop + size.height) >= DailyRainLabels.NIGHT_ROOMY_BELOW_DP * p
-        val maxShiftPx = input.columnWidth * DailyRainLabels.NIGHT_NUDGE_MAX_SHIFT_FRACTION
-        val placed = DailyRainLabelPlanner.placeNightLabel(
-            homeCenterX = homeCenterX,
-            homeTop = homeTop,
-            width = size.width,
-            height = size.height,
-            obstacles = input.obstacles,
-            maxShiftPx = maxShiftPx,
-            maxBottom = maxBottom,
-            minLeft = edge,
-            maxRight = input.canvasWidth - edge,
-            density = p,
-            sidewaysCost = if (roomyBelow) DailyRainLabels.NIGHT_ROOMY_SIDEWAYS_COST else 1f,
-            pocketDegree = leftDegree,
-            pocketMaxBottom = pocketMaxBottom,
-            rightDigits = rightDigits,
-        )
-        val searchTrace = " leadingBlankDp=${(leadingBlankPx / p).r()} placement=${placed.placement} offsetDp=(${(placed.dxPx / p).r()},${(placed.dyPx / p).r()})" +
-            " overlapDp=${(placed.overlapPx / p).r()} underRightLow=${placed.underRightLow}" +
-            " pocketFloorDp=${((placed.top + size.height - maxBottom).coerceAtLeast(0f) / p).r()}" +
-            " maxBottom=${maxBottom.r()} dayLabelTop=${input.dayLabelTop.r()}" +
-            " obstacles=${input.obstacles.joinToString(";", "[", "]") { "${it.left.r()},${it.top.r()},${it.right.r()},${it.bottom.r()}" }}"
-        if (placed.inPocket) {
-            // Under its own ° and past the floor: final. The later steps all work to [maxBottom] and
-            // would slide it back out toward the next day's low. Only a small slide off its own low's
-            // digits, which the pocket can press it against.
-            val pocketX = DailyRainLabelPlanner.slideOffLeftNeighbor(
-                centerX = placed.centerX,
-                top = placed.top,
-                width = size.width,
-                height = size.height,
-                rightDigits = rightDigits,
-                obstacles = input.obstacles,
-                maxRight = input.canvasWidth - edge,
-                density = p,
-                leadingBlankPx = leadingBlankPx,
-                baselineY = placed.top + size.baseline,
-            )
-            return NightAttempt(
-                Placed(
-                    Kind.NIGHT, input.text, fontScale, pocketX, placed.top, size.width, size.height,
-                    placed.top + size.baseline, placement, anchorBottom,
-                ),
-                placed.underRightLow,
-                " fit=$placement home=(${homeCenterX.r()},${homeTop.r()}) size=${size.width.r()}x${size.height.r()}" +
-                    " resolved=(${pocketX.r()},${placed.top.r()}) pocket=true sideSlideDp=${((pocketX - placed.centerX) / p).r()}$searchTrace",
-            )
-        }
-        val sunk = placed.dyPx > 0f && placed.top + size.height > lowerLowBottom
-        val placedCenterX = if (sunk) {
-            DailyRainLabelPlanner.slideRightAfterSinking(
-                centerX = placed.centerX,
-                top = placed.top,
-                width = size.width,
-                height = size.height,
-                leftLowLabel = input.leftLowLabel,
-                obstacles = input.obstacles,
-                maxRight = input.canvasWidth - edge,
-                density = p,
-            )
-        } else {
-            placed.centerX
-        }
-        val eased = DailyRainLabelPlanner.easeOffNeighbors(
-            homeCenterX = homeCenterX,
-            centerX = placedCenterX,
-            top = placed.top,
-            width = size.width,
-            height = size.height,
-            obstacles = input.obstacles,
-            maxShiftPx = maxShiftPx,
-            rightLowLabel = input.rightLowLabel,
-            maxBottom = maxBottom,
-            minLeft = edge,
-            density = p,
-            searchMovedLeft = placed.dxPx < 0f,
-        )
-        val final = if (placed.dxPx != 0f) {
-            DailyRainLabelPlanner.recenterOverBlankLineBox(
-                homeCenterX = homeCenterX,
-                centerX = eased.centerX,
-                top = eased.top,
-                width = size.width,
-                height = size.height,
-                obstacles = input.obstacles,
-                maxBottom = maxBottom,
-                density = p,
-            )
-        } else {
-            eased
-        }
-        val offInkTop = DailyRainLabelPlanner.dropOffDigitInk(
-            centerX = final.centerX,
-            top = final.top,
-            width = size.width,
-            height = size.height,
-            obstacles = input.obstacles,
-            maxBottom = maxBottom,
-            density = p,
-        )
-        val finalCenterX = DailyRainLabelPlanner.slideOffDigitInk(
-            centerX = final.centerX,
-            top = offInkTop,
-            width = size.width,
-            height = size.height,
-            leftLowLabel = input.leftLowLabel,
-            rightLowLabel = input.rightLowLabel,
-            obstacles = input.obstacles,
-            minCenterX = homeCenterX - maxShiftPx,
-            maxCenterX = homeCenterX + maxShiftPx,
-            density = p,
-        )
-        val finalTop = DailyRainLabelPlanner.dropClearOfDegree(
-            centerX = finalCenterX,
-            top = offInkTop,
-            width = size.width,
-            height = size.height,
-            obstacles = input.obstacles,
-            maxBottom = maxBottom,
-            density = p,
-        )
-        val placedCenterXFinal = DailyRainLabelPlanner.slideOffDegree(
-            centerX = finalCenterX,
-            top = finalTop,
-            width = size.width,
-            height = size.height,
-            obstacles = input.obstacles,
-            maxCenterX = homeCenterX + maxShiftPx,
-            density = p,
-        )
-        val floorEased = DailyRainLabelPlanner.easeOffLeftLowAtFloor(
-            homeCenterX = homeCenterX,
-            centerX = placedCenterXFinal,
-            top = finalTop,
-            width = size.width,
-            height = size.height,
-            leftLowLabel = input.leftLowLabel,
-            obstacles = input.obstacles,
-            maxBottom = maxBottom,
-            density = p,
-        )
-        val floorTop = DailyRainLabelPlanner.dropOffDegreeAtFloor(
-            centerX = floorEased.centerX,
-            top = floorEased.top,
-            width = size.width,
-            height = size.height,
-            blankBelowPx = size.height - size.baseline,
-            obstacles = input.obstacles,
-            maxBottom = maxBottom,
-            density = p,
-        )
-        // Centred under its own low (the last column, or a label too wide for its gap): tuck up to
-        // 1 dp under that low's digit ink. The gap tuck measures from the line box, whose bottom
-        // 22 % is blank, and adds roomy drops (Pixel 7 Pro Sat "100%" sat 6 dp under "57°").
-        val tuckedTop = if (placement == "NIGHT_CENTERED") {
-            tuckUnderOwnLow(input, floorEased.centerX, floorTop, size.width, size.height)
-        } else {
-            floorTop
-        }
-        // Last: off a left icon or low the steps above left it pressed against. A sunk label has
-        // its own tuned slide off the left low (slideRightAfterSinking).
-        val sideX = if (sunk) floorEased.centerX else DailyRainLabelPlanner.slideOffLeftNeighbor(
-            centerX = floorEased.centerX,
-            top = tuckedTop,
-            width = size.width,
-            height = size.height,
-            rightDigits = rightDigits,
-            obstacles = input.obstacles,
-            maxRight = input.canvasWidth - edge,
-            density = p,
-            leadingBlankPx = leadingBlankPx,
-            baselineY = tuckedTop + size.baseline,
-        )
+        val best = chosen.result.best
+        val size = chosen.size
         val label = Placed(
-            Kind.NIGHT, input.text, fontScale, sideX, tuckedTop, size.width, size.height,
-            tuckedTop + size.baseline, placement, anchorBottom,
+            Kind.NIGHT, input.text, chosen.scale, best.centerX, best.top, size.width, size.height,
+            best.top + size.baseline, chosen.placement, chosen.anchorInkBottom,
         )
-        // Judged before the side slide: that slide only runs well below the next low's digits, and
-        // counting it here dropped the emulator's shrunk Tue "97%" back to full size (2026-11-15).
-        val preSlideLeft = floorEased.centerX - size.width / 2f
-        val halfUnderRight = rightDigits != null &&
-            minOf(preSlideLeft + size.width, rightDigits.right) - maxOf(preSlideLeft, rightDigits.left) > size.width / 2f
-        return NightAttempt(
-            label,
-            halfUnderRight,
-            " fit=$placement home=(${homeCenterX.r()},${homeTop.r()}) size=${size.width.r()}x${size.height.r()}" +
-                " resolved=(${sideX.r()},${tuckedTop.r()}) pocket=false sideSlideDp=${((sideX - floorEased.centerX) / p).r()} ownLowTuckDp=${((floorTop - tuckedTop) / p).r()} sunk=$sunk" +
-                " recentered=${final != eased} inkDropDp=${((offInkTop - final.top) / p).r()} inkSlideDp=${((finalCenterX - final.centerX) / p).r()} degreeDropDp=${((finalTop - offInkTop) / p).r()} degreeSlideDp=${((placedCenterXFinal - finalCenterX) / p).r()} floorEaseDp=(${((floorEased.centerX - placedCenterXFinal) / p).r()},${((floorEased.top - finalTop) / p).r()}) floorDegreeDropDp=${((floorTop - floorEased.top) / p).r()}" +
-                " easedDp=(${((eased.centerX - placedCenterX) / p).r()},${((eased.top - placed.top) / p).r()})$searchTrace",
+        val labelInk = DailyRainLabelPlanner.Box(
+            label.left + chosen.ink.left, label.top + chosen.ink.top, label.left + chosen.ink.right, label.top + chosen.ink.bottom,
         )
+        val runner = chosen.result.runnerUp
+        Log.v(
+            TAG,
+            "nightRainLabel position: platform=$platform date=${input.date} text=\"${input.text}\" fit=${chosen.placement}" +
+                " target=${chosen.target.r()} preferredTop=${chosen.preferredTop.r()} size=${size.width.r()}x${size.height.r()}" +
+                " resolved=(${best.centerX.r()},${best.top.r()}) inkCentreOffDp=${(((labelInk.left + labelInk.right) / 2f - chosen.target) / p).r()}" +
+                " belowPreferredDp=${((best.top - chosen.preferredTop) / p).r()} score=${best.score.r()}" +
+                " (centre=${best.centreCost.r()} vertical=${best.verticalCost.r()} crowd=${best.crowdCost.r()} intrusion=${best.intrusionCost.r()})" +
+                " clear=${best.clear} minGapDp=${(best.minGap / p).r()}" +
+                " runnerUp=${runner?.let { "(${it.centerX.r()},${it.top.r()},${it.score.r()})" }}" +
+                " ink=(${labelInk.left.r()},${labelInk.top.r()},${labelInk.right.r()},${labelInk.bottom.r()})" +
+                " floorInkTop=${input.floorInkTop.r()}" +
+                " obstacles=${obstacles.joinToString(";", "[", "]") { "${it.left.r()},${it.top.r()},${it.right.r()},${it.bottom.r()}" }}",
+        )
+        return label to labelInk
     }
 
-    /**
-     * Raises a label centred under its own day's low to [NIGHT_LABEL_GAP_DP] below that low's digit
-     * ink, stopping short of any other obstacle's ink. Never moves it down.
-     */
-    private fun tuckUnderOwnLow(input: NightInput, centerX: Float, top: Float, width: Float, height: Float): Float {
-        val p = input.pxPerDp
-        val gap = NIGHT_LABEL_GAP_DP * p
-        val low = input.leftLowLabel
-        val digits = input.obstacles.firstOrNull { it.isLowDigits && it.left == low.left } ?: low
-        val inkBottom = digits.bottom - (digits.bottom - digits.top) * DailyRainLabels.DIGIT_BLANK_DESCENT_FRACTION
-        val target = inkBottom + gap
-        if (target >= top) return top
-        val from = Placed(Kind.NIGHT, "", 1f, centerX, top, width, height, top, "", 0f)
-        val ink = DailyRainLabelPlanner.inkBoxes(input.obstacles)
-        val step = (0.5f * p).coerceAtLeast(0.5f)
-        var placedTop = top
-        while (placedTop > target) {
-            val next = maxOf(placedTop - step, target)
-            if (hitsInk(from.copy(top = next), ink, gap, from)) break
-            placedTop = next
-        }
-        return placedTop
-    }
-
-    /** A laid-out night label with the input it was placed from (its obstacles and limits). */
-    data class LaidOutNight(val input: NightInput, val label: Placed)
-
-    /**
-     * Keeps neighbouring night labels from overlapping, after every one is laid out and before any
-     * is drawn. [layoutNight] places each label against its two columns' icons and low labels only,
-     * so a wide one (Fri ".24in") and the last column's label, which is centred on its own column
-     * (Sat "100%"), could land on each other (emulator 2026-11-06).
-     *
-     * For each pair, in column order, that comes within [NIGHT_LABEL_GAP_DP] of each other, the
-     * right label slides right (to within [NIGHT_SEPARATION_EDGE_MARGIN_DP] of the edge), then
-     * rises, and only then does the left label drop by what is still needed (user: nudge it right,
-     * raise it, and if that isn't enough lower the amount). Each move stops short of its own
-     * obstacles' ink and the day-name row. A pair that doesn't overlap is left alone. Labels are in column order; the result keeps
-     * that order (plans/261106-night-rain-labels-overlap-each-other.md).
-     */
-    fun separateNightLabels(labels: List<LaidOutNight>, platform: String): List<Placed> {
-        val out = labels.map { it.label }.toMutableList()
-        for (i in 1 until labels.size) {
-            val leftIn = labels[i - 1].input
-            val rightIn = labels[i].input
-            val p = rightIn.pxPerDp
-            val gap = NIGHT_LABEL_GAP_DP * p
-            val step = (0.5f * p).coerceAtLeast(0.5f)
-            var l = out[i - 1]
-            var r = out[i]
-            if (!near(l, r, gap)) continue
-            val startL = l
-            val startR = r
-
-            // 1. Right, until clear of the left label sideways. A label pushed by its neighbour may
-            // use most of the edge margin: the last column's label already sat on it (emulator Sat).
-            val maxRight = rightIn.canvasWidth - NIGHT_SEPARATION_EDGE_MARGIN_DP * p
-            val rightInk = DailyRainLabelPlanner.inkBoxes(rightIn.obstacles)
-            val wantRight = l.right + gap - r.left
-            var dx = 0f
-            while (dx < wantRight) {
-                val next = minOf(dx + step, wantRight)
-                val moved = r.copy(centerX = startR.centerX + next)
-                if (moved.right > maxRight || hitsInk(moved, rightInk, gap, startR)) break
-                dx = next
-            }
-            r = r.copy(centerX = startR.centerX + dx)
-
-            // 2. Up, until its bottom clears the left label's top.
-            if (near(l, r, gap)) {
-                val wantUp = r.bottom + gap - l.top
-                var dy = 0f
-                while (dy < wantUp) {
-                    val next = minOf(dy + step, wantUp)
-                    val moved = r.copy(top = r.top - next, baseline = r.baseline - next)
-                    if (moved.top < 0f || hitsInk(moved, rightInk, gap, r)) break
-                    dy = next
-                }
-                r = r.copy(top = r.top - dy, baseline = r.baseline - dy)
-            }
-
-            // 3. The left label down by whatever overlap is left, above the day-name row.
-            if (near(l, r, gap)) {
-                val leftInk = DailyRainLabelPlanner.inkBoxes(leftIn.obstacles)
-                val wantDown = r.bottom + gap - l.top
-                var dy = 0f
-                while (dy < wantDown) {
-                    val next = minOf(dy + step, wantDown)
-                    val moved = l.copy(top = l.top + next, baseline = l.baseline + next)
-                    if (moved.bottom > leftIn.dayLabelTop || hitsInk(moved, leftInk, gap, l)) break
-                    dy = next
-                }
-                l = l.copy(top = l.top + dy, baseline = l.baseline + dy)
-            }
-
-            out[i - 1] = l
-            out[i] = r
-            Log.v(
-                TAG,
-                "nightLabelSeparation: platform=$platform left=${leftIn.date} \"${l.text}\" right=${rightIn.date} \"${r.text}\"" +
-                    " rightDp=${((r.centerX - startR.centerX) / p).r()} raiseDp=${((startR.top - r.top) / p).r()}" +
-                    " lowerLeftDp=${((l.top - startL.top) / p).r()} clear=${!near(l, r, gap)}" +
-                    " left=(${l.left.r()},${l.top.r()},${l.right.r()},${l.bottom.r()})" +
-                    " right=(${r.left.r()},${r.top.r()},${r.right.r()},${r.bottom.r()})",
-            )
-        }
-        return out
-    }
-
-    /** Space kept between two night labels, and between a moved label and an obstacle's ink. */
-    const val NIGHT_LABEL_GAP_DP = 1f
-
-    /**
-     * Edge margin for a night label slid right by [separateNightLabels]; every other label keeps
-     * [DailyRainLabels.RAIN_LABEL_EDGE_MARGIN_DP].
-     */
-    const val NIGHT_SEPARATION_EDGE_MARGIN_DP = 1f
-
-    private fun near(a: Placed, b: Placed, gap: Float) =
-        a.left < b.right + gap && b.left < a.right + gap && a.top < b.bottom + gap && b.top < a.bottom + gap
-
-    /**
-     * True when [moved] reaches further into any ink box, grown by [gap] above and below, than it
-     * did at [from]: a label may stay where it started but never move deeper into ink.
-     */
-    private fun hitsInk(moved: Placed, ink: List<DailyRainLabelPlanner.Box>, gap: Float, from: Placed) = ink.any {
-        fun area(x: Placed): Float {
-            val w = minOf(x.right, it.right) - maxOf(x.left, it.left)
-            val h = minOf(x.bottom, it.bottom + gap) - maxOf(x.top, it.top - gap)
-            return if (w > 0f && h > 0f) w * h else 0f
-        }
-        area(moved) > area(from) + 0.01f
-    }
+    private data class Attempt(
+        val scale: Float,
+        val placement: String,
+        val size: TextSize,
+        val ink: DailyRainLabelPlanner.Box,
+        val target: Float,
+        val preferredTop: Float,
+        val anchorInkBottom: Float,
+        val result: NightRainLabelPlacer.Result,
+    )
 
     private fun Float.r(): String = "%.1f".format(this)
 }
