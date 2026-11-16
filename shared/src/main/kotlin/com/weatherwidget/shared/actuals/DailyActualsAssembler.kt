@@ -142,7 +142,7 @@ object DailyActualsAssembler {
             val todayActual = byDate[today] ?: return@mapValues byDate
             val providerId = providerIdBySource[source] ?: ActualsProviderResolver.providerIdFor(WeatherSource.fromId(source))
             val fog = com.weatherwidget.shared.fog.ObservedMorningFog.forDate(
-                observations.filter { it.api == providerId }, today, zone,
+                observations.filter { it.api == providerId }, today, zone, nowMs,
             )
             byDate + (today to todayActual.withObservedFog(fog))
         }

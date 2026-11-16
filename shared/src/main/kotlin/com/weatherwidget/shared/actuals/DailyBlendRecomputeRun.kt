@@ -51,9 +51,11 @@ object DailyBlendRecomputeRun {
      * `5` (same day): trailing mist no longer raises the top of a morning that had fog
      * (MorningFog.heightLevel, plans/261111-fog-height-dense-top-bottom-weighted.md). `6`: observed fog
      * records whether it was gone before sunrise (MorningFog.predawn, drawn petite;
-     * plans/261112-observed-no-fog-vetoes-forecast.md).
+     * plans/261112-observed-no-fog-vetoes-forecast.md). `7` (2026-11-16): an isolated fog report counts
+     * only while active (ObservedMorningFog.spikes), so 11-16's single KNUQ ¼ SM report leaves the stored
+     * rows (plans/261116-isolated-fog-report-counts-only-while-active.md).
      */
-    const val WRITE_RULES_VERSION = 6
+    const val WRITE_RULES_VERSION = 7
 
     private const val DAY_MS = 86_400_000L
 
@@ -178,12 +180,14 @@ object DailyBlendRecomputeRun {
             )
             .filter { it.date == dateKey }
             // Each source's observed morning fog, from its own actuals provider's readings.
+            // Neighbors from the wider context, so a report across midnight can confirm or retract one.
             .map { row ->
                 val providerApi = blendInputApi(row.source)
                 row.withObservedFog(
-                    com.weatherwidget.shared.fog.ObservedMorningFog.forDate(dayObs.filter { it.api == providerApi }, date, zone),
+                    com.weatherwidget.shared.fog.ObservedMorningFog.forDate(contextObs.filter { it.api == providerApi }, date, zone, nowMs),
                 )
             }
+        logFogSpikes(host, date, dayObs, nowMs)
         val afterExtremesMs = host.elapsedMs()
         // What the blend did, always: the PERF row below appears only for a slow day.
         host.log("DAILY_RECOMPUTE_BLEND", "date=$date ${blendStats.logFragment()}", "VERBOSE")
@@ -267,6 +271,17 @@ object DailyBlendRecomputeRun {
         } else {
             ActualsProviderResolver.providerIdFor(source, preference)
         }
+    }
+
+    /** Isolated fog reports this day that no longer count (ObservedMorningFog.spikes); VERBOSE. */
+    private suspend fun logFogSpikes(host: Host, date: LocalDate, dayObs: List<ObservationReading>, nowMs: Long) {
+        val spikes = com.weatherwidget.shared.fog.ObservedMorningFog.spikes(dayObs, nowMs)
+        if (spikes.isEmpty()) return
+        val listed = spikes.joinToString(" ") { r ->
+            val level = com.weatherwidget.shared.fog.ObservedMorningFog.reportFog(r)?.first
+            "${r.api}/${r.stationId}@${Instant.ofEpochMilli(r.timestamp)}:level=$level"
+        }
+        host.log("FOG_SPIKE_DROPPED", "date=$date $listed", "VERBOSE")
     }
 
     private suspend fun logBlendBreakdown(host: Host, date: LocalDate, dayObs: List<ObservationReading>, rows: List<DailyHistory>) {

@@ -29,6 +29,12 @@ import kotlin.math.abs
  *
  * Pre-dawn ([MorningFog.predawn]) when every foggy report is before sunrise at the nearest station
  * that reported fog.
+ *
+ * A foggy report (above [FogLevel.HINT]) counts only while it is **active** — its station's latest
+ * report, under [ACTIVE_MS] old — or once **confirmed** by a foggy report just before or after it from
+ * the same station. Otherwise it is a [spikes] report and reads as no fog: KNUQ 2026-11-16 10:55
+ * `M1/4SM HZ VV000 15/12` between 8 SM and 10 SM CLR drew dense fog to 58.1° (user: "Only while the
+ * station report is active?"). plans/261116-isolated-fog-report-counts-only-while-active.md
  */
 object ObservedMorningFog {
 
@@ -41,12 +47,15 @@ object ObservedMorningFog {
     /** A cloud base at or below this (500 ft) counts as condensation at the ground. */
     const val SATURATION_CLOUD_BASE_M = 152.4
 
+    /** How long an unconfirmed foggy report stays active as its station's latest (user: 45 minutes). */
+    const val ACTIVE_MS = 45 * 60_000L
+
     /**
      * [date]'s fog from [readings]: null when no reading in the window can speak to fog (none at all,
      * or only personal stations with neither a condition nor a raw report), [MorningFog.NONE] when the
-     * stations that could saw none.
+     * stations that could saw none. [nowMs] decides whether an unconfirmed report is still active.
      */
-    fun forDate(readings: List<ObservationReading>, date: LocalDate, zone: ZoneId): MorningFog? {
+    fun forDate(readings: List<ObservationReading>, date: LocalDate, zone: ZoneId, nowMs: Long): MorningFog? {
         val startMs = MorningFogWindow.startMs(date, zone)
         val endMs = MorningFogWindow.endMs(date, zone)
         val dayEndMs = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
@@ -54,7 +63,8 @@ object ObservedMorningFog {
         val inWindow = sequence.filter { it.timestamp < endMs }
         if (inWindow.isEmpty()) return null
 
-        val raw = sequence.map { it to reportFog(it) }
+        val spikes = spikes(readings, nowMs).mapTo(HashSet()) { it.stationId to it.timestamp }
+        val raw = sequence.map { it to if ((it.stationId to it.timestamp) in spikes) null else reportFog(it) }
         // On a morning with real (flagged) fog, saturation hints do not prolong it: KNUQ 2026-11-09 read
         // `8SM FEW004 15/15` at 10:15, 20 minutes after its last mist, and the hint carried the fog to
         // 10:35 at 62.6° (user: "Fog only lasted till around 10 am").
@@ -80,6 +90,28 @@ object ObservedMorningFog {
             predawn = sunriseMs != null && foggy.all { it.first.timestamp < sunriseMs },
         )
     }
+
+    /**
+     * The foggy reports (above [FogLevel.HINT]) in [readings] that are neither confirmed by the same
+     * station's previous or next report (by distinct time) being foggy too, nor active: their station's
+     * latest report and under [ACTIVE_MS] old at [nowMs]. Neighbors come from every reading passed in,
+     * so a clear report after noon retracts a late-morning spike.
+     */
+    fun spikes(readings: List<ObservationReading>, nowMs: Long): List<ObservationReading> =
+        readings.filter { canSpeakToFog(it) }
+            .groupBy { it.stationId }
+            .values
+            .flatMap { station ->
+                // One report per time: a duplicate row must not confirm itself.
+                val reports = station.groupBy { it.timestamp }.toSortedMap().values.map { it.first() }
+                val foggy = reports.map { r -> reportFog(r)?.let { it.first > FogLevel.HINT } == true }
+                reports.indices.filter { i ->
+                    foggy[i] &&
+                        !(i > 0 && foggy[i - 1]) &&
+                        !(i < reports.lastIndex && foggy[i + 1]) &&
+                        !(i == reports.lastIndex && nowMs - reports[i].timestamp < ACTIVE_MS)
+                }.map { reports[it] }
+            }
 
     /** False for rows that say nothing about fog: QC failures, the blend, conditionless personal stations. */
     internal fun canSpeakToFog(reading: ObservationReading): Boolean =

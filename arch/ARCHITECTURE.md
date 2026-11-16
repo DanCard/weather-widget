@@ -213,6 +213,14 @@ under the labels (`plans/261111-daily-bar-morning-fog.md`). `DailyColumnBuilder`
   (`plans/261112-observed-no-fog-vetoes-forecast.md`).
 - **No observation** (future days): the forecast alone.
 
+`ObservedMorningFog` counts a foggy station report (above the hint) only while it is **active**, meaning
+it is its station's latest report and less than 45 minutes old, or once the same station's previous or
+next report **confirms** it by being foggy too. A lone report between clear ones (KNUQ 2026-11-16
+`M1/4SM HZ` between 8 SM and 10 SM CLR) shows while it is current and then drops out of the level,
+visibility and top. Today's fog is recomputed live, so no stored state is involved; `FOG_SPIKE_DROPPED`
+(VERBOSE) logs each one the daily recompute drops
+(`plans/261116-isolated-fog-report-counts-only-while-active.md`).
+
 `FogPatch` plans the nested ovals (height from the low to the burn-off temperature of the fog proper,
 layers gathered toward the low so the top fades, opacity from the lowest visibility on a log scale, 5 %
 for a saturation-only hint). Fog whose every hour or report came before that day's sunrise at the site
