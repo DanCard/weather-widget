@@ -8,7 +8,7 @@ import android.graphics.PathMeasure
 import com.weatherwidget.shared.graph.ForecastDeltaLine
 import com.weatherwidget.shared.graph.GhostLineGate
 import com.weatherwidget.shared.graph.HourData
-import com.weatherwidget.util.WeatherConditionColors
+import com.weatherwidget.shared.util.WeatherColors
 import java.time.Duration
 import java.time.LocalDateTime
 
@@ -24,7 +24,6 @@ internal object TemperatureGraphSeriesRenderer {
         val graphTop: Float,
         val graphBottom: Float,
         val minTemp: Float,
-        val maxTemp: Float,
         val tempRange: Float,
         val currentTime: LocalDateTime,
         val appliedDelta: Float?,
@@ -60,12 +59,9 @@ internal object TemperatureGraphSeriesRenderer {
             val expectedFillPaint =
                 Paint(input.paints.expectedFillPaint).apply {
                     shader =
-                        TemperatureGraphStyle.buildTempGradient(
+                        TemperatureGraphStyle.buildExpectedFillGradient(
                             input.graphTop,
                             input.graphBottom,
-                            input.minTemp,
-                            input.maxTemp,
-                            input.tempRange,
                             alphaTop = TemperatureGraphStyle.EXPECTED_FILL_ALPHA_TOP,
                             alphaBottom = TemperatureGraphStyle.EXPECTED_FILL_ALPHA_BOTTOM,
                         )
@@ -120,27 +116,6 @@ internal object TemperatureGraphSeriesRenderer {
             input.fetchDotX != null
     }
 
-    @androidx.annotation.VisibleForTesting
-    internal fun resolveForecastSegmentColors(
-        hours: List<HourData>,
-        segments: List<AndroidCurvePathBuilder.IndexedCurvePath>,
-    ): List<Int> =
-        segments.map { segment ->
-            val hour =
-                hours.getOrNull(segment.endPointIndex)
-                    ?: error(
-                        "Curve segment end index ${segment.endPointIndex} is outside " +
-                            "${hours.size} hourly items",
-                    )
-            WeatherConditionColors.forecastColor(
-                hour.isSunny,
-                hour.isRainy,
-                hour.isMixed,
-                hour.isNight,
-                hour.isTwilight,
-            )
-        }
-
     private fun drawForecastSegments(input: Input) {
         val dashOn =
             TemperatureGraphStyle.dpToPx(
@@ -156,11 +131,6 @@ internal object TemperatureGraphSeriesRenderer {
         val segmentPaint = Paint(input.paints.forecastDashedPaint)
         val pathMeasure = PathMeasure()
         var cumulativeLength = 0f
-        val segmentColors =
-            resolveForecastSegmentColors(
-                input.hours,
-                input.series.forecastSegmentPaths,
-            )
         // Stale hours (forecast fetched >3 h before the hour) draw dimmed: one clipped pass per span.
         StaleSpanDrawing.forEachSpan(
             input.canvas,
@@ -170,9 +140,10 @@ internal object TemperatureGraphSeriesRenderer {
             heightPx = input.heightPx.toFloat(),
         ) { stale ->
             cumulativeLength = 0f
-            input.series.forecastSegmentPaths.forEachIndexed { index, segment ->
+            input.series.forecastSegmentPaths.forEach { segment ->
                 if (segment.startsContour) cumulativeLength = 0f
-                segmentPaint.color = segmentColors[index]
+                // One neutral colour for the whole line (no per-hour weather colour since 2026-11-15).
+                segmentPaint.color = WeatherColors.FORECAST_NEUTRAL
                 segmentPaint.alpha = com.weatherwidget.shared.graph.StaleForecastSpans.alphaFor(segmentPaint.alpha, stale)
                 segmentPaint.pathEffect = DashPathEffect(dashPattern, cumulativeLength)
                 input.canvas.drawPath(segment.path, segmentPaint)

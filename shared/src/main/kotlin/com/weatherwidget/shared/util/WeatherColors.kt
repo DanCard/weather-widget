@@ -18,6 +18,15 @@ object WeatherColors {
     const val MERCURY: Int = 0xFFFF3366.toInt()
 
     /**
+     * White = forecast, rose ([OBSERVED]) = actual. The hourly graph's forecast line, its value
+     * labels and the fill under the expected curve, and the daily forecast HIGH label shown beside an
+     * observed high, on both platforms. The hourly line used to change colour with each hour's weather,
+     * the fill with temperature, and the daily label with its day's weather (blue in rain); the user
+     * found that more confusing than helpful (2026-11-15). Daily bars keep [dailyForecastArgb].
+     */
+    const val FORECAST_NEUTRAL: Int = 0xFFFFFFFF.toInt()
+
+    /**
      * Maps weather condition flags to a forecast color.
      * Priority: rainy > night > twilight+sunny > mixed > sunny > cloudy.
      */

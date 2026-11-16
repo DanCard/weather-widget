@@ -7,7 +7,6 @@ import android.util.Log
 import android.util.TypedValue
 import com.weatherwidget.shared.graph.FetchDotLabel
 import com.weatherwidget.shared.graph.HourlyGraphDefaults
-import com.weatherwidget.shared.graph.TemperatureColorModel
 import com.weatherwidget.shared.graph.TemperatureLabelResolver
 import com.weatherwidget.util.WeatherConditionColors
 import java.time.Duration
@@ -304,25 +303,22 @@ object TemperatureGraphStyle {
         ).also { cachedPaints = it }
     }
 
-    fun buildTempGradient(
+    /**
+     * Fill under the expected curve: the neutral forecast colour fading from [alphaTop] to
+     * [alphaBottom]. It was a temperature gradient (blue/amber/orange) until 2026-11-15.
+     */
+    fun buildExpectedFillGradient(
         graphTop: Float,
         graphBottom: Float,
-        minTemp: Float,
-        maxTemp: Float,
-        tempRange: Float,
         alphaTop: Int = 255,
         alphaBottom: Int = 255,
     ): LinearGradient {
-        // Temperature→color thresholds, colors, blending and the stop list live in the shared
-        // [TemperatureColorModel], so the desktop graph produces identical pixels.
-        val unique = TemperatureColorModel.gradientStops(minTemp, maxTemp, tempRange)
-        val positions = unique.map { it.first }.toFloatArray()
-        val colorsWithAlpha = unique.map { (pos, color) ->
-            val alpha = (alphaTop + (alphaBottom - alphaTop) * pos).toInt().coerceIn(0, 255)
-            withAlpha(color, alpha)
-        }.toIntArray()
-
-        return LinearGradient(0f, graphTop, 0f, graphBottom, colorsWithAlpha, positions, Shader.TileMode.CLAMP)
+        val color = com.weatherwidget.shared.util.WeatherColors.FORECAST_NEUTRAL
+        return LinearGradient(
+            0f, graphTop, 0f, graphBottom,
+            withAlpha(color, alphaTop), withAlpha(color, alphaBottom),
+            Shader.TileMode.CLAMP,
+        )
     }
 
     fun tempToY(temp: Float, graphTop: Float, graphHeight: Float, minTemp: Float, tempRange: Float): Float {

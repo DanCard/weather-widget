@@ -1,9 +1,9 @@
 package com.weatherwidget.shared.graph
 
 /**
- * Platform-free temperature→color model shared by the Android widget (`TemperatureGraphStyle`) and
- * the desktop Compose graph (`TemperatureGraph`). Both previously inlined identical thresholds and
- * colors but blended differently — Android in integer RGB space, desktop via Compose `lerp()` — which
+ * Platform-free temperature→color model (Months graph line, forecast delta label). The hourly graph
+ * stopped using it on 2026-11-15. Android and desktop once inlined identical thresholds and colors
+ * but blended differently — Android in integer RGB space, desktop via Compose `lerp()` — which
  * could yield subtly different pixels for the same temperature. Centralizing the blend here makes the
  * two platforms produce identical colors.
  *
@@ -19,9 +19,6 @@ object TemperatureColorModel {
     const val COLOR_MILD = 0xFFE8A24E.toInt() // Golden amber
     const val COLOR_HOT = 0xFFFF6B35.toInt() // Warm orange
 
-    /** Thresholds (high → low) used to seed gradient stops, kept here so callers share the order. */
-    val THRESHOLDS = listOf(HOT_THRESHOLD, MILD_TEMP, COLD_THRESHOLD)
-
     /**
      * Maps a temperature (°F) to a packed ARGB color, blending between cold/mild/hot in integer RGB
      * space. Always fully opaque; callers apply their own alpha for gradients.
@@ -31,24 +28,6 @@ object TemperatureColorModel {
         temp >= HOT_THRESHOLD -> COLOR_HOT
         temp <= MILD_TEMP -> blend(COLOR_COLD, COLOR_MILD, (temp - COLD_THRESHOLD) / (MILD_TEMP - COLD_THRESHOLD))
         else -> blend(COLOR_MILD, COLOR_HOT, (temp - MILD_TEMP) / (HOT_THRESHOLD - MILD_TEMP))
-    }
-
-    /**
-     * Stops for a vertical temperature gradient: [maxTemp] at 0 (top), [minTemp] at 1 (bottom), and a
-     * stop at each of [THRESHOLDS] strictly inside the range, at its position over [tempRange]. Sorted,
-     * one stop per position to 1e-4. Opaque; each platform applies its own alpha and colour type.
-     * Android's `buildTempGradient` and desktop's `buildColorStops` each built this list, and dropped
-     * duplicate positions differently (a locale-formatted string vs truncation to 1e-3).
-     */
-    fun gradientStops(minTemp: Float, maxTemp: Float, tempRange: Float): List<Pair<Float, Int>> {
-        fun posOf(t: Float): Float = ((maxTemp - t) / tempRange).coerceIn(0f, 1f)
-        return buildList {
-            add(0f to tempToColorArgb(maxTemp))
-            add(1f to tempToColorArgb(minTemp))
-            for (t in THRESHOLDS) {
-                if (t > minTemp && t < maxTemp) add(posOf(t) to tempToColorArgb(t))
-            }
-        }.sortedBy { it.first }.distinctBy { kotlin.math.round(it.first * 10_000f).toInt() }
     }
 
     /** Linear interpolation between two opaque ARGB colors in integer RGB space. */

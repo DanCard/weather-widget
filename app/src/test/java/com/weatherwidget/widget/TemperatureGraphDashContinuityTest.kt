@@ -1,8 +1,6 @@
 package com.weatherwidget.widget
 
 import android.graphics.PathMeasure
-import com.weatherwidget.shared.graph.HourData
-import com.weatherwidget.util.WeatherConditionColors
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -11,7 +9,6 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import com.weatherwidget.test.category.LongDuration
 import org.junit.experimental.categories.Category
-import java.time.LocalDateTime
 
 /**
  * Verifies that per-segment forecast paths produced by [AndroidCurvePathBuilder]
@@ -77,7 +74,7 @@ class TemperatureGraphDashContinuityTest {
     }
 
     @Test
-    fun `segments retain source indices and colors across a missing forecast gap`() {
+    fun `segments retain source indices across a missing forecast gap`() {
         val points =
             listOf(
                 0f to 100f,
@@ -90,36 +87,5 @@ class TemperatureGraphDashContinuityTest {
 
         assertEquals(listOf(0 to 1, 3 to 4), segments.map { it.startPointIndex to it.endPointIndex })
         assertEquals(listOf(true, true), segments.map { it.startsContour })
-
-        val start = LocalDateTime.of(2026, 7, 29, 10, 0)
-        val hours =
-            listOf(
-                HourData(start, 60f, "10a"),
-                HourData(start.plusHours(1), 61f, "11a", isSunny = true),
-                HourData(start.plusHours(2), Float.NaN, "12p", isNight = true),
-                HourData(start.plusHours(3), 63f, "1p"),
-                HourData(start.plusHours(4), 64f, "2p", isRainy = true),
-            )
-        val colors = TemperatureGraphRenderer.resolveForecastSegmentColors(hours, segments)
-
-        assertEquals(
-            listOf(
-                WeatherConditionColors.forecastColor(
-                    isSunny = true,
-                    isRainy = false,
-                    isMixed = false,
-                    isNight = false,
-                    isTwilight = false,
-                ),
-                WeatherConditionColors.forecastColor(
-                    isSunny = false,
-                    isRainy = true,
-                    isMixed = false,
-                    isNight = false,
-                    isTwilight = false,
-                ),
-            ),
-            colors,
-        )
     }
 }

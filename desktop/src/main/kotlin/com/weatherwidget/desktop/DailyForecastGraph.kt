@@ -477,7 +477,7 @@ fun DailyForecastGraph(
 
                 val fText = formatTemp(dualForecastHigh, day)
                 val fSize = tempFontSize(fText, dualBase * dualForecastScale)
-                val fLayout = textMeasurer.measure(fText, TextStyle(fontSize = fSize.sp, color = forecastColor(day)))
+                val fLayout = textMeasurer.measure(fText, TextStyle(fontSize = fSize.sp, color = Color(com.weatherwidget.shared.util.WeatherColors.FORECAST_NEUTRAL)))
                 val fY = dualTop(
                     dualForecastHigh,
                     fLayout.size.height.toFloat(),

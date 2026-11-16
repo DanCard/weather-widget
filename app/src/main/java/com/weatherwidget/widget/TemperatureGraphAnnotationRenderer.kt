@@ -160,8 +160,7 @@ internal object TemperatureGraphAnnotationRenderer {
 
         placements.forEach { placement ->
             // Colours are the shared rule (desktop draws the same); the paints carry size and shadow.
-            val hour = hours[placement.index.coerceAtMost(hours.lastIndex)]
-            val labelArgb = TemperatureLabelColors.labelArgb(placement.isFuture, TemperatureLabelColors.conditionOf(hour))
+            val labelArgb = TemperatureLabelColors.labelArgb(placement.isFuture)
             val labelPaint =
                 Paint(
                     if (placement.isFuture) input.paints.forecastTempLabelTextPaint else input.paints.actualTempLabelTextPaint,

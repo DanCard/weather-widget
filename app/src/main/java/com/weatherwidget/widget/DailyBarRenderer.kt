@@ -276,7 +276,8 @@ internal object DailyBarRenderer {
             plan.forecastHigh != null &&
             plan.forecastBaseline != null
         ) {
-            val condColor = forecastArgb(day)
+            // White = forecast (the bar keeps its weather colour); a blue temperature read as rain.
+            val condColor = WeatherColors.FORECAST_NEUTRAL
             // Today centers both labels on the column; past forecast labels follow their overlay.
             val forecastLabelX =
                 if (day.isToday) centerX else centerX + comparisonOffset(day, layout)

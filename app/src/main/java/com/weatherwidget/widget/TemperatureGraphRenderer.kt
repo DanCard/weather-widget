@@ -26,13 +26,6 @@ object TemperatureGraphRenderer {
     private fun ensurePaints(context: Context, labelScale: Float): PaintSet = TemperatureGraphStyle.ensurePaints(context, labelScale)
     private fun dpToPx(context: Context, dp: Float): Float = TemperatureGraphStyle.dpToPx(context, dp)
 
-    @androidx.annotation.VisibleForTesting
-    internal fun resolveForecastSegmentColors(
-        hours: List<HourData>,
-        segments: List<AndroidCurvePathBuilder.IndexedCurvePath>,
-    ): List<Int> =
-        TemperatureGraphSeriesRenderer.resolveForecastSegmentColors(hours, segments)
-
     private fun drawHourLabelsAndIcons(
         context: Context,
         canvas: Canvas,
@@ -227,7 +220,6 @@ object TemperatureGraphRenderer {
                 graphTop = layout.graphTop,
                 graphBottom = layout.graphBottom,
                 minTemp = minTemp,
-                maxTemp = maxTemp,
                 tempRange = tempRange,
                 currentTime = currentTime,
                 appliedDelta = appliedDelta,

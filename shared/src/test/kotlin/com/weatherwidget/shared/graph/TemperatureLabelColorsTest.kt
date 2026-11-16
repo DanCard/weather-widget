@@ -1,9 +1,9 @@
 package com.weatherwidget.shared.graph
 
 import com.weatherwidget.shared.util.WeatherColors
-import com.weatherwidget.shared.util.WeatherConditionResolver.ConditionFlags
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Test
 import org.junit.experimental.categories.Category
 
@@ -11,36 +11,17 @@ import org.junit.experimental.categories.Category
 @Category(ShortDuration::class)
 class TemperatureLabelColorsTest {
 
-    private val sunny = ConditionFlags(isSunny = true, isRainy = false, isMixed = false)
-    private val cloudy = ConditionFlags(isSunny = false, isRainy = false, isMixed = false)
-    private val rainy = ConditionFlags(isSunny = false, isRainy = true, isMixed = false)
-    private val night = ConditionFlags(isSunny = true, isRainy = false, isMixed = false, isNight = true)
-    private val twilight = ConditionFlags(isSunny = true, isRainy = false, isMixed = false, isTwilight = true)
 
     @Test
-    fun `forecast label wears its hour's weather colour, never white`() {
-        assertEquals(WeatherColors.FORECAST_SUNNY, TemperatureLabelColors.labelArgb(isFuture = true, sunny))
-        assertEquals(WeatherColors.FORECAST_CLOUDY, TemperatureLabelColors.labelArgb(isFuture = true, cloudy))
-        assertEquals(WeatherColors.FORECAST_RAINY, TemperatureLabelColors.labelArgb(isFuture = true, rainy))
-        assertEquals(WeatherColors.FORECAST_NIGHT, TemperatureLabelColors.labelArgb(isFuture = true, night))
-        assertEquals(WeatherColors.FORECAST_TWILIGHT, TemperatureLabelColors.labelArgb(isFuture = true, twilight))
+    fun `forecast label is the neutral forecast colour whatever the weather, never rain blue`() {
+        // Before 2026-11-15 a rainy hour's label was FORECAST_RAINY (blue).
+        assertEquals(WeatherColors.FORECAST_NEUTRAL, TemperatureLabelColors.labelArgb(isFuture = true))
+        assertNotEquals(WeatherColors.FORECAST_RAINY, TemperatureLabelColors.labelArgb(isFuture = true))
     }
 
     @Test
-    fun `forecast label matches the dashed segment colour for the same hour`() {
-        for (flags in listOf(sunny, cloudy, rainy, night, twilight)) {
-            assertEquals(
-                WeatherColors.forecastColor(flags.isSunny, flags.isRainy, flags.isMixed, flags.isNight, flags.isTwilight),
-                TemperatureLabelColors.labelArgb(isFuture = true, flags),
-            )
-        }
-    }
-
-    @Test
-    fun `actual label is the observed rose whatever the weather`() {
-        for (flags in listOf(sunny, cloudy, rainy, night, twilight)) {
-            assertEquals(WeatherColors.OBSERVED, TemperatureLabelColors.labelArgb(isFuture = false, flags))
-        }
+    fun `actual label is the observed rose`() {
+        assertEquals(WeatherColors.OBSERVED, TemperatureLabelColors.labelArgb(isFuture = false))
     }
 
     @Test

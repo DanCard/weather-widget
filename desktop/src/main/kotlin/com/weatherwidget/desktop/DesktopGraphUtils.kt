@@ -838,17 +838,6 @@ internal fun DrawScope.drawDayLabelsFooterAndNow(
     }
 }
 
-internal fun forecastColor(flags: com.weatherwidget.shared.util.WeatherConditionResolver.ConditionFlags): Color {
-    val argb = com.weatherwidget.shared.util.WeatherColors.forecastColor(
-        flags.isSunny,
-        flags.isRainy,
-        flags.isMixed,
-        flags.isNight,
-        flags.isTwilight,
-    )
-    return Color(argb)
-}
-
 
 /**
  * Calls [draw] once per [com.weatherwidget.shared.graph.StaleForecastSpans] span, clipped to it,

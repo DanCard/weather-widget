@@ -42,7 +42,6 @@ import com.weatherwidget.shared.graph.DominantStationLabel
 import com.weatherwidget.shared.graph.GraphEmptySpaceFinder
 import com.weatherwidget.shared.graph.HourDataAssembler
 import com.weatherwidget.shared.graph.TemperatureLabelColors
-import com.weatherwidget.shared.util.WeatherConditionResolver
 import com.weatherwidget.shared.graph.*
 import com.weatherwidget.shared.observations.ActualsProviderResolver
 import com.weatherwidget.shared.util.Log
@@ -65,15 +64,6 @@ import kotlin.math.roundToInt
  * is drawn solid.
  */
 private val COLOR_ACTUAL = Color(com.weatherwidget.shared.util.WeatherColors.OBSERVED)
-
-/** An hour's weather condition — icon plus sun position — for its forecast colour (curve and labels). */
-private fun conditionFlagsOf(p: HourlyForecast, latitude: Double, longitude: Double): WeatherConditionResolver.ConditionFlags {
-    val localDateTime = Instant.ofEpochMilli(p.dateTime).atZone(ZoneId.systemDefault()).toLocalDateTime()
-    val sunInfo = com.weatherwidget.util.SunPositionUtils.getSunInfo(localDateTime, latitude, longitude)
-    return WeatherIcon.getConditionFlags(p.condition, isNight = sunInfo.isNight).copy(
-        isTwilight = sunInfo.phase == com.weatherwidget.util.SunPhase.TWILIGHT,
-    )
-}
 
 // Floors for the actual-line blend context window. The effective window scales with the visible
 // back/forward span (see the build() call) so the pink actual line reaches the left edge at any
@@ -162,9 +152,6 @@ internal fun hourlyPointsInWindow(
 ): List<HourlyForecast> =
     hourly.filter { it.dateTime in startMs..endMs }
         .sortedBy { it.dateTime }
-
-// Delegates to the shared [TemperatureColorModel] (integer-RGB blend) so desktop produces the same
-// pixels as the Android widget for any temperature. Previously blended via Compose lerp().
 
 /** The station the dominant-station label names. The label is Canvas text, which tests cannot read. */
 internal val HourlyDominantStationId = SemanticsPropertyKey<String?>("HourlyDominantStationId")
@@ -393,10 +380,10 @@ fun TemperatureGraph(
         drawCloudAndPrecipOverlays(points, scale, ::xAt)
 
         // Gradient fill always spans the full window under the expected curve
-        drawFill(expectedCoords, minTemp, maxTemp, range, scale)
+        drawFill(expectedCoords, scale)
 
         // Lines:
-        // 1. Forecast Line segments (Dashed and colored by weather condition)
+        // 1. Forecast Line segments (dashed, one neutral colour since 2026-11-15)
         if (coords.size >= 2) {
             val tangents = computeTangents(coords)
             // Stale hours (forecast fetched >3 h before the hour) draw dimmed, as on the widget.
@@ -405,7 +392,7 @@ fun TemperatureGraph(
                 stale = points.map { com.weatherwidget.shared.graph.StaleForecastSpans.isStale(it.dateTime, it.madeAt, now) },
             ) { staleAlpha ->
             for (i in 0 until coords.size - 1) {
-                val segmentColor = forecastColor(conditionFlagsOf(points[i + 1], latitude, longitude))
+                val segmentColor = Color(com.weatherwidget.shared.util.WeatherColors.FORECAST_NEUTRAL)
                 val segmentPath = Path().apply {
                     moveTo(coords[i].x, coords[i].y)
                     val cp1x = coords[i].x + tangents[i].x / 3f
@@ -739,13 +726,9 @@ fun TemperatureGraph(
             }
         }
         for (label in placements) {
-            // The shared rule (the widget draws the same): a forecast label wears its hour's
-            // weather colour — the dashed segment's — and an actual label the observed rose.
-            val labelTimeMs = msOf(hourDataList[label.index.coerceIn(0, hourDataList.lastIndex)].dateTime)
-            val labelPoint = points.minByOrNull { kotlin.math.abs(it.dateTime - labelTimeMs) }
-            val condition = labelPoint?.let { conditionFlagsOf(it, latitude, longitude) }
-                ?: WeatherConditionResolver.ConditionFlags(isSunny = false, isRainy = false, isMixed = false)
-            val labelArgb = TemperatureLabelColors.labelArgb(label.isFuture, condition)
+            // The shared rule (the widget draws the same): a forecast label wears the forecast line's
+            // neutral colour and an actual label the observed rose.
+            val labelArgb = TemperatureLabelColors.labelArgb(label.isFuture)
             val color = Color(labelArgb)
             val textLayout = textMeasurer.measure(label.text, TextStyle(fontSize = (TEMP_VALUE_LABEL_SP * scale).sp, color = color))
             val textWidth = textLayout.size.width.toFloat()
@@ -794,7 +777,7 @@ fun TemperatureGraph(
             val outerRadius = dotRadius + 0.75f * scale
             drawCircle(color = Color.Black.copy(alpha = 0.26f), radius = outerRadius, center = Offset(fetchDotXVal, fetchDotYVal))
             drawCircle(color = Color.White, radius = dotRadius, center = Offset(fetchDotXVal, fetchDotYVal))
-            drawCircle(color = Color(TemperatureColorModel.tempToColorArgb(fetchDotPoint.actualTemp!!)), radius = dotRadius - 1.5f * scale, center = Offset(fetchDotXVal, fetchDotYVal))
+            drawCircle(color = COLOR_ACTUAL, radius = dotRadius - 1.5f * scale, center = Offset(fetchDotXVal, fetchDotYVal))
         } else {
             // Dot is off-window (panned away): nothing to hover.
             nowDotTarget.clear()
@@ -1286,17 +1269,12 @@ private fun DrawScope.drawCloudAndPrecipOverlays(points: List<HourlyForecast>, s
     }
 }
 
-private fun buildColorStops(minTemp: Float, maxTemp: Float, range: Float): Array<Pair<Float, Color>> {
-    return TemperatureColorModel.gradientStops(minTemp, maxTemp, range)
-        .map { (pos, argb) -> pos to Color(argb) }
-        .toTypedArray()
-}
-
 private fun computeTangents(coords: List<Offset>): List<Offset> = DesktopGraphUtils.computeTangents(coords)
 
 private fun buildCurve(coords: List<Offset>): Path = DesktopGraphUtils.buildCurve(coords)
 
-private fun DrawScope.drawFill(coords: List<Offset>, minTemp: Float, maxTemp: Float, range: Float, scale: Float) {
+/** Fill under the expected curve: the neutral forecast colour fading out downward (was a temperature gradient). */
+private fun DrawScope.drawFill(coords: List<Offset>, scale: Float) {
     val h = size.height
     val graphBottom = h - 44f * scale
     val fill = Path().apply {
@@ -1307,33 +1285,14 @@ private fun DrawScope.drawFill(coords: List<Offset>, minTemp: Float, maxTemp: Fl
             close()
         }
     }
-    val stops = buildColorStops(minTemp, maxTemp, range)
-    val fillStops = stops.map { (pos, color) -> pos to color.copy(alpha = 0.40f * (1f - pos)) }.toTypedArray()
-    drawPath(fill, brush = Brush.verticalGradient(colorStops = fillStops, startY = 0f, endY = graphBottom))
-}
-
-private fun DrawScope.drawCurveLine(
-    coords: List<Offset>,
-    minTemp: Float,
-    maxTemp: Float,
-    range: Float,
-    dashed: Boolean,
-    scale: Float,
-    alpha: Float = 1f,
-) {
-    val h = size.height
-    val graphBottom = h - 44f * scale
-    val pathEffect = if (dashed) PathEffect.dashPathEffect(floatArrayOf(16f * scale, 8f * scale)) else null
+    val color = Color(com.weatherwidget.shared.util.WeatherColors.FORECAST_NEUTRAL)
     drawPath(
-        buildCurve(coords),
+        fill,
         brush = Brush.verticalGradient(
-            colorStops = buildColorStops(minTemp, maxTemp, range).map { (pos, color) -> 
-                pos to color.copy(alpha = alpha) 
-            }.toTypedArray(),
+            colorStops = arrayOf(0f to color.copy(alpha = 0.40f), 1f to color.copy(alpha = 0f)),
             startY = 0f,
             endY = graphBottom,
         ),
-        style = Stroke(width = 3f * scale, pathEffect = pathEffect),
     )
 }
 

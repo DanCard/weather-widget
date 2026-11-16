@@ -33,4 +33,11 @@ class SnapshotBarColorTest {
         assertEquals(WeatherColors.FORECAST_CLOUDY, WeatherColors.dailyForecastArgb(WeatherConditionResolver.IC_CLOUDY, null))
         assertEquals(WeatherColors.FORECAST_CLOUDY, WeatherColors.dailyForecastArgb(null, null))
     }
+
+    @Test
+    fun rainyDayBarStaysBlueWhileForecastTextIsNeutralWhite() {
+        // Today's NWS 65° on 2026-11-15: rain icon, 87% by day — bar blue, forecast label white.
+        assertEquals(WeatherColors.FORECAST_RAINY, WeatherColors.dailyForecastArgb(WeatherConditionResolver.IC_RAIN, 87))
+        assertEquals(0xFFFFFFFF.toInt(), WeatherColors.FORECAST_NEUTRAL)
+    }
 }
