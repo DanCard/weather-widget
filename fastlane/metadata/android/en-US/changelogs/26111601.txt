@@ -1,0 +1,1 @@
+Show blue rain dots in the header while raining, draw forecasts in crisp white, rename Forecast History to Forecast Comparison with All sources at the top, stay on daily when a day has no hourly data, refine rain amount typography, and speed up startup.
