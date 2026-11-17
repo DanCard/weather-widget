@@ -262,6 +262,17 @@ refresh counts only its own user refreshes (observations scope); the forecast fe
   - Background periodic worker ticks, power connect/disconnect events, screen unlock repaints
     (`EXTRA_PASSIVE = true`), and UI-only ticks do not check, update, or get blocked by this throttle.
 
+### Transport timeouts, Ktor retries, and Open-Meteo HTTP fallback
+
+1. **Shared `HttpClient` defaults (`AppModule.kt`, `DesktopWeatherService.kt`, `DesktopProcess.kt`):**
+   - `HttpTimeout`: `requestTimeoutMillis = 30_000`, `connectTimeoutMillis = 10_000`, `socketTimeoutMillis = 15_000` (keeping `socketTimeoutMillis < requestTimeoutMillis` lets a stalled socket trigger a retry within the 30 s budget).
+   - `HttpRequestRetry`: `maxRetries = 2` with `exponentialDelay(base = 2.0, maxDelayMs = 2_000)` on `ConnectTimeoutException`, `SocketTimeoutException`, `HttpRequestTimeoutException`, and `IOException` (logged under `HttpRetry`).
+   - Endpoint overrides: `RadarRepository` uses `20_000` ms; `RainGridRepository` uses `45_000` ms with `noRetry()`.
+2. **Open-Meteo short-window endpoints (`OpenMeteoApi` `getForecast`, `getCurrent`, `getPriorDayCloudForecast`):**
+   - **Initial HTTPS attempt:** `connectTimeoutMillis = 4_000`, `socketTimeoutMillis = 6_000`, `requestTimeoutMillis = 8_000` with `noRetry()` so a stalled TLS/HTTPS attempt fails over in 8 s instead of burning 15–17 s.
+   - **Delayed HTTP fallback (`getWithHttpFallback`):** on `HttpRequestTimeoutException`, `ConnectTimeoutException`, `SocketTimeoutException`, `SSLException`, or `IOException`, logs `https failed, retrying over http in 2000ms`, waits `2_000` ms (`DEFAULT_HTTP_FALLBACK_DELAY_MS`), and retries over `http://` (`connect=5_000`, `socket=6_000`, `request=12_000` ms, with normal `HttpRequestRetry`, scoped on Android to `api.open-meteo.com` and `previous-runs-api.open-meteo.com` in `app/src/main/res/xml/network_security_config.xml`).
+   - **15-minute HTTPS cooldown (`HTTPS_COOLDOWN_MS`):** when HTTPS fails and HTTP succeeds, subsequent calls within 15 minutes go straight to `http://` (and if HTTP fails during cooldown, the cooldown clears so the next attempt tries HTTPS again). `CancellationException` is rethrown immediately, and `getHistoricalDailyTemps` remains HTTPS-only. If both HTTPS and HTTP fail, the failure hands off to `SourceRetry` below.
+
 ### Failed-fetch retry (`SourceRetry`, shared)
 
 A forecast fetch of a displayed source — or of any source in Settings → Refresh data, which the user asked

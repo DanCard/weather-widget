@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <!-- Scoped HTTP fallback when Open-Meteo HTTPS stalls on TLS/handshake. -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">api.open-meteo.com</domain>
+        <domain includeSubdomains="false">previous-runs-api.open-meteo.com</domain>
+    </domain-config>
+</network-security-config>

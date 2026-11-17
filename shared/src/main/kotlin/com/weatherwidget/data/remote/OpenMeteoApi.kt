@@ -9,12 +9,19 @@ import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import io.ktor.client.*
 import io.ktor.client.call.*
+import io.ktor.client.network.sockets.ConnectTimeoutException
+import io.ktor.client.network.sockets.SocketTimeoutException
+import io.ktor.client.plugins.HttpRequestRetry
 import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.pluginOrNull
 import io.ktor.client.plugins.retry
 import io.ktor.client.plugins.timeout
 import io.ktor.client.request.*
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
+import java.io.IOException
+import javax.net.ssl.SSLException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -27,12 +34,19 @@ import javax.inject.Inject
 
 private const val TAG = "OpenMeteoApi"
 
-class OpenMeteoApi
+class OpenMeteoApi(
+    private val httpClient: HttpClient,
+    private val json: Json,
+    private val httpFallbackDelayMs: Long = DEFAULT_HTTP_FALLBACK_DELAY_MS,
+    private val nowMs: () -> Long = System::currentTimeMillis,
+) {
     @Inject
     constructor(
-        private val httpClient: HttpClient,
-        private val json: Json,
-    ) {
+        httpClient: HttpClient,
+        json: Json,
+    ) : this(httpClient, json, DEFAULT_HTTP_FALLBACK_DELAY_MS, System::currentTimeMillis)
+
+    private val preferHttpUntilMs = java.util.concurrent.atomic.AtomicLong(0L)
         companion object {
             private const val BASE_URL = "https://api.open-meteo.com/v1"
             private const val ARCHIVE_URL = "https://archive-api.open-meteo.com/v1"
@@ -46,8 +60,12 @@ class OpenMeteoApi
              */
             const val FORECAST_CONNECT_TIMEOUT_MS = 5_000L
             const val FORECAST_SOCKET_TIMEOUT_MS = 6_000L
-            const val FORECAST_REQUEST_TIMEOUT_MS = 15_000L
+            const val FORECAST_REQUEST_TIMEOUT_MS = 12_000L
+            const val FORECAST_HTTPS_CONNECT_TIMEOUT_MS = 4_000L
+            const val FORECAST_HTTPS_REQUEST_TIMEOUT_MS = 8_000L
             const val PROBE_TIMEOUT_MS = 5_000L
+            const val DEFAULT_HTTP_FALLBACK_DELAY_MS = 2_000L
+            const val HTTPS_COOLDOWN_MS = 15 * 60_000L
 
             /** Verified: `past_days=31` returns the full span with `_previous_day1` fully populated. */
             const val MAX_PREVIOUS_RUNS_PAST_DAYS = 31
@@ -163,13 +181,71 @@ class OpenMeteoApi
 
         }
 
-        private fun HttpRequestBuilder.applyForecastTimeout() {
+        private fun HttpRequestBuilder.applyForecastTimeout(httpsAttempt: Boolean = false) {
             if (httpClient.pluginOrNull(HttpTimeout) != null) {
                 timeout {
-                    connectTimeoutMillis = FORECAST_CONNECT_TIMEOUT_MS
+                    connectTimeoutMillis = if (httpsAttempt) FORECAST_HTTPS_CONNECT_TIMEOUT_MS else FORECAST_CONNECT_TIMEOUT_MS
                     socketTimeoutMillis = FORECAST_SOCKET_TIMEOUT_MS
-                    requestTimeoutMillis = FORECAST_REQUEST_TIMEOUT_MS
+                    requestTimeoutMillis = if (httpsAttempt) FORECAST_HTTPS_REQUEST_TIMEOUT_MS else FORECAST_REQUEST_TIMEOUT_MS
                 }
+            }
+            if (httpsAttempt && httpClient.pluginOrNull(HttpRequestRetry) != null) {
+                retry { noRetry() }
+            }
+        }
+
+        private fun isFallbackEligible(error: Throwable): Boolean {
+            var cur: Throwable? = error
+            while (cur != null) {
+                if (cur is HttpRequestTimeoutException ||
+                    cur is ConnectTimeoutException ||
+                    cur is SocketTimeoutException ||
+                    cur is SSLException ||
+                    cur is IOException
+                ) {
+                    return true
+                }
+                cur = cur.cause
+            }
+            return false
+        }
+
+        private suspend fun getWithHttpFallback(
+            httpsUrl: String,
+            block: HttpRequestBuilder.() -> Unit,
+        ): String {
+            val httpUrl = httpsUrl.replaceFirst("https://", "http://")
+            if (nowMs() < preferHttpUntilMs.get()) {
+                return try {
+                    httpClient.get(httpUrl) {
+                        block()
+                        applyForecastTimeout(httpsAttempt = false)
+                    }.body()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // HTTP failed during cooldown: clear it so the next attempt tries HTTPS again.
+                    preferHttpUntilMs.set(0L)
+                    throw e
+                }
+            }
+            return try {
+                httpClient.get(httpsUrl) {
+                    block()
+                    applyForecastTimeout(httpsAttempt = true)
+                }.body()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (!isFallbackEligible(e)) throw e
+                Log.w(TAG, "https failed, retrying over http in ${httpFallbackDelayMs}ms: ${e::class.simpleName}:${e.message}")
+                if (httpFallbackDelayMs > 0L) delay(httpFallbackDelayMs)
+                val body: String = httpClient.get(httpUrl) {
+                    block()
+                    applyForecastTimeout(httpsAttempt = false)
+                }.body()
+                preferHttpUntilMs.set(nowMs() + HTTPS_COOLDOWN_MS)
+                body
             }
         }
 
@@ -231,7 +307,7 @@ class OpenMeteoApi
             val startMs = System.currentTimeMillis()
             val response: String =
                 try {
-                    httpClient.get("$BASE_URL/forecast") {
+                    getWithHttpFallback("$BASE_URL/forecast") {
                         parameter("latitude", lat)
                         parameter("longitude", lon)
                         if (parts.daily) {
@@ -249,8 +325,7 @@ class OpenMeteoApi
                         parameter("timezone", "auto")
                         parameter("past_days", historyDays) // Optional archived model-output window
                         parameter("forecast_days", days)
-                        applyForecastTimeout()
-                    }.body()
+                    }
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -412,15 +487,14 @@ class OpenMeteoApi
             lon: Double,
         ): CurrentReading? {
             val response: String =
-                httpClient.get("$BASE_URL/forecast") {
+                getWithHttpFallback("$BASE_URL/forecast") {
                     parameter("latitude", lat)
                     parameter("longitude", lon)
                     parameter("current", "temperature_2m,weather_code,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high")
                     parameter("temperature_unit", "fahrenheit")
                     parameter("timezone", "auto")
                     parameter("forecast_days", 1)
-                    applyForecastTimeout()
-                }.body()
+                }
 
             val jsonObj = json.parseToJsonElement(response).jsonObject
             val current = jsonObj["current"]?.jsonObject ?: return null
@@ -483,15 +557,14 @@ class OpenMeteoApi
             nowMs: Long,
         ): Map<Long, Int> {
             val response: String =
-                httpClient.get("$PREVIOUS_RUNS_URL/forecast") {
+                getWithHttpFallback("$PREVIOUS_RUNS_URL/forecast") {
                     parameter("latitude", lat)
                     parameter("longitude", lon)
                     parameter("hourly", PREVIOUS_RUNS_VARIABLE)
                     parameter("past_days", pastDays.coerceIn(1, MAX_PREVIOUS_RUNS_PAST_DAYS))
                     parameter("forecast_days", 1)
                     parameter("timezone", "auto")
-                    applyForecastTimeout()
-                }.body()
+                }
 
             return Companion.parsePriorDayCloudForecast(response, nowMs)
         }

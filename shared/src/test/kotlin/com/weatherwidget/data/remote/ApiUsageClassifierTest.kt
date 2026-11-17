@@ -80,4 +80,16 @@ class ApiUsageClassifierTest {
             assertEquals(key("2026-10-08"), ApiUsageClassifier.usageDayMs(source, now, pacific))
         }
     }
+
+    @Test
+    fun `open-meteo http fallback urls classify identically to https`() {
+        assertEquals(
+            ApiUsageClassifier.classify("api.open-meteo.com", "/v1/forecast", "latitude=37.4"),
+            ApiUsageClassifier.Key("OPEN_METEO", "forecast"),
+        )
+        assertEquals(
+            ApiUsageClassifier.classify("previous-runs-api.open-meteo.com", "/v1/forecast", "hourly=cloud_cover_previous_day1"),
+            ApiUsageClassifier.Key("OPEN_METEO", "forecast"),
+        )
+    }
 }

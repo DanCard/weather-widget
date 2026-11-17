@@ -9,7 +9,11 @@ import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runTest
+import javax.net.ssl.SSLException
 import kotlinx.serialization.json.Json
 import org.junit.Assert.*
 import org.junit.Before
@@ -403,9 +407,9 @@ class OpenMeteoApiTest {
             assertEquals(4, captured.size)
             for (i in 0..2) {
                 val cfg = captured[i].getCapabilityOrNull(HttpTimeout)!!
-                assertEquals(OpenMeteoApi.FORECAST_CONNECT_TIMEOUT_MS, cfg.connectTimeoutMillis)
+                assertEquals(OpenMeteoApi.FORECAST_HTTPS_CONNECT_TIMEOUT_MS, cfg.connectTimeoutMillis)
                 assertEquals(OpenMeteoApi.FORECAST_SOCKET_TIMEOUT_MS, cfg.socketTimeoutMillis)
-                assertEquals(OpenMeteoApi.FORECAST_REQUEST_TIMEOUT_MS, cfg.requestTimeoutMillis)
+                assertEquals(OpenMeteoApi.FORECAST_HTTPS_REQUEST_TIMEOUT_MS, cfg.requestTimeoutMillis)
             }
             val archiveCfg = captured[3].getCapabilityOrNull(HttpTimeout)!!
             assertEquals(30_000L, archiveCfg.requestTimeoutMillis)
@@ -502,7 +506,7 @@ class OpenMeteoApiTest {
         }
         println("forecastAttempts=${fixture.forecastAttempts.get()} probes=${fixture.probeRequests.map { it.url }}")
 
-        assertEquals(WeatherHttpClientDefaults.MAX_RETRIES + 1, fixture.forecastAttempts.get())
+        assertEquals(1 + (WeatherHttpClientDefaults.MAX_RETRIES + 1), fixture.forecastAttempts.get())
         assertEquals(1, fixture.probeRequests.size)
         val probe = fixture.probeRequests.single()
         assertEquals("api.open-meteo.com", probe.url.host)
@@ -549,4 +553,201 @@ class OpenMeteoApiTest {
         assertEquals(0, fixture.probeRequests.size)
         assertTrue(fixture.probeLines().isEmpty())
     }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `https success never attempts http fallback`() =
+        runTest {
+            val schemes = mutableListOf<String>()
+            val client = HttpClient(MockEngine) {
+                engine {
+                    addHandler { request ->
+                        schemes += request.url.protocol.name
+                        respond(
+                            content = """{"daily":{"time":["2026-06-20"],"temperature_2m_max":[70.0],"temperature_2m_min":[50.0],"weather_code":[0]}}""",
+                            status = HttpStatusCode.OK,
+                            headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                        )
+                    }
+                }
+                install(ContentNegotiation) { json(json) }
+            }
+
+            val result = OpenMeteoApi(client, json, httpFallbackDelayMs = 2_000L).getForecast(37.0, -122.0)
+
+            assertEquals(listOf("https"), schemes)
+            assertEquals(0L, currentTime)
+            assertEquals(1, result.daily.size)
+        }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `getForecast falls back to http after delay on SSLException or SocketTimeoutException`() =
+        runTest {
+            val schemes = mutableListOf<String>()
+            val client = HttpClient(MockEngine) {
+                engine {
+                    addHandler { request ->
+                        schemes += request.url.protocol.name
+                        if (request.url.protocol == URLProtocol.HTTPS) {
+                            throw SSLException("handshake stalled")
+                        }
+                        respond(
+                            content = """{"daily":{"time":["2026-06-20"],"temperature_2m_max":[70.0],"temperature_2m_min":[50.0],"weather_code":[0]}}""",
+                            status = HttpStatusCode.OK,
+                            headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                        )
+                    }
+                }
+                install(ContentNegotiation) { json(json) }
+            }
+
+            val result = OpenMeteoApi(client, json, httpFallbackDelayMs = 2_000L).getForecast(37.0, -122.0)
+
+            assertEquals(listOf("https", "http"), schemes)
+            assertEquals(2_000L, currentTime)
+            assertEquals(1, result.daily.size)
+        }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `getCurrent and getPriorDayCloudForecast fall back to http after delay`() =
+        runTest {
+            val urls = mutableListOf<String>()
+            val client = HttpClient(MockEngine) {
+                engine {
+                    addHandler { request ->
+                        urls += request.url.toString()
+                        if (request.url.protocol == URLProtocol.HTTPS) {
+                            throw SocketTimeoutException("stalled")
+                        }
+                        respond(
+                            content = """{"timezone":"UTC","current":{"time":"2026-06-20T12:00","temperature_2m":65.0,"weather_code":0},"hourly":{"time":["2026-06-20T12:00"],"cloud_cover_previous_day1":[35]}}""",
+                            status = HttpStatusCode.OK,
+                            headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                        )
+                    }
+                }
+                install(ContentNegotiation) { json(json) }
+            }
+            val current = OpenMeteoApi(client, json, httpFallbackDelayMs = 2_000L).getCurrent(37.0, -122.0)
+            val prior = OpenMeteoApi(client, json, httpFallbackDelayMs = 2_000L).getPriorDayCloudForecast(37.0, -122.0, pastDays = 1, nowMs = Long.MAX_VALUE)
+
+            assertEquals(65.0f, current!!.temperature, 0.01f)
+            assertEquals(1, prior.size)
+            assertEquals(4, urls.size)
+            assertTrue(urls[0].startsWith("https://api.open-meteo.com/"))
+            assertTrue(urls[1].startsWith("http://api.open-meteo.com/"))
+            assertTrue(urls[2].startsWith("https://previous-runs-api.open-meteo.com/"))
+            assertTrue(urls[3].startsWith("http://previous-runs-api.open-meteo.com/"))
+            assertEquals(4_000L, currentTime)
+        }
+
+    @Test
+    fun `getHistoricalDailyTemps stays HTTPS-only and does not fall back to http`() =
+        runTest {
+            val schemes = mutableListOf<String>()
+            val client = HttpClient(MockEngine) {
+                engine {
+                    addHandler { request ->
+                        schemes += request.url.protocol.name
+                        throw SocketTimeoutException("archive slow")
+                    }
+                }
+                install(ContentNegotiation) { json(json) }
+            }
+
+            val thrown = runCatching {
+                OpenMeteoApi(client, json, httpFallbackDelayMs = 2_000L)
+                    .getHistoricalDailyTemps(37.0, -122.0, "2025-01-01", "2025-01-02")
+            }.exceptionOrNull()
+
+            assertTrue(thrown is SocketTimeoutException)
+            assertEquals(listOf("https"), schemes)
+        }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `when both https and http fail, failure propagates`() =
+        runTest {
+            val schemes = mutableListOf<String>()
+            val client = HttpClient(MockEngine) {
+                engine {
+                    addHandler { request ->
+                        schemes += request.url.protocol.name
+                        throw SSLException("both failed")
+                    }
+                }
+                install(ContentNegotiation) { json(json) }
+            }
+
+            val thrown = runCatching {
+                OpenMeteoApi(client, json, httpFallbackDelayMs = 2_000L).getForecast(37.0, -122.0)
+            }.exceptionOrNull()
+
+            assertTrue(thrown is SSLException)
+            assertEquals(listOf("https", "http"), schemes)
+            assertEquals(2_000L, currentTime)
+        }
+
+    @Test
+    fun `CancellationException on https is rethrown immediately without http fallback`() =
+        runTest {
+            val schemes = mutableListOf<String>()
+            val client = HttpClient(MockEngine) {
+                engine {
+                    addHandler { request ->
+                        schemes += request.url.protocol.name
+                        throw CancellationException("cancelled")
+                    }
+                }
+                install(ContentNegotiation) { json(json) }
+            }
+
+            val thrown = runCatching {
+                OpenMeteoApi(client, json, httpFallbackDelayMs = 2_000L).getForecast(37.0, -122.0)
+            }.exceptionOrNull()
+
+            assertTrue(thrown is CancellationException)
+            assertEquals(listOf("https"), schemes)
+        }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `HTTPS cooldown skips broken HTTPS for 15 min then tries HTTPS again`() =
+        runTest {
+            val schemes = mutableListOf<String>()
+            var fakeNowMs = 1_000_000L
+            val client = HttpClient(MockEngine) {
+                engine {
+                    addHandler { request ->
+                        schemes += request.url.protocol.name
+                        if (request.url.protocol == URLProtocol.HTTPS && schemes.size == 1) {
+                            throw SSLException("initial TLS stall")
+                        }
+                        respond(
+                            content = """{"daily":{"time":["2026-06-20"],"temperature_2m_max":[70.0],"temperature_2m_min":[50.0],"weather_code":[0]}}""",
+                            status = HttpStatusCode.OK,
+                            headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                        )
+                    }
+                }
+                install(ContentNegotiation) { json(json) }
+            }
+            val api = OpenMeteoApi(client, json, httpFallbackDelayMs = 2_000L, nowMs = { fakeNowMs })
+
+            // 1. HTTPS fails -> falls back to HTTP -> arms 15 min cooldown.
+            api.getForecast(37.0, -122.0)
+            assertEquals(listOf("https", "http"), schemes)
+
+            // 2. Within 15 min -> goes straight to HTTP without touching HTTPS.
+            fakeNowMs += 5 * 60_000L
+            api.getForecast(37.0, -122.0)
+            assertEquals(listOf("https", "http", "http"), schemes)
+
+            // 3. Past 15 min -> tries HTTPS again and succeeds.
+            fakeNowMs += OpenMeteoApi.HTTPS_COOLDOWN_MS
+            api.getForecast(37.0, -122.0)
+            assertEquals(listOf("https", "http", "http", "https"), schemes)
+        }
 }
