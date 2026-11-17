@@ -12,18 +12,24 @@ import kotlin.math.roundToInt
  * 85% carried 5.8–12.6 mm/h ("Heavy Rain") while the label read 85% and every other source said
  * 89–100%. Independence is the upper bound (hours of one system are correlated; the max is the lower
  * bound), and over Google's 10% drizzle floor it overstates dry days — twelve 10% hours combine to
- * 72%. So the combined value is shown only when the window's max already reaches [MIN_MAX_PERCENT]
- * (user, 2026-11-17: option 2 at 85%). Google only; every other source shows the window max.
+ * 72%. So the combined value is shown only when the window's max already reaches the source's
+ * cutoff ([MIN_MAX_PERCENT]; user, 2026-11-17: option 2 at 85%), just under that source's ceiling.
+ * WeatherAPI joined the same day at 90%: its hours stop at ~92% (11-18: 84–90% from 7am to 2pm,
+ * "Moderate rain", label 90%). Tomorrow.io joined at 85% (user, 2026-11-17; 11-18: 8am 85% at 5.1 mm,
+ * 9am 80% at 13 mm, label 85%), though it reaches 90–99% on rare hours. Every other source shows the
+ * window max.
  * plans/261117-google-combined-daily-rain-chance.md
  */
 object CombinedRainChance {
-    /** A window's max hourly chance from which the combined chance is shown instead. */
-    const val MIN_MAX_PERCENT = 85
+    /** Per source: the window's max hourly chance from which the combined chance is shown instead. */
+    val MIN_MAX_PERCENT: Map<String, Int> = mapOf(
+        WeatherSource.GOOGLE_WEATHER.id to 85,
+        WeatherSource.WEATHER_API.id to 90,
+        WeatherSource.TOMORROW_IO.id to 85,
+    )
 
-    private val SOURCES = setOf(WeatherSource.GOOGLE_WEATHER.id)
-
-    /** True when [sourceId]'s daily windows show the combined chance (subject to [MIN_MAX_PERCENT]). */
-    fun appliesTo(sourceId: String?): Boolean = sourceId in SOURCES
+    /** True when [sourceId]'s daily windows show the combined chance (subject to its cutoff). */
+    fun appliesTo(sourceId: String?): Boolean = sourceId in MIN_MAX_PERCENT
 
     /** `1 − ∏(1 − p/100)` as a whole percent; null for no hours. */
     fun combine(probabilities: List<Int>): Int? {
@@ -33,12 +39,13 @@ object CombinedRainChance {
     }
 
     /**
-     * The window's chance to show: [combined] for a source in [SOURCES] whose [max] is at least
-     * [MIN_MAX_PERCENT], else [max]. A missing [combined] (a row written before the column existed)
+     * The window's chance to show: [combined] for a source in [MIN_MAX_PERCENT] whose [max] is at
+     * least that source's cutoff, else [max]. A missing [combined] (a row written before the column existed)
      * keeps the max, so nothing goes blank.
      */
     fun shown(sourceId: String?, max: Int?, combined: Int?): Int? {
-        if (max == null || combined == null || !appliesTo(sourceId) || max < MIN_MAX_PERCENT) return max
+        val cutoff = MIN_MAX_PERCENT[sourceId] ?: return max
+        if (max == null || combined == null || max < cutoff) return max
         return maxOf(max, combined)
     }
 }

@@ -66,7 +66,10 @@ class PreHourForecastSurvivesTest {
         val store = Store().apply { replay() }
         val stitched = HourlyForecastStitcher.stitch(store.rows, lat, lon, nowMs = early(3, 30))
 
-        assertEquals(97, DailyRainLabels.resolveLiveDayNightChance(source, null, null, null, stitched, night, zone).nightPrecip)
+        // The window max: the surviving hour itself. The displayed night chance for Tomorrow.io is the
+        // combined chance once the max reaches 85% (CombinedRainChance): 20% and 97% → 98%.
+        assertEquals(97, DailyRainLabels.periodMaxima(stitched, night, zone).nightMax)
+        assertEquals(98, DailyRainLabels.resolveLiveDayNightChance(source, null, null, null, stitched, night, zone).nightPrecip)
     }
 
     @Test

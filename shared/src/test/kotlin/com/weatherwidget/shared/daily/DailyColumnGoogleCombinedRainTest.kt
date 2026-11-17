@@ -19,7 +19,7 @@ import java.time.ZoneId
 
 /**
  * Google's daily windows show the chance of rain in at least one hour once the window's max reaches
- * 85% (plans/261117-google-combined-daily-rain-chance.md). The fixture is Google's 2026-11-17 11:11
+ * 85%, WeatherAPI's from 90%, Tomorrow.io's from 85% (plans/261117-google-combined-daily-rain-chance.md). The fixture is Google's 2026-11-17 11:11
  * fetch for 11-18: 85% from 8am to noon at 5.8–12.6 mm/h, "Heavy Rain", while the label read 85%.
  */
 @Category(ShortDuration::class)
@@ -30,6 +30,8 @@ class DailyColumnGoogleCombinedRainTest {
     private val now = today.atTime(13, 6)
     private val google = WeatherSource.GOOGLE_WEATHER.id
     private val nws = WeatherSource.NWS.id
+    private val wapi = WeatherSource.WEATHER_API.id
+    private val tio = WeatherSource.TOMORROW_IO.id
     private val lat = 37.422
     private val lon = -122.084
     private val hour = 3_600_000L
@@ -92,6 +94,45 @@ class DailyColumnGoogleCombinedRainTest {
         assertEquals("other sources keep the max", 85, CombinedRainChance.shown(nws, max = 85, combined = 100))
         assertEquals("a row without the column keeps the max", 85, CombinedRainChance.shown(google, max = 85, combined = null))
         assertNull(CombinedRainChance.shown(google, max = null, combined = 90))
+    }
+
+    @Test
+    fun `WeatherAPI shows the combined chance from 90, Google still from 85`() {
+        assertEquals(100, CombinedRainChance.shown(wapi, max = 90, combined = 100))
+        assertEquals("WeatherAPI below 90 keeps the max", 89, CombinedRainChance.shown(wapi, max = 89, combined = 100))
+        assertEquals("Google's cutoff is its own", 100, CombinedRainChance.shown(google, max = 85, combined = 100))
+    }
+
+    /** Tomorrow.io 11-18 (15:30 fetch): 85% at 8am, 80% at 9am (13 mm); the label read 85%. */
+    @Test
+    fun `Tomorrow_io's 85 percent day reads its amount, its 55 percent night keeps the max`() {
+        val tioChance = listOf(0, 0, 0, 0, 35, 0, 40, 60, 85, 80, 75, 75, 0, 0, 0, 0, 0, 0, 45, 40, 0, 0, 0, 0)
+        val tioMm = listOf(0f, 0f, 0f, 0f, 0f, 0f, .8f, .8f, 5.1f, 13.0f, 4.3f, 4.6f, .5f, 0f, .5f, 0f, .8f, 0f, 0f, 0f, .3f, 0f, 0f, 0f)
+        val hourly = hours(tomorrow, tio) { tioChance[it] to tioMm[it] }.map {
+            if (it.dateTime >= at(tomorrow.plusDays(1), 0)) it.copy(precipProbability = 55) else it
+        }
+        assertEquals("Tomorrow.io below 85 keeps the max", 80, CombinedRainChance.shown(tio, max = 80, combined = 100))
+        val c = column(row(tio, hourly), hourly, source = tio)
+        assertEquals(100, c.dayPrecipProbability)
+        assertEquals(DailyRainLabels.formatPrecipAmount(tioMm.subList(8, 20).sum()), c.dailyRainLabelText)
+        assertEquals("8am", c.dailyRainPeakLabelText)
+        assertEquals("night max 55 < 85", 55, c.nightPrecipProbability)
+    }
+
+    /** WeatherAPI 11-18 (15:30 fetch): 84–90% from 7am to 2pm, "Moderate rain"; the label read 90%. */
+    @Test
+    fun `WeatherAPI's 90 percent day reads its amount, its 84 percent night keeps the max`() {
+        val wapiChance = listOf(19, 20, 25, 29, 38, 64, 74, 84, 88, 90, 90, 89, 90, 86, 89, 50, 34, 67, 36, 44, 62, 62, 70, 69)
+        val wapiMm = listOf(0f, 0f, .1f, .1f, .2f, 1.1f, 2.1f, 4.1f, 5.7f, 6.0f, 6.9f, 4.8f, 5.4f, 2.7f, 4.4f, .3f, 0f, .6f, .1f, .3f, .8f, .8f, 1.1f, 1.1f)
+        val hourly = hours(tomorrow, wapi) { wapiChance[it] to wapiMm[it] }.map {
+            // The next morning at 84%, as WeatherAPI's night max.
+            if (it.dateTime >= at(tomorrow.plusDays(1), 0)) it.copy(precipProbability = 84) else it
+        }
+        val c = column(row(wapi, hourly), hourly, source = wapi)
+        assertEquals(100, c.dayPrecipProbability)
+        assertEquals(DailyRainLabels.formatPrecipAmount(wapiMm.subList(8, 20).sum()), c.dailyRainLabelText)
+        assertEquals("9am", c.dailyRainPeakLabelText)
+        assertEquals("night max 84 < 90", 84, c.nightPrecipProbability)
     }
 
     @Test
