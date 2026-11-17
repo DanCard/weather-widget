@@ -166,6 +166,7 @@ private fun legacyComponents(
             dailyHistoryDao,
             appLogDao,
             dailyActualsStore,
+            AndroidMetarReconcileBootStore(context),
         ),
         dailyActualsStore = dailyActualsStore,
         currentReader = CurrentObservationReader(observationDao, weightProvider),

@@ -15,6 +15,7 @@ import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.remote.GoogleWeatherApi
 import com.weatherwidget.data.remote.*
 import com.weatherwidget.shared.actuals.HistoricalActualsBackfill
+import com.weatherwidget.shared.observations.NwsMetarHistoryWeb
 import com.weatherwidget.shared.observations.NwsMetarTextWeb
 import com.weatherwidget.shared.observations.NwsObservationMapper
 import com.weatherwidget.shared.observations.NwsStationHistoryFetcher
@@ -502,6 +503,9 @@ class DesktopWeatherService(
             FetchOutcome.failed(e)
         }
 
+    override suspend fun fetchMetarHistory(stationIds: List<String>, hours: Int) =
+        aviationWeatherApi.fetchMetars(stationIds, hours)
+
     override suspend fun fetchNwsStationWindow(
         station: NwsApi.StationInfo,
         index: Int,
@@ -511,7 +515,13 @@ class DesktopWeatherService(
     ): NwsGapFillRun.StationRows {
         val history = stallRetriedHistoryFetcher("gapFill").fetch(
             station, index, latitude, longitude, startIso, endIso,
-            web = { NwsMetarTextWeb.fetchReading(nwsMetarTextApi, station, latitude, longitude).valueOrNull() },
+            // The station's METAR history over the window, not just its newest report (:shared NwsMetarHistoryWeb).
+            web = {
+                NwsMetarHistoryWeb.fetchWindow(
+                    aviationWeatherApi, nwsMetarTextApi, station, latitude, longitude,
+                    startMs = Instant.parse(startIso).toEpochMilli(), nowMs = System.currentTimeMillis(),
+                ).valueOrNull()
+            },
             fallbackLogTag = fallbackLogTag,
         )
         return NwsGapFillRun.StationRows(history.rows, history.usedWebFallback, history.apiFailure)

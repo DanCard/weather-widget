@@ -12,8 +12,12 @@ import kotlinx.coroutines.CancellationException
  * own copy of this (Phase 4 of plans/261013-shared-current-conditions-fetch.md; "3e" of
  * plans/260909-nws-fetch-unification.md).
  *
- * The web transport stays the platform's ([fetch]'s `web`): Android asks Synoptic for the backfill
- * window, desktop reuses the Aviation Weather rows its latest step already holds.
+ * The web transport stays the caller's ([fetch]'s `web`): the gap fill on both platforms asks
+ * Aviation Weather for the station's METAR history over the window ([NwsMetarHistoryWeb]); the
+ * current-conditions pass reuses the web rows its latest step already holds.
+ *
+ * The web rows join the API rows rather than replace them: a stale window still holds the hours it
+ * has, and an API row wins its timestamp. plans/261117-today-fog-stale-forecast-and-nws-metar-history-fill.md
  */
 class NwsStationHistoryFetcher(
     /** `api.weather.gov/stations/{id}/observations?start=&end=` — desktop wraps it in its stall retry. */
@@ -22,7 +26,7 @@ class NwsStationHistoryFetcher(
     private val nowMs: () -> Long = System::currentTimeMillis,
 ) {
     data class StationHistory(
-        /** The rows to store: the API window, or the web rows stamped as this station's. */
+        /** The rows to store: the API window, plus the web rows (stamped as this station's) for times it lacks. */
         val rows: List<ObservationReading>,
         val usedWebFallback: Boolean,
         /** What the API said: [FetchOutcome.NoData] is an answered empty window, distinct from a failure. */
@@ -70,7 +74,10 @@ class NwsStationHistoryFetcher(
             val detail = apiFailure?.let { "$reason:$it" } ?: reason
             log(fallbackLogTag, "station=${station.id} reason=$detail", "INFO")
         }
-        val webRows = web().orEmpty().map { NwsStationLatestFetcher.asNwsWebRow(it, station, latitude, longitude) }
-        return if (webRows.isEmpty()) apiOnly else StationHistory(webRows, usedWebFallback = true, apiOutcome)
+        val apiTimes = apiRows.mapTo(HashSet()) { it.timestamp }
+        val webRows = web().orEmpty()
+            .map { NwsStationLatestFetcher.asNwsWebRow(it, station, latitude, longitude) }
+            .filter { it.timestamp !in apiTimes }
+        return if (webRows.isEmpty()) apiOnly else StationHistory(apiRows + webRows, usedWebFallback = true, apiOutcome)
     }
 }

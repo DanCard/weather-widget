@@ -38,6 +38,8 @@ class NwsObservationSource(
     /** The web leg: NWS's own METAR text file (no token). Null = API only. */
     private val metarTextApi: NwsMetarTextApi? = null,
     internal val synopticApi: com.weatherwidget.data.remote.SynopticApi? = null,
+    /** The history web leg: the station's METAR reports over the backfill window. Null = latest text only. */
+    internal val aviationWeatherApi: com.weatherwidget.data.remote.AviationWeatherApi? = null,
 ) {
     private val prefs = SharedPreferencesUtil.getPrefs(context, "weather_prefs")
 
@@ -168,14 +170,23 @@ class NwsObservationSource(
         webWindowMinutes: Long,
         fallbackLogTag: String,
     ): HistoricalStationObservations {
-        // The web fallback is NWS's own latest-METAR file, as on desktop: one reading, the newest
-        // (plans/261015-nws-web-leg-from-nws-tgftp-metar-text.md; it was Synoptic, a token service).
-        val web: (suspend () -> List<com.weatherwidget.data.model.ObservationReading>?)? = metarTextApi?.let { api ->
-            {
-                com.weatherwidget.shared.observations.NwsMetarTextWeb.fetchReading(api, stationInfo, latitude, longitude)
-                    .valueOrNull()
-                    ?.map { com.weatherwidget.shared.observations.NwsStationLatestFetcher.asNwsWebRow(it, stationInfo, latitude, longitude) }
+        // The web fallback, as on desktop: the station's METAR history over the window from Aviation
+        // Weather, else NWS's own latest-METAR file (one reading, the newest).
+        // plans/261117-today-fog-stale-forecast-and-nws-metar-history-fill.md
+        val web: (suspend () -> List<com.weatherwidget.data.model.ObservationReading>?)? = when {
+            aviationWeatherApi != null -> {
+                {
+                    com.weatherwidget.shared.observations.NwsMetarHistoryWeb.fetchWindow(
+                        aviationWeatherApi, metarTextApi, stationInfo, latitude, longitude,
+                        startMs = java.time.Instant.parse(startTime).toEpochMilli(),
+                        nowMs = System.currentTimeMillis(),
+                    ).valueOrNull()
+                }
             }
+            metarTextApi != null -> {
+                { com.weatherwidget.shared.observations.NwsMetarTextWeb.fetchReading(metarTextApi, stationInfo, latitude, longitude).valueOrNull() }
+            }
+            else -> null
         }
         val history = historyFetcher.fetch(
             stationInfo, stationIndex, latitude, longitude, startTime, endTime, web, fallbackLogTag,

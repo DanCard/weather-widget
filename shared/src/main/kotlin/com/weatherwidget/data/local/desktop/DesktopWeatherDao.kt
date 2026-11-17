@@ -38,6 +38,9 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 
 class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
+    /** The database file this DAO reads and writes. */
+    val databasePath: java.nio.file.Path get() = db.dbPath
+
     /**
      * [com.weatherwidget.shared.actuals.DailyBlendRecomputeRun]'s unchanged-day signatures for this
      * database. Here, not on a repository: repositories are rebuilt on every config or source change,

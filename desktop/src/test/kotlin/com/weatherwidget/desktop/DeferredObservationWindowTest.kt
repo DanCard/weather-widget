@@ -52,6 +52,7 @@ class DeferredObservationWindowTest {
     fun teardown() {
         database.getConnection().close()
         Files.deleteIfExists(tempDbPath)
+        Files.deleteIfExists(DesktopMetarReconcileBootStore.markerFor(tempDbPath))
     }
 
     private fun repo(source: String = "NWS") =
@@ -138,12 +139,20 @@ class DeferredObservationWindowTest {
     @Test
     fun `a wake with every day complete makes no request`() = runTest {
         stubGapFill()
+        coEvery { weatherService.fetchMetarHistory(any(), any()) } returns
+            com.weatherwidget.data.remote.FetchOutcome.Success(emptyList())
+        // A settled boot that hasn't reconciled this site yet: the first wake reconciles once.
+        val bootStore = com.weatherwidget.shared.observations.InMemoryMetarReconcileBootStore()
+        fun repo() = DesktopWeatherRepository(weatherService, dao, lat, lon, "NWS", currentTimeMillis = { now }, metarReconcileBootStore = bootStore)
         repo().refreshObservationWindow(listOf(com.weatherwidget.data.model.WeatherSource.NWS), "test", now)
 
         assertEquals(0, repo().refreshObservationWindow(listOf(com.weatherwidget.data.model.WeatherSource.NWS), "test", now))
 
         coVerify(exactly = 1) { weatherService.fetchNwsStationWindow(any(), any(), any(), any(), any()) }
-        coVerify(exactly = 1) { weatherService.nwsObservationStations() }
+        // The boot's one reconcile and the first wake's fill; the second wake asks nothing
+        // (plans/261117-metar-reconcile-once-per-device-boot.md).
+        coVerify(exactly = 2) { weatherService.nwsObservationStations() }
+        coVerify(exactly = 1) { weatherService.fetchMetarHistory(any(), any()) }
         assertNotNull(dao.getLatestLogByTagAndMessagePrefix("NWS_DAILY_BACKFILL_RESULT", "reason=test need=none rows=0"))
     }
 

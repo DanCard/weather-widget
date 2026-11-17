@@ -152,14 +152,33 @@ through `NwsGapFillRun.dailyForSources` — Android's full sync, desktop's launc
 publishes, and a user Refresh on both platforms (desktop Settings → Refresh after its fetch; Android's
 widget Refresh on fresh data enqueues it alone as `WORK_NAME_HISTORY_GAP_FILL`, since a stale tap's
 sync runs it already). That entry owns the source gate: it runs when any visible source takes its
-actuals from NWS (`ActualsFeedPolicy.requiresFeed`), not only the displayed one. The pass itself runs
+actuals from NWS (`ActualsFeedPolicy.requiresFeed`), not only the displayed one. Once per device boot
+and site, it first reconciles the NWS station rows with the stations' own METARs
+(`NwsGapFillRun.reconcileOncePerBoot` → `reconcileMetars`): one Aviation Weather
+request for the nearest five METAR stations' last 72 h, storing as `api=NWS isWebFallback=1` every report
+no NWS row has for that station and time, then recomputing those days. It logs one
+`NWS_METAR_RECONCILE stations=… fetched=… added=… days=…` line (`unreachable=true` on failure, after which
+the pass continues). This fills a hole in one station while others reported, which the merged need check
+below cannot see (`plans/261117-nws-station-rows-reconciled-with-own-metars.md`). The boot is Android's
+`Settings.Global.BOOT_COUNT` or Linux's `/proc/sys/kernel/random/boot_id`; the boot that last
+reconciled each site is kept in the `nws_metar_reconcile_boot` preferences on Android and in
+`<database>.metar-reconcile-boot` beside desktop's database. Every pass reconciles until a boot is
+marked done, which needs an answered reconcile at least 2 h (`RECONCILE_SETTLE_MS`) after boot, since NWS
+adds reports 60–80 min late. That pass logs `NWS_METAR_RECONCILE boot_done boot=… site=…`, and later
+passes in the same boot skip it. One reconcile runs at a time per process, so a pass that overlaps another
+(a Refresh during a full sync) waits and then sees the marker (`plans/261117-metar-reconcile-once-per-device-boot.md`). The pass itself runs
 only when day−2, yesterday or (from 02:00) today has no NWS `daily_history` row, a past day's NWS rows
 stop before 14:00 (`pastDayLacksAfternoonCoverage`), or a day's official-station rows leave a hole of
 over 75 min (one hourly METAR cycle plus a late report), today counted up to now (`dayHasOfficialGap`,
 so a wake after a night asleep refills the night even though personal stations covered it through the
 Synoptic fallback and the wake fetch stored a few stray official rows); then it asks up to five
-stations, nearest first, for the last 3 days and stops once every needed day is complete. A complete
-week makes no request. Logs, identical on both platforms: one `NWS_DAILY_BACKFILL_RESULT
+stations, nearest first, for the last 3 days and stops once every needed day is complete. Apart from a
+boot's reconcile, a complete week makes no request. When a station's api.weather.gov history is stale (newest report over 60 min old,
+first five stations), its web fallback asks Aviation Weather for that station's METAR reports over the
+window (`NwsMetarHistoryWeb`, one request, at most 72 h), else NWS's latest-METAR text file (one report).
+The recovered reports join the API rows as `api=NWS isWebFallback=1` for times the API lacks; an API row
+keeps its own time (`plans/261117-today-fog-stale-forecast-and-nws-metar-history-fill.md`). Until then the
+fallback returned only the newest report, so a stale nearest station left its hours to a farther one. Logs, identical on both platforms: one `NWS_DAILY_BACKFILL_RESULT
 reason=… need=… rows=…` line per run plus the per-station `NWS_DAILY_BACKFILL_*` lines.
 Android's render-detected observation gap runs the same runner's recent pass (every station, the last
 72 h, `OBS_HOURLY_BACKFILL_*`). A fill that never reached NWS — station lookup failed or every station

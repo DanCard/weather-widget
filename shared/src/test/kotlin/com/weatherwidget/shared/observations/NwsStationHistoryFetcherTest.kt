@@ -49,14 +49,29 @@ class NwsStationHistoryFetcherTest {
     }
 
     @Test
-    fun `stale API history falls back to web rows stamped as the NWS station's`() = runBlocking {
+    fun `stale API history adds web rows stamped as the NWS station's next to the API rows`() = runBlocking {
         val result = fetcher { listOf(obs(600)) }.fetchAt(0, listOf(webRow(5)))
         assertTrue(result.usedWebFallback)
-        val row = result.rows.single()
+        assertEquals(2, result.rows.size)
+        assertFalse(result.rows.first { it.timestamp == now - 600 * 60_000L }.isWebFallback)
+        val row = result.rows.single { it.isWebFallback }
         assertEquals("NWS", row.api)
-        assertTrue(row.isWebFallback)
         assertEquals(station.name, row.stationName)
         assertEquals(listOf("FB station=KNUQ reason=stale"), logs)
+    }
+
+    @Test
+    fun `a stale station's missing hours come back from the web history, the API row winning its own time`() = runBlocking {
+        // Emulator 2026-11-17: KNUQ's API history stopped at 05:55; its 06:15-08:35 reports were missing
+        // and the latest-text leg brought back one. A history leg returns the window; 05:55 stays the API's.
+        // plans/261117-today-fog-stale-forecast-and-nws-metar-history-fill.md
+        val gap = listOf(235L, 215L, 195L, 175L, 155L, 135L, 115L, 95L)
+        val result = fetcher { listOf(obs(255), obs(235)) }.fetchAt(0, gap.map { webRow(it) })
+        println("rows=" + result.rows.map { (now - it.timestamp) / 60_000L to it.isWebFallback })
+        assertTrue(result.usedWebFallback)
+        assertEquals(listOf(255L, 235L, 215L, 195L, 175L, 155L, 135L, 115L, 95L), result.rows.map { (now - it.timestamp) / 60_000L }.sortedDescending())
+        assertFalse("the API row keeps 235", result.rows.single { it.timestamp == now - 235 * 60_000L }.isWebFallback)
+        assertEquals(7, result.rows.count { it.isWebFallback })
     }
 
     @Test

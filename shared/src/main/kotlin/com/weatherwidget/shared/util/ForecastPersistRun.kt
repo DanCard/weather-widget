@@ -134,9 +134,17 @@ class ForecastPersistRun<K>(
             .takeIf { it.isNotEmpty() }
             ?.let { host.log(DailyHourlyConsistency.LOG_TAG, DailyHourlyConsistency.logMessage(source, it), "WARN") }
 
+        // From the earliest window any summary reads: the morning fog's 00:00–12:00 starts before the
+        // rain day's 08:00. From 08:00 the stored hours never covered today's fog, so a download that
+        // began after midnight kept an older fetch's fog (NWS 2026-11-17: 01:10 "Patchy Fog" held at
+        // 53.5° all day though the 10:09 hours were clear). plans/261117-today-fog-stale-forecast-and-nws-metar-history-fill.md
+        val firstDate = dated.minOf { it.second }
         val stored = host.storedHourly(
-            DailyPrecipPeriods.readStartMs(dated.minOf { it.second }),
-            DailyPrecipPeriods.readEndMs(dated.maxOf { it.second }),
+            minOf(
+                DailyPrecipPeriods.readStartMs(firstDate, zone),
+                com.weatherwidget.shared.fog.MorningFogWindow.startMs(firstDate, zone),
+            ),
+            DailyPrecipPeriods.readEndMs(dated.maxOf { it.second }, zone),
         )
         val incoming = dated.map { (day, date) ->
             val fromPayload = DailyHourlySummaries.forDate(payload, date, source, zone, host.latitude, host.longitude)

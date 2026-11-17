@@ -205,7 +205,10 @@ under the labels (`plans/261111-daily-bar-morning-fog.md`). `DailyColumnBuilder`
 - **Observed fog** (`daily_history.observedFog*`) combines with the provider's whole-morning forecast:
   the forecast row's `fogLevel`/`fogTopTemp`/`fogVisibilityMi`/`fogPredawn` (`ForecastMorningFog`,
   computed at persist time from the fetch's hourly visibility and words over 00:00–12:00, carried
-  forward like noon cloud), else the stored hours. A fetch made after the fog keeps it on today and
+  forward like noon cloud), else the stored hours. A download that starts after midnight is judged on
+  the stored newest-per-hour rows, which the persist reads from the fog window's 00:00, so a later
+  all-clear fetch clears an earlier fetch's fog
+  (`plans/261117-today-fog-stale-forecast-and-nws-metar-history-fill.md`). A fetch made after the fog keeps it on today and
   past days (`plans/261111-today-fog-whole-morning.md`).
 - **Observed no fog** (level 0) **or only a saturation hint** (level 1, no fog or mist reported): the
   stations win for the hours already gone. Only forecast fog from the current hour to noon counts,

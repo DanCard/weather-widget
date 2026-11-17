@@ -28,6 +28,7 @@ class NwsObservationBackfillerTest {
         dailyHistoryDao = mockk<DailyHistoryDao>(relaxed = true),
         appLogDao = mockk<AppLogDao>(relaxed = true),
         dailyActualsStore = mockk<DailyActualsStore>(relaxed = true),
+        metarReconcileBootStore = com.weatherwidget.shared.observations.InMemoryMetarReconcileBootStore(),
     )
 
     private fun station(id: String) = NwsApi.StationInfo(

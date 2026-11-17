@@ -10,7 +10,8 @@ import java.sql.DriverManager
 import kotlin.io.path.createDirectories
 
 class DesktopWeatherDatabase(
-    private val dbPath: Path,
+    /** The database file; the METAR reconcile's boot marker sits beside it. */
+    val dbPath: Path,
     private val writeTiming: DesktopWriteTiming = DesktopWriteTiming(),
 ) {
 

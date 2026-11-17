@@ -38,6 +38,20 @@ abstract class NwsGapFillHostContract {
         seed = s
     }
 
+    /** The boot marker survives a new store over the same storage, per site (plans/261117-metar-reconcile-once-per-device-boot.md). */
+    @Test
+    fun `bootStore - the reconciled boot is kept per site`() {
+        val site = com.weatherwidget.shared.observations.MetarReconcileBootStore.siteKey(LAT, LON)
+        val other = com.weatherwidget.shared.observations.MetarReconcileBootStore.siteKey(OUTSIDE_LAT, LON)
+        assertEquals(null, host.bootStore.reconciledBootId(site))
+
+        host.bootStore.markReconciled(site, "68")
+        host.bootStore.markReconciled(site, "69")
+
+        assertEquals("69", host.bootStore.reconciledBootId(site))
+        assertEquals(null, host.bootStore.reconciledBootId(other))
+    }
+
     @Test
     fun `dailyHistoryRows - every source in the box, both ends inclusive`() = runBlocking {
         seed.dailyHistory(dh(DAY0, "NWS"))

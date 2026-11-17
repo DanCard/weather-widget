@@ -21,6 +21,7 @@ class DesktopNwsGapFillHostContractTest : NwsGapFillHostContract() {
 
     override fun open(): Pair<NwsGapFillRun.Host, Seed> {
         val path = Files.createTempFile("weather_contract", ".db").also { paths.add(it) }
+        paths.add(DesktopMetarReconcileBootStore.markerFor(path))
         val db = DesktopWeatherDatabase(path).apply { initialize() }
         val dao = DesktopWeatherDao(db)
         // Network only: the contract never asks for stations or a station window.

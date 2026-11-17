@@ -84,6 +84,41 @@ abstract class ForecastPersistHostContract {
         assertEquals(listOf(T0 + HOUR, T0), listOf(stored.lastConfirmedAt, stored.fetchedAt))
     }
 
+    /**
+     * NWS 2026-11-17 through the real store: the 01:10 fetch forecast Patchy Fog at 06, 07 and 09; the
+     * 10:09 download began at 01:00, all clear. Its fog is judged on the stored newest-per-hour rows
+     * (00:00 still the 01:10 fetch's, the elapsed 01-09 filed by this fetch), which must cover the
+     * 00:00-12:00 window and clear the old fog. Until the read started at the fog window, it began at
+     * 08:00 and the old fog stayed. plans/261117-today-fog-stale-forecast-and-nws-metar-history-fill.md
+     */
+    @Test
+    fun `a later all-clear fetch clears today's forecast fog through the stored hours`() = runBlocking {
+        @Suppress("UNCHECKED_CAST")
+        val host = open()(SOURCE, LAT, LON) as ForecastPersistRun.Host<Any?>
+        val zone = java.time.ZoneId.systemDefault()
+        val today = LocalDate.parse("2026-11-17")
+        val midnight = today.atStartOfDay(zone).toInstant().toEpochMilli()
+        val run = ForecastPersistRun(host)
+        val daily = { high: Float -> listOf(com.weatherwidget.data.model.DailyForecast(today.toString(), high, 42f, "Sunny")) }
+
+        val foggy = setOf(6, 7, 9)
+        val first = (0..23).map { i ->
+            HourlyForecast(midnight + i * HOUR, 44f + i, if (i in foggy) "Patchy Fog" else "Mostly Clear", source = SOURCE)
+        }
+        run.persist(ForecastPersistRun.Fetch(hourly = first, daily = daily(60f), keep = null), midnight + 70 * 60_000L, zone)
+        val before = host.storedDaily(today, today).single().values.summary.fog
+        println("before: $before")
+        assertEquals(com.weatherwidget.shared.fog.FogLevel.LIGHT, before?.level)
+
+        val clear = (1..23).map { i -> HourlyForecast(midnight + i * HOUR, 44f + i, "Sunny", source = SOURCE, visibilityMi = 10f) }
+        run.persist(ForecastPersistRun.Fetch(hourly = clear, daily = daily(61f), keep = null), midnight + (10 * 60 + 9) * 60_000L, zone)
+
+        // Every fetch keeps its own row (history of forecasts); the newest is what today draws.
+        val after = host.storedDaily(today, today).maxBy { it.fetchedAt }.values.summary.fog
+        println("after: $after")
+        assertEquals(com.weatherwidget.shared.fog.MorningFog.NONE, after)
+    }
+
     @Suppress("UNCHECKED_CAST")
     private suspend fun restampAll(host: ForecastPersistRun.Host<*>, nowMs: Long) {
         val typed = host as ForecastPersistRun.Host<Any?>

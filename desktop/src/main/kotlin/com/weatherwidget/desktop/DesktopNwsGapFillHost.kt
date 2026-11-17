@@ -3,6 +3,7 @@ package com.weatherwidget.desktop
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.remote.NwsApi
+import com.weatherwidget.shared.observations.MetarReconcileBootStore
 import com.weatherwidget.shared.observations.NwsGapFillRun
 import java.time.LocalDate
 
@@ -16,6 +17,7 @@ internal class DesktopNwsGapFillHost(
     private val weatherDao: DesktopWeatherDao,
     private val store: suspend (List<ObservationReading>) -> Unit,
     private val recompute: suspend (Set<LocalDate>) -> Unit,
+    override val bootStore: MetarReconcileBootStore,
 ) : NwsGapFillRun.Host {
     override suspend fun stations(latitude: Double, longitude: Double) = weatherService.nwsObservationStations()
 
@@ -30,6 +32,8 @@ internal class DesktopNwsGapFillHost(
     ) = weatherService.fetchNwsStationWindow(station, index, startIso, endIso, fallbackLogTag)
 
     override suspend fun store(rows: List<ObservationReading>, latitude: Double, longitude: Double) = store.invoke(rows)
+
+    override suspend fun fetchMetars(stationIds: List<String>, hours: Int) = weatherService.fetchMetarHistory(stationIds, hours)
 
     override suspend fun dailyHistoryRows(startDayMs: Long, endDayMs: Long, latitude: Double, longitude: Double) =
         weatherDao.getExtremesInRange(startDayMs, endDayMs, latitude, longitude)

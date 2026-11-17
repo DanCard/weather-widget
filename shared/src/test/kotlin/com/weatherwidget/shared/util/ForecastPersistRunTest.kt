@@ -30,7 +30,8 @@ class ForecastPersistRunTest {
     private val now = today.atTime(10, 20).toInstant(zone).toEpochMilli()
     private val hour0 = now - now % h
 
-    private class FakeHost : ForecastPersistRun.Host<String> {
+    /** [elapsedIntoLive]: elapsed hours land in the live table, as Room's and desktop's stores do (one `hourly_forecasts`). */
+    private class FakeHost(val elapsedIntoLive: Boolean = false) : ForecastPersistRun.Host<String> {
         override val sourceId = "OPEN_METEO"
         override val latitude = 37.4166
         override val longitude = -122.0889
@@ -46,7 +47,12 @@ class ForecastPersistRunTest {
         override suspend fun storedHourly(startMs: Long, endMs: Long) = live.values.filter { it.dateTime in startMs..endMs }
         override suspend fun writeHourly(rows: List<HourlyForecast>) = rows.forEach { live[it.dateTime] = it }
         override fun elapsedStore(label: Long, nowMs: Long) = object : ElapsedForecastBackfill.Store {
-            override suspend fun insert(rows: List<HourlyForecast>) { rows.forEach { backfilled += label to it } }
+            override suspend fun insert(rows: List<HourlyForecast>) {
+                rows.forEach {
+                    backfilled += label to it
+                    if (elapsedIntoLive) live[it.dateTime] = it
+                }
+            }
         }
         override suspend fun storedDaily(from: LocalDate, to: LocalDate) = daily.filter { it.date in from..to }.also { dailyReads++ }
         override suspend fun writeDaily(write: List<DailyForecastWrite.Row>, restamp: List<String>, nowMs: Long) {
@@ -114,6 +120,31 @@ class ForecastPersistRunTest {
 
         assertEquals(80, host.daily.single { it.date == today.plusDays(5) }.values.summary.dayPrecipMax)
         assertEquals(80, host.daily.single { it.date == today.plusDays(5) }.values.daytimePrecipProbability)
+    }
+
+    @Test
+    fun `a download starting after midnight clears an older fetch's morning fog from the stored hours`() {
+        // NWS 2026-11-17: the 01:10 fetch forecast Patchy Fog at 06, 07 and 09 (top 53.5); the 10:09
+        // download began at 01:00 with every hour clear. The payload cannot judge 00:00-12:00, and the
+        // stored read began at 08:00, so the old fog carried forward all day.
+        // plans/261117-today-fog-stale-forecast-and-nws-metar-history-fill.md
+        val host = FakeHost(elapsedIntoLive = true)
+        val midnight = today.atStartOfDay(zone).toInstant().toEpochMilli()
+        val foggy = setOf(6, 7, 9)
+        (0..23).forEach { i ->
+            host.live[midnight + i * h] = HourlyForecast(midnight + i * h, 44f + i, if (i in foggy) "Patchy Fog" else "Mostly Clear")
+        }
+        persist(host, ForecastPersistRun.Fetch(hourly = emptyList(), daily = listOf(day(0)), keep = null))
+        val before = host.daily.last { it.date == today }.values.summary.fog
+        println("before: $before")
+        assertEquals(com.weatherwidget.shared.fog.FogLevel.LIGHT, before?.level)
+
+        val clear = (1..23).map { i -> HourlyForecast(midnight + i * h, 44f + i, "Sunny", visibilityMi = 10f) }
+        persist(host, ForecastPersistRun.Fetch(hourly = clear, daily = listOf(day(0, high = 71f)), keep = null))
+
+        val after = host.daily.last { it.date == today }.values.summary.fog
+        println("after: $after")
+        assertEquals(com.weatherwidget.shared.fog.MorningFog.NONE, after)
     }
 
     @Test

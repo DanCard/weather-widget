@@ -236,7 +236,8 @@ object AppModule {
         nwsApi: NwsApi,
         metarTextApi: com.weatherwidget.data.remote.NwsMetarTextApi,
         synopticApi: com.weatherwidget.data.remote.SynopticApi,
-    ): NwsObservationSource = NwsObservationSource(context, nwsApi, appLogDao, metarTextApi, synopticApi)
+        aviationWeatherApi: AviationWeatherApi,
+    ): NwsObservationSource = NwsObservationSource(context, nwsApi, appLogDao, metarTextApi, synopticApi, aviationWeatherApi)
 
     /**
      * Raw airport METARs from aviationweather.gov — the app's only station-observation source
@@ -258,6 +259,14 @@ object AppModule {
         appLogDao: AppLogDao,
         synopticApi: SynopticApi,
     ): SynopticObservationSource = SynopticObservationSource(context, synopticApi, appLogDao)
+
+    /** Which boot last reconciled NWS rows with METARs (plans/261117-metar-reconcile-once-per-device-boot.md). */
+    @Provides
+    @Singleton
+    fun provideMetarReconcileBootStore(
+        @ApplicationContext context: Context,
+    ): com.weatherwidget.shared.observations.MetarReconcileBootStore =
+        com.weatherwidget.data.repository.AndroidMetarReconcileBootStore(context)
 
     @Provides
     @Singleton

@@ -20,6 +20,8 @@ class NwsObservationBackfiller @Inject constructor(
     private val dailyHistoryDao: DailyHistoryDao,
     private val appLogDao: AppLogDao,
     private val dailyActualsStore: DailyActualsStore,
+    /** Which boot last reconciled NWS rows with METARs ([NwsGapFillRun.reconcileOncePerBoot]). */
+    private val metarReconcileBootStore: com.weatherwidget.shared.observations.MetarReconcileBootStore,
 ) {
     /**
      * The daily pass of the shared [NwsGapFillRun] through its one entry, [NwsGapFillRun.dailyForSources]:
@@ -67,6 +69,10 @@ class NwsObservationBackfiller @Inject constructor(
             writeObservations(observationDao, dailyHistoryDao, appLogDao, latitude, longitude, rows)
         }
 
+        override suspend fun fetchMetars(stationIds: List<String>, hours: Int) =
+            observationSource.aviationWeatherApi?.fetchMetars(stationIds, hours)
+                ?: com.weatherwidget.data.remote.FetchOutcome.NoData
+
         override suspend fun dailyHistoryRows(startDayMs: Long, endDayMs: Long, latitude: Double, longitude: Double) =
             dailyHistoryDao.getExtremesInRange(startDayMs, endDayMs, latitude, longitude)
                 .map { NwsGapFillRun.DayRow(it.date, it.source) }
@@ -85,6 +91,8 @@ class NwsObservationBackfiller @Inject constructor(
         override suspend fun log(tag: String, message: String, level: String) {
             appLogDao.log(tag, message, level)
         }
+
+        override val bootStore get() = metarReconcileBootStore
     }
 
     /** The recent-window pass of the shared [NwsGapFillRun]: every station's last [lookbackHours]. */

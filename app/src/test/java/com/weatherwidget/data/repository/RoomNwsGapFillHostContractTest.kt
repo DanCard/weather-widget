@@ -15,6 +15,7 @@ import org.junit.After
 import org.junit.experimental.categories.Category
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import androidx.test.core.app.ApplicationProvider
 
 /** Room half of [NwsGapFillHostContract]; the desktop half is `DesktopNwsGapFillHostContractTest` (`:desktop`). */
 @RunWith(RobolectricTestRunner::class)
@@ -34,6 +35,7 @@ class RoomNwsGapFillHostContractTest : NwsGapFillHostContract() {
                 db.observationDao(), db.dailyHistoryDao(), db.appLogDao(), db.hourlyForecastDao(),
                 PersonalStationWeightProvider { 1.0 },
             ),
+            metarReconcileBootStore = AndroidMetarReconcileBootStore(ApplicationProvider.getApplicationContext()),
         )
         return backfiller.gapFillHost to RoomSeed(db)
     }

@@ -3,6 +3,8 @@ package com.weatherwidget.shared.observations
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.remote.AviationWeatherApi
+import com.weatherwidget.data.remote.AviationWeatherStationFilter
 import com.weatherwidget.data.remote.FetchOutcome
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.shared.actuals.dayHasOfficialGap
@@ -11,6 +13,8 @@ import com.weatherwidget.shared.util.ActualsFeedPolicy
 import com.weatherwidget.shared.util.Log
 import com.weatherwidget.shared.util.StoredDataVersion
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -54,6 +58,9 @@ object NwsGapFillRun {
 
         suspend fun store(rows: List<ObservationReading>, latitude: Double, longitude: Double)
 
+        /** Aviation Weather's METAR reports for [stationIds] over the last [hours], in one request ([reconcileMetars]). */
+        suspend fun fetchMetars(stationIds: List<String>, hours: Int): FetchOutcome<List<AviationWeatherApi.MetarRow>>
+
         /** daily_history rows in the box for day keys in [startDayMs, endDayMs] (UTC-midnight keys). */
         suspend fun dailyHistoryRows(startDayMs: Long, endDayMs: Long, latitude: Double, longitude: Double): List<DayRow>
 
@@ -64,6 +71,9 @@ object NwsGapFillRun {
         suspend fun recomputeExtremes(latitude: Double, longitude: Double, days: Set<LocalDate>)
 
         suspend fun log(tag: String, message: String, level: String)
+
+        /** Which boot last reconciled each site ([reconcileOncePerBoot]). */
+        val bootStore: MetarReconcileBootStore
     }
 
     data class StationRows(
@@ -118,6 +128,8 @@ object NwsGapFillRun {
         storedDataVersion: StoredDataVersion = StoredDataVersion.process,
     ): Result? {
         if (!ActualsFeedPolicy.requiresFeed(WeatherSource.NWS, sourcesServed, latitude, longitude)) return null
+        // First, so the need check below judges the rows with every station's own reports in place.
+        reconcileOncePerBoot(host, latitude, longitude, nowMs, zone, storedDataVersion)
         val result = daily(host, latitude, longitude, nowMs, zone, storedDataVersion)
         host.log(
             RESULT_LOG_TAG,
@@ -126,6 +138,130 @@ object NwsGapFillRun {
             if (result.unreachable) "WARN" else "INFO",
         )
         return result
+    }
+
+    /** The one summary line of a [reconcileMetars] pass, on both platforms. */
+    const val RECONCILE_LOG_TAG = "NWS_METAR_RECONCILE"
+
+    /**
+     * How long after a boot the reconcile keeps running on every pass before that boot counts as done.
+     * The NWS API adds reports 60-80 min late, so a boot inside a hole would otherwise repair only part
+     * of it: the emulator booted at about 08:10 on 2026-11-17, inside KNUQ's 05:55-08:55 hole.
+     */
+    const val RECONCILE_SETTLE_MS = 2 * 60 * 60 * 1000L
+
+    /**
+     * Runs [reconcileMetars] once per device boot and site: whenever the site's stored boot differs from
+     * the current one. The boot is marked done only after an answered reconcile at least
+     * [RECONCILE_SETTLE_MS] after boot, so a pass with no network, or one too soon for the NWS lag,
+     * leaves it pending for the next pass. Without a boot id it always runs. Returns the rows added,
+     * or null when it was skipped or never answered. plans/261117-metar-reconcile-once-per-device-boot.md
+     */
+    suspend fun reconcileOncePerBoot(
+        host: Host,
+        latitude: Double,
+        longitude: Double,
+        nowMs: Long,
+        zone: ZoneId,
+        storedDataVersion: StoredDataVersion = StoredDataVersion.process,
+    ): Int? = reconcileLock.withLock {
+        val store = host.bootStore
+        val siteKey = MetarReconcileBootStore.siteKey(latitude, longitude)
+        val boot = runCatching { store.currentBoot(nowMs) }.getOrNull()
+        if (boot != null && runCatching { store.reconciledBootId(siteKey) }.getOrNull() == boot.id) {
+            Log.v(TAG, "$RECONCILE_LOG_TAG skipped=boot_done boot=${boot.id} site=$siteKey")
+            return@withLock null
+        }
+        val added = reconcileMetars(host, latitude, longitude, nowMs, zone, storedDataVersion) ?: return@withLock null
+        if (boot != null && nowMs - boot.bootedAtMs >= RECONCILE_SETTLE_MS) {
+            runCatching { store.markReconciled(siteKey, boot.id) }
+                .onFailure { Log.w(TAG, "Could not mark boot ${boot.id} reconciled for $siteKey: $it") }
+            host.log(RECONCILE_LOG_TAG, "boot_done boot=${boot.id} site=$siteKey", "INFO")
+        }
+        added
+    }
+
+    /**
+     * One reconcile at a time in this process, so a pass that arrives during another waits and then sees
+     * its marker. Without it the emulator's widget Refresh and full sync both reconciled boot 126 within
+     * 5 s on 2026-11-17: the second read the rows after the first stored them, while the first was still
+     * recomputing, and logged `added=0`.
+     */
+    private val reconcileLock = Mutex()
+
+    /**
+     * Adds to the NWS station rows every report the stations' own METARs hold and the rows lack: one
+     * Aviation Weather request for the nearest [MAX_STATIONS] METAR stations' last [BACKFILL_DAYS], each
+     * report stamped as its NWS station's web row ([NwsStationLatestFetcher.asNwsWebRow]) and kept only
+     * where no NWS row has that station and time (an API row keeps its own). Returns the rows added, or
+     * null when NWS's station list or Aviation Weather never answered. Run through [reconcileOncePerBoot].
+     *
+     * No hole detection: a report that does not exist adds nothing, so a station silent
+     * overnight costs nothing. The need check merges official stations, so a hole in the nearest one
+     * stayed while a farther one reported: the emulator's KNUQ (3.8 km) had no NWS rows 06:15-08:35 on
+     * 2026-11-17, KSJC (15.9 km) stood in with its fog, and the NWS Today column drew dense fog over a
+     * clear `10SM CLR` morning. plans/261117-nws-station-rows-reconciled-with-own-metars.md
+     */
+    suspend fun reconcileMetars(
+        host: Host,
+        latitude: Double,
+        longitude: Double,
+        nowMs: Long,
+        zone: ZoneId,
+        storedDataVersion: StoredDataVersion = StoredDataVersion.process,
+    ): Int? {
+        val lookup = host.stations(latitude, longitude)
+        if (lookup is FetchOutcome.Failed) {
+            host.log(RECONCILE_LOG_TAG, "stations=? unreachable=true reason=${lookup.reason}", "WARN")
+            return null
+        }
+        val stations = lookup.valueOrNull().orEmpty()
+            .take(MAX_STATIONS)
+            .filter { NwsMetarTextWeb.isMetarStation(it) }
+        if (stations.isEmpty()) return 0
+        val ids = stations.map { it.id }
+        val startMs = nowMs - BACKFILL_DAYS * MS_IN_A_DAY
+        val outcome = try {
+            host.fetchMetars(ids, NwsMetarHistoryWeb.hoursFor(startMs, nowMs))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            FetchOutcome.failed(e)
+        }
+        if (outcome is FetchOutcome.Failed) {
+            host.log(RECONCILE_LOG_TAG, "stations=${ids.joinToString(",")} unreachable=true reason=${outcome.reason}", "WARN")
+            return null
+        }
+        val byId = stations.associateBy { it.id.uppercase() }
+        val fetched = outcome.valueOrNull().orEmpty()
+            .filter { it.observedAtMillis in startMs..nowMs }
+            .mapNotNull { row ->
+                val station = byId[row.stationId.uppercase()] ?: return@mapNotNull null
+                // Distance is re-measured from NWS's station coordinates by asNwsWebRow.
+                val ranked = AviationWeatherStationFilter.RankedStation(station, distanceKm = 0.0, elevationMeters = null)
+                MetarObservationMapper.toReading(row, ranked, latitude, longitude)
+                    ?.let { NwsStationLatestFetcher.asNwsWebRow(it, station, latitude, longitude) }
+            }
+        val stored = host.observations(startMs, nowMs + 1, latitude, longitude)
+            .filter { it.api == WeatherSource.NWS.id }
+            .mapTo(HashSet()) { it.stationId.uppercase() to it.timestamp }
+        val added = fetched
+            .filter { (it.stationId.uppercase() to it.timestamp) !in stored }
+            .distinctBy { it.stationId.uppercase() to it.timestamp }
+        val days = added.mapTo(sortedSetOf()) { Instant.ofEpochMilli(it.timestamp).atZone(zone).toLocalDate() }
+        if (added.isNotEmpty()) {
+            host.store(added, latitude, longitude)
+            storedDataVersion.bump("nws_metar_reconcile")
+            host.recomputeExtremes(latitude, longitude, days)
+            storedDataVersion.bump("nws_metar_reconcile_extremes")
+        }
+        host.log(
+            RECONCILE_LOG_TAG,
+            "stations=${ids.joinToString(",")} fetched=${fetched.size} added=${added.size} " +
+                "byStation=${added.groupingBy { it.stationId }.eachCount()} days=$days",
+            "INFO",
+        )
+        return added.size
     }
 
     /**

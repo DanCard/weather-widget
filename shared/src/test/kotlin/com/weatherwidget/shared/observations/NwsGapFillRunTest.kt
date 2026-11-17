@@ -3,10 +3,12 @@ package com.weatherwidget.shared.observations
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.remote.AviationWeatherApi
 import com.weatherwidget.data.remote.FetchOutcome
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.test.category.ShortDuration
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -56,6 +58,19 @@ class NwsGapFillRunTest {
         val requests = mutableListOf<Pair<String, String>>()
         val logs = mutableListOf<String>()
         var stationLookups = 0
+        var metars: FetchOutcome<List<AviationWeatherApi.MetarRow>> = FetchOutcome.NoData
+        val metarRequests = mutableListOf<Pair<List<String>, Int>>()
+        val stored = mutableListOf<ObservationReading>()
+        override val bootStore = InMemoryMetarReconcileBootStore()
+
+        /** Holds each METAR request open this long, so concurrent passes overlap. */
+        var metarDelayMs = 0L
+
+        override suspend fun fetchMetars(stationIds: List<String>, hours: Int): FetchOutcome<List<AviationWeatherApi.MetarRow>> {
+            metarRequests += stationIds to hours
+            if (metarDelayMs > 0) kotlinx.coroutines.delay(metarDelayMs)
+            return metars
+        }
 
         /** A complete stored day: an NWS daily row plus hourly official readings. */
         fun complete(day: LocalDate) {
@@ -75,6 +90,7 @@ class NwsGapFillRunTest {
         }
 
         override suspend fun store(rows: List<ObservationReading>, latitude: Double, longitude: Double) {
+            stored += rows
             obs += rows.map { NwsGapFillRun.ObsStamp(it.timestamp, it.api, it.stationId, it.stationType) }
         }
 
@@ -100,6 +116,177 @@ class NwsGapFillRunTest {
 
     private suspend fun run(host: FakeHost, nowMs: Long = at(today, 10)) =
         NwsGapFillRun.daily(host, lat, lon, nowMs, zone)
+
+    // --- reconcileMetars: the stations' own METARs fill what the NWS rows lack ---
+    // plans/261117-nws-station-rows-reconciled-with-own-metars.md
+
+    private fun metar(stationId: String, ts: Long) = AviationWeatherApi.MetarRow(
+        stationId = stationId, stationName = stationId, observedAtMillis = ts, latitude = lat, longitude = lon,
+        elevationMeters = null, temperatureCelsius = 6f, dewpointCelsius = 6f, seaLevelPressureHpa = null,
+        cloudLayers = emptyList(), rawOb = "METAR $stationId 171415Z AUTO 13003KT 10SM CLR 06/06 A3009", isSpeci = false,
+    )
+
+    /** Every 20 minutes from [fromHour] to [toHour] (exclusive) of [day], at :15, :35 and :55. */
+    private fun twentyMinute(day: LocalDate, fromHour: Int, toHour: Int) =
+        (fromHour until toHour).flatMap { h -> listOf(15, 35, 55).map { at(day, h, it) } }
+
+    @Test
+    fun `a hole in the nearest station's NWS rows is filled from its own METARs while a farther one covered it`() = runBlocking<Unit> {
+        // Emulator 2026-11-17: KNUQ NWS rows 05:55 and 08:55 only; KSJC reported throughout. KNUQ's METARs
+        // have every 20 minutes. The merged need check saw no hole; the reconcile adds 06:15-08:35.
+        val host = FakeHost()
+        val knuqNws = listOf(at(today, 5, 55), at(today, 8, 55))
+        knuqNws.forEach { host.obs += NwsGapFillRun.ObsStamp(it, "NWS", "KNUQ", StationType.OFFICIAL) }
+        twentyMinute(today, 5, 9).forEach { host.obs += NwsGapFillRun.ObsStamp(it, "NWS", "KSJC", StationType.OFFICIAL) }
+        host.obs += NwsGapFillRun.ObsStamp(at(today, 6, 15), "METAR", "KNUQ", StationType.OFFICIAL) // another feed: not an NWS row
+        host.metars = FetchOutcome.Success(
+            twentyMinute(today, 5, 9).map { metar("KNUQ", it) } + twentyMinute(today, 5, 9).map { metar("KSJC", it) },
+        )
+
+        val added = NwsGapFillRun.reconcileMetars(host, lat, lon, at(today, 10), zone)
+        println("logs=${host.logs} added=${host.stored.map { it.stationId to Instant.ofEpochMilli(it.timestamp).atZone(zone).toLocalTime() }}")
+
+        val expected = twentyMinute(today, 5, 9) - knuqNws.toSet()
+        assertEquals(expected.size, added)
+        assertEquals(expected.sorted(), host.stored.map { it.timestamp }.sorted())
+        assertTrue(host.stored.all { it.stationId == "KNUQ" && it.api == WeatherSource.NWS.id && it.isWebFallback })
+        assertEquals(listOf(listOf("KNUQ", "KSJC", "KPAO") to 72), host.metarRequests)
+        assertEquals(listOf(setOf(today)), host.recomputed)
+        assertTrue(host.logs.single { it.startsWith(NwsGapFillRun.RECONCILE_LOG_TAG) }.contains("added=${expected.size}"))
+
+        // A second pass finds nothing missing and recomputes nothing.
+        assertEquals(0, NwsGapFillRun.reconcileMetars(host, lat, lon, at(today, 10, 5), zone))
+        assertEquals(1, host.recomputed.size)
+    }
+
+    @Test
+    fun `a station with no METAR is never asked, and a failed request leaves the daily pass running`() = runBlocking<Unit> {
+        val personal = NwsApi.StationInfo(id = "AW020", name = "AW020", lat = lat, lon = lon, type = StationType.PERSONAL)
+        val host = FakeHost(stationsOutcome = FetchOutcome.Success(listOf(personal, station("KNUQ"))))
+        host.metars = FetchOutcome.Failed("SocketTimeoutException: 30 s")
+
+        val result = NwsGapFillRun.dailyForSources(host, lat, lon, listOf(WeatherSource.NWS), "test", at(today, 10), zone)
+
+        assertEquals(listOf(listOf("KNUQ") to 72), host.metarRequests)
+        assertTrue(host.logs.any { it.startsWith("NWS_METAR_RECONCILE stations=KNUQ unreachable=true") })
+        assertTrue("the daily pass still ran", result != null && host.logs.any { it.startsWith(NwsGapFillRun.RESULT_LOG_TAG) })
+    }
+
+    // --- reconcileOncePerBoot: once per device boot and site, settled 2 h after boot ---
+    // plans/261117-metar-reconcile-once-per-device-boot.md
+
+    private val hour = 60 * 60 * 1000L
+
+    private suspend fun FakeHost.reconcile(nowMs: Long, latitude: Double = lat) =
+        NwsGapFillRun.reconcileOncePerBoot(this, latitude, lon, nowMs, zone)
+
+    @Test
+    fun `a boot reconciles once, and the next boot reconciles again`() = runBlocking<Unit> {
+        val host = FakeHost()
+        val store = host.bootStore
+        var bootId = "68"
+        store.boot = { now -> BootInfo(bootId, at(today, 6)) }
+
+        host.reconcile(at(today, 10))
+        host.reconcile(at(today, 11))
+        host.reconcile(at(today, 15))
+        println("requests=${host.metarRequests.size} marks=${store.marks} logs=${host.logs}")
+        assertEquals(1, host.metarRequests.size)
+        assertEquals(mapOf(MetarReconcileBootStore.siteKey(lat, lon) to "68"), store.marks)
+        assertTrue(host.logs.any { it.startsWith("NWS_METAR_RECONCILE boot_done boot=68") })
+
+        bootId = "69"
+        host.reconcile(at(today, 16))
+        assertEquals(2, host.metarRequests.size)
+        assertEquals("69", store.marks.values.single())
+    }
+
+    @Test
+    fun `within 2 h of boot every pass reconciles, and the boot is marked only once it has settled`() = runBlocking<Unit> {
+        // The emulator booted at about 08:10 on 2026-11-17, inside KNUQ's 05:55-08:55 NWS hole; the API
+        // adds reports 60-80 min late, so a pass right after boot can't yet see the whole hole.
+        val host = FakeHost()
+        val bootAt = at(today, 8, 10)
+        host.bootStore.boot = { BootInfo("126", bootAt) }
+
+        host.reconcile(bootAt + 5 * 60_000L)
+        host.reconcile(bootAt + hour)
+        println("before settle: requests=${host.metarRequests.size} marks=${host.bootStore.marks}")
+        assertEquals(2, host.metarRequests.size)
+        assertTrue(host.bootStore.marks.isEmpty())
+
+        host.reconcile(bootAt + 2 * hour)
+        host.reconcile(bootAt + 3 * hour)
+        assertEquals(3, host.metarRequests.size)
+        assertEquals("126", host.bootStore.marks.values.single())
+    }
+
+    @Test
+    fun `an unanswered reconcile leaves the boot pending, and the next pass asks again`() = runBlocking<Unit> {
+        val host = FakeHost()
+        host.metars = FetchOutcome.Failed("UnknownHostException: no network after boot")
+
+        assertEquals(null, host.reconcile(at(today, 10)))
+        assertTrue(host.bootStore.marks.isEmpty())
+
+        host.stationsOutcome = FetchOutcome.Failed("UnknownHostException: api.weather.gov")
+        assertEquals(null, host.reconcile(at(today, 10, 20)))
+        assertTrue(host.logs.any { it.startsWith("NWS_METAR_RECONCILE stations=? unreachable=true") })
+        assertTrue(host.bootStore.marks.isEmpty())
+
+        host.stationsOutcome = FetchOutcome.Success(listOf(station("KNUQ")))
+        host.metars = FetchOutcome.Success(emptyList())
+        assertEquals(0, host.reconcile(at(today, 10, 40)))
+        println("requests=${host.metarRequests.size} marks=${host.bootStore.marks}")
+        assertEquals(2, host.metarRequests.size)
+        assertEquals(1, host.bootStore.marks.size)
+    }
+
+    @Test
+    fun `each site is reconciled on its own, and a platform with no boot id reconciles every pass`() = runBlocking<Unit> {
+        val host = FakeHost()
+        host.reconcile(at(today, 10))
+        host.reconcile(at(today, 10), latitude = lat + 0.5)
+        host.reconcile(at(today, 11))
+        host.reconcile(at(today, 11), latitude = lat + 0.5)
+        assertEquals(2, host.metarRequests.size)
+        assertEquals(2, host.bootStore.marks.size)
+
+        val noBoot = FakeHost()
+        noBoot.bootStore.boot = null
+        noBoot.reconcile(at(today, 10))
+        noBoot.reconcile(at(today, 11))
+        assertEquals(2, noBoot.metarRequests.size)
+        assertTrue(noBoot.bootStore.marks.isEmpty())
+    }
+
+    @Test
+    fun `two passes at once in one boot send one request`() = runBlocking<Unit> {
+        // Emulator 2026-11-17 12:28: the widget Refresh and a full sync both reconciled boot 126, 5 s apart.
+        val host = FakeHost().apply { metarDelayMs = 200 }
+
+        kotlinx.coroutines.coroutineScope {
+            launch { host.reconcile(at(today, 12, 28)) }
+            launch { host.reconcile(at(today, 12, 28)) }
+        }
+
+        println("requests=${host.metarRequests.size} logs=${host.logs}")
+        assertEquals(1, host.metarRequests.size)
+        assertEquals(1, host.logs.count { it.contains("boot_done") })
+    }
+
+    @Test
+    fun `dailyForSources reconciles on the boot's first settled pass only`() = runBlocking<Unit> {
+        val host = FakeHost().apply { (0L..2L).forEach { complete(today.minusDays(it)) } }
+
+        NwsGapFillRun.dailyForSources(host, lat, lon, listOf(WeatherSource.NWS), "full_sync", at(today, 10), zone)
+        NwsGapFillRun.dailyForSources(host, lat, lon, listOf(WeatherSource.NWS), "full_sync", at(today, 11), zone)
+
+        println("lookups=${host.stationLookups} requests=${host.metarRequests} logs=${host.logs}")
+        assertEquals(1, host.metarRequests.size)
+        assertEquals("a complete week after the boot's reconcile asks NWS nothing", 1, host.stationLookups)
+        assertEquals(2, host.logs.count { it.startsWith(NwsGapFillRun.RESULT_LOG_TAG) })
+    }
 
     // --- dailyForSources: the one entry every trigger takes on both platforms ---
 

@@ -90,7 +90,11 @@ interface WeatherApiClient {
      */
     suspend fun nwsObservationStations(): FetchOutcome<List<NwsApi.StationInfo>> = FetchOutcome.NoData
 
-    /** One station's [startIso, endIso) window for [NwsGapFillRun], with NWS's METAR-text web leg (as Android). */
+    /** Aviation Weather's METAR reports for [stationIds] over the last [hours], for [NwsGapFillRun.reconcileMetars]. */
+    suspend fun fetchMetarHistory(stationIds: List<String>, hours: Int): FetchOutcome<List<com.weatherwidget.data.remote.AviationWeatherApi.MetarRow>> =
+        FetchOutcome.NoData
+
+    /** One station's [startIso, endIso) window for [NwsGapFillRun], with the METAR history web leg (as Android). */
     suspend fun fetchNwsStationWindow(
         station: NwsApi.StationInfo,
         index: Int,

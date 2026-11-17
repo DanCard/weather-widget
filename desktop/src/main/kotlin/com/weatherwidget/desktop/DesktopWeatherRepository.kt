@@ -100,6 +100,9 @@ class DesktopWeatherRepository(
      * not on [WeatherApiClient], whose strict test mocks would each need an answer for it.
      */
     private val radarNowSampler: com.weatherwidget.shared.observations.RadarNowSampler? = null,
+    /** Which boot last reconciled NWS rows with METARs, beside the database (plans/261117-metar-reconcile-once-per-device-boot.md). */
+    private val metarReconcileBootStore: com.weatherwidget.shared.observations.MetarReconcileBootStore =
+        DesktopMetarReconcileBootStore({ DesktopMetarReconcileBootStore.markerFor(weatherDao.databasePath) }),
 ) {
     data class RefreshOutcome(
         val snapshot: ForecastSnapshot,
@@ -749,6 +752,7 @@ class DesktopWeatherRepository(
         weatherDao = weatherDao,
         store = { persistObservations(it, now) },
         recompute = { days -> recomputeDailyExtremesForDays(days, now) },
+        bootStore = metarReconcileBootStore,
     )
 
     /**
