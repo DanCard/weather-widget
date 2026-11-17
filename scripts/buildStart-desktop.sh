@@ -32,10 +32,22 @@ rm -f "$QUIT_FILE" "${QUIT_FILE}-*" 2>/dev/null || true
 
 printf "\n\t Starting desktop app through autostart launcher: $AUTOSTART_SCRIPT\n"
 set -x
-nohup "$AUTOSTART_SCRIPT" >>"$LOG_FILE" 2>&1 & disown
-{ set +x; } 2>/dev/null
-sleep 1   # No hup message prints late.  Add sleep so messages come out in expected order.
-printf "\t Started launcher pid $!. Logs: $LOG_FILE\n"
+if command -v systemd-run >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1; then
+  # Launch in a transient systemd user service so it outlives the caller's process tree/cgroup.
+  systemd-run --user --collect \
+    -p "StandardOutput=append:$LOG_FILE" \
+    -p "StandardError=append:$LOG_FILE" \
+    ${DISPLAY:+--setenv="DISPLAY=$DISPLAY"} \
+    ${WAYLAND_DISPLAY:+--setenv="WAYLAND_DISPLAY=$WAYLAND_DISPLAY"} \
+    "$AUTOSTART_SCRIPT" >/dev/null
+  { set +x; } 2>/dev/null
+  printf "\t Started launcher via systemd-run. Logs: $LOG_FILE\n"
+else
+  nohup "$AUTOSTART_SCRIPT" >>"$LOG_FILE" 2>&1 & disown
+  { set +x; } 2>/dev/null
+  sleep 1   # No hup message prints late.  Add sleep so messages come out in expected order.
+  printf "\t Started launcher pid $!. Logs: $LOG_FILE\n"
+fi
 
 # Touch .show to surface the window once the new instance is watching for it. The watcher deletes
 # the file when it acts on it; a touch before it registers is never seen (startup can take ~10 s,

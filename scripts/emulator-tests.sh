@@ -451,15 +451,32 @@ if [ "$USE_EXISTING" = false ]; then
         fi
     fi
     
-    # Launch emulator in background
-    # shellcheck disable=SC2086
-    nohup "$EMU_BIN" -avd "$EMULATOR_NAME" \
-        $EMU_FLAGS \
-        > /tmp/emulator_${EMULATOR_NAME}.log 2>&1 &
-    
-    EMU_PID=$!
-    if [ "$VERBOSE_MODE" = true ]; then
-        echo "Emulator PID: $EMU_PID"
+    # Launch emulator in background (via systemd-run when available so it outlives the caller's process tree/cgroup)
+    EMU_LOG="/tmp/emulator_${EMULATOR_NAME}.log"
+    if command -v systemd-run >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1; then
+        : > "$EMU_LOG"
+        # shellcheck disable=SC2086
+        systemd-run --user --collect \
+            -p "StandardOutput=append:$EMU_LOG" \
+            -p "StandardError=append:$EMU_LOG" \
+            ${DISPLAY:+--setenv="DISPLAY=$DISPLAY"} \
+            ${WAYLAND_DISPLAY:+--setenv="WAYLAND_DISPLAY=$WAYLAND_DISPLAY"} \
+            ${ANDROID_SDK_ROOT:+--setenv="ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"} \
+            ${ANDROID_HOME:+--setenv="ANDROID_HOME=$ANDROID_HOME"} \
+            "$EMU_BIN" -avd "$EMULATOR_NAME" $EMU_FLAGS >/dev/null
+        if [ "$VERBOSE_MODE" = true ]; then
+            echo "Emulator launched via systemd-run (log: $EMU_LOG)"
+        fi
+    else
+        # shellcheck disable=SC2086
+        nohup "$EMU_BIN" -avd "$EMULATOR_NAME" \
+            $EMU_FLAGS \
+            > "$EMU_LOG" 2>&1 &
+
+        EMU_PID=$!
+        if [ "$VERBOSE_MODE" = true ]; then
+            echo "Emulator PID: $EMU_PID"
+        fi
     fi
     
     # Wait for device to appear
