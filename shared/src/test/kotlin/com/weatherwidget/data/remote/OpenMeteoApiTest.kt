@@ -714,10 +714,9 @@ class OpenMeteoApiTest {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun `HTTPS cooldown skips broken HTTPS for 15 min then tries HTTPS again`() =
+    fun `HTTP fallback is per call - the next call tries HTTPS first again`() =
         runTest {
             val schemes = mutableListOf<String>()
-            var fakeNowMs = 1_000_000L
             val client = HttpClient(MockEngine) {
                 engine {
                     addHandler { request ->
@@ -734,20 +733,16 @@ class OpenMeteoApiTest {
                 }
                 install(ContentNegotiation) { json(json) }
             }
-            val api = OpenMeteoApi(client, json, httpFallbackDelayMs = 2_000L, nowMs = { fakeNowMs })
+            val api = OpenMeteoApi(client, json, httpFallbackDelayMs = 2_000L)
 
-            // 1. HTTPS fails -> falls back to HTTP -> arms 15 min cooldown.
+            // 1. HTTPS fails -> one delayed HTTP retry for this call only.
             api.getForecast(37.0, -122.0)
+            println("schemes after first call: $schemes")
             assertEquals(listOf("https", "http"), schemes)
 
-            // 2. Within 15 min -> goes straight to HTTP without touching HTTPS.
-            fakeNowMs += 5 * 60_000L
+            // 2. The very next call goes back to HTTPS; no sticky HTTP preference.
             api.getForecast(37.0, -122.0)
-            assertEquals(listOf("https", "http", "http"), schemes)
-
-            // 3. Past 15 min -> tries HTTPS again and succeeds.
-            fakeNowMs += OpenMeteoApi.HTTPS_COOLDOWN_MS
-            api.getForecast(37.0, -122.0)
-            assertEquals(listOf("https", "http", "http", "https"), schemes)
+            println("schemes after second call: $schemes")
+            assertEquals(listOf("https", "http", "https"), schemes)
         }
 }

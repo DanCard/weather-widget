@@ -38,15 +38,12 @@ class OpenMeteoApi(
     private val httpClient: HttpClient,
     private val json: Json,
     private val httpFallbackDelayMs: Long = DEFAULT_HTTP_FALLBACK_DELAY_MS,
-    private val nowMs: () -> Long = System::currentTimeMillis,
 ) {
     @Inject
     constructor(
         httpClient: HttpClient,
         json: Json,
-    ) : this(httpClient, json, DEFAULT_HTTP_FALLBACK_DELAY_MS, System::currentTimeMillis)
-
-    private val preferHttpUntilMs = java.util.concurrent.atomic.AtomicLong(0L)
+    ) : this(httpClient, json, DEFAULT_HTTP_FALLBACK_DELAY_MS)
         companion object {
             private const val BASE_URL = "https://api.open-meteo.com/v1"
             private const val ARCHIVE_URL = "https://archive-api.open-meteo.com/v1"
@@ -66,7 +63,6 @@ class OpenMeteoApi(
             const val FORECAST_HTTPS_REQUEST_TIMEOUT_MS = 8_000L
             const val PROBE_TIMEOUT_MS = 5_000L
             const val DEFAULT_HTTP_FALLBACK_DELAY_MS = 2_000L
-            const val HTTPS_COOLDOWN_MS = 15 * 60_000L
 
             /** Verified: `past_days=31` returns the full span with `_previous_day1` fully populated. */
             const val MAX_PREVIOUS_RUNS_PAST_DAYS = 31
@@ -216,20 +212,6 @@ class OpenMeteoApi(
             block: HttpRequestBuilder.() -> Unit,
         ): String {
             val httpUrl = httpsUrl.replaceFirst("https://", "http://")
-            if (nowMs() < preferHttpUntilMs.get()) {
-                return try {
-                    httpClient.get(httpUrl) {
-                        block()
-                        applyForecastTimeout(httpsAttempt = false)
-                    }.body()
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    // HTTP failed during cooldown: clear it so the next attempt tries HTTPS again.
-                    preferHttpUntilMs.set(0L)
-                    throw e
-                }
-            }
             return try {
                 httpClient.get(httpsUrl) {
                     block()
@@ -241,12 +223,10 @@ class OpenMeteoApi(
                 if (!isFallbackEligible(e)) throw e
                 Log.w(TAG, "https failed, retrying over http in ${httpFallbackDelayMs}ms: ${e::class.simpleName}:${e.message}")
                 if (httpFallbackDelayMs > 0L) delay(httpFallbackDelayMs)
-                val body: String = httpClient.get(httpUrl) {
+                httpClient.get(httpUrl) {
                     block()
                     applyForecastTimeout(httpsAttempt = false)
                 }.body()
-                preferHttpUntilMs.set(nowMs() + HTTPS_COOLDOWN_MS)
-                body
             }
         }
 
