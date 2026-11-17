@@ -70,11 +70,14 @@ class DailyMainColumnVsBottomIconClickTargetIntegrationTest : IsolatedIntegratio
                 ),
             )
             
-            // Add at least one hourly forecast to pass the hasHourlyData check
+            // Every hour of today, so the tap is a plain Open at any time of day: the hours it opens hold
+            // ≥ 2 drawable points (NoHourlyChecker) and the day is covered through 23:00 (HourlyOnDemand).
+            // A single noon row failed after midnight (stayed on daily as NoData) and passed in the
+            // evening only through the on-demand Fetch path.
             db.hourlyForecastDao().insertAll(
-                listOf(
+                (0 until 24).map { hour ->
                     com.weatherwidget.data.local.HourlyForecastEntity(
-                        dateTime = todayMidnight + 12 * 3600000L, // Noon
+                        dateTime = todayMidnight + hour * 3600000L,
                         locationLat = TestLocations.LAT,
                         locationLon = TestLocations.LON,
                         temperature = 70f,
@@ -83,7 +86,7 @@ class DailyMainColumnVsBottomIconClickTargetIntegrationTest : IsolatedIntegratio
                         precipProbability = 0,
                         fetchedAt = System.currentTimeMillis()
                     )
-                )
+                }
             )
         }
     }
