@@ -32,6 +32,9 @@ import org.robolectric.annotation.Config
  * data ran on top of Forecast Comparison, which kept the pre-refresh rows (Age `1h` two minutes after).
  * Back on top it must reload once if stored data was written meanwhile, and not otherwise. A reload logs
  * one `SCREEN_RELOAD` line, which is what the test counts.
+ *
+ * plans/261116-comparison-screen-reloads-while-open.md: Fold 4 2026-11-16, Google and Open-Meteo's retry were
+ * stored 0.5 s and 75 s after the screen's last load while it stayed open, and Age read `3h` until it was left.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -50,12 +53,18 @@ class HistoryReloadOnReturnRoboTest {
         appLogDao = db.appLogDao()
     }
 
+    /** Opened screens, destroyed after each test: a resumed one left over would reload on the next test's bump. */
+    private val opened = mutableListOf<ActivityController<ForecastComparisonActivity>>()
+
     @After
     fun tearDown() {
+        opened.forEach { runCatching { it.pause().stop().destroy() }.onFailure { e -> println("teardown: ${e.message}") } }
         db.close()
     }
 
-    private fun openHistory(): ActivityController<ForecastComparisonActivity> {
+    private fun openHistory(
+        configure: (ForecastComparisonActivity) -> Unit = {},
+    ): ActivityController<ForecastComparisonActivity> {
         val intent = Intent(context, ForecastComparisonActivity::class.java).apply {
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, 101)
             putExtra(ForecastComparisonActivity.EXTRA_TARGET_DATE, "2030-01-01")
@@ -73,7 +82,9 @@ class HistoryReloadOnReturnRoboTest {
                 bySource = emptyMap(), periodStart = "2025-01-01", periodEnd = "2025-01-30",
             )
         }
+        configure(activity)
         controller.setup()
+        opened += controller
         return controller
     }
 
@@ -105,8 +116,9 @@ class HistoryReloadOnReturnRoboTest {
         assertEquals("a return with no write reloads nothing", 0, settledReloadLines(expected = 0))
 
         // Settings → Refresh data stored rows while History was underneath: reload on return.
+        controller.pause()
         StoredDataVersion.process.bump("test:settings_refresh")
-        controller.pause().resume()
+        controller.resume()
         assertEquals("a return after a write reloads once", 1, settledReloadLines(expected = 1))
         assertEquals("and that is a real load: the open's plus the reload", 2, loadsSoFar())
 
@@ -116,7 +128,68 @@ class HistoryReloadOnReturnRoboTest {
         assertEquals(2, loadsSoFar())
         assertTrue(
             org.robolectric.shadows.ShadowLog.getLogsForTag(StoredDataSeen.LOG_TAG).single().msg
-                .contains("screen=history reason=stored_data_changed"),
+                .contains("screen=history reason=stored_data_changed trigger=resume"),
+        )
+    }
+
+    @Test
+    fun `a write landing while the screen stays open reloads it, each write once`() {
+        openHistory()
+        assertEquals(0, settledReloadLines(expected = 0))
+        assertEquals(1, loadsSoFar())
+
+        StoredDataVersion.process.bump("test:forecast_persist source=GOOGLE_WEATHER") // 15:55:46
+        assertEquals("the old screen stayed on its pre-fetch rows", 1, settledReloadLines(expected = 1))
+        assertEquals(2, loadsSoFar())
+
+        StoredDataVersion.process.bump("test:forecast_persist source=OPEN_METEO") // 15:56:59 retry
+        assertEquals("not debounced: the late source reloads again", 2, settledReloadLines(expected = 2))
+        assertEquals(3, loadsSoFar())
+        assertTrue(
+            org.robolectric.shadows.ShadowLog.getLogsForTag(StoredDataSeen.LOG_TAG)
+                .all { it.msg.endsWith("trigger=live") },
+        )
+    }
+
+    @Test
+    fun `writes while paused under another screen reload nothing until the return, then once`() {
+        val controller = openHistory()
+        controller.pause()
+        StoredDataVersion.process.bump("test:a")
+        StoredDataVersion.process.bump("test:b")
+        assertEquals("paused: no work behind Settings", 0, settledReloadLines(expected = 0))
+        controller.resume()
+        assertEquals("one catch-up for both writes", 1, settledReloadLines(expected = 1))
+        assertEquals(2, loadsSoFar())
+    }
+
+    @Test
+    fun `a newer load cancels the slower one before it paints`() {
+        val controller = openHistory()
+        assertEquals(0, settledReloadLines(expected = 0))
+        val loadsBefore = loadsSoFar()
+        // Set after setup(): Hilt injects in onCreate, replacing a field set before it.
+        val slowDay = java.time.LocalDate.parse("2030-01-01").toEpochDay() * 86_400_000L
+        controller.get().forecastDao = mockk<com.weatherwidget.data.local.ForecastDao>(relaxed = true).also { dao ->
+            coEvery { dao.getForecastEvolution(any(), any(), any()) } coAnswers {
+                // The source-switch reload (Jan 1) is slow; the next-day tap (Jan 2) right after it is fast.
+                if (firstArg<Long>() == slowDay) kotlinx.coroutines.delay(1_500)
+                emptyList()
+            }
+        }
+        // Source button: reloads Jan 1 (slow), then the next-day arrow loads Jan 2 (fast) while it reads.
+        controller.get().findViewById<android.view.View>(com.weatherwidget.R.id.api_source_button).performClick()
+        controller.get().findViewById<android.view.View>(com.weatherwidget.R.id.next_day_button).performClick()
+        val end = System.currentTimeMillis() + 3_000
+        while (System.currentTimeMillis() < end) {
+            org.robolectric.shadows.ShadowLooper.idleMainLooper()
+            Thread.sleep(50)
+        }
+        assertEquals(
+            "only the newer (next-day) load got as far as showing rows; the old code showed both",
+            listOf("Found 0 snapshots for 2030-01-02"),
+            org.robolectric.shadows.ShadowLog.getLogsForTag("ForecastComparisonActivity")
+                .filter { it.msg.startsWith("Found ") }.drop(loadsBefore).map { it.msg },
         )
     }
 }

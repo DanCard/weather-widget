@@ -20,7 +20,10 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 
 import dagger.hilt.android.AndroidEntryPoint
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -180,8 +183,16 @@ class ForecastComparisonActivity : AppCompatActivity() {
     private lateinit var targetLocalDate: LocalDate
     private lateinit var widgetStateManager: WidgetStateManager
 
-    /** The stored-data version [loadData] last read at, so a return from Settings → Refresh data can reload. */
+    /** The stored-data version [loadData] last read at, so a write landing while away or on screen reloads. */
     private val dataSeen = com.weatherwidget.shared.util.StoredDataSeen()
+
+    /**
+     * One job per loader, cancelled when the next load starts: reloads now follow every stored write, so
+     * an older, slower load must not paint over a newer one.
+     */
+    private var dataJob: Job? = null
+    private var comparisonJob: Job? = null
+    private var accuracyJob: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -265,6 +276,7 @@ class ForecastComparisonActivity : AppCompatActivity() {
             requestedSource = checkNotNull(cachedRequestedSource),
         )
         loadAccuracySummary(targetLat, targetLon)
+        watchStoredData()
         if (savedInstanceState == null) {
             val source = checkNotNull(cachedRequestedSource)
             lifecycleScope.launch {
@@ -276,22 +288,27 @@ class ForecastComparisonActivity : AppCompatActivity() {
     }
 
     /**
-     * Back from another screen: a fetch that ran meanwhile (Settings → Refresh data starts on top of this
-     * screen) stored rows this one never read, so its Age column and graphs showed the pre-refresh data.
-     * Reloads only when stored data changed since the last load (plans/261113-android-data-screens-reload-after-settings-refresh.md).
+     * Reloads when stored data changes, while resumed only:
+     * - back from another screen (Settings → Refresh data starts on top of this one), the rows this screen
+     *   read predate the refresh (plans/261113-android-data-screens-reload-after-settings-refresh.md);
+     * - on screen, a fetch landing after the last load (Fold 4 2026-11-16: Google 0.5 s and Open-Meteo's
+     *   retry 75 s after the return) left Age at `3h` (plans/261116-comparison-screen-reloads-while-open.md).
+     * Paused under another screen, nothing reloads; the next resume catches up once.
      */
-    override fun onResume() {
-        super.onResume()
-        if (!::targetLocalDate.isInitialized || !dataSeen.changedSinceLoad()) return
+    private fun watchStoredData() {
         lifecycleScope.launch {
-            appLogDao.log(
-                com.weatherwidget.shared.util.StoredDataSeen.LOG_TAG,
-                com.weatherwidget.shared.util.StoredDataSeen.logMessage("history"),
-                "INFO",
-            )
+            repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                dataSeen.reloads().collect { trigger ->
+                    appLogDao.log(
+                        com.weatherwidget.shared.util.StoredDataSeen.LOG_TAG,
+                        com.weatherwidget.shared.util.StoredDataSeen.logMessage("history", trigger),
+                        "INFO",
+                    )
+                    loadData(targetDate, targetLat, targetLon, targetLocalDate, cachedRequestedSource)
+                    loadAccuracySummary(targetLat, targetLon)
+                }
+            }
         }
-        loadData(targetDate, targetLat, targetLon, targetLocalDate, cachedRequestedSource)
-        loadAccuracySummary(targetLat, targetLon)
     }
 
     private fun navigateToDay(newDate: LocalDate) {
@@ -332,7 +349,8 @@ class ForecastComparisonActivity : AppCompatActivity() {
         val targetDateEpoch = date.toEpochDay() * WidgetConstants.MS_IN_A_DAY
         dataSeen.markLoaded() // before any read: a write landing mid-load must still read as a change
         loadSourceComparison(date, lat, lon)
-        lifecycleScope.launch(Dispatchers.IO) {
+        dataJob?.cancel()
+        dataJob = lifecycleScope.launch(Dispatchers.IO) {
             try {
                 val allSnapshots = forecastDao.getForecastEvolution(targetDateEpoch, lat, lon)
                 val snapshots =
@@ -388,6 +406,8 @@ class ForecastComparisonActivity : AppCompatActivity() {
                 withContext(Dispatchers.Main) {
                     displayData(snapshots, apiActualRow, locationActuals, date, requestedSource)
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Error loading forecast history", e)
             }
@@ -649,7 +669,8 @@ class ForecastComparisonActivity : AppCompatActivity() {
     }
 
     private fun loadAccuracySummary(lat: Double, lon: Double) {
-        lifecycleScope.launch(Dispatchers.IO) {
+        accuracyJob?.cancel()
+        accuracyJob = lifecycleScope.launch(Dispatchers.IO) {
             try {
                 backfillDailyExtremesIfNeeded(lat, lon)
                 val comparison = accuracyCalculator.calculateComparison(lat, lon, 30)
@@ -852,7 +873,8 @@ class ForecastComparisonActivity : AppCompatActivity() {
      */
     private fun loadSourceComparison(date: LocalDate, lat: Double, lon: Double) {
         val sources = effectiveVisibleSources()
-        lifecycleScope.launch(Dispatchers.IO) {
+        comparisonJob?.cancel()
+        comparisonJob = lifecycleScope.launch(Dispatchers.IO) {
             try {
                 val rows = DaySourceComparison.load(
                     host = RoomDaySourceComparisonHost(

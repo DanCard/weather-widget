@@ -248,12 +248,16 @@ refresh counts only its own user refreshes (observations scope); the forecast fe
     row, not the source displayed when the fetch ends. The queued notice shows before the cache repaint, which
     can take seconds. Only Settings' Refresh data covers every source, so its messages name none
     ("Refresh complete", "Refresh failed"); every other refresh request forces one source.
-- **A screen under Settings reloads on return.** Settings → Refresh data starts on top of the screen that opened
-  it, so that screen's rows predate the refresh. Android's Forecast Comparison (and the Source Error Details
-  screen) remember the process's `StoredDataVersion` at each load (`StoredDataSeen.markLoaded`, before the read)
-  and reload in `onResume` only when it moved (`SCREEN_RELOAD screen=<name> reason=stored_data_changed`, one INFO
-  line per reload). Weather Observations re-collects its Room flows when it returns to STARTED, and desktop
-  windows reload on the daemon's data-updated signal.
+- **Data screens reload when stored data changes, on return and while open.** Settings → Refresh data starts
+  on top of the screen that opened it, and slower sources (or a source retry a minute later) land after the
+  user is back on it. Android's Forecast Comparison remembers the process's `StoredDataVersion` at each load
+  (`StoredDataSeen.markLoaded`, before the read) and collects `StoredDataSeen.reloads()` while RESUMED: one
+  reload on return if it moved while away (`trigger=resume`), then one per later write (`trigger=live`, not
+  debounced, so each source shows as it lands). Paused under another screen, it does nothing. Each loader
+  cancels its previous load, so a slower, older read never paints over a newer one. Each reload logs
+  `SCREEN_RELOAD screen=history reason=stored_data_changed trigger=<resume|live>` at INFO. Source Error Details
+  rebuilds itself (`recreate()`) and so reloads on return only. Weather Observations re-collects its Room flows
+  when it returns to STARTED, and desktop windows reload on the daemon's data-updated signal.
 - **Passive events are exempt**:
   - Background periodic worker ticks, power connect/disconnect events, screen unlock repaints
     (`EXTRA_PASSIVE = true`), and UI-only ticks do not check, update, or get blocked by this throttle.

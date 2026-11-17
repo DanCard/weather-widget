@@ -1,6 +1,9 @@
 package com.weatherwidget.shared.util
 
-import java.util.concurrent.atomic.AtomicLong
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.updateAndGet
 
 /**
  * Counts stored-data writes in this process, so an in-memory read of stored rows can tell it is stale.
@@ -13,15 +16,21 @@ import java.util.concurrent.atomic.AtomicLong
  * the daemon's notification. On Android the widget interaction cache drew a History refresh's
  * pre-fetch rows for up to 60 s because the repaint after it is UI-only and cleared nothing
  * (2026-10-29, plans/261029-stored-data-version-invalidates-interaction-cache.md).
+ *
+ * [changes] lets an open screen reload when a write lands while it is on screen
+ * (plans/261116-comparison-screen-reloads-while-open.md).
  */
 class StoredDataVersion {
-    private val version = AtomicLong()
+    private val version = MutableStateFlow(0L)
 
-    fun current(): Long = version.get()
+    /** The version as a flow: emits the current value on collection, then each bump (conflated). */
+    val changes: StateFlow<Long> = version.asStateFlow()
+
+    fun current(): Long = version.value
 
     /** [reason] names the write, for the VERBOSE trace only: this runs on every stored fetch. */
     fun bump(reason: String): Long =
-        version.incrementAndGet().also { Log.v(TAG) { "reason=$reason version=$it" } }
+        version.updateAndGet { it + 1 }.also { Log.v(TAG) { "reason=$reason version=$it" } }
 
     companion object {
         private const val TAG = "STORED_DATA_VERSION"
