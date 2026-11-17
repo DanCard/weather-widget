@@ -141,16 +141,16 @@ sqlite3 ~/.local/share/weather-widget/weather.db "BEGIN IMMEDIATE; SELECT 1;" ".
 
 ### Provider timeouts (HTTP client)
 
-Android and both desktop clients share one timeout/retry policy, `WeatherHttpClientDefaults` in
-`:shared` (30 s request, 10 s connect, 15 s socket, 2 retries). Both platforms use the OkHttp engine;
-the desktop's `DesktopHttpClient` evicts idle connections after 30 s. Ktor's request timeout covers
-the whole call including retries, so Open-Meteo's per-request override (6 s socket, 15 s request)
-leaves room for about two attempts.
+Both Android and desktop use the OkHttp engine (`WeatherHttpClientDefaults` in `:shared`;
+`DesktopHttpClient` evicts idle connections after 30 s). For the timeout, HTTP-fallback, cooldown,
+and retry numbers, see [Forecast and observation cadence](hourly-forecast-update-cadence.md#transport-timeouts-ktor-retries-and-open-meteo-http-fallback).
 
 Shared-module `Log` output goes to logcat on Android and only to the console log
 (`~/.local/state/weather-widget/autostart-*.log`) on desktop, never to `app_logs`. In it:
 
 - `W/HttpRetry: retryOnException host= path= cause=`: one transport failure that Ktor retried.
+- `W/OpenMeteoApi: https failed, retrying over http in 2000ms: ...`: HTTPS attempt failed over to the
+  delayed `http://` retry.
 - `W/OpenMeteoApi: getForecast: failed ms=` / `D/OpenMeteoApi: getForecast: Raw response length= ms=`:
   each forecast call's outcome and duration.
 - `W/OpenMeteoApi: OPEN_METEO_TIMEOUT_PROBE forecastMs= probe= probeMs=`: after a forecast timeout,

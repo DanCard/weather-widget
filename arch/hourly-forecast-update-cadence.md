@@ -264,7 +264,7 @@ refresh counts only its own user refreshes (observations scope); the forecast fe
 
 ### Transport timeouts, Ktor retries, and Open-Meteo HTTP fallback
 
-1. **Shared `HttpClient` defaults (`AppModule.kt`, `DesktopWeatherService.kt`, `DesktopProcess.kt`):**
+1. **Shared `HttpClient` defaults (`WeatherHttpClientDefaults` in `:shared`, used by `AppModule.kt` and `DesktopHttpClient.kt`):**
    - `HttpTimeout`: `requestTimeoutMillis = 30_000`, `connectTimeoutMillis = 10_000`, `socketTimeoutMillis = 15_000` (keeping `socketTimeoutMillis < requestTimeoutMillis` lets a stalled socket trigger a retry within the 30 s budget).
    - `HttpRequestRetry`: `maxRetries = 2` with `exponentialDelay(base = 2.0, maxDelayMs = 2_000)` on `ConnectTimeoutException`, `SocketTimeoutException`, `HttpRequestTimeoutException`, and `IOException` (logged under `HttpRetry`).
    - Endpoint overrides: `RadarRepository` uses `20_000` ms; `RainGridRepository` uses `45_000` ms with `noRetry()`.

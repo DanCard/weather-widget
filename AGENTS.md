@@ -31,6 +31,9 @@ limits a task to one platform.
    home-screen widgets.
 8. **Never run `./gradlew connectedDebugAndroidTest`.** It targets every connected device, including
    physical phones, and can remove their widgets. Use `./scripts/emulator-tests.sh` instead.
+9. **Keep living documentation current.** Whenever behavior, cadences, timeouts, retries, schemas,
+   or workflows change, check `arch/` (including `arch/ARCHITECTURE.md` and the relevant topic doc)
+   and update it in the same change.
 
 ## Architecture rules
 
@@ -85,7 +88,10 @@ Use Java 21 and plain `./gradlew` commands:
 ```
 
 Prefer pure JVM tests, Robolectric for Android dependencies, and instrumented tests only for real
-rendering, view/RemoteViews behavior, or SQLite migrations. Every test must follow the repository's
+rendering, view/RemoteViews behavior, or SQLite migrations. Prefer thorough automated tests—including
+integration tests across collaborating components (such as real SQLite DAOs, Ktor client pipelines,
+or shared runners wired to platform hosts)—rather than relying only on isolated or mocked unit
+tests. Every test must follow the repository's
 category rules. Use `scripts/emulator-tests.sh -c <fully.qualified.TestClass>` for focused device
 iterations. Do not run `installDebug` concurrently with instrumentation. Leave diagnostic logging
 messages in tests; they are helpful and don't cause harm. See
