@@ -290,11 +290,11 @@ trap on_interrupt INT TERM
 # No emulator running: boot the default one now, beside the unit tests, so it is up by the time
 # the emulator phase starts. emulator-tests.sh would boot it anyway, but only once that phase began.
 #
-# Which one alternates (user, 2026-10-22), so both form factors get exercised: the AVD after the
-# one booted last, skipping any not installed. Remembered in BOOT_AVD_STATE; losing it just starts
-# over at the first. Medium_Phone_API_28 and _30 are compatibility targets, started by hand when
-# needed rather than booted here (arch/testing-strategy.md).
-BOOT_AVDS=(Generic_Foldable_API36 Medium_Phone_API_36)
+# Which one rotates, so all form factors get exercised: the AVD after the one booted last, skipping
+# any not installed. Remembered in BOOT_AVD_STATE; losing it just starts over at the first.
+# Medium_Phone_API_28 and _30 are compatibility targets, started by hand when needed rather than
+# booted here (arch/testing-strategy.md).
+BOOT_AVDS=(Generic_Foldable_API36 Medium_Phone_API_36 Pixel_Tablet_API36)
 BOOT_AVD_STATE="$PROJECT_DIR/logs/.last-booted-avd"
 next_boot_avd() {
     local adb_bin="$1" installed last i n candidate

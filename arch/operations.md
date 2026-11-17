@@ -31,7 +31,7 @@ done
 
 For live widget questions, inspect a running emulator first, then connected devices; start an
 available emulator only if neither is available. Common installed targets are
-`Generic_Foldable_API36` and `Medium_Phone_API_36`. Capture screenshots, renderer-specific logcat,
+`Generic_Foldable_API36`, `Medium_Phone_API_36`, and `Pixel_Tablet_API36`. Capture screenshots, renderer-specific logcat,
 widget preferences, and database state before diagnosing visual/data mismatches. Do not ask for the
 location when runtime state can reveal it.
 

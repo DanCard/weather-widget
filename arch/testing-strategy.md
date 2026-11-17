@@ -86,7 +86,7 @@ Run the full gate from the repository root:
 
 `staggered-tests.sh` currently works as follows:
 
-- It runs all app categories plus the `:shared` and `:desktop` suites. If no emulator is running, it boots one beside the unit tests in either mode, alternating the installed `Generic_Foldable_API36` and `Medium_Phone_API_36` targets.
+- It runs all app categories plus the `:shared` and `:desktop` suites. If no emulator is running, it boots one beside the unit tests in either mode, rotating through the installed `Generic_Foldable_API36`, `Medium_Phone_API_36`, and `Pixel_Tablet_API36` targets.
 - By default, the unit run also builds the app and androidTest APKs. Emulator tests start during Long's tail only after both APKs exist and Short, Medium, and Localization have reported without a failure. The emulator phase therefore never overlaps the full Short/Medium/Long/Localization load.
 - A Long failure can happen **after emulator tests have already started or finished**. A Short, Medium, or Localization failure prevents the early start, and emulator tests are skipped after a failed unit run that never started them. Do not assume “unit failed” means no emulator phase ran.
 - `--sequential` restores the old ordering: instrumentation starts only after all unit tests pass.
