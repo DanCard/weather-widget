@@ -195,7 +195,9 @@ A day tap or graph navigation can request missing hourly coverage through `Hourl
 than forcing every source to sync. Only this site's stored rows (`LocationMatch.sameSite`) count as
 covering a day or as a recent fetch, on both platforms — the view shows the site's rows, so a nearby
 town's rows in the read box must not skip a fetch. Coverage counts the hours the view draws, not the
-whole day: ≥2 distinct hours of the shown source inside the view (`NoHourlyChecker.hasHourlyForDay`;
+whole day: ≥2 distinct hours of the shown source inside the view, or every view hour when the view
+shows fewer (a one-hour edge sliver, e.g. WIDE at 3 PM ending on tomorrow's 00:00, needs only that
+hour) (`NoHourlyChecker.hasHourlyForDay`;
 a tap judges `DayClickResolver.dayTapView`, WIDE around noon). A tap on a day no fetch can cover stays
 on the daily view under "No hourly forecast for {day} — data ends …" (`DayTap.Outcome.NoData`); a
 fetchable day opens empty under "Fetching…". An hourly view of future hours the source has no data for,

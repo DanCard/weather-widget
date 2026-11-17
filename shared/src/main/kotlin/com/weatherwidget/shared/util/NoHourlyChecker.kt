@@ -27,7 +27,8 @@ object NoHourlyChecker {
     /**
      * True if [hourly] has ≥[MIN_DRAWABLE_HOURS] distinct hours in [date] — only the part of it
      * inside [view] when given (the hours the graph draws). A day [view] does not reach counts as
-     * covered: none of it is on screen.
+     * covered: none of it is on screen. A day [view] shows fewer hours of than that needs each of
+     * them (a one-hour edge sliver needs its one hour).
      *
      * Distinct hours, not rows: NWS data ending at Sun 00:00 held several rows for that one hour, so
      * a WIDE 03:00–21:00 view opened blank with no word (Fold 4, 2026-11-15).
@@ -50,7 +51,12 @@ object NoHourlyChecker {
             endMs = minOf(endMs, view.end.atZone(zoneId).toInstant().toEpochMilli())
             if (endMs < startMs) return true
         }
-        return distinctHours(hourly, startMs, endMs, sourceIds) >= MIN_DRAWABLE_HOURS
+        // A view edge can clip a day to one hour (WIDE at 3 PM ends on tomorrow's 00:00). That hour
+        // continues the previous day's line, so it needs only its own row: requiring two there
+        // could never pass and named a fully covered day "no hourly" (desktop, 2026-11-17).
+        val hoursShown = Math.floorDiv(endMs, HOUR_MS) - Math.floorDiv(startMs, HOUR_MS) + 1
+        val required = minOf(MIN_DRAWABLE_HOURS.toLong(), hoursShown).toInt()
+        return distinctHours(hourly, startMs, endMs, sourceIds) >= required
     }
 
     /**

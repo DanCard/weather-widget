@@ -56,6 +56,46 @@ class NoHourlyCheckerTest {
         assertTrue(NoHourlyChecker.hasHourlyForDay(list, sunday, setOf("NWS")))
     }
 
+    // ── a view edge clipping one hour of the next day (desktop, 2026-11-17 15:00) ──
+
+    private val nov17 = LocalDate.of(2026, 11, 17)
+    private val nov18 = nov17.plusDays(1)
+    private val threePm = nov17.atTime(15, 0, 1)
+    private val wideAtThree = WeatherTimeUtils.hourWindow(threePm, 9, 9) // 06:00 .. Nov 18 00:00
+
+    private fun fullDays(source: String, vararg days: LocalDate) =
+        days.flatMap { d -> (0..23).map { h -> hourly(d, h, source) } }
+
+    @Test
+    fun `a one-hour edge sliver with its hour stored is covered`() {
+        println("wideAtThree=$wideAtThree")
+        val list = fullDays("GOOGLE_WEATHER", nov17, nov18)
+        assertTrue(NoHourlyChecker.hasHourlyForDay(list, nov18, setOf("GOOGLE_WEATHER"), wideAtThree))
+    }
+
+    @Test
+    fun `a one-hour edge sliver without its hour is not covered`() {
+        val list = fullDays("GOOGLE_WEATHER", nov17) + (1..23).map { hourly(nov18, it, "GOOGLE_WEATHER") }
+        assertFalse(NoHourlyChecker.hasHourlyForDay(list, nov18, setOf("GOOGLE_WEATHER"), wideAtThree))
+    }
+
+    @Test
+    fun `panAction with the real checker stays quiet at 3 PM over fully stored days`() {
+        // Integration: HourlyOnDemand.panAction + NoHourlyChecker.hasHourlyForDay, as the desktop
+        // pan check wires them, at the moment the WIDE window's edge reaches tomorrow's midnight.
+        val nowMs = threePm.atZone(zone).toInstant().toEpochMilli()
+        val stored = fullDays("GOOGLE_WEATHER", nov17, nov18, nov18.plusDays(1)).map {
+            it.copy(fetchedAt = nowMs - 90 * 60_000L, locationLat = 37.417, locationLon = -122.089)
+        }
+        val startMs = wideAtThree.start.atZone(zone).toInstant().toEpochMilli()
+        val endMs = threePm.plusHours(9).atZone(zone).toInstant().toEpochMilli()
+        val action = com.weatherwidget.data.remote.HourlyOnDemand.panAction(
+            "GOOGLE_WEATHER", startMs, endMs, zone, nowMs, stored, 37.417, -122.089,
+        ) { day -> NoHourlyChecker.hasHourlyForDay(stored, day, setOf("GOOGLE_WEATHER"), wideAtThree, zone) }
+        println("action=$action")
+        assertEquals(com.weatherwidget.data.remote.HourlyOnDemand.PanAction.Nothing, action)
+    }
+
     @Test
     fun `a day the view does not reach counts as covered`() {
         assertTrue(NoHourlyChecker.hasHourlyForDay(emptyList(), sunday.plusDays(1), setOf("NWS"), tapView))
