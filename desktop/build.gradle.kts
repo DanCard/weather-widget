@@ -81,8 +81,8 @@ dependencies {
     implementation("org.jetbrains.compose.material3:material3:1.7.3")
     implementation("org.jetbrains.compose.material:material-icons-extended:1.7.3")
 
-    // Desktop HTTP engine for the shared Ktor clients + JSON negotiation.
-    implementation(libs.ktor.client.cio)
+    // Desktop HTTP engine (OkHttp, as on Android; see DesktopHttpClient) + JSON negotiation.
+    implementation(libs.ktor.client.okhttp)
     implementation(libs.ktor.client.content.negotiation)
 
     // Swing dispatcher so Compose UI coroutines have a Main dispatcher on the JVM.

@@ -7,13 +7,6 @@ import java.nio.file.Path
 import java.util.UUID
 
 import io.ktor.client.HttpClient
-import io.ktor.client.engine.cio.CIO
-import io.ktor.client.plugins.HttpTimeout
-import io.ktor.client.plugins.HttpRequestRetry
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.client.statement.bodyAsText
-import io.ktor.http.contentLength
-import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
 
 const val QUIT_TRIGGER = ".quit"
@@ -326,47 +319,7 @@ class DesktopClients(private val weatherDao: com.weatherwidget.data.local.deskto
         isLenient = true
     }
 
-    val httpClient = HttpClient(CIO) {
-        install(ContentNegotiation) { json(json) }
-        install(HttpTimeout) {
-            requestTimeoutMillis = 30_000
-            connectTimeoutMillis = 10_000
-            socketTimeoutMillis = 15_000
-        }
-        install(HttpRequestRetry) {
-            maxRetries = 2
-            retryOnExceptionIf { _, cause ->
-                cause is io.ktor.client.network.sockets.ConnectTimeoutException ||
-                cause is io.ktor.client.network.sockets.SocketTimeoutException ||
-                cause is io.ktor.client.plugins.HttpRequestTimeoutException ||
-                cause is java.io.IOException
-            }
-            exponentialDelay(base = 2.0, maxDelayMs = 2_000)
-        }
-        if (weatherDao != null) {
-            install(io.ktor.client.plugins.observer.ResponseObserver) {
-                onResponse { response ->
-                    val bodyBytes = runCatching {
-                        response.contentLength()
-                            ?: response.bodyAsText().toByteArray(Charsets.UTF_8).size.toLong()
-                    }.getOrDefault(0L)
-                    val totalBytes = bodyBytes + 500L
-                    // Queued: an inline insert per response crowded the lock during fetch bursts (DesktopAppLogQueue).
-                    val nowMs = System.currentTimeMillis()
-                    DesktopAppLogQueue.write("network_usage") {
-                        weatherDao.recordNetworkUsage(totalBytes, isForeground = true, timestamp = nowMs)
-                    }
-                    // This client serves geocoding and the rain viewers; the Open-Meteo rain map grid
-                    // is a provider call, so count it in Usage stats as the daemon's client does.
-                    val url = response.call.request.url
-                    com.weatherwidget.data.remote.ApiUsageClassifier.classify(url.host, url.encodedPath, url.encodedQuery)?.let { key ->
-                        val day = com.weatherwidget.data.remote.ApiUsageClassifier.usageDayMs(key.source, java.time.Instant.now(), java.time.ZoneId.systemDefault())
-                        DesktopAppLogQueue.write("api_usage_stats") { weatherDao.logApiCall(day, key.source, key.endpoint, response.status.value) }
-                    }
-                }
-            }
-        }
-    }
+    val httpClient = DesktopHttpClient.newWeatherClient(json, weatherDao, isForeground = true)
 
     fun close() {
         httpClient.close()

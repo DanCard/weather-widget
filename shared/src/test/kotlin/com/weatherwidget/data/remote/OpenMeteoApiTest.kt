@@ -14,6 +14,8 @@ import kotlinx.serialization.json.Json
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
+import java.util.concurrent.atomic.AtomicInteger
+import io.ktor.client.request.HttpRequestData
 import com.weatherwidget.shared.config.ForecastHorizon
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.experimental.categories.Category
@@ -451,4 +453,100 @@ class OpenMeteoApiTest {
             assertEquals(2, attempts)
             assertEquals(1, result.daily.size)
         }
+
+    // ---- Timeout probe (plans/261116-desktop-okhttp-engine.md) ----
+
+    private class ProbeFixture(private val probeTimesOut: Boolean, private val forecastError: () -> Throwable) {
+        val forecastAttempts = AtomicInteger()
+        val probeRequests = mutableListOf<HttpRequestData>()
+        val warnings = mutableListOf<String>()
+
+        fun client(json: Json) = HttpClient(MockEngine) {
+            engine {
+                addHandler { request ->
+                    if (request.url.parameters.contains("minutely_15")) {
+                        forecastAttempts.incrementAndGet()
+                        throw forecastError()
+                    }
+                    synchronized(probeRequests) { probeRequests += request }
+                    if (probeTimesOut) throw SocketTimeoutException("probe stalled")
+                    respond("""{"current":{"temperature_2m":50.0}}""", HttpStatusCode.OK)
+                }
+            }
+            WeatherHttpClientDefaults.install(this, json, retryDelay = {})
+        }
+
+        fun <T> withLog(block: () -> T): T {
+            com.weatherwidget.shared.util.Log.install { priority, tag, msg, _ ->
+                println("${priority.name.first()}/$tag: $msg")
+                if (priority == com.weatherwidget.shared.util.Log.Priority.WARN) synchronized(warnings) { warnings += msg }
+            }
+            try { return block() } finally { com.weatherwidget.shared.util.Log.resetToDefault() }
+        }
+
+        fun probeLines() = warnings.filter { it.startsWith("OPEN_METEO_TIMEOUT_PROBE") }
+    }
+
+    @Test
+    fun `a forecast timeout sends one light probe to the same host and logs both timings`() {
+        val fixture = ProbeFixture(probeTimesOut = false) { SocketTimeoutException("no bytes") }
+        fixture.withLog {
+            runTest {
+                try {
+                    OpenMeteoApi(fixture.client(json), json).getForecast(37.0, -122.0)
+                    fail("the forecast timeout must still surface")
+                } catch (e: SocketTimeoutException) {
+                    println("surfaced ${e::class.simpleName}")
+                }
+            }
+        }
+        println("forecastAttempts=${fixture.forecastAttempts.get()} probes=${fixture.probeRequests.map { it.url }}")
+
+        assertEquals(WeatherHttpClientDefaults.MAX_RETRIES + 1, fixture.forecastAttempts.get())
+        assertEquals(1, fixture.probeRequests.size)
+        val probe = fixture.probeRequests.single()
+        assertEquals("api.open-meteo.com", probe.url.host)
+        assertEquals("temperature_2m", probe.url.parameters["current"])
+        assertNull(probe.url.parameters["hourly"])
+        val line = fixture.probeLines().single()
+        assertTrue(line, line.contains("probe=ok bytes="))
+        assertTrue(line, Regex("forecastMs=\\d+ .* probeMs=\\d+").containsMatchIn(line))
+    }
+
+    @Test
+    fun `a probe that also times out is tried once and logged as failed`() {
+        val fixture = ProbeFixture(probeTimesOut = true) { SocketTimeoutException("no bytes") }
+        fixture.withLog {
+            runTest {
+                try {
+                    OpenMeteoApi(fixture.client(json), json).getForecast(37.0, -122.0)
+                    fail("the forecast timeout must still surface")
+                } catch (e: SocketTimeoutException) {
+                    println("surfaced ${e::class.simpleName}: ${e.message}")
+                    assertEquals("the forecast's error, not the probe's", "no bytes", e.message)
+                }
+            }
+        }
+
+        assertEquals("probe is never retried", 1, fixture.probeRequests.size)
+        assertTrue(fixture.probeLines().single().contains("probe=failed error=SocketTimeoutException"))
+    }
+
+    @Test
+    fun `a non-timeout failure sends no probe`() {
+        val fixture = ProbeFixture(probeTimesOut = false) { java.net.UnknownHostException("api.open-meteo.com") }
+        fixture.withLog {
+            runTest {
+                try {
+                    OpenMeteoApi(fixture.client(json), json).getForecast(37.0, -122.0)
+                    fail("expected the DNS failure to surface")
+                } catch (e: java.net.UnknownHostException) {
+                    println("surfaced ${e::class.simpleName}")
+                }
+            }
+        }
+
+        assertEquals(0, fixture.probeRequests.size)
+        assertTrue(fixture.probeLines().isEmpty())
+    }
 }

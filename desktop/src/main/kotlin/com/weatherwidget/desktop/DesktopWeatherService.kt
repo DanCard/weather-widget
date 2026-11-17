@@ -25,15 +25,11 @@ import com.weatherwidget.shared.config.ForecastHorizon
 import com.weatherwidget.shared.util.Log
 import com.weatherwidget.shared.observations.NwsBlend
 import io.ktor.client.*
-import io.ktor.client.engine.cio.*
 import io.ktor.client.plugins.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.client.call.body
-import io.ktor.client.plugins.observer.ResponseObserver
 import io.ktor.client.request.*
-import io.ktor.client.statement.bodyAsText
-import io.ktor.http.contentLength
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -89,53 +85,8 @@ class DesktopWeatherService(
         radarNowStore?.let { com.weatherwidget.shared.observations.RadarNowSampler(httpClient, it) }
     }
 
-    private val httpClient: HttpClient = injectedHttpClient ?: HttpClient(CIO) {
-        install(ContentNegotiation) { json(json) }
-        install(HttpTimeout) {
-            requestTimeoutMillis = 30_000
-            connectTimeoutMillis = 10_000
-            socketTimeoutMillis = 15_000
-        }
-        install(HttpRequestRetry) {
-            maxRetries = 2
-            retryOnExceptionIf { request, cause ->
-                val retryable =
-                    cause is io.ktor.client.network.sockets.ConnectTimeoutException ||
-                    cause is io.ktor.client.network.sockets.SocketTimeoutException ||
-                    cause is io.ktor.client.plugins.HttpRequestTimeoutException ||
-                    cause is java.io.IOException
-                if (retryable) {
-                    com.weatherwidget.shared.util.Log.w(
-                        "HttpRetry",
-                        "retryOnException host=${request.url.host} path=${request.url.build().encodedPath} cause=${cause::class.simpleName}:${cause.message}",
-                    )
-                }
-                retryable
-            }
-            exponentialDelay(base = 2.0, maxDelayMs = 2_000)
-        }
-        if (weatherDao != null) {
-            install(ResponseObserver) {
-                onResponse { response ->
-                    val bodyBytes = runCatching {
-                        response.contentLength()
-                            ?: response.bodyAsText().toByteArray(Charsets.UTF_8).size.toLong()
-                    }.getOrDefault(0L)
-                    val totalBytes = bodyBytes + 500L
-                    // Queued: an inline insert per response crowded the lock during fetch bursts (DesktopAppLogQueue).
-                    val nowMs = System.currentTimeMillis()
-                    DesktopAppLogQueue.write("network_usage") {
-                        weatherDao.recordNetworkUsage(totalBytes, isForeground, timestamp = nowMs)
-                    }
-                    val url = response.call.request.url
-                    ApiUsageClassifier.classify(url.host, url.encodedPath, url.encodedQuery)?.let { key ->
-                        val day = ApiUsageClassifier.usageDayMs(key.source, java.time.Instant.now(), java.time.ZoneId.systemDefault())
-                        DesktopAppLogQueue.write("api_usage_stats") { weatherDao.logApiCall(day, key.source, key.endpoint, response.status.value) }
-                    }
-                }
-            }
-        }
-    }
+    private val httpClient: HttpClient = injectedHttpClient
+        ?: DesktopHttpClient.newWeatherClient(json, weatherDao, isForeground)
 
     // Build-time keys (from local.properties / env, baked in via DesktopApiKeys) provide the default,
     // and a key entered in desktop Settings (config.settings.apiKeys) overrides it — same precedence as

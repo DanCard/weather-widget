@@ -39,6 +39,7 @@ import com.weatherwidget.data.remote.NominatimApi
 import com.weatherwidget.data.remote.IpGeolocationApi
 import com.weatherwidget.data.remote.AviationWeatherApi
 import com.weatherwidget.data.remote.SynopticApi
+import com.weatherwidget.data.remote.WeatherHttpClientDefaults
 import com.weatherwidget.data.repository.SharedLocationResolver
 import com.weatherwidget.shared.util.TemperatureInterpolator
 import com.weatherwidget.data.local.log
@@ -57,9 +58,7 @@ import dagger.hilt.components.SingletonComponent
 import com.weatherwidget.network.FallbackDns
 import io.ktor.client.*
 import io.ktor.client.engine.okhttp.*
-import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.plugins.*
-import io.ktor.client.plugins.HttpRequestRetry
 import io.ktor.client.request.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.Json
@@ -137,32 +136,7 @@ object AppModule {
                     dns(fallbackDns)
                 }
             }
-            install(ContentNegotiation) {
-                json(json)
-            }
-            install(HttpTimeout) {
-                requestTimeoutMillis = 30_000
-                connectTimeoutMillis = 10_000
-                socketTimeoutMillis = 15_000
-            }
-            install(HttpRequestRetry) {
-                maxRetries = 2
-                retryOnExceptionIf { request, cause ->
-                    val retryable =
-                        cause is io.ktor.client.network.sockets.ConnectTimeoutException ||
-                        cause is io.ktor.client.network.sockets.SocketTimeoutException ||
-                        cause is io.ktor.client.plugins.HttpRequestTimeoutException ||
-                        cause is java.io.IOException
-                    if (retryable) {
-                        com.weatherwidget.shared.util.Log.w(
-                            "HttpRetry",
-                            "retryOnException host=${request.url.host} path=${request.url.build().encodedPath} cause=${cause::class.simpleName}:${cause.message}",
-                        )
-                    }
-                    retryable
-                }
-                exponentialDelay(base = 2.0, maxDelayMs = 2_000)
-            }
+            WeatherHttpClientDefaults.install(this, json)
         }.apply {
             plugin(HttpSend).intercept { request ->
                 val key = ApiUsageClassifier.classify(request.url.host, request.url.build().encodedPath, request.url.build().encodedQuery)

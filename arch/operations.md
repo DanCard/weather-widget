@@ -139,6 +139,28 @@ the lock while switching source in the popup:
 sqlite3 ~/.local/share/weather-widget/weather.db "BEGIN IMMEDIATE; SELECT 1;" ".shell sleep 8" "COMMIT;"
 ```
 
+### Provider timeouts (HTTP client)
+
+Android and both desktop clients share one timeout/retry policy, `WeatherHttpClientDefaults` in
+`:shared` (30 s request, 10 s connect, 15 s socket, 2 retries). Both platforms use the OkHttp engine;
+the desktop's `DesktopHttpClient` evicts idle connections after 30 s. Ktor's request timeout covers
+the whole call including retries, so Open-Meteo's per-request override (6 s socket, 15 s request)
+leaves room for about two attempts.
+
+Shared-module `Log` output goes to logcat on Android and only to the console log
+(`~/.local/state/weather-widget/autostart-*.log`) on desktop, never to `app_logs`. In it:
+
+- `W/HttpRetry: retryOnException host= path= cause=`: one transport failure that Ktor retried.
+- `W/OpenMeteoApi: getForecast: failed ms=` / `D/OpenMeteoApi: getForecast: Raw response length= ms=`:
+  each forecast call's outcome and duration.
+- `W/OpenMeteoApi: OPEN_METEO_TIMEOUT_PROBE forecastMs= probe= probeMs=`: after a forecast timeout,
+  one light request (`current=temperature_2m`, no retry, 5 s cap) to the same host. `probe=ok` quickly
+  means the server is slow on the full request; a slow or failed probe points at the network path. See
+  [plans/261116-desktop-okhttp-engine.md](../plans/261116-desktop-okhttp-engine.md).
+
+`app_logs` keeps the per-source outcome: `CURRENT_TEMP_STATUS source= ok=false
+class=HttpRequestTimeoutException`, `REFRESH_FAIL`, and `SOURCE_RETRY`.
+
 ### Debug-build adb hooks
 
 Debug APKs carry two receivers in `app/src/debug` (absent from release), exported so `adb shell` can

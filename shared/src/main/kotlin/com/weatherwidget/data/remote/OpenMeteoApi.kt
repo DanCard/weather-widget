@@ -9,8 +9,10 @@ import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import io.ktor.client.*
 import io.ktor.client.call.*
+import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.pluginOrNull
+import io.ktor.client.plugins.retry
 import io.ktor.client.plugins.timeout
 import io.ktor.client.request.*
 import kotlinx.serialization.json.Json
@@ -45,6 +47,7 @@ class OpenMeteoApi
             const val FORECAST_CONNECT_TIMEOUT_MS = 5_000L
             const val FORECAST_SOCKET_TIMEOUT_MS = 6_000L
             const val FORECAST_REQUEST_TIMEOUT_MS = 15_000L
+            const val PROBE_TIMEOUT_MS = 5_000L
 
             /** Verified: `past_days=31` returns the full span with `_previous_day1` fully populated. */
             const val MAX_PREVIOUS_RUNS_PAST_DAYS = 31
@@ -170,6 +173,49 @@ class OpenMeteoApi
             }
         }
 
+        private fun isTimeout(e: Throwable): Boolean =
+            e is HttpRequestTimeoutException ||
+                e is io.ktor.client.network.sockets.SocketTimeoutException ||
+                e is io.ktor.client.network.sockets.ConnectTimeoutException
+
+        /**
+         * Diagnostic for plans/261116-desktop-okhttp-engine.md: after the full forecast request times out,
+         * ask the same host for one current value (no retry, [PROBE_TIMEOUT_MS] cap) and log both timings.
+         * A fast probe means the server is slow on the heavy request; a slow or failed probe means the
+         * network path or host. Best effort: never throws except cancellation.
+         */
+        private suspend fun probeAfterTimeout(lat: Double, lon: Double, forecastMs: Long) {
+            val startMs = System.currentTimeMillis()
+            val outcome =
+                try {
+                    val body: String =
+                        httpClient.get("$BASE_URL/forecast") {
+                            parameter("latitude", lat)
+                            parameter("longitude", lon)
+                            parameter("current", "temperature_2m")
+                            parameter("forecast_days", 1)
+                            retry { noRetry() }
+                            if (httpClient.pluginOrNull(HttpTimeout) != null) {
+                                timeout {
+                                    connectTimeoutMillis = PROBE_TIMEOUT_MS
+                                    socketTimeoutMillis = PROBE_TIMEOUT_MS
+                                    requestTimeoutMillis = PROBE_TIMEOUT_MS
+                                }
+                            }
+                        }.body()
+                    "ok bytes=${body.length}"
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    "failed error=${e::class.simpleName}"
+                }
+            Log.w(
+                TAG,
+                "OPEN_METEO_TIMEOUT_PROBE forecastMs=$forecastMs probe=$outcome " +
+                    "probeMs=${System.currentTimeMillis() - startMs}",
+            )
+        }
+
         /**
          * [parts]: [ForecastParts.DAILY] drops `hourly=`, [ForecastParts.HOURLY] drops `daily=`.
          * `current` and `minutely_15` are always asked: they are not the hourly forecast — they feed
@@ -210,6 +256,7 @@ class OpenMeteoApi
                 } catch (e: Exception) {
                     val elapsedMs = System.currentTimeMillis() - startMs
                     Log.w(TAG, "getForecast: failed ms=$elapsedMs error=${e::class.simpleName}:${e.message}")
+                    if (isTimeout(e)) probeAfterTimeout(lat, lon, elapsedMs)
                     throw e
                 }
 
