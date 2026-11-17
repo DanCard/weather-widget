@@ -182,29 +182,39 @@ class OpenMeteoApi
             historyDays: Int = 0,
             parts: ForecastParts = ForecastParts.BOTH,
         ): RawFetch {
+            val startMs = System.currentTimeMillis()
             val response: String =
-                httpClient.get("$BASE_URL/forecast") {
-                    parameter("latitude", lat)
-                    parameter("longitude", lon)
-                    if (parts.daily) {
-                        parameter("daily", DAILY_VARIABLES)
-                    }
-                    if (parts.hourly) {
-                        parameter("hourly", HOURLY_VARIABLES)
-                    }
-                    parameter("minutely_15", MINUTELY_15_VARIABLES)
-                    parameter(
-                        "current",
-                        "temperature_2m,weather_code,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high",
-                    )
-                    parameter("temperature_unit", "fahrenheit")
-                    parameter("timezone", "auto")
-                    parameter("past_days", historyDays) // Optional archived model-output window
-                    parameter("forecast_days", days)
-                    applyForecastTimeout()
-                }.body()
+                try {
+                    httpClient.get("$BASE_URL/forecast") {
+                        parameter("latitude", lat)
+                        parameter("longitude", lon)
+                        if (parts.daily) {
+                            parameter("daily", DAILY_VARIABLES)
+                        }
+                        if (parts.hourly) {
+                            parameter("hourly", HOURLY_VARIABLES)
+                        }
+                        parameter("minutely_15", MINUTELY_15_VARIABLES)
+                        parameter(
+                            "current",
+                            "temperature_2m,weather_code,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high",
+                        )
+                        parameter("temperature_unit", "fahrenheit")
+                        parameter("timezone", "auto")
+                        parameter("past_days", historyDays) // Optional archived model-output window
+                        parameter("forecast_days", days)
+                        applyForecastTimeout()
+                    }.body()
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    val elapsedMs = System.currentTimeMillis() - startMs
+                    Log.w(TAG, "getForecast: failed ms=$elapsedMs error=${e::class.simpleName}:${e.message}")
+                    throw e
+                }
 
-            Log.d(TAG, "getForecast: Raw response length=${response.length}")
+            val elapsedMs = System.currentTimeMillis() - startMs
+            Log.d(TAG, "getForecast: Raw response length=${response.length} ms=$elapsedMs")
             val jsonObj = json.parseToJsonElement(response).jsonObject
 
             val current = jsonObj["current"]?.jsonObject
@@ -303,7 +313,9 @@ class OpenMeteoApi
                     val code = hourlyCodes.getOrNull(index) ?: 0
                     val ts = try {
                         java.time.LocalDateTime.parse(time).atZone(zone).toInstant().toEpochMilli()
-                    } catch (e: Exception) {
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
                         null
                     } ?: return@mapIndexedNotNull null
 
@@ -392,6 +404,8 @@ class OpenMeteoApi
                     val local = java.time.LocalDateTime.parse(timeRaw)
                     val zone = timezone?.let { java.time.ZoneId.of(it) } ?: java.time.ZoneId.systemDefault()
                     local.atZone(zone).toInstant().toEpochMilli()
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     Log.w(TAG, "Could not parse current observation time '$timeRaw': ${e.message}")
                     null

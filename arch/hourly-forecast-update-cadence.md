@@ -280,6 +280,10 @@ source that timed out waited for its background cadence (hours).
 - Desktop: a `SOURCE_RETRY_ARMED` contract row (`consumed=true` once it came due); the forecast loop sleeps toward it
   (`FORECAST_LOOP_SLEEP reason=SOURCE_RETRY next=<source>`, the earliest armed retry of any source) and fetches
   that source in full when it is due (a refresh-all's failed source is fetched through its own repository).
+  During a `source_change` / `location_change` settle (`FORECAST_LOOP_START`, `retriesDuringSettle=<n>`),
+  the loop still holds the 5 min cadence gate (`endedBy=settle`) while firing due retries on time via
+  `LaunchRefreshJobs.launchRetry` (so follow-up source clicks do not cancel an in-flight retry, and
+  `fetchOnce` skips duplicates if a launch refresh is already running for that source/site).
   The UI's fetches run in the daemon too (`fetch-request.sock`), so their failures arm the same retry.
 - `SOURCE_RETRY scheduled|skip` logs every decision on both platforms. The failure pill's detail reads
   "Timed Out · retrying 9:20 PM" while the retry is ahead, the failure time otherwise.

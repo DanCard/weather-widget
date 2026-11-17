@@ -147,11 +147,19 @@ object AppModule {
             }
             install(HttpRequestRetry) {
                 maxRetries = 2
-                retryOnExceptionIf { _, cause ->
-                    cause is io.ktor.client.network.sockets.ConnectTimeoutException ||
-                    cause is io.ktor.client.network.sockets.SocketTimeoutException ||
-                    cause is io.ktor.client.plugins.HttpRequestTimeoutException ||
-                    cause is java.io.IOException
+                retryOnExceptionIf { request, cause ->
+                    val retryable =
+                        cause is io.ktor.client.network.sockets.ConnectTimeoutException ||
+                        cause is io.ktor.client.network.sockets.SocketTimeoutException ||
+                        cause is io.ktor.client.plugins.HttpRequestTimeoutException ||
+                        cause is java.io.IOException
+                    if (retryable) {
+                        com.weatherwidget.shared.util.Log.w(
+                            "HttpRetry",
+                            "retryOnException host=${request.url.host} path=${request.url.build().encodedPath} cause=${cause::class.simpleName}:${cause.message}",
+                        )
+                    }
+                    retryable
                 }
                 exponentialDelay(base = 2.0, maxDelayMs = 2_000)
             }

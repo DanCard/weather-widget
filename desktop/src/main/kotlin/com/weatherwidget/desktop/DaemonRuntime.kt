@@ -214,6 +214,100 @@ internal class DaemonRuntime(
         SourceRetry.onFailure(sourceRetryHost(wakeLoop), sourceId, FetchErrorCode.of(e), trigger, System.currentTimeMillis())
     }
 
+    private fun earliestSourceRetry(config: DesktopConfig, nowMs: Long): Pair<String, Long>? =
+        (listOf(config.displaySource) + config.effectiveSources.filter { it != config.displaySource })
+            .mapNotNull { id -> sourceRetryState.retryAtMs(id, nowMs)?.let { id to it } }
+            .minByOrNull { it.second }
+
+    /**
+     * Collects and synchronously consumes every due `SOURCE_RETRY` across [config]'s sources so an
+     * async settle-time retry cannot re-trigger on the next wake check. Sources in [cadenceDue] are
+     * still consumed (their cadence fetch is the attempt) and omitted from the returned list.
+     */
+    private suspend fun collectDueSourceRetries(
+        config: DesktopConfig,
+        nowMs: Long,
+        isCharging: Boolean,
+        screenOn: Boolean,
+        cadenceDue: Set<String>,
+    ): List<String> {
+        val ordered = listOf(config.displaySource) + config.effectiveSources.filter { it != config.displaySource }
+        return ordered.filter { sourceId ->
+            if (!sourceRetryState.isDue(sourceId, nowMs, ForecastSchedule.DUE_GRACE_MS)) return@filter false
+            sourceRetryState.consume(sourceId)
+            if (sourceId in cadenceDue) return@filter false
+            SourceRetry.shouldFire(isCharging, screenOn, sourceId) { tag, message, lvl -> weatherDao.log(tag, message, lvl) }
+        }
+    }
+
+    /**
+     * Runs each due retry in [retrySources] under [LaunchRefreshJobs.fetchOnce] so an in-flight
+     * launch refresh for the same source/site is never duplicated. Returns `true` if any failed.
+     */
+    private suspend fun runDueSourceRetries(
+        retrySources: List<String>,
+        config: DesktopConfig,
+        activeRepo: DesktopWeatherRepository,
+        wakeLoopOnFailure: Boolean,
+    ): Boolean {
+        var anyFailed = false
+        for (retrySource in retrySources) {
+            val isActive = retrySource == config.displaySource
+            val key = LaunchRefreshJobs.key(retrySource, config.lat, config.lon)
+            try {
+                if (isActive) {
+                    val result = launchRefreshJobs.fetchOnce(key) {
+                        Log.i(TAG, "Loop forecast retry starting for active source: $retrySource...")
+                        activeRepo.refresh(reason = SourceRetry.REASON)
+                    } ?: continue
+                    if (launchRefreshPublishes(config, currentConfig)) {
+                        panelPublisher.publishForecastState(result)
+                        dataStatusState.value = DataStatus.Live(System.currentTimeMillis())
+                        notifyDataUpdated()
+                    }
+                    Log.i(TAG, "Active source forecast retry successful.")
+                } else {
+                    val ran = launchRefreshJobs.fetchOnce(key) {
+                        Log.i(TAG, "Loop retry of source $retrySource after a failed refresh...")
+                        val retryService = DesktopWeatherService(
+                            config.lat, config.lon, retrySource, config.settings.apiKeys, weatherDao,
+                            synopticBackoffStore = DesktopSynopticBackoffStore.default(), nowcastStore = DesktopNowcast.store, radarNowStore = DesktopRadarNow.store,
+                            personalStationWeight = config.personalStationWeight(),
+                        )
+                        try {
+                            DesktopWeatherRepository(
+                                retryService, weatherDao, config.lat, config.lon, retrySource, config.personalStationWeight(),
+                                radarNowSampler = retryService.radarNowSampler,
+                            ).refresh(reason = SourceRetry.REASON)
+                        } finally {
+                            retryService.close()
+                        }
+                    }
+                    if (ran != null) notifyDataUpdated()
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                anyFailed = true
+                val isOffline = isOfflineException(e)
+                val reason = if (isOffline) "offline" else "source_error"
+                weatherDao.log("REFRESH_FAIL", "retry $retrySource: $reason ${e.message}", "WARN")
+                onForecastFetchFailed(retrySource, e, trigger = SourceRetry.REASON, wakeLoop = wakeLoopOnFailure)
+                if (isActive && launchRefreshPublishes(config, currentConfig)) {
+                    val lastSuccess = weatherDao.getLastSuccessfulFetch(config.displaySource)
+                    dataStatusState.value = deriveDataStatus(
+                        cachePresent = forecastState.value != null,
+                        lastFetchMs = lastSuccess,
+                        refreshFailed = true,
+                        failureIsOffline = isOffline,
+                    )
+                    notifyDataUpdated()
+                }
+            }
+        }
+        return anyFailed
+    }
+
     /**
      * Wakes the observation loop to re-plan its wait (screen on, power change). Conflated; a wake
      * never fetches sooner than the shared interval since the last fetch allows.
@@ -1340,11 +1434,30 @@ internal class DaemonRuntime(
             launch {
                 // The launch refresh owns the first minutes; planning now would fetch beside it. After
                 // a startup or a resume the loop plans as soon as it is done (forecastLoopWaitsForLaunch).
+                // During a source-change settle, due SOURCE_RETRY rows still fire on time without opening
+                // the cadence plan gate.
                 val startMs = System.currentTimeMillis()
-                val endedBy = awaitLaunch(reason, launchJob)
+                var retriesDuringSettle = 0
+                val endedBy = awaitLaunch(
+                    reason,
+                    launchJob,
+                    wake = forecastLoopWake,
+                    nextRetryAtMs = { earliestSourceRetry(config, System.currentTimeMillis())?.second },
+                    onRetryDue = {
+                        val (isCharging, _) = PowerDetector.getPowerState()
+                        val screenOn = ScreenStateDetector.isScreenOn()
+                        val dueRetries = collectDueSourceRetries(config, System.currentTimeMillis(), isCharging, screenOn, emptySet())
+                        if (dueRetries.isNotEmpty()) {
+                            retriesDuringSettle += dueRetries.size
+                            launchRefreshJobs.launchRetry {
+                                runDueSourceRetries(dueRetries, config, newRepo, wakeLoopOnFailure = true)
+                            }
+                        }
+                    },
+                )
                 weatherDao.log(
                     "FORECAST_LOOP_START",
-                    "reason=$reason endedBy=$endedBy waitedSec=${(System.currentTimeMillis() - startMs) / 1000}",
+                    "reason=$reason endedBy=$endedBy waitedSec=${(System.currentTimeMillis() - startMs) / 1000} retriesDuringSettle=$retriesDuringSettle",
                     "INFO",
                 )
                 while (true) {
@@ -1384,19 +1497,12 @@ internal class DaemonRuntime(
                     // A due source retry fetches the displayed source in full even when its cadence is not due.
                     // Due once: consumed whether it runs or is skipped on battery with the screen off
                     // (SourceRetry.shouldFire), so a skipped or capped chain never re-fires on later wakes.
-                    val retryComesDue = sourceRetryState.isDue(activeSource, planNow, ForecastSchedule.DUE_GRACE_MS)
-                    if (retryComesDue) sourceRetryState.consume(activeSource)
-                    val retryDue = retryComesDue && due[activeSource] == null &&
-                        SourceRetry.shouldFire(isCharging, screenOn, activeSource) { tag, message, lvl -> weatherDao.log(tag, message, lvl) }
-                    if (due[activeSource] != null || retryDue) {
-                        val plan = due[activeSource]
+                    val dueRetries = collectDueSourceRetries(config, planNow, isCharging, screenOn, due.keys)
+                    val activePlan = due[activeSource]
+                    if (activePlan != null) {
                         try {
-                            Log.i(TAG, "Loop forecast refresh starting for active source: $activeSource parts=${plan?.parts} horizon=${plan?.horizon} retry=$retryDue (charging=$isCharging, level=$level%)...")
-                            val result = if (plan != null) {
-                                newRepo.refresh(reason = "forecast_loop", parts = plan.parts, horizon = plan.horizon)
-                            } else {
-                                newRepo.refresh(reason = SourceRetry.REASON)
-                            }
+                            Log.i(TAG, "Loop forecast refresh starting for active source: $activeSource parts=${activePlan.parts} horizon=${activePlan.horizon} retry=false (charging=$isCharging, level=$level%)...")
+                            val result = newRepo.refresh(reason = "forecast_loop", parts = activePlan.parts, horizon = activePlan.horizon)
                             panelPublisher.publishForecastState(result)
                             dataStatusState.value = DataStatus.Live(System.currentTimeMillis())
                             notifyDataUpdated()
@@ -1410,7 +1516,7 @@ internal class DaemonRuntime(
                             val isOffline = isOfflineException(e)
                             val reason = if (isOffline) "offline" else "source_error"
                             weatherDao.log("REFRESH_FAIL", "$reason ${e.message}", "WARN")
-                            onForecastFetchFailed(activeSource, e, trigger = if (retryDue) SourceRetry.REASON else "forecast_loop", wakeLoop = false)
+                            onForecastFetchFailed(activeSource, e, trigger = "forecast_loop", wakeLoop = false)
                             val lastSuccess = weatherDao.getLastSuccessfulFetch(config.displaySource)
                             dataStatusState.value = deriveDataStatus(
                                 cachePresent = forecastState.value != null,
@@ -1458,36 +1564,10 @@ internal class DaemonRuntime(
                         }
                     }
 
-                    // A non-displayed source's armed retry fires here, on its own schedule (SourceRetry
-                    // retries every source, shown or not). Same once-only rule as the displayed source's retry above.
-                    for (retrySource in config.effectiveSources.filter { it != activeSource }) {
-                        if (!sourceRetryState.isDue(retrySource, planNow, ForecastSchedule.DUE_GRACE_MS)) continue
-                        sourceRetryState.consume(retrySource)
-                        if (due[retrySource] != null) continue // its cadence fetch above is the attempt
-                        if (!SourceRetry.shouldFire(isCharging, screenOn, retrySource) { tag, message, lvl -> weatherDao.log(tag, message, lvl) }) continue
-                        try {
-                            Log.i(TAG, "Loop retry of source $retrySource after a failed refresh...")
-                            val retryService = DesktopWeatherService(
-                                config.lat, config.lon, retrySource, config.settings.apiKeys, weatherDao,
-                                synopticBackoffStore = DesktopSynopticBackoffStore.default(), nowcastStore = DesktopNowcast.store, radarNowStore = DesktopRadarNow.store,
-                                personalStationWeight = config.personalStationWeight(),
-                            )
-                            try {
-                                DesktopWeatherRepository(
-                                    retryService, weatherDao, config.lat, config.lon, retrySource, config.personalStationWeight(),
-                                    radarNowSampler = retryService.radarNowSampler,
-                                ).refresh(reason = SourceRetry.REASON)
-                            } finally {
-                                retryService.close()
-                            }
-                            notifyDataUpdated()
-                        } catch (e: CancellationException) {
-                            throw e
-                        } catch (e: Exception) {
+                    // Armed retries for active (when not cadence-due) and non-displayed sources fire here.
+                    if (dueRetries.isNotEmpty()) {
+                        if (runDueSourceRetries(dueRetries, config, newRepo, wakeLoopOnFailure = false)) {
                             fetchFailed = true
-                            val reason = if (isOfflineException(e)) "offline" else "source_error"
-                            weatherDao.log("REFRESH_FAIL", "retry $retrySource: $reason ${e.message}", "WARN")
-                            onForecastFetchFailed(retrySource, e, trigger = SourceRetry.REASON, wakeLoop = false)
                         }
                     }
 
@@ -1497,9 +1577,7 @@ internal class DaemonRuntime(
                     val sleep = ForecastSchedule.sleep(next, sleepNow, fetchFailed)
                     // The earliest armed retry — the displayed source's or a refresh-all's failed one — wakes the
                     // loop at its time, not at the cadence.
-                    val nextRetry = (listOf(activeSource) + config.effectiveSources.filter { it != activeSource })
-                        .mapNotNull { id -> sourceRetryState.retryAtMs(id, sleepNow)?.let { id to it } }
-                        .minByOrNull { it.second }
+                    val nextRetry = earliestSourceRetry(config, sleepNow)
                     val retryInMs = nextRetry?.let { it.second - sleepNow }
                     val sleepMs = retryInMs?.coerceIn(ForecastSchedule.MIN_SLEEP_MS, sleep.ms) ?: sleep.ms
                     weatherDao.log(
