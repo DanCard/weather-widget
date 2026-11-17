@@ -1285,4 +1285,31 @@ class WeatherDatabaseMigrationTest {
         }
         db.close()
     }
+
+    /** plans/261117-google-combined-daily-rain-chance.md: rows kept, combined chances null until the next fetch. */
+    @Test
+    fun migrate90To91AddsForecastPrecipCombined() {
+        helper.createDatabase(testDb, 90).use { db ->
+            db.execSQL(
+                "INSERT INTO forecasts (targetDate, dateOfPrediction, locationLat, locationLon, highTemp, lowTemp, " +
+                    "condition, isClimateNormal, source, lastConfirmedAt, fetchedAt, hourlyDayPrecipMax) " +
+                    "VALUES (1795046400000, 1794960000000, 37.417, -122.089, 60.0, 52.0, 'Heavy Rain', 0, 'GOOGLE_WEATHER', 5, 5, 85)",
+            )
+        }
+        val db = helper.runMigrationsAndValidate(testDb, 91, true, WeatherDatabase.MIGRATION_90_91)
+        db.query("SELECT hourlyDayPrecipMax, hourlyDayPrecipCombined, hourlyNightPrecipCombined FROM forecasts").use { c ->
+            c.moveToFirst()
+            println("migrate90To91: max=${c.getInt(0)} dayCombinedIsNull=${c.isNull(1)} nightCombinedIsNull=${c.isNull(2)}")
+            assertEquals(85, c.getInt(0))
+            assertTrue(c.isNull(1))
+            assertTrue(c.isNull(2))
+        }
+        db.execSQL("UPDATE forecasts SET hourlyDayPrecipCombined = 100, hourlyNightPrecipCombined = 99")
+        db.query("SELECT hourlyDayPrecipCombined, hourlyNightPrecipCombined FROM forecasts").use { c ->
+            c.moveToFirst()
+            assertEquals(100, c.getInt(0))
+            assertEquals(99, c.getInt(1))
+        }
+        db.close()
+    }
 }

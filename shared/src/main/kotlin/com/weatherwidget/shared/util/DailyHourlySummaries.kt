@@ -24,6 +24,10 @@ object DailyHourlySummaries {
         val nightPrecipMax: Int? = null,
         // Epoch-ms start of the first hour holding [dayPrecipMax]; set and carried with it, never alone.
         val dayPrecipPeakAt: Long? = null,
+        // The windows' chance of rain in at least one hour (CombinedRainChance), each set and carried
+        // with its window's max, never alone. plans/261117-google-combined-daily-rain-chance.md
+        val dayPrecipCombined: Int? = null,
+        val nightPrecipCombined: Int? = null,
         // The 00:00–12:00 window's fog (ForecastMorningFog); MorningFog.NONE = covered, no fog.
         val fog: com.weatherwidget.shared.fog.MorningFog? = null,
     ) {
@@ -62,6 +66,8 @@ object DailyHourlySummaries {
         val dayEnd = date.atTime(20, 0).atZone(zoneId).toInstant().toEpochMilli()
         val nightEnd = date.plusDays(1).atTime(8, 0).atZone(zoneId).toInstant().toEpochMilli()
         val maxima = DailyRainLabels.periodMaxima(rows, date, zoneId)
+        val dayCovered = windowCovered(rows, dayStart, dayEnd)
+        val nightCovered = windowCovered(rows, dayEnd, nightEnd)
         return Summary(
             noonCloudPercent = DailyNoonCloudCover.resolveMeasuredNoonCloudCoverPercent(
                 hourly = rows.map { if (it.source == null) it.copy(source = sourceId) else it },
@@ -70,9 +76,11 @@ object DailyHourlySummaries {
                 rowSourceId = sourceId,
                 zone = zoneId,
             ),
-            dayPrecipMax = maxima.dayMax.takeIf { windowCovered(rows, dayStart, dayEnd) },
-            dayPrecipPeakAt = maxima.dayPeakAt.takeIf { windowCovered(rows, dayStart, dayEnd) },
-            nightPrecipMax = maxima.nightMax.takeIf { windowCovered(rows, dayEnd, nightEnd) },
+            dayPrecipMax = maxima.dayMax.takeIf { dayCovered },
+            dayPrecipPeakAt = maxima.dayPeakAt.takeIf { dayCovered },
+            nightPrecipMax = maxima.nightMax.takeIf { nightCovered },
+            dayPrecipCombined = maxima.dayCombined.takeIf { dayCovered },
+            nightPrecipCombined = maxima.nightCombined.takeIf { nightCovered },
             fog = com.weatherwidget.shared.fog.ForecastMorningFog.forDate(rows, date, zoneId, com.weatherwidget.shared.fog.MorningFogWindow.sunriseMs(date, lat, lon)),
         )
     }
@@ -93,17 +101,21 @@ object DailyHourlySummaries {
     )
 
     /**
-     * Per field: [incoming] when present, else [prior]'s. Never null over a value. The day max and
-     * its peak hour move as a pair, so a new max never shows an older fetch's hour.
+     * Per field: [incoming] when present, else [prior]'s. Never null over a value. A window's max,
+     * combined chance and (day) peak hour move as one, so a new max never shows an older fetch's hour
+     * or combined chance.
      */
     fun carryForward(incoming: Summary, prior: Summary?): Summary {
         if (prior == null) return incoming
         val day = if (incoming.dayPrecipMax != null) incoming else prior
+        val night = if (incoming.nightPrecipMax != null) incoming else prior
         return Summary(
             noonCloudPercent = incoming.noonCloudPercent ?: prior.noonCloudPercent,
             dayPrecipMax = day.dayPrecipMax,
-            nightPrecipMax = incoming.nightPrecipMax ?: prior.nightPrecipMax,
+            nightPrecipMax = night.nightPrecipMax,
             dayPrecipPeakAt = day.dayPrecipPeakAt,
+            dayPrecipCombined = day.dayPrecipCombined,
+            nightPrecipCombined = night.nightPrecipCombined,
             // The level, top and visibility move as one value; NONE (not null) replaces an older fog.
             fog = incoming.fog ?: prior.fog,
         )
@@ -132,10 +144,15 @@ object DailyHourlySummaries {
         storedDayMax: Int?,
         storedNightMax: Int?,
         storedDayPeakAt: Long? = null,
+        // The row's combined chances (DailyHourlySummaries.Summary), paired with its maxima.
+        storedDayCombined: Int? = null,
+        storedNightCombined: Int? = null,
         zoneId: ZoneId = ZoneId.systemDefault(),
         today: LocalDate? = null,
     ): DailyRainLabels.DayNightPrecip {
-        val fromRow = liveDayNightFromRow(sitedRows, date, storedDayMax, storedNightMax, storedDayPeakAt, zoneId)
+        val fromRow = liveDayNightFromRow(
+            sitedRows, date, storedDayMax, storedNightMax, storedDayPeakAt, storedDayCombined, storedNightCombined, zoneId,
+        )
         if (today == null || date != today) return fromRow
         val withPrecip = sitedRows.filter { it.precipProbability != null }
         val dayStart = date.atTime(8, 0).atZone(zoneId).toInstant().toEpochMilli()
@@ -148,6 +165,8 @@ object DailyHourlySummaries {
             dayMax = if (dayCovered) maxima.dayMax else fromRow.dayMax,
             nightMax = if (nightCovered) maxima.nightMax else fromRow.nightMax,
             dayPeakAt = if (dayCovered) maxima.dayPeakAt else fromRow.dayPeakAt,
+            dayCombined = if (dayCovered) maxima.dayCombined else fromRow.dayCombined,
+            nightCombined = if (nightCovered) maxima.nightCombined else fromRow.nightCombined,
         )
         if (result != fromRow) {
             Log.v(TAG) {
@@ -165,6 +184,8 @@ object DailyHourlySummaries {
         storedDayMax: Int?,
         storedNightMax: Int?,
         storedDayPeakAt: Long?,
+        storedDayCombined: Int?,
+        storedNightCombined: Int?,
         zoneId: ZoneId,
     ): DailyRainLabels.DayNightPrecip {
         val storedComplete = storedDayMax != null && storedNightMax != null && storedDayPeakAt != null
@@ -176,10 +197,14 @@ object DailyHourlySummaries {
         } else {
             maxima?.dayPeakAt
         }
+        // A combined chance pairs with the max it came beside: the row's when the row has a max (null
+        // for rows written before the column — the caller then keeps the max), else the hours'.
         return DailyRainLabels.DayNightPrecip(
             dayMax = storedDayMax ?: maxima?.dayMax,
             nightMax = storedNightMax ?: maxima?.nightMax,
             dayPeakAt = dayPeakAt,
+            dayCombined = if (storedDayMax != null) storedDayCombined else maxima?.dayCombined,
+            nightCombined = if (storedNightMax != null) storedNightCombined else maxima?.nightCombined,
         )
     }
 

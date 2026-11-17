@@ -168,6 +168,17 @@ desktop's header sits above the canvas). Both shrink (`1.0/0.8/0.6`) and are omi
 fits; the actuals-source annotation also tries two lines before it is omitted
 (`DominantStationLabel.placeWrapped`).
 
+The daily view's rain chance for a day (8am–8pm) or night (8pm–8am) window is the window's max
+hourly chance (`DailyRainLabels.periodMaxima`, stored on the forecast row by `DailyHourlySummaries` so
+days past the hourly store keep it). One exception lives in `:shared` `CombinedRainChance`: Google
+(whose hourly chances stop at 85 % a day out) shows the chance of rain in at least one hour,
+`1 − ∏(1 − pₕ)`, once the window's max reaches 85 %; below that the max stands, since Google's 10 %
+drizzle floor would otherwise combine to ~72 % over a dry day. The combined value is stored beside
+the max (`forecasts.hourlyDayPrecipCombined` / `hourlyNightPrecipCombined`) and moves with it in
+`carryForward`; the peak hour stays the first hour at the max. Label, icon, bar colour, the
+source-comparison popup and the frozen `daily_history` chance all read the resolved value; the hourly
+view is unchanged (`plans/261117-google-combined-daily-rain-chance.md`).
+
 Daily night rain labels (the chance or amount between two columns) are placed by one scored search,
 `:shared` `NightRainLabelPlacer`, run from `DailyRainLabelLayout.layoutNights`
 (`plans/261116-night-rain-label-scored-placement-redesign.md`). The hosts measure ink, not line

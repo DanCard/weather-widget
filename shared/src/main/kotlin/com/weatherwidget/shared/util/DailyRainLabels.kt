@@ -20,6 +20,7 @@ import kotlin.math.log2
  * platforms render identical strings.
  */
 object DailyRainLabels {
+    private const val TAG = "DailyRainLabels"
 
     // ── Shared placement constants (consumed by both Android and desktop renderers) ───────────────
     // The drawing math stays platform-specific (Canvas vs Compose), but these dp values are the
@@ -153,6 +154,10 @@ object DailyRainLabels {
         val dayMax: Int?,
         val nightMax: Int?,
         val dayPeakAt: Long? = null,
+        // The window's chance of rain in at least one hour (CombinedRainChance.combine), paired with
+        // the max of the same rows.
+        val dayCombined: Int? = null,
+        val nightCombined: Int? = null,
     )
 
     /**
@@ -249,16 +254,25 @@ object DailyRainLabels {
         val dayStartMs = targetDate.atTime(8, 0).atZone(zoneId).toInstant().toEpochMilli()
         val dayEndMs = targetDate.atTime(20, 0).atZone(zoneId).toInstant().toEpochMilli()
         val nightEndMs = targetDate.plusDays(1).atTime(8, 0).atZone(zoneId).toInstant().toEpochMilli()
-        fun maxIn(start: Long, end: Long) = rows
-            .filter { it.dateTime in start until end }
-            .mapNotNull { it.precipProbability }
-            .maxOrNull()
-        val dayMax = maxIn(dayStartMs, dayEndMs)
+        // One chance per hour: the max of any duplicates, so the combined chance never counts an hour twice.
+        fun hoursIn(start: Long, end: Long) = rows
+            .filter { it.dateTime in start until end && it.precipProbability != null }
+            .groupBy { it.dateTime }
+            .values.map { hour -> hour.maxOf { it.precipProbability!! } }
+        val dayHours = hoursIn(dayStartMs, dayEndMs)
+        val nightHours = hoursIn(dayEndMs, nightEndMs)
+        val dayMax = dayHours.maxOrNull()
         val dayPeakAt = dayMax?.let { max ->
             rows.filter { it.dateTime in dayStartMs until dayEndMs && it.precipProbability == max }
                 .minOfOrNull { it.dateTime }
         }
-        return DayNightPrecip(dayMax = dayMax, nightMax = maxIn(dayEndMs, nightEndMs), dayPeakAt = dayPeakAt)
+        return DayNightPrecip(
+            dayMax = dayMax,
+            nightMax = nightHours.maxOrNull(),
+            dayPeakAt = dayPeakAt,
+            dayCombined = CombinedRainChance.combine(dayHours),
+            nightCombined = CombinedRainChance.combine(nightHours),
+        )
     }
 
     /**
@@ -455,12 +469,23 @@ object DailyRainLabels {
             storedDayMax = hourlySummary?.dayPrecipMax,
             storedNightMax = hourlySummary?.nightPrecipMax,
             storedDayPeakAt = hourlySummary?.dayPrecipPeakAt,
+            storedDayCombined = hourlySummary?.dayPrecipCombined,
+            storedNightCombined = hourlySummary?.nightPrecipCombined,
             zoneId = zoneId,
             today = today,
         )
+        // Google: the chance of rain in at least one hour once the window's max reaches 85%.
+        val dayShown = CombinedRainChance.shown(displaySourceId, dayNight.dayMax, dayNight.dayCombined)
+        val nightShown = CombinedRainChance.shown(displaySourceId, dayNight.nightMax, dayNight.nightCombined)
+        if (dayShown != dayNight.dayMax || nightShown != dayNight.nightMax) {
+            Log.v(TAG) {
+                "COMBINED_RAIN_CHANCE source=$displaySourceId date=$targetDate " +
+                    "day=${dayNight.dayMax}->$dayShown night=${dayNight.nightMax}->$nightShown"
+            }
+        }
         return ResolvedDailyPrecip(
-            dayPrecip = dayNight.dayMax ?: daytimePrecipProbability ?: precipProbability,
-            nightPrecip = dayNight.nightMax ?: nighttimePrecipProbability,
+            dayPrecip = dayShown ?: daytimePrecipProbability ?: precipProbability,
+            nightPrecip = nightShown ?: nighttimePrecipProbability,
             dayPeakAt = dayNight.dayPeakAt.takeIf { dayNight.dayMax != null },
         )
     }

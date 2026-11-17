@@ -191,6 +191,7 @@ class DesktopWeatherDatabase(
                     addFogPredawnColumns(stmt)
                     addColumnIfMissing(stmt, "daily_history", DAILY_HISTORY_DAY_PRECIP_PEAK_COLUMN, "INTEGER")
                     addColumnIfMissing(stmt, "hourly_forecasts", HOURLY_ISSUED_AT_COLUMN, "INTEGER")
+                    addForecastPrecipCombinedColumns(stmt)
                     stmt.execute("PRAGMA user_version = $SCHEMA_VERSION")
                 } else {
                     migrate(conn, currentVersion, SCHEMA_VERSION)
@@ -677,6 +678,12 @@ class DesktopWeatherDatabase(
             if (from < 42) {
                 addColumnIfMissing(stmt, "hourly_forecasts", HOURLY_ISSUED_AT_COLUMN, "INTEGER")
             }
+            // v43: forecasts.hourly{Day,Night}PrecipCombined, each window's chance of rain in at least
+            // one hour (CombinedRainChance). Room MIGRATION_90_91.
+            // plans/261117-google-combined-daily-rain-chance.md
+            if (from < 43) {
+                addForecastPrecipCombinedColumns(stmt)
+            }
             stmt.execute("PRAGMA user_version = $to")
         }
     }
@@ -724,6 +731,10 @@ class DesktopWeatherDatabase(
         FORECAST_FOG_COLUMNS.forEach { (column, type) -> addColumnIfMissing(stmt, "forecasts", column, type) }
         DAILY_HISTORY_FOG_COLUMNS.forEach { (column, type) -> addColumnIfMissing(stmt, "daily_history", column, type) }
         if (hasTable(stmt, "hourly_forecasts")) addColumnIfMissing(stmt, "hourly_forecasts", HOURLY_VISIBILITY_COLUMN, "REAL")
+    }
+
+    private fun addForecastPrecipCombinedColumns(stmt: java.sql.Statement) {
+        FORECAST_PRECIP_COMBINED_COLUMNS.forEach { addColumnIfMissing(stmt, "forecasts", it, "INTEGER") }
     }
 
     private fun addFogPredawnColumns(stmt: java.sql.Statement) {
@@ -838,7 +849,7 @@ class DesktopWeatherDatabase(
          * the v24 bump, even though that test is about the v22 cloud columns and not about the
          * version number at all.
          */
-        const val SCHEMA_VERSION = 42
+        const val SCHEMA_VERSION = 43
         private const val HOURLY_TABLE_MERGE_VERSION = 36
 
         /** Room's `HourlyActualEntity` declares the same columns (MIGRATION_84_85). */
@@ -913,6 +924,13 @@ class DesktopWeatherDatabase(
          */
         val FORECAST_HOURLY_SUMMARY_COLUMNS = listOf("noonCloudPercent", "hourlyDayPrecipMax", "hourlyNightPrecipMax")
         const val FORECAST_DAY_PRECIP_PEAK_COLUMN = "hourlyDayPrecipPeakAt"
+
+        /**
+         * Each daily window's chance of rain in at least one hour (`CombinedRainChance`): nullable
+         * INTEGER on `forecasts`. Shared by desktop v43 and Room MIGRATION_90_91.
+         * plans/261117-google-combined-daily-rain-chance.md
+         */
+        val FORECAST_PRECIP_COMBINED_COLUMNS = listOf("hourlyDayPrecipCombined", "hourlyNightPrecipCombined")
 
         /**
          * The morning's forecast fog on the daily row (`ForecastMorningFog`) and the provider's

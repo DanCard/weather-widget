@@ -432,6 +432,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                                     dayPrecipMax = rs.getNullableInt("hourlyDayPrecipMax"),
                                     nightPrecipMax = rs.getNullableInt("hourlyNightPrecipMax"),
                                     dayPrecipPeakAt = rs.getNullableLong("hourlyDayPrecipPeakAt"),
+                                    dayPrecipCombined = rs.getNullableInt("hourlyDayPrecipCombined"),
+                                    nightPrecipCombined = rs.getNullableInt("hourlyNightPrecipCombined"),
                                     fog = com.weatherwidget.shared.fog.MorningFog.fromColumns(
                                         rs.getNullableInt("fogLevel"), rs.getNullableFloat("fogTopTemp"), rs.getNullableFloat("fogVisibilityMi"),
                                         rs.getNullableInt("fogPredawn")?.let { it != 0 },
@@ -515,8 +517,9 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
              nativeDailyIconToken, isClimateNormal, source, precipProbability, precipAmountMm,
              daytimePrecipProbability, nighttimePrecipProbability, lastConfirmedAt, fetchedAt,
              hindcastHighTemp, hindcastLowTemp, noonCloudPercent, hourlyDayPrecipMax, hourlyNightPrecipMax,
-             hourlyDayPrecipPeakAt, fogLevel, fogTopTemp, fogVisibilityMi, fogPredawn)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             hourlyDayPrecipPeakAt, fogLevel, fogTopTemp, fogVisibilityMi, fogPredawn,
+             hourlyDayPrecipCombined, hourlyNightPrecipCombined)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """.trimIndent()
         conn.prepareStatement(sql).use { stmt ->
             // The local date of this write (shared with Android), never the UTC date.
@@ -551,6 +554,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                 stmt.setNullableFloat(24, v.summary.fog?.topTempF)
                 stmt.setNullableFloat(25, v.summary.fog?.visibilityMi)
                 stmt.setNullableInt(26, com.weatherwidget.shared.fog.MorningFog.predawnColumn(v.summary.fog)?.let { if (it) 1 else 0 })
+                stmt.setNullableInt(27, v.summary.dayPrecipCombined)
+                stmt.setNullableInt(28, v.summary.nightPrecipCombined)
                 stmt.addBatch()
             }
             stmt.executeBatch()
@@ -2147,6 +2152,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         hourlyDayPrecipMax = rs.getNullableInt("hourlyDayPrecipMax"),
                         hourlyNightPrecipMax = rs.getNullableInt("hourlyNightPrecipMax"),
                         hourlyDayPrecipPeakAt = rs.getNullableLong("hourlyDayPrecipPeakAt"),
+                        hourlyDayPrecipCombined = rs.getNullableInt("hourlyDayPrecipCombined"),
+                        hourlyNightPrecipCombined = rs.getNullableInt("hourlyNightPrecipCombined"),
                         fogLevel = rs.getNullableInt("fogLevel"),
                         fogTopTemp = rs.getNullableFloat("fogTopTemp"),
                         fogVisibilityMi = rs.getNullableFloat("fogVisibilityMi"),
@@ -2760,6 +2767,8 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                         hourlyDayPrecipMax = rs.getNullableInt("hourlyDayPrecipMax"),
                         hourlyNightPrecipMax = rs.getNullableInt("hourlyNightPrecipMax"),
                         hourlyDayPrecipPeakAt = rs.getNullableLong("hourlyDayPrecipPeakAt"),
+                        hourlyDayPrecipCombined = rs.getNullableInt("hourlyDayPrecipCombined"),
+                        hourlyNightPrecipCombined = rs.getNullableInt("hourlyNightPrecipCombined"),
                         fogLevel = rs.getNullableInt("fogLevel"),
                         fogTopTemp = rs.getNullableFloat("fogTopTemp"),
                         fogVisibilityMi = rs.getNullableFloat("fogVisibilityMi"),

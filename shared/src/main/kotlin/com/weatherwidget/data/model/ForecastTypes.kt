@@ -85,6 +85,10 @@ data class DailyForecast(
     val hourlyNightPrecipMax: Int? = null,
     // Epoch ms of the first hour holding hourlyDayPrecipMax (the daily view's peak-hour label).
     val hourlyDayPrecipPeakAt: Long? = null,
+    // Each window's chance of rain in at least one hour (CombinedRainChance), carried with its max.
+    // Null before v91 / desktop v43. plans/261117-google-combined-daily-rain-chance.md
+    val hourlyDayPrecipCombined: Int? = null,
+    val hourlyNightPrecipCombined: Int? = null,
     // The morning's fog from the same hours (ForecastMorningFog): level, burn-off °F, lowest visibility.
     val fogLevel: Int? = null,
     val fogTopTemp: Float? = null,
@@ -103,6 +107,8 @@ data class DailyForecast(
     val hourlySummary: com.weatherwidget.shared.util.DailyHourlySummaries.Summary
         get() = com.weatherwidget.shared.util.DailyHourlySummaries.Summary(
             noonCloudPercent, hourlyDayPrecipMax, hourlyNightPrecipMax, hourlyDayPrecipPeakAt,
+            dayPrecipCombined = hourlyDayPrecipCombined,
+            nightPrecipCombined = hourlyNightPrecipCombined,
             fog = com.weatherwidget.shared.fog.MorningFog.fromColumns(fogLevel, fogTopTemp, fogVisibilityMi, fogPredawn),
         )
 
@@ -111,6 +117,8 @@ data class DailyForecast(
         hourlyDayPrecipMax = summary.dayPrecipMax,
         hourlyNightPrecipMax = summary.nightPrecipMax,
         hourlyDayPrecipPeakAt = summary.dayPrecipPeakAt,
+        hourlyDayPrecipCombined = summary.dayPrecipCombined,
+        hourlyNightPrecipCombined = summary.nightPrecipCombined,
         fogLevel = summary.fog?.level,
         fogTopTemp = summary.fog?.topTempF,
         fogVisibilityMi = summary.fog?.visibilityMi,

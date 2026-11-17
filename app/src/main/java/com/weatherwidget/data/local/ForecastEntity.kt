@@ -43,6 +43,10 @@ data class ForecastEntity(
     val hourlyNightPrecipMax: Int? = null,
     // Epoch ms of the first hour holding hourlyDayPrecipMax (the daily view's peak-hour label).
     val hourlyDayPrecipPeakAt: Long? = null,
+    // Each window's chance of rain in at least one hour (CombinedRainChance), carried with its max.
+    // Null before v91 / desktop v43. plans/261117-google-combined-daily-rain-chance.md
+    val hourlyDayPrecipCombined: Int? = null,
+    val hourlyNightPrecipCombined: Int? = null,
     // The morning's fog from the same hours (ForecastMorningFog): level code, burn-off °F, lowest
     // visibility (statute miles). Level 0 = covered, no fog. plans/261111-daily-bar-morning-fog.md
     val fogLevel: Int? = null,
@@ -55,6 +59,8 @@ data class ForecastEntity(
 val ForecastEntity.hourlySummary: com.weatherwidget.shared.util.DailyHourlySummaries.Summary
     get() = com.weatherwidget.shared.util.DailyHourlySummaries.Summary(
         noonCloudPercent, hourlyDayPrecipMax, hourlyNightPrecipMax, hourlyDayPrecipPeakAt,
+        dayPrecipCombined = hourlyDayPrecipCombined,
+        nightPrecipCombined = hourlyNightPrecipCombined,
         fog = com.weatherwidget.shared.fog.MorningFog.fromColumns(fogLevel, fogTopTemp, fogVisibilityMi, fogPredawn),
     )
 
@@ -63,6 +69,8 @@ fun ForecastEntity.withHourlySummary(summary: com.weatherwidget.shared.util.Dail
     hourlyDayPrecipMax = summary.dayPrecipMax,
     hourlyNightPrecipMax = summary.nightPrecipMax,
     hourlyDayPrecipPeakAt = summary.dayPrecipPeakAt,
+    hourlyDayPrecipCombined = summary.dayPrecipCombined,
+    hourlyNightPrecipCombined = summary.nightPrecipCombined,
     fogLevel = summary.fog?.level,
     fogTopTemp = summary.fog?.topTempF,
     fogVisibilityMi = summary.fog?.visibilityMi,
@@ -86,6 +94,8 @@ fun ForecastEntity.toDailyForecast(date: java.time.LocalDate) = com.weatherwidge
     hourlyDayPrecipMax = hourlyDayPrecipMax,
     hourlyNightPrecipMax = hourlyNightPrecipMax,
     hourlyDayPrecipPeakAt = hourlyDayPrecipPeakAt,
+    hourlyDayPrecipCombined = hourlyDayPrecipCombined,
+    hourlyNightPrecipCombined = hourlyNightPrecipCombined,
     fogLevel = fogLevel,
     fogTopTemp = fogTopTemp,
     fogVisibilityMi = fogVisibilityMi,
