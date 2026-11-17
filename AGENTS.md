@@ -35,6 +35,16 @@ limits a task to one platform.
    or workflows change, check `arch/` (including `arch/ARCHITECTURE.md` and the relevant topic doc)
    and update it in the same change.
 
+### Definition of Done (before reporting completion)
+
+- [ ] **Integration test included** for multi-component changes (real SQLite DAO, Ktor pipeline, or
+  shared runner + platform host), not only mocked/in-memory unit tests.
+- [ ] **Living docs checked & deduplicated** (`rg` `arch/` for affected constants/behaviors, update the
+  single canonical doc, and link from other docs rather than repeating numbers).
+- [ ] **Doc names & links verified** when a doc's scope outgrows its filename.
+- [ ] **End-of-task gate run** (`./scripts/staggered-tests.sh --install && ./scripts/buildStart-desktop.sh`
+  for cross-platform changes).
+
 ## Architecture rules
 
 - Put shared weather behavior in `:shared`, not in parallel Android and desktop implementations.
@@ -101,7 +111,7 @@ messages in tests; they are helpful and don't cause harm. See
 
 - [Operations](arch/operations.md): device evidence, debug adb hooks, source toggles, worker
   recovery, desktop autostart/single-instance behavior, and releases.
-- [Forecast and observation cadence](arch/hourly-forecast-update-cadence.md): forecast cadence,
+- [Forecast and observation cadence](arch/forecast-and-observation-cadence.md): forecast cadence,
   worker ticks, observations, and repaint behavior.
 - [Retention and pruning](arch/data-pruning.md): active data, settled history, and snapshot cleanup.
 - [Daily-history extremes](arch/daily-history-extremes.md): actuals provenance and accuracy baselines.

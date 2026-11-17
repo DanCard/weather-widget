@@ -143,7 +143,7 @@ sqlite3 ~/.local/share/weather-widget/weather.db "BEGIN IMMEDIATE; SELECT 1;" ".
 
 Both Android and desktop use the OkHttp engine (`WeatherHttpClientDefaults` in `:shared`;
 `DesktopHttpClient` evicts idle connections after 30 s). For the timeout, HTTP-fallback, cooldown,
-and retry numbers, see [Forecast and observation cadence](hourly-forecast-update-cadence.md#transport-timeouts-ktor-retries-and-open-meteo-http-fallback).
+and retry numbers, see [Forecast and observation cadence](forecast-and-observation-cadence.md#transport-timeouts-ktor-retries-and-open-meteo-http-fallback).
 
 Shared-module `Log` output goes to logcat on Android and only to the console log
 (`~/.local/state/weather-widget/autostart-*.log`) on desktop, never to `app_logs`. In it:

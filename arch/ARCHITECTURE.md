@@ -139,7 +139,7 @@ them on the popup's details card with the shared English, kept equal to `values/
 
 Forecast cadence (every fetch LONG), observation cadence, worker wakeups, and user-triggered refreshes are
 separate concerns. The current tables are in
-[forecast and observation cadence](hourly-forecast-update-cadence.md).
+[forecast and observation cadence](forecast-and-observation-cadence.md).
 
 Provider metadata and source ordering come from `WeatherSource`, `WeatherSourceOrdering`, and coverage
 policy. A user's enabled-source list is not rewritten merely because a source cannot serve the current
