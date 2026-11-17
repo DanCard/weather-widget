@@ -17,7 +17,7 @@ import kotlinx.serialization.json.Json
  * [install]; each platform supplies only its engine and its own observers (API usage, network bytes).
  *
  * Ktor's request timeout covers the whole call **including retries and their delays**, so with a
- * per-request override such as Open-Meteo's (6 s socket / 15 s request) two socket-limit attempts
+ * per-request override such as Open-Meteo's HTTP fallback (6 s socket / 12 s request) two socket-limit attempts
  * already fill the budget.
  */
 object WeatherHttpClientDefaults {

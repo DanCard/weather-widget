@@ -53,10 +53,11 @@ class OpenMeteoApi(
             private const val PREVIOUS_RUNS_URL = "https://previous-runs-api.open-meteo.com/v1"
 
             /**
-             * Per-request timeouts for short-window Open-Meteo endpoints. Keeping
-             * [FORECAST_SOCKET_TIMEOUT_MS] below [FORECAST_REQUEST_TIMEOUT_MS] lets Ktor's
-             * `HttpRequestRetry` immediately retry a stalled socket within the 15 s budget
-             * instead of burning the whole request timeout on a single hung attempt.
+             * Per-request timeouts for short-window Open-Meteo endpoints. The HTTPS attempt uses the
+             * `FORECAST_HTTPS_*` caps with no retry so a stall fails over quickly; the `http://` fallback
+             * uses the `FORECAST_*` caps, where keeping [FORECAST_SOCKET_TIMEOUT_MS] below
+             * [FORECAST_REQUEST_TIMEOUT_MS] lets Ktor's `HttpRequestRetry` retry a stalled socket within
+             * that budget. Behavior and numbers: arch/forecast-and-observation-cadence.md.
              */
             const val FORECAST_CONNECT_TIMEOUT_MS = 5_000L
             const val FORECAST_SOCKET_TIMEOUT_MS = 6_000L

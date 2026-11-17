@@ -233,7 +233,7 @@ internal class DaemonRuntime(
     ): List<String> {
         val ordered = listOf(config.displaySource) + config.effectiveSources.filter { it != config.displaySource }
         return ordered.filter { sourceId ->
-            if (!sourceRetryState.isDue(sourceId, nowMs, ForecastSchedule.DUE_GRACE_MS)) return@filter false
+            if (!sourceRetryState.isDue(sourceId, nowMs)) return@filter false
             sourceRetryState.consume(sourceId)
             if (sourceId in cadenceDue) return@filter false
             SourceRetry.shouldFire(isCharging, screenOn, sourceId) { tag, message, lvl -> weatherDao.log(tag, message, lvl) }
@@ -1579,7 +1579,7 @@ internal class DaemonRuntime(
                     // loop at its time, not at the cadence.
                     val nextRetry = earliestSourceRetry(config, sleepNow)
                     val retryInMs = nextRetry?.let { it.second - sleepNow }
-                    val sleepMs = retryInMs?.coerceIn(ForecastSchedule.MIN_SLEEP_MS, sleep.ms) ?: sleep.ms
+                    val sleepMs = SourceRetry.loopSleepMs(retryInMs, sleep.ms)
                     weatherDao.log(
                         "FORECAST_LOOP_SLEEP",
                         if (sleepMs < sleep.ms) "sleepMin=${sleepMs / 60_000L} reason=SOURCE_RETRY next=${nextRetry?.first}" else sleep.logLine(),

@@ -31,7 +31,7 @@ class DesktopSourceRetryState(private val weatherDao: DesktopWeatherDao) {
     }
 
     /** The armed retry of [sourceId] is due at [nowMs] (within [graceMs]) and not yet consumed. */
-    fun isDue(sourceId: String, nowMs: Long, graceMs: Long): Boolean {
+    fun isDue(sourceId: String, nowMs: Long, graceMs: Long = SourceRetry.DUE_GRACE_MS): Boolean {
         val (_, message) = weatherDao.getLatestSourceRetry(sourceId) ?: return false
         if (SourceRetryLog.isConsumed(message)) return false
         return pending(sourceId)?.let { nowMs >= it.atMs - graceMs } == true

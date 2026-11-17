@@ -139,8 +139,8 @@ object WidgetWorkScheduler {
     const val SOURCE_RETRY_REASON = com.weatherwidget.shared.util.SourceRetry.REASON
 
     /**
-     * A forced sync of [sourceId] alone, [delayMs] from now: the retry of a displayed source's failed
-     * fetch ([com.weatherwidget.shared.util.SourceRetry]). A newer failure moves it ([delayedPolicy]:
+     * A forced sync of [sourceId] alone, [delayMs] from now: the retry of a source's failed fetch
+     * ([com.weatherwidget.shared.util.SourceRetry]). A newer failure moves it ([delayedPolicy]:
      * never REPLACE while it runs — the retry that failed is often the one re-arming it).
      */
     fun enqueueSourceRetrySync(context: Context, sourceId: String, delayMs: Long): OneTimeWorkRequest {

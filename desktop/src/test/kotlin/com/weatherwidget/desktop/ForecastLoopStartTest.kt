@@ -295,4 +295,86 @@ class ForecastLoopStartTest {
             dir.toFile().deleteRecursively()
         }
     }
+
+    /**
+     * plans/261117-source-retry-due-grace.md: with production defaults a 1-min retry armed during a
+     * source-change settle fires ~1 min later, not at once (2026-11-17 00:43:57 fired 59 ms after arming).
+     */
+    @Test
+    fun `a 1-min retry fires near its time with the default grace`() = runTest {
+        var retryAt: Long? = 60_000L
+        val firedAt = mutableListOf<Long>()
+        val wait = async {
+            awaitLaunch(
+                SOURCE_CYCLE_REASON,
+                null,
+                settle,
+                wake = Channel(Channel.CONFLATED),
+                nextRetryAtMs = { retryAt },
+                onRetryDue = {
+                    firedAt += currentTime
+                    retryAt = null
+                },
+                nowMs = { currentTime },
+            )
+        }
+        runCurrent()
+        println("firedAt after arming=$firedAt")
+        assertTrue("must not fire at arming", firedAt.isEmpty())
+
+        advanceTimeBy(60_000L)
+        runCurrent()
+        println("firedAt=$firedAt")
+        assertEquals(listOf(60_000L - SourceRetry.DUE_GRACE_MS), firedAt)
+        assertEquals("settle", wait.await())
+    }
+
+    /**
+     * The real chain on SQLite: a TIMEOUT through [SourceRetry.onFailure] arms rows via
+     * [DesktopSourceRetryHost], the settle reads them through [DesktopSourceRetryState] with its default
+     * grace, and each retry fails again. Attempts 1 and 2 must fire ~1 and ~2 min after their arming.
+     */
+    @Test
+    fun `retry chain on SQLite keeps its 1 and 2 min spacing during settle`() = runTest {
+        val dir = Files.createTempDirectory("forecast-loop-retry-spacing")
+        val db = DesktopWeatherDatabase(dir.resolve("weather.db")).apply { initialize() }
+        try {
+            val dao = DesktopWeatherDao(db)
+            val retryState = DesktopSourceRetryState(dao)
+            val wake = Channel<String>(Channel.CONFLATED)
+            val host = DesktopSourceRetryHost(dao, { true }, { true }) { wake.trySend("source_retry_armed") }
+            val sourceId = "OPEN_METEO"
+            val firedAt = mutableListOf<Long>()
+
+            SourceRetry.onFailure(host, sourceId, "TIMEOUT", "launch:source_change", currentTime)
+            val wait = async {
+                awaitLaunch(
+                    SOURCE_CYCLE_REASON,
+                    null,
+                    settle,
+                    wake = wake,
+                    nextRetryAtMs = { retryState.retryAtMs(sourceId, currentTime) },
+                    onRetryDue = {
+                        if (retryState.isDue(sourceId, currentTime)) {
+                            retryState.consume(sourceId)
+                            firedAt += currentTime
+                            // The retry fetch times out again and arms the next attempt.
+                            SourceRetry.onFailure(host, sourceId, "TIMEOUT", SourceRetry.REASON, currentTime)
+                        }
+                    },
+                    nowMs = { currentTime },
+                )
+            }
+            advanceTimeBy(settle - 1)
+            runCurrent()
+            println("firedAt=$firedAt pending=${retryState.pending(sourceId)}")
+            assertEquals(2, firedAt.size)
+            assertTrue("attempt 1 at ${firedAt[0]}", firedAt[0] >= 55_000L)
+            assertTrue("attempt 2 at ${firedAt[1]}", firedAt[1] - firedAt[0] >= 115_000L)
+            assertEquals(3, retryState.pending(sourceId)?.attempt)
+            assertEquals("settle", wait.await())
+        } finally {
+            dir.toFile().deleteRecursively()
+        }
+    }
 }

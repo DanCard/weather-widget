@@ -29,6 +29,26 @@ object SourceRetry {
     const val STREAK_GAP_MS = 60 * 60_000L
 
     /**
+     * Slack when judging an armed retry due, so a wake that lands a moment early still counts. It must stay
+     * well below the shortest [DELAYS_MS] entry: the forecast cadence's 2 min grace
+     * (`ForecastSchedule.DUE_GRACE_MS`) made desktop's 1- and 2-min retries due the moment they were
+     * armed, firing them back to back into the same stall (2026-11-17 00:43:57, 59 ms after arming).
+     * plans/261117-source-retry-due-grace.md
+     */
+    const val DUE_GRACE_MS = 5_000L
+
+    /** Shortest loop sleep toward an armed retry; the cadence floor (1 min) would make a near retry late. */
+    const val MIN_SLEEP_MS = 1_000L
+
+    /**
+     * How long a loop sleeps: toward the retry [retryInMs] from now when it comes before [cadenceSleepMs],
+     * else the cadence sleep. Cannot spin: a retry within [DUE_GRACE_MS] was consumed on this wake, and
+     * only future retries are passed.
+     */
+    fun loopSleepMs(retryInMs: Long?, cadenceSleepMs: Long): Long =
+        retryInMs?.coerceAtLeast(MIN_SLEEP_MS)?.coerceAtMost(cadenceSleepMs) ?: cadenceSleepMs
+
+    /**
      * A retry the [Host] has armed: due at [atMs], [delayMs] after the failure that armed it, the
      * [attempt]th of its streak (1-based).
      */

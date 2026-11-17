@@ -275,11 +275,12 @@ refresh counts only its own user refreshes (observations scope); the forecast fe
 
 ### Failed-fetch retry (`SourceRetry`, shared)
 
-A forecast fetch of a displayed source — or of any source in Settings → Refresh data, which the user asked
-for (`SourceRetry.onFailure(requested = true)`; the retry chain then runs to its cap even for a source no
-screen shows) — that fails with a transient code (`TIMEOUT`, `DNS_ERROR`,
-`CONN_REFUSED`, `SOCKET_ERROR`, `SSL_ERROR`, `HTTP_5xx`) arms a retry of that source after 1, 2, 5 and
-10 minutes (`SourceRetry.DELAYS_MS`, 4 per failure streak); a success ends the streak, and a failure
+A forecast fetch of any enabled source, shown on screen or not, that fails with a transient code
+(`TIMEOUT`, `DNS_ERROR`, `CONN_REFUSED`, `SOCKET_ERROR`, `SSL_ERROR`, `HTTP_5xx`) arms a retry of that
+source after 1, 2, 5 and 10 minutes (`SourceRetry.DELAYS_MS`, 4 per failure streak). A retry counts as
+due only within `SourceRetry.DUE_GRACE_MS` of its time, never the forecast cadence's 2 min grace, which
+made the 1- and 2-min retries due on arming
+([plans/261117-source-retry-due-grace.md](../plans/261117-source-retry-due-grace.md)); a success ends the streak, and a failure
 more than an hour after the last retry starts a fresh one. Quotas, rate limits, 4xx and `NO_COVERAGE`
 are not retried here. On battery with the screen off a retry is neither armed nor run
 (`reason=battery_screen_off`, `fire_skip`); a skipped retry ends its chain. Without it, a tap-stale
@@ -289,7 +290,8 @@ source that timed out waited for its background cadence (hours).
   forced sync targeted at the source (`weather_widget_source_retry_<id>`, reason `source_retry`,
   silent).
 - Desktop: a `SOURCE_RETRY_ARMED` contract row (`consumed=true` once it came due); the forecast loop sleeps toward it
-  (`FORECAST_LOOP_SLEEP reason=SOURCE_RETRY next=<source>`, the earliest armed retry of any source) and fetches
+  (`FORECAST_LOOP_SLEEP reason=SOURCE_RETRY next=<source>`, the earliest armed retry of any source, with a
+  1 s floor instead of the cadence's 1 min: `SourceRetry.loopSleepMs`) and fetches
   that source in full when it is due (a refresh-all's failed source is fetched through its own repository).
   During a `source_change` / `location_change` settle (`FORECAST_LOOP_START`, `retriesDuringSettle=<n>`),
   the loop still holds the 5 min cadence gate (`endedBy=settle`) while firing due retries on time via

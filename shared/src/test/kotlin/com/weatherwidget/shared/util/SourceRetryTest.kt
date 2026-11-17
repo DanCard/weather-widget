@@ -149,4 +149,20 @@ class SourceRetryTest {
         assertNull(SourceRetry.onFailure(quota, "OPEN_METEO", "QUOTA_DAILY", "request:settings", now))
         assertTrue(quota.logs.single().contains("reason=not_transient"))
     }
+
+    /** plans/261117-source-retry-due-grace.md: the cadence's 2 min grace made 1- and 2-min retries due at once. */
+    @Test
+    fun `due grace stays well below the shortest retry delay`() {
+        println("DUE_GRACE_MS=${SourceRetry.DUE_GRACE_MS} shortestDelay=${SourceRetry.DELAYS_MS.min()}")
+        assertTrue(SourceRetry.DUE_GRACE_MS < SourceRetry.DELAYS_MS.min() / 4)
+    }
+
+    @Test
+    fun `loop sleeps toward a near retry instead of the one-minute cadence floor`() {
+        val cadence = 3 * 60 * minute
+        assertEquals("retry 20 s ahead", 20_000L, SourceRetry.loopSleepMs(20_000L, cadence))
+        assertEquals("retry after the cadence wake", cadence, SourceRetry.loopSleepMs(5 * 60 * minute, cadence))
+        assertEquals("no retry", cadence, SourceRetry.loopSleepMs(null, cadence))
+        assertEquals("floor against a spin", SourceRetry.MIN_SLEEP_MS, SourceRetry.loopSleepMs(10L, cadence))
+    }
 }

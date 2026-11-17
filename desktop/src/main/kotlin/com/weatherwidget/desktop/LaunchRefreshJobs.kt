@@ -1,6 +1,6 @@
 package com.weatherwidget.desktop
 
-import com.weatherwidget.data.remote.ForecastSchedule
+import com.weatherwidget.shared.util.SourceRetry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.ReceiveChannel
@@ -135,7 +135,7 @@ internal class LaunchRefreshJobs(private val scope: CoroutineScope) {
  * [settleMs], when [forecastLoopWaitsForLaunch]; otherwise the whole [settleMs]. Returns what ended
  * the wait, for `FORECAST_LOOP_START`: `launch_done` or `settle`.
  *
- * During the `settle` branch, any `SOURCE_RETRY` whose deadline (`atMs - graceMs`) falls inside
+ * During the `settle` branch, any `SOURCE_RETRY` whose deadline (`atMs - graceMs`, [SourceRetry.DUE_GRACE_MS]) falls inside
  * the 5 min settle is served via [onRetryDue] without ending the settle for normal cadence
  * planning. [wake] signals are consumed to re-evaluate [nextRetryAtMs].
  */
@@ -146,7 +146,7 @@ internal suspend fun awaitLaunch(
     wake: ReceiveChannel<String>? = null,
     nextRetryAtMs: (() -> Long?)? = null,
     onRetryDue: (suspend () -> Unit)? = null,
-    graceMs: Long = ForecastSchedule.DUE_GRACE_MS,
+    graceMs: Long = SourceRetry.DUE_GRACE_MS,
     nowMs: () -> Long = System::currentTimeMillis,
 ): String {
     if (!forecastLoopWaitsForLaunch(reason)) {
