@@ -1027,6 +1027,42 @@ class DailyForecastGraphRendererRoboTest {
     }
 
     @Test
+    fun renderGraph_lastColumnNightRainLabelSlidesToTheCanvasEdge() {
+        // Emulator 2026-11-18: Wed "60%" (last column) sat centred under Wed's low, 1.9 dp off Tue's "85%".
+        val widthPx = 800
+        val labels = renderRainLabels(
+            days = listOf(
+                DailyForecastGraphRenderer.DayData(
+                    date = LocalDate.of(2026, 11, 24),
+                    label = "Tue",
+                    solidLineHigh = 56f,
+                    solidLineLow = 44f,
+                    rainData = DailyForecastGraphRenderer.RainLabelData(nighttimePrecipProbability = 85, nightRainLabelText = "85%"),
+                ),
+                DailyForecastGraphRenderer.DayData(
+                    date = LocalDate.of(2026, 11, 25),
+                    label = "Wed",
+                    solidLineHigh = 61f,
+                    solidLineLow = 52f,
+                    rainData = DailyForecastGraphRenderer.RainLabelData(nighttimePrecipProbability = 60, nightRainLabelText = "60%"),
+                ),
+            ),
+            widthPx = widthPx,
+            heightPx = 500,
+        )
+
+        labels.forEach { println("night label: text=${it.text} placement=${it.placement} left=${it.leftX} centre=${it.centerX} right=${it.rightX}") }
+        val tue = labels.single { it.text == "85%" }
+        val wed = labels.single { it.text == "60%" }
+        val edge = com.weatherwidget.shared.util.DailyRainLabels.RAIN_LABEL_EDGE_MARGIN_DP * context.resources.displayMetrics.density
+        assertEquals("NIGHT_AT_EDGE", wed.placement)
+        assertEquals("pushed to the edge margin", widthPx - edge, wed.rightX, 1f)
+        // Wed's column centre is 3/4 of the width; the old fallback centred the label there.
+        assertTrue("right of Wed's column centre", wed.centerX > widthPx * 0.75f + 10f)
+        assertTrue("clear of Tue's night label", wed.leftX > tue.rightX)
+    }
+
+    @Test
     fun renderGraph_nightRainLabelIsDrawnEvenWhenTooWide() {
         val labels = renderRainLabels(
             days = listOf(

@@ -44,7 +44,7 @@ class NightRainGridMapperTest {
             DailyForecastGraphRenderer.DailyRainLabelPlacement(
                 date = LocalDate.of(2026, 7, 30),
                 text = "65%",
-                placement = "NIGHT_CENTERED",
+                placement = "NIGHT_AT_EDGE",
                 kind = DailyForecastGraphRenderer.RainLabelKind.NIGHT,
                 centerX = Float.NaN,
                 baselineY = 100f,

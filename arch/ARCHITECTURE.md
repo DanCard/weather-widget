@@ -194,7 +194,9 @@ higher low's ink; linear plus squared, so big drops cost more), crowding inside 
 inside 1 dp of other ink (0.5 dp corner to corner), which is large enough that any clear spot wins.
 It never rises above the preferred row except toward a 1 dp tuck when room is short, and may pass
 the day names' ink top by 1.5 dp only between names. The 85 % size is used only when full size has
-no clear spot. Labels are placed in column order, each avoiding those already placed. Weights live
+no clear spot. The last column's gap is the canvas edge, so its label targets that gap clamped inside
+the edge margin (`NIGHT_AT_EDGE`), not the centre of its own low. Labels are placed in column order,
+each avoiding those already placed. Weights live
 in `NightRainLabelPlacer.Weights`; `nightRainLabel position` (tag `DailyRainLabelLayout`) logs the
 chosen spot, each score term, the runner-up, and every obstacle box.
 

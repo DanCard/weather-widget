@@ -38,6 +38,8 @@ class OpenMeteoHttpFallbackIntegrationTest {
             val dao = DesktopWeatherDao(db)
             val json = Json { ignoreUnknownKeys = true; isLenient = true }
             val requests = mutableListOf<String>()
+            // Today in the fixture's zone: a fixed date fell out of the snapshot the next day (2026-11-18).
+            val today = java.time.LocalDate.now(ZoneId.of("America/Los_Angeles"))
 
             val client = HttpClient(MockEngine) {
                 engine {
@@ -51,9 +53,9 @@ class OpenMeteoHttpFallbackIntegrationTest {
                             host == "api.open-meteo.com" -> """
                                 {
                                   "timezone": "America/Los_Angeles",
-                                  "current": {"time": "2026-11-17T09:00", "temperature_2m": 58.5, "weather_code": 0},
+                                  "current": {"time": "${today}T09:00", "temperature_2m": 58.5, "weather_code": 0},
                                   "daily": {
-                                    "time": ["2026-11-17"],
+                                    "time": ["$today"],
                                     "temperature_2m_max": [64.0],
                                     "temperature_2m_min": [45.0],
                                     "weather_code": [0],
@@ -61,7 +63,7 @@ class OpenMeteoHttpFallbackIntegrationTest {
                                     "precipitation_sum": [0.0]
                                   },
                                   "hourly": {
-                                    "time": ["2026-11-17T09:00"],
+                                    "time": ["${today}T09:00"],
                                     "temperature_2m": [58.5],
                                     "weather_code": [0],
                                     "precipitation_probability": [10],
@@ -74,7 +76,7 @@ class OpenMeteoHttpFallbackIntegrationTest {
                                   }
                                 }
                             """.trimIndent()
-                            host == "previous-runs-api.open-meteo.com" -> """{"timezone":"America/Los_Angeles","hourly":{"time":["2026-11-17T08:00"],"cloud_cover_previous_day1":[20]}}"""
+                            host == "previous-runs-api.open-meteo.com" -> """{"timezone":"America/Los_Angeles","hourly":{"time":["${today}T08:00"],"cloud_cover_previous_day1":[20]}}"""
                             else -> "{}"
                         }
                         respond(

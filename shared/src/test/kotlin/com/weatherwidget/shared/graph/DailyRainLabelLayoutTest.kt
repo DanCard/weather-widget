@@ -110,4 +110,25 @@ class DailyRainLabelLayoutTest {
     fun `no high label means no day label`() {
         assertNull(day(highLabelTop = null))
     }
+
+    @Test
+    fun `the last column's night label slides right to the canvas edge margin, not centred under its low`() {
+        // Emulator 2026-11-18: Wed "60%" sat centred under Wed's low (555.5), 1.9 dp off Tue's "85%".
+        val canvasWidth = 586f // the gap centre (582.5) is inside the edge margin, as on the widget
+        val columnCenterX = 555f
+        val lowInk = DailyRainLabelPlanner.Box(541f, 200f, 569f, 220f)
+        val input = DailyRainLabelLayout.NightInput(
+            date = "2026-11-25", text = "60%", probability = 60, isPast = false, daysFromToday = 7,
+            columnCenterX = columnCenterX, gapCenterX = columnCenterX + 55f / 2f, columnWidth = 55f,
+            leftLowInk = lowInk, rightLowInk = null, obstacles = listOf(lowInk),
+            floorInkTop = 300f, canvasWidth = canvasWidth, pxPerDp = 1f,
+        )
+        val label = DailyRainLabelLayout.layoutNights(host, listOf(input), "test").single()
+        val right = label.centerX + label.width / 2f
+        println("last-column night: centerX=${label.centerX} width=${label.width} right=$right top=${label.top} placement=${label.placement}")
+        assertEquals("NIGHT_AT_EDGE", label.placement)
+        assertEquals(canvasWidth - DailyRainLabels.RAIN_LABEL_EDGE_MARGIN_DP, right, 0.5f)
+        assertTrue("moved right of its column centre", label.centerX > columnCenterX + 1f)
+        assertTrue("still below its low", label.top >= lowInk.bottom)
+    }
 }

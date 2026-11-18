@@ -50,7 +50,7 @@ object DailyRainLabelLayout {
         val width: Float,
         val height: Float,
         val baseline: Float,
-        /** ABOVE_HIGH, ABOVE_RAIN, or NIGHT_SHIFTED_LEFT / NIGHT_SHIFTED_SCALED / NIGHT_CENTERED. */
+        /** ABOVE_HIGH, ABOVE_RAIN, or NIGHT_SHIFTED_LEFT / NIGHT_SHIFTED_SCALED / NIGHT_AT_EDGE. */
         val placement: String,
         /** What the label hangs from: the high label's top, the chance label's top, or the night tuck line. */
         val anchorY: Float,
@@ -211,9 +211,11 @@ object DailyRainLabelLayout {
 
     /**
      * One night label: centred in the gap between its column and the next at full size, else at
-     * [NIGHT_REDUCED_SCALE], else centred under its own low (the last column, or a label too wide
-     * for the gap). Within that mode [NightRainLabelPlacer] scores every spot; the reduced size is used
-     * only when full size has no clear spot.
+     * [NIGHT_REDUCED_SCALE], else pushed as far toward that gap as the canvas edge margin allows
+     * ("NIGHT_AT_EDGE": the last column, whose gap is the canvas edge). The night belongs after its
+     * day, so the last one slides right rather than centring under its own low, where it crowded the
+     * previous night's label (user, 2026-11-18). Within that mode [NightRainLabelPlacer] scores every
+     * spot; the reduced size is used only when full size has no clear spot.
      * Returns the label and its ink.
      */
     private fun layoutNight(
@@ -235,10 +237,10 @@ object DailyRainLabelLayout {
         fun attempt(scale: Float, placement: String): Attempt {
             val size = host.measure(input.text, Kind.NIGHT, scale)
             val ink = host.ink(input.text, Kind.NIGHT, scale) ?: DailyRainLabelPlanner.Box(0f, 0f, size.width, size.baseline)
-            val centred = placement == "NIGHT_CENTERED"
+            val centred = placement == "NIGHT_AT_EDGE"
             val target = if (centred) {
                 val half = size.width / 2f
-                input.columnCenterX.coerceIn(edge + half, (input.canvasWidth - edge - half).coerceAtLeast(edge + half))
+                input.gapCenterX.coerceIn(edge + half, (input.canvasWidth - edge - half).coerceAtLeast(edge + half))
             } else {
                 input.gapCenterX
             }
@@ -278,7 +280,7 @@ object DailyRainLabelLayout {
             }
             fitsAt(input.gapCenterX, host.measure(input.text, Kind.NIGHT, reducedScale).width) ->
                 attempt(reducedScale, "NIGHT_SHIFTED_SCALED")
-            else -> attempt(baseScale, "NIGHT_CENTERED")
+            else -> attempt(baseScale, "NIGHT_AT_EDGE")
         }
 
         val best = chosen.result.best
