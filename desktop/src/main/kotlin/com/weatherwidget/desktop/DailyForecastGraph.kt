@@ -738,11 +738,13 @@ fun DailyForecastGraph(
                 )
             }
         }
+        // The measuring pass only needs the columns' top-label extents; night rain labels sit at
+        // the bottom under the lows and do not affect DailyTopStack.solve.
+        if (measureOnly) return DailyDrawPass(topHeadroom, bottom)
+
         // Every night label is laid out, in column order, before any is drawn, so each avoids those placed before it.
         DailyRainLabelLayout.layoutNights(rainHost, deferredNightLabels.mapNotNull { it() }, PLATFORM)
             .forEach(::drawRainLabel)
-        // The measuring pass only needs the columns' top-label extents.
-        if (measureOnly) return DailyDrawPass(topHeadroom, bottom)
 
         val overlayContent = state.todayOverlay
         if (

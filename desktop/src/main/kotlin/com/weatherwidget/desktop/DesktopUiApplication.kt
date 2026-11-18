@@ -427,6 +427,18 @@ internal fun runDesktopUiApplication() = application {
                     save = {
                         configStore.save(effective)
                         config = effective
+                        // Sync cache-hit swap on source toggle: update forecast in the same
+                        // Compose state snapshot as config so Compose skips Frame #1 (new label
+                        // over old graph) and draws the new source on the very first frame.
+                        if (prev != null && effective.displaySource != prev.displaySource &&
+                            effective.lat == prev.lat && effective.lon == prev.lon
+                        ) {
+                            val cached = snapshotCache.get(DesktopSnapshotCache.keyFor(effective, effective.displaySource))
+                            if (cached != null && !holdForLocationChange(cached)) {
+                                forecast = cached
+                                DesktopSourceSwitch.onDataShown(cached.sourceId)
+                            }
+                        }
                         DesktopLocationChangeFeedback.pendingPlaceName(source, prev, effective)?.let { place ->
                             pendingLocationLabel = place
                         }
@@ -566,24 +578,29 @@ internal fun runDesktopUiApplication() = application {
                 val cfg = currentConfigState.value
                 val cacheKey = cfg?.let { DesktopSnapshotCache.keyFor(it, repo.sourceId) }
                 val memoryCached = cacheKey?.let { snapshotCache.get(it) }
-                val cached = if (memoryCached != null) {
-                    memoryCached
+                if (memoryCached != null && forecast === memoryCached) {
+                    // Already applied synchronously inside saveConfigAndNotify on the click.
+                    DesktopSourceSwitch.onDataShown(memoryCached.sourceId)
                 } else {
-                    Log.i(TAG, "Loading cached data...")
-                    repo.loadCached()?.also { loaded ->
-                        if (cacheKey != null) snapshotCache.put(cacheKey, loaded)
-                    }
-                }
-                if (cached == null) adoptEmptySource(repo, fetchEnded = false)
-                if (cached != null && !holdForLocationChange(cached)) {
-                    forecast = cached
-                    DesktopSourceSwitch.onDataShown(cached.sourceId)
-                    val lastFetch = if (memoryCached != null) {
-                        (dataStatus as? DataStatus.Live)?.updatedAt ?: System.currentTimeMillis()
+                    val cached = if (memoryCached != null) {
+                        memoryCached
                     } else {
-                        weatherDao.getLastSuccessfulFetch(cfg?.settings?.weatherSource) ?: System.currentTimeMillis()
+                        Log.i(TAG, "Loading cached data...")
+                        repo.loadCached()?.also { loaded ->
+                            if (cacheKey != null) snapshotCache.put(cacheKey, loaded)
+                        }
                     }
-                    dataStatus = DataStatus.Live(lastFetch)
+                    if (cached == null) adoptEmptySource(repo, fetchEnded = false)
+                    if (cached != null && !holdForLocationChange(cached)) {
+                        forecast = cached
+                        DesktopSourceSwitch.onDataShown(cached.sourceId)
+                        val lastFetch = if (memoryCached != null) {
+                            (dataStatus as? DataStatus.Live)?.updatedAt ?: System.currentTimeMillis()
+                        } else {
+                            weatherDao.getLastSuccessfulFetch(cfg?.settings?.weatherSource) ?: System.currentTimeMillis()
+                        }
+                        dataStatus = DataStatus.Live(lastFetch)
+                    }
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
@@ -615,6 +632,47 @@ internal fun runDesktopUiApplication() = application {
                 } catch (e: Exception) {
                     Log.e(TAG, "Fallback cache reload failed: ${e.message}")
                 }
+            }
+        }
+
+        // Background pre-warm of DesktopSnapshotCache for the other visible sources at this site,
+        // so even the very first click on an API hits RAM synchronously instead of waiting on SQLite.
+        // Waits briefly so initial popup paint settles first; cancels cleanly on site/settings/data change.
+        LaunchedEffect(
+            currentConfig?.lat,
+            currentConfig?.lon,
+            currentConfig?.settings?.visibleSources,
+            currentConfig?.settings?.personalStationDiscount,
+            currentConfig?.settings?.actualsProviders,
+            dataUpdateCount,
+        ) {
+            val cfg = currentConfig ?: return@LaunchedEffect
+            val service = weatherService ?: return@LaunchedEffect
+            delay(600)
+            val sources = cfg.effectiveSources
+            for (srcId in sources) {
+                val key = DesktopSnapshotCache.keyFor(cfg, srcId)
+                if (snapshotCache.get(key) != null) continue
+                try {
+                    val prewarmRepo = DesktopWeatherRepository(
+                        service,
+                        weatherDao,
+                        cfg.lat,
+                        cfg.lon,
+                        srcId,
+                        cfg.personalStationWeight(),
+                        radarNowSampler = service.radarNowSampler,
+                    )
+                    val loaded = prewarmRepo.loadCached()
+                    if (loaded != null) {
+                        snapshotCache.put(key, loaded)
+                    }
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.v(TAG, "Pre-warm loadCached($srcId) skipped: ${e.message}")
+                }
+                kotlinx.coroutines.yield()
             }
         }
 

@@ -68,3 +68,26 @@
 ## Verification
 
 - `./scripts/staggered-tests.sh --install && ./scripts/buildStart-desktop.sh`: **7,199 unit tests passed** (3,582 shared, 940 desktop, 2,677 Android), **128 emulator tests passed**, installed on 3 Android devices, desktop distributable built and restarted, and live toggles verified in `app_logs`.
+
+## Round 2 follow-up (sync cache swap, pre-warm, measureOnly skip, coarse-to-fine placer)
+
+### Additional user prompts
+10. "I'd like to experiment with multi-step draw. Can we show the new api before night labels are drawn and then add them after? I'm wondering if this will improve perceived speed. Any other ideas for improving perceived speed?"
+11. "Should we try all of them?"
+12. "proceed"
+13. "continue, I hit <ctrl>-o but that exited the session :("
+14. "One click seemed slow, the rest were fast"
+15. "I don't think those timings are correct. Can you try clicking fast through the APIs? I doubt you will get those speeds."
+16. "wow, you did get super fast speeds, I'm surprised"
+17. "commit"
+
+### Round 2 changes
+1. [DailyForecastGraph.kt](../desktop/src/main/kotlin/com/weatherwidget/desktop/DailyForecastGraph.kt): moved `if (measureOnly) return DailyDrawPass(topHeadroom, bottom)` above `DailyRainLabelLayout.layoutNights(...)` so night rain labels are no longer laid out twice back-to-back per frame.
+2. [NightRainLabelPlacer.kt](../shared/src/main/kotlin/com/weatherwidget/shared/graph/NightRainLabelPlacer.kt) (`:shared`, both platforms): added coarse-to-fine search (stride-3 / 1.5 dp coarse pass → full 0.5 dp refinement around top 12 coarse seeds) with early band rejection inside `inkBands`, bringing all 7 night labels down to ~7 ms total (~1 ms each).
+3. [DesktopUiApplication.kt](../desktop/src/main/kotlin/com/weatherwidget/desktop/DesktopUiApplication.kt):
+   - Sync cache-hit swap inside `saveConfigAndNotify` so `config` and `forecast` update in the same Compose state snapshot (eliminating wasted Frame #1).
+   - Background pre-warm `LaunchedEffect` (600 ms idle delay) to populate `DesktopSnapshotCache` for all visible sources so even the first click on each API is a RAM hit.
+
+### Round 2 verification
+- `./scripts/staggered-tests.sh --install && ./scripts/buildStart-desktop.sh`: **7,199 unit tests passed**, **128 emulator tests passed**, installed on 3 Android devices, desktop app rebuilt and restarted.
+- 14 consecutive rapid toggles (2 full cycles of all 7 APIs at ~165 ms spacing via `xdotool`): **14/14 completed in 34–82 ms external wall-clock** (**30–78 ms** `phase=rendered`, median **39 ms**; `data_ready` **1–19 ms**).
