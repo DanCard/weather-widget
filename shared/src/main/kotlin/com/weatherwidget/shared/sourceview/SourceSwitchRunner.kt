@@ -140,5 +140,16 @@ class SourceSwitchRunner(
         /** The [E2E_TAG] line for a platform whose data lands after the switch's critical path. */
         fun dataReadyLine(platform: String, fromId: String, toId: String, trigger: SourceViewTrigger, sinceSwitchMs: Long): String =
             "platform=$platform from=$fromId to=$toId trigger=$trigger phase=data_ready sinceSwitchMs=$sinceSwitchMs"
+
+        /** The [E2E_TAG] line once the first frame drawing the new source has completed. */
+        fun renderedLine(
+            platform: String,
+            fromId: String,
+            toId: String,
+            trigger: SourceViewTrigger,
+            sinceSwitchMs: Long,
+            renderMs: Long,
+        ): String =
+            "platform=$platform from=$fromId to=$toId trigger=$trigger phase=rendered sinceSwitchMs=$sinceSwitchMs renderMs=$renderMs"
     }
 }

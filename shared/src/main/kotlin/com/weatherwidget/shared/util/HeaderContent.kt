@@ -135,6 +135,25 @@ object HeaderContent {
     /** A rain % as [build] would show it: its text and font-size multiplier. */
     data class PrecipLabel(val text: String, val fontScale: Float)
 
+    /** The header's rain % looks 6 h ahead; 1 h back covers the current hour and +7 h covers the end hour. */
+    const val PRECIP_RESERVE_LOOKBACK_HOURS = 1L
+    const val PRECIP_RESERVE_LOOKAHEAD_HOURS = 7L
+
+    /**
+     * Epoch-ms range [precipLabels] needs across all sources. Both Android (`HeaderWidthChecker`)
+     * and desktop (`DesktopWeatherRepository`) query `allSourcesHourly` over this window instead of
+     * scanning weeks of history.
+     */
+    fun precipReserveWindowMs(
+        now: LocalDateTime,
+        centerTime: LocalDateTime = now,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): LongRange {
+        val fromMs = minOf(now, centerTime).minusHours(PRECIP_RESERVE_LOOKBACK_HOURS).atZone(zone).toInstant().toEpochMilli()
+        val toMs = maxOf(now, centerTime).plusHours(PRECIP_RESERVE_LOOKAHEAD_HOURS).atZone(zone).toInstant().toEpochMilli()
+        return fromMs..toMs
+    }
+
     /**
      * The rain % [build] would show for each of [sourceIds] (null where hidden), by the same rule,
      * so a header can reserve room for the widest and a source tap does not move what sits beside

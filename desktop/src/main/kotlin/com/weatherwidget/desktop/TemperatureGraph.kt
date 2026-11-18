@@ -225,35 +225,50 @@ fun TemperatureGraph(
     // every mouse move and re-run the blend below.
     val nowDotTarget = remember { NowDotTarget() }
     val nowDotHovered = remember { mutableStateOf(false) }
-    // Hoisted out of the Canvas draw lambda so the hover overlay can read the blend's station
-    // breakdown; the draw block closes over it unchanged. Deliberately not `remember`ed — `now` is
-    // recomputed each composition, so a key on it would churn and only look like caching.
-    val actualSeries = ActualTemperatureSeriesBuilder.build(
-        hourlyForecasts = hourly,
-        observations = observations,
-        centerTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(center), zoneId),
-        displaySourceId = displaySourceId,
-        userLat = latitude,
-        userLon = longitude,
-        backHours = backHours.toLong(),
-        forwardHours = forwardHours.toLong(),
-        // Scale the blend context with the visible span (zoom now reaches 30 days back) so the
-        // actual line spans the whole window, not just the legacy 6-day context. Floors keep
-        // near-zoom behavior identical.
-        contextLookbackHours = maxOf(ACTUALS_CONTEXT_LOOKBACK_HOURS, backHours.toLong() + ACTUALS_CONTEXT_EDGE_PAD_HOURS),
-        contextLookaheadHours = maxOf(ACTUALS_CONTEXT_LOOKAHEAD_HOURS, forwardHours.toLong() + ACTUALS_CONTEXT_EDGE_PAD_HOURS),
-        now = LocalDateTime.ofInstant(Instant.ofEpochMilli(now), zoneId),
-        zoneId = zoneId,
-        smoothedForecasts = null, // raw: builder uses forecast.temperature, matching the line + Android
-        personalStationWeight = personalStationWeight,
-        // Names the thermometer behind the observed line for the dominant-station label below. The
-        // blend runs either way; this only asks it to keep the top-weight row for the newest point.
-        captureLatestDominantAtOrBeforeMs = now,
-        // Every contributor behind the newest point, for the now-dot hover overlay. captureMeta is
-        // already on for the dominant label above, so this only retains rows already computed.
-        captureBreakdowns = 1,
-        archivedTemps = com.weatherwidget.data.model.HourlyActualsHistory.temperatures(hourlyActuals),
-    )
+    // Remembered per-minute and on data/window inputs so unrelated recompositions (hover, header
+    // updates, redundant reloads) do not re-run the blend on the Compose UI thread.
+    val nowMinuteBucket = now / 60_000L
+    val actualSeries = remember(
+        hourly,
+        observations,
+        center,
+        displaySourceId,
+        latitude,
+        longitude,
+        backHours,
+        forwardHours,
+        nowMinuteBucket,
+        zoneId,
+        personalStationWeight,
+        hourlyActuals,
+    ) {
+        ActualTemperatureSeriesBuilder.build(
+            hourlyForecasts = hourly,
+            observations = observations,
+            centerTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(center), zoneId),
+            displaySourceId = displaySourceId,
+            userLat = latitude,
+            userLon = longitude,
+            backHours = backHours.toLong(),
+            forwardHours = forwardHours.toLong(),
+            // Scale the blend context with the visible span (zoom now reaches 30 days back) so the
+            // actual line spans the whole window, not just the legacy 6-day context. Floors keep
+            // near-zoom behavior identical.
+            contextLookbackHours = maxOf(ACTUALS_CONTEXT_LOOKBACK_HOURS, backHours.toLong() + ACTUALS_CONTEXT_EDGE_PAD_HOURS),
+            contextLookaheadHours = maxOf(ACTUALS_CONTEXT_LOOKAHEAD_HOURS, forwardHours.toLong() + ACTUALS_CONTEXT_EDGE_PAD_HOURS),
+            now = LocalDateTime.ofInstant(Instant.ofEpochMilli(now), zoneId),
+            zoneId = zoneId,
+            smoothedForecasts = null, // raw: builder uses forecast.temperature, matching the line + Android
+            personalStationWeight = personalStationWeight,
+            // Names the thermometer behind the observed line for the dominant-station label below. The
+            // blend runs either way; this only asks it to keep the top-weight row for the newest point.
+            captureLatestDominantAtOrBeforeMs = now,
+            // Every contributor behind the newest point, for the now-dot hover overlay. captureMeta is
+            // already on for the dominant label above, so this only retains rows already computed.
+            captureBreakdowns = 1,
+            archivedTemps = com.weatherwidget.data.model.HourlyActualsHistory.temperatures(hourlyActuals),
+        )
+    }
 
 
     val dominantStationId = actualSeries.latestDominantContribution?.contribution?.stationId

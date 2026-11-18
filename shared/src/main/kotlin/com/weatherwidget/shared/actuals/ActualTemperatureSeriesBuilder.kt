@@ -349,8 +349,23 @@ object ActualTemperatureSeriesBuilder {
         // survives the read-path site collapse.
         // Sorting HERE keeps every caller deterministic — Android, desktop, and ActualsAggregator all
         // reach this function with their own queries. See ActualsRowOrderDeterminismTest.
-        val sourceFiltered = observations
-            .filter { !it.qcFailed && matchesObservationSource(it, displaySourceId) }
+        // Slice inputs to the timestamps that can influence [startMs..endMs]: full local days
+        // overlapping [startMs..endMs] (so dominantStationByDay is bit-for-bit identical) plus the
+        // ±3h interpolation/extrapolation reach on each edge. Callers such as desktop's 30-day
+        // snapshot pass weeks of observations into a 15h or 18h blend window; skipping irrelevant
+        // days avoids normalizing, sorting, and blending thousands of discarded points on both
+        // Android and desktop (performance/261118-desktop-api-toggle-latency.md).
+        val reachPadMs = maxOf(MAX_INTERPOLATION_GAP_MS, MAX_EXTRAPOLATION_GAP_MS)
+        val firstDayStartMs = Instant.ofEpochMilli(startMs).atZone(zoneId).toLocalDate()
+            .atStartOfDay(zoneId).toInstant().toEpochMilli()
+        val lastDayEndMs = Instant.ofEpochMilli(endMs).atZone(zoneId).toLocalDate().plusDays(1)
+            .atStartOfDay(zoneId).toInstant().toEpochMilli() - 1L
+        val relevantStartMs = minOf(startMs - reachPadMs, firstDayStartMs)
+        val relevantEndMs = maxOf(endMs + reachPadMs, lastDayEndMs)
+
+        val sourceFiltered = observations.filter {
+            it.timestamp in relevantStartMs..relevantEndMs && !it.qcFailed && matchesObservationSource(it, displaySourceId)
+        }
         val actualsProviderId = ActualsProviderResolver.providerIdFor(WeatherSource.fromId(displaySourceId))
         // All providers enter the blend through one native-timestamp timeline. Tomorrow.io's
         // five-minute product is one logical feed; other providers retain physical station ids.
@@ -375,7 +390,13 @@ object ActualTemperatureSeriesBuilder {
             .values
             .sortedBy { it.dateTime }
         val byStation = filtered.groupBy { it.stationId }.mapValues { it.value.sortedBy { obs -> obs.timestamp } }
-        val candidateTimes = filtered.map { it.timestamp }.distinct().sorted()
+        val anchorByStation = byStation.mapValues { it.value.minByOrNull { obs -> obs.distanceKm } }
+        val candidateTimes = filtered.asSequence()
+            .map { it.timestamp }
+            .filter { it in startMs..endMs }
+            .distinct()
+            .sorted()
+            .toList()
         val result = mutableListOf<ObservationReading>()
         val candidates = mutableListOf<DecayBlendInput>()
         // Parallel to [candidates] by index, populated only while capturing, so the hot render path
@@ -440,7 +461,7 @@ object ActualTemperatureSeriesBuilder {
                     )
                     soleContributorId = if (candidates.size == 1) stationId else null
                     if (resolved.anchorTs > bestAnchorTs) bestAnchorTs = resolved.anchorTs
-                    if (anchorStation == null) anchorStation = stationObs.minByOrNull { it.distanceKm }
+                    if (anchorStation == null) anchorStation = anchorByStation[stationId]
                     when (resolved.sourceKind) {
                         "observed" -> hasObserved = true
                         "interpolated" -> hasInterpolated = true

@@ -227,18 +227,30 @@ class DesktopWeatherRepository(
         // The bands' frozen forecast, from our own snapshots under the REAL source id — the
         // Previous Runs API serves no band data (see PriorDayBandForecast).
         val priorCloudBands = weatherDao.getPriorDayBandForecast(latitude, longitude, weatherSource, stitchedStart, now)
-        val retroCloudResult = weatherDao.getCloudActuals(latitude, longitude, stitchedStart, now, weatherSource)
         val hourlyActuals = weatherDao.getHourlyActuals(latitude, longitude, weatherSource, stitchedStart, now)
+
+        // Cover the widest zoom-out (MAX_BACK_HOURS) plus MetarCloudBlender's bucket pad in ONE
+        // SQLite read, then reuse those rows for cloud actuals, temperature resolution, and daily
+        // actuals instead of scanning observations twice (performance/261118-desktop-api-toggle-latency.md).
+        val obsStart = minOf(stitchedStart, com.weatherwidget.shared.observations.CloudHourBucket.readStartMs(stitchedStart))
+        val obsEnd = maxOf(now + (2 * 3600 * 1000L), com.weatherwidget.shared.observations.CloudHourBucket.readEndMs(now))
+        val allLoadedObservations = weatherDao.getObservationsInRange(obsStart, obsEnd, latitude, longitude)
+            .map { it.toReading() }
+        val retroCloudResult = com.weatherwidget.shared.actuals.MetarCloudBlender.fromSiteRows(
+            startMs = stitchedStart,
+            endMs = now,
+            sourceId = weatherSource,
+        ) { readStart, readEnd ->
+            allLoadedObservations.filter { it.timestamp in readStart until readEnd }
+        }
         val retroCloud = HourlyActualsHistory.merge(retroCloudResult.hours, HourlyActualsHistory.cloud(hourlyActuals))
         val dominantCloudContribution = retroCloudResult.dominantContribution
-        
-        // Cover the widest zoom-out (6 days back) so the actual line spans the whole window,
-        // matching the hourly read above. Observations exist ~7-14 days back (NWS HISTORY_DAYS=7,
-        // 18-month retention); only the read window was capping the actual line at 2 days.
-        val obsStart = now - (DesktopGraphUtils.MAX_BACK_HOURS * 3600 * 1000L)
-        val obsEnd = now + (2 * 3600 * 1000L) // Include some cushion
-        val observations = weatherDao.getObservationsInRange(obsStart, obsEnd, latitude, longitude)
-            .map { it.toReading() }
+        val observations = if (obsStart == stitchedStart && obsEnd == now + (2 * 3600 * 1000L)) {
+            allLoadedObservations
+        } else {
+            val baseEnd = now + (2 * 3600 * 1000L)
+            allLoadedObservations.filter { it.timestamp in stitchedStart until baseEnd }
+        }
 
         // The range query returns every API's observations; the displayed current condition /
         // "observed at" must come ONLY from the displayed source's actuals provider. Without this
@@ -304,10 +316,16 @@ class DesktopWeatherRepository(
             retroCloudBands = HourlyActualsHistory.merge(retroCloudResult.bands, HourlyActualsHistory.cloudBands(hourlyActuals)),
             hourlyActuals = hourlyActuals,
             dominantCloudContribution = dominantCloudContribution,
-            // The header reserves room for the widest source's rain % (HeaderContent.precipLabels).
-            allSourcesHourly = weatherDao.getHourlySettledAllSources(
-                latitude, longitude, stitchedStart, now + HourlyOnDemand.REACH_HOURS * 3_600_000L, now,
-            ),
+            // The header reserves room for the widest source's rain % (HeaderContent.precipLabels);
+            // query the shared near-term window instead of 40 days of history.
+            allSourcesHourly = run {
+                val zone = ZoneId.systemDefault()
+                val nowLocal = java.time.Instant.ofEpochMilli(now).atZone(zone).toLocalDateTime()
+                val precipWindow = com.weatherwidget.shared.util.HeaderContent.precipReserveWindowMs(nowLocal, nowLocal, zone)
+                weatherDao.getHourlySettledAllSources(
+                    latitude, longitude, precipWindow.first, precipWindow.last, now,
+                )
+            },
         )
     }
 

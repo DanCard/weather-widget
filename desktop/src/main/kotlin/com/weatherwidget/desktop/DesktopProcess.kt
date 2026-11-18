@@ -191,6 +191,17 @@ fun sourceListEditLaunchAction(cachePresent: Boolean): LaunchRefreshAction =
         LaunchRefreshAction.NONE
     }
 
+/**
+ * Whether [DaemonRuntime.runLaunchRefresh] should notify the UI after loading its own cache
+ * (before deciding whether to fetch). On a source toggle or source-list edit, the UI initiated the
+ * config change and already loads/caches its own snapshot; pushing a redundant `notifyDataUpdated`
+ * when nothing was fetched caused 2 extra UI `loadCached()` runs per click
+ * (performance/261118-desktop-api-toggle-latency.md). Any subsequent network fetch still notifies
+ * when it finishes.
+ */
+fun launchCacheNotifiesUi(reason: String): Boolean =
+    reason != SOURCE_CYCLE_REASON && reason != SOURCE_LIST_EDIT_REASON
+
 enum class LaunchRefreshAction {
     FULL_FORECAST,
     OBSERVATIONS,

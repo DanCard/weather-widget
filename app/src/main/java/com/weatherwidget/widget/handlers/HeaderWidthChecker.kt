@@ -214,16 +214,15 @@ object HeaderWidthChecker {
     ): HeaderLine.Inputs {
         val sourceIds = SourceCoverage.effectiveSources(stateManager.getVisibleSourcesOrder().map { it.id }, lat, lon)
         val zone = java.time.ZoneId.systemDefault()
-        val fromMs = minOf(now, centerTime).minusHours(1).atZone(zone).toInstant().toEpochMilli()
-        val toMs = maxOf(now, centerTime).plusHours(LINE_RAIN_WINDOW_HOURS).atZone(zone).toInstant().toEpochMilli()
+        val precipWindow = HeaderContent.precipReserveWindowMs(now, centerTime, zone)
         val database = com.weatherwidget.data.local.WeatherDatabase.getDatabase(context)
         val rows = GraphDataLoader.loadSettledHourlyForecasts(
             database.hourlyForecastDao(),
             database.hourlyForecastHistoryDao(),
             lat,
             lon,
-            fromMs,
-            toMs,
+            precipWindow.first,
+            precipWindow.last,
             sourceIds + com.weatherwidget.data.model.WeatherSource.GENERIC_GAP.id,
             now.atZone(zone).toInstant().toEpochMilli(),
         )
@@ -236,9 +235,6 @@ object HeaderWidthChecker {
             widthDp = widthDp,
         )
     }
-
-    /** The header's rain % looks 6 h ahead; one more covers the hour it starts in. */
-    private const val LINE_RAIN_WINDOW_HOURS = 7L
 
     /** The daily header's date, reserved by every header's line so it matches across views. */
     fun nominalDate(today: java.time.LocalDate): String = today.format(DailyViewHandler.headerDateFormatter())

@@ -23,6 +23,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -161,7 +162,17 @@ internal fun WidgetPopup(
                 var dailyObservationsInView by remember { mutableStateOf(true) }
                 var dailyHomeDateOffset by remember { mutableStateOf(0) }
                 val toggleWeatherSource = { cycleDisplaySource(config, onUpdateConfig) }
-                Column(modifier = Modifier.fillMaxSize().padding(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 2.dp)) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .drawWithContent {
+                            drawContent()
+                            if (snapshotIsSelectedSource) {
+                                DesktopSourceSwitch.onFrameRendered(snapshot.sourceId)
+                            }
+                        }
+                        .padding(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 2.dp),
+                ) {
                     // Measured for the daily graph's DailyTopStack: its top labels may overlap the
                     // header by a shared fraction of this height.
                     Box(modifier = Modifier.fillMaxWidth().onSizeChanged { headerHeightPx = it.height.toFloat() }) {
@@ -512,15 +523,35 @@ internal fun WidgetPopup(
                                 widthDp = maxWidth.value.roundToInt(),
                                 heightDp = maxHeight.value.roundToInt(),
                             )
-                            val dailyState = DesktopDailyForecastModel.build(
-                                config = config,
-                                forecast = snapshot,
-                                dimensions = dimensions,
-                                now = nowOverrideMs
-                                    ?.let { java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneId.systemDefault()).toLocalDateTime() }
-                                    ?: java.time.LocalDateTime.now(),
-                                currentTemp = displayCurrentTemp,
-                            )
+                            val nowMinuteBucket = (nowOverrideMs ?: System.currentTimeMillis()) / 60_000L
+                            // Key on the config fields DesktopDailyForecastModel actually reads (NOT
+                            // config.settings.weatherSource), so a source click does not rebuild the
+                            // old snapshot's daily model before the new snapshot arrives.
+                            val dailyState = remember(
+                                snapshot,
+                                dimensions,
+                                nowMinuteBucket,
+                                displayCurrentTemp,
+                                config.lat,
+                                config.lon,
+                                config.dateOffset,
+                                config.dailyExtraHistory,
+                                config.settings.useCelsius,
+                                config.settings.showFuturePriorForecast,
+                                config.settings.todayOverlayDelta,
+                                config.settings.todayOverlayDominantTemp,
+                                config.settings.personalStationDiscount,
+                            ) {
+                                DesktopDailyForecastModel.build(
+                                    config = config,
+                                    forecast = snapshot,
+                                    dimensions = dimensions,
+                                    now = nowOverrideMs
+                                        ?.let { java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneId.systemDefault()).toLocalDateTime() }
+                                        ?: java.time.LocalDateTime.now(),
+                                    currentTemp = displayCurrentTemp,
+                                )
+                            }
 
                             // Report today's on-screen status up to the header: it decides whether
                             // to show the current-observations button and which date the

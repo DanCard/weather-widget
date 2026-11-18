@@ -208,4 +208,13 @@ class HeaderContentTest {
             }
         }
     }
+
+    @Test
+    fun `precipReserveWindowMs spans 1h before earliest to 7h after latest of now and center`() {
+        val now = LocalDateTime.of(2026, 11, 18, 14, 0)
+        val panned = now.plusHours(4)
+        val window = HeaderContent.precipReserveWindowMs(now, panned, zone)
+        assertEquals(now.minusHours(1).atZone(zone).toInstant().toEpochMilli(), window.first)
+        assertEquals(panned.plusHours(7).atZone(zone).toInstant().toEpochMilli(), window.last)
+    }
 }

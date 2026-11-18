@@ -1146,10 +1146,15 @@ internal fun TextLayoutResult.inkBox(fromX: Float = 0f, toX: Float = size.width.
     return com.weatherwidget.shared.graph.InkScan.opaqueBounds(pixels.height, x0, x1) { x, y -> pixels[x, y].alpha > 0.1f }
 }
 
-/** The text's ink as row bands [bandPx] tall ([com.weatherwidget.shared.graph.InkScan.rowBands]), relative to its box's top-left. */
+private val inkBandsCache = java.util.concurrent.ConcurrentHashMap<String, List<DailyRainLabelPlanner.Box>>()
+
+/** The text's ink as row bands [bandPx] tall ([com.weatherwidget.shared.graph.InkScan.rowBands]), relative to its box's top-left (cached). */
 internal fun TextLayoutResult.inkBands(bandPx: Int): List<DailyRainLabelPlanner.Box> {
-    val pixels = inkPixels()
-    return com.weatherwidget.shared.graph.InkScan.rowBands(pixels.height, 0, pixels.width, bandPx) { x, y -> pixels[x, y].alpha > 0.1f }
+    val key = "${layoutInput.text}|${layoutInput.style.fontSize}|${size.width}x${size.height}|$bandPx"
+    return inkBandsCache.getOrPut(key) {
+        val pixels = inkPixels()
+        com.weatherwidget.shared.graph.InkScan.rowBands(pixels.height, 0, pixels.width, bandPx) { x, y -> pixels[x, y].alpha > 0.1f }
+    }
 }
 
 private val iconBandCache = java.util.concurrent.ConcurrentHashMap<String, List<DailyRainLabelPlanner.Box>>()

@@ -38,8 +38,14 @@ internal object DesktopSourceSwitch {
     @Volatile
     private var deferredScope: CoroutineScope = defaultScope()
 
-    /** The switch whose new data has not reached the UI yet, for [onDataShown]. */
-    private data class Pending(val from: String, val to: String, val trigger: SourceViewTrigger, val startMs: Long)
+    /** The switch whose new data has not reached the UI and rendered yet, for [onDataShown] / [onFrameRendered]. */
+    private data class Pending(
+        val from: String,
+        val to: String,
+        val trigger: SourceViewTrigger,
+        val startMs: Long,
+        val dataReadyMs: Long? = null,
+    )
 
     @Volatile
     private var pending: Pending? = null
@@ -88,9 +94,33 @@ internal object DesktopSourceSwitch {
      */
     fun onDataShown(sourceId: String) {
         val switch = pending ?: return
+        if (sourceId != switch.to || switch.dataReadyMs != null) return
+        val now = elapsedMs()
+        pending = switch.copy(dataReadyMs = now)
+        val line = SourceSwitchRunner.dataReadyLine("desktop", switch.from, switch.to, switch.trigger, now - switch.startMs)
+        Log.i(TAG, "${SourceSwitchRunner.E2E_TAG} $line")
+        DesktopAppLogQueue.log(SourceSwitchRunner.E2E_TAG, line, "INFO")
+    }
+
+    /**
+     * The first Compose draw pass containing [sourceId] has finished (`drawWithContent` after
+     * `drawContent()`). Logs `SOURCE_SWITCH_E2E phase=rendered sinceSwitchMs= renderMs=` — the true
+     * click-to-pixels time including composition, UI-thread blend/overlay compute, layout, and Canvas draw.
+     */
+    fun onFrameRendered(sourceId: String) {
+        val switch = pending ?: return
         if (sourceId != switch.to) return
+        val readyAt = switch.dataReadyMs ?: return
         pending = null
-        val line = SourceSwitchRunner.dataReadyLine("desktop", switch.from, switch.to, switch.trigger, elapsedMs() - switch.startMs)
+        val now = elapsedMs()
+        val line = SourceSwitchRunner.renderedLine(
+            platform = "desktop",
+            fromId = switch.from,
+            toId = switch.to,
+            trigger = switch.trigger,
+            sinceSwitchMs = now - switch.startMs,
+            renderMs = (now - readyAt).coerceAtLeast(0L),
+        )
         Log.i(TAG, "${SourceSwitchRunner.E2E_TAG} $line")
         DesktopAppLogQueue.log(SourceSwitchRunner.E2E_TAG, line, "INFO")
     }

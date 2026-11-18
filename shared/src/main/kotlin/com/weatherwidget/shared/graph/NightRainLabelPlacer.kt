@@ -104,32 +104,202 @@ object NightRainLabelPlacer {
         weights: Weights = DEFAULT_WEIGHTS,
     ): Result {
         val p = density
+        val invP = 1f / p
         val step = (weights.stepDp * p).coerceAtLeast(0.5f)
         val inkCentreOffset = (ink.left + ink.right) / 2f - width / 2f
+        val halfW = width / 2f
         val maxTop = max(minTop, maxInkBottom - ink.bottom)
-        val spots = ArrayList<Spot>()
+        val comfortPx = weights.comfortDp * p
+        val clearDp = weights.clearanceDp
+        val cornerClearDp = weights.cornerClearanceDp
+        val comfortDp = weights.comfortDp
+        val crowdW = weights.crowd
+        val intrusionW = weights.intrusion
+
+        // Pre-filter obstacles to those within comfortPx of ANY candidate spot's ink box, and
+        // flatten to primitive FloatArrays so the inner loop allocates zero Box/Spot objects
+        // (performance/261118-desktop-api-toggle-latency.md).
+        val searchCenterMin = max(minLeft + halfW, targetCenterX - maxShift - inkCentreOffset)
+        val searchCenterMax = min(maxRight - halfW, targetCenterX + maxShift - inkCentreOffset)
+        val searchLeft = searchCenterMin - halfW + ink.left - comfortPx
+        val searchRight = searchCenterMax - halfW + ink.right + comfortPx
+        val searchTop = minTop + ink.top - comfortPx
+        val searchBottom = maxTop + ink.bottom + comfortPx
+
+        val nearObs = obstacles.filter { o ->
+            o.right > searchLeft && o.left < searchRight && o.bottom > searchTop && o.top < searchBottom
+        }
+        val oCount = nearObs.size
+        val oLeft = FloatArray(oCount)
+        val oTop = FloatArray(oCount)
+        val oRight = FloatArray(oCount)
+        val oBottom = FloatArray(oCount)
+        for (i in 0 until oCount) {
+            val o = nearObs[i]
+            oLeft[i] = o.left
+            oTop[i] = o.top
+            oRight[i] = o.right
+            oBottom[i] = o.bottom
+        }
+
+        val bandCount = inkBands.size
+        val useBands = bandCount > 1
+        val bLeft = if (useBands) FloatArray(bandCount) { inkBands[it].left } else FloatArray(0)
+        val bTop = if (useBands) FloatArray(bandCount) { inkBands[it].top } else FloatArray(0)
+        val bRight = if (useBands) FloatArray(bandCount) { inkBands[it].right } else FloatArray(0)
+        val bBottom = if (useBands) FloatArray(bandCount) { inkBands[it].bottom } else FloatArray(0)
+
+        val nxEst = ((2f * maxShift / step).toInt() + 2).coerceAtLeast(1)
+        val nyEst = (((maxTop - minTop) / step).toInt() + 2).coerceAtLeast(1)
+        val cap = nxEst * nyEst
+        var spotCx = FloatArray(cap)
+        var spotTop = FloatArray(cap)
+        var spotScore = FloatArray(cap)
+        var spotCount = 0
+
+        var bestIdx = -1
+        var bestScore = Float.POSITIVE_INFINITY
+        var bestDyPref = Float.POSITIVE_INFINITY
+        var bestDxTarget = Float.POSITIVE_INFINITY
+
         var dx = -maxShift
         while (dx <= maxShift + 0.01f) {
             val centerX = targetCenterX + dx - inkCentreOffset
-            if (centerX - width / 2f >= minLeft - 0.01f && centerX + width / 2f <= maxRight + 0.01f) {
+            if (centerX - halfW >= minLeft - 0.01f && centerX + halfW <= maxRight + 0.01f) {
+                val left = centerX - halfW
+                val lLeft = left + ink.left
+                val lRight = left + ink.right
+                val offDp = ((lLeft + lRight) * 0.5f - targetCenterX) * invP
+                val centreCost = weights.centre * offDp * offDp
+                val dxTarget = abs(centerX + inkCentreOffset - targetCenterX)
+
+                // Narrow obstacle indices to those horizontally within comfortPx of this column.
+                val colObsIdx = IntArray(oCount)
+                var colObsCount = 0
+                for (i in 0 until oCount) {
+                    val hdx = max(lLeft - oRight[i], oLeft[i] - lRight)
+                    if (hdx < comfortPx) {
+                        colObsIdx[colObsCount++] = i
+                    }
+                }
+
                 var top = minTop
                 while (top <= maxTop + 0.01f) {
-                    spots += score(centerX, top, width, ink, inkBands, targetCenterX, preferredTop, obstacles, p, weights)
+                    val dyDp = (top - preferredTop) * invP
+                    val verticalCost = if (dyDp > 0f) {
+                        weights.below * dyDp + weights.belowSquared * dyDp * dyDp
+                    } else {
+                        weights.above * -dyDp
+                    }
+                    val lTop = top + ink.top
+                    val lBottom = top + ink.bottom
+                    var crowdCost = 0f
+                    var intrusionCost = 0f
+
+                    for (k in 0 until colObsCount) {
+                        val i = colObsIdx[k]
+                        val obTop = oTop[i]
+                        val obBottom = oBottom[i]
+                        val ody = max(lTop - obBottom, obTop - lBottom)
+                        if (ody >= comfortPx) continue
+                        val obLeft = oLeft[i]
+                        val obRight = oRight[i]
+                        val odx = max(lLeft - obRight, obLeft - lRight)
+                        var g = rawGap(odx, ody)
+                        if (g >= comfortPx) continue
+                        var shortDp = (if (odx > 0f && ody > 0f) cornerClearDp else clearDp) - g * invP
+                        if (useBands) {
+                            g = Float.POSITIVE_INFINITY
+                            shortDp = Float.NEGATIVE_INFINITY
+                            for (j in 0 until bandCount) {
+                                val bdY = max(top + bTop[j] - obBottom, obTop - (top + bBottom[j]))
+                                val bdX = max(left + bLeft[j] - obRight, obLeft - (left + bRight[j]))
+                                val bg = rawGap(bdX, bdY)
+                                if (bg < g) g = bg
+                                val bs = (if (bdX > 0f && bdY > 0f) cornerClearDp else clearDp) - bg * invP
+                                if (bs > shortDp) shortDp = bs
+                            }
+                        }
+                        val gapDp = g * invP
+                        if (gapDp < comfortDp) crowdCost += crowdW * (comfortDp - max(gapDp, 0f))
+                        if (shortDp > 0f) intrusionCost += intrusionW * shortDp
+                    }
+
+                    val totalScore = centreCost + verticalCost + crowdCost + intrusionCost
+                    if (spotCount == spotCx.size) {
+                        val newCap = spotCx.size * 2
+                        spotCx = spotCx.copyOf(newCap)
+                        spotTop = spotTop.copyOf(newCap)
+                        spotScore = spotScore.copyOf(newCap)
+                    }
+                    val idx = spotCount++
+                    spotCx[idx] = centerX
+                    spotTop[idx] = top
+                    spotScore[idx] = totalScore
+
+                    val dyPref = abs(top - preferredTop)
+                    if (
+                        totalScore < bestScore ||
+                        (totalScore == bestScore && (dyPref < bestDyPref || (dyPref == bestDyPref && dxTarget < bestDxTarget)))
+                    ) {
+                        bestIdx = idx
+                        bestScore = totalScore
+                        bestDyPref = dyPref
+                        bestDxTarget = dxTarget
+                    }
                     top += step
                 }
             }
             dx += step
         }
-        if (spots.isEmpty()) {
+
+        if (bestIdx < 0) {
             // Too wide for the canvas limits: centred on the target, on the preferred row.
             val centerX = targetCenterX - inkCentreOffset
             return Result(score(centerX, preferredTop, width, ink, inkBands, targetCenterX, preferredTop, obstacles, p, weights), null)
         }
-        val sorted = spots.sortedWith(compareBy({ it.score }, { abs(it.top - preferredTop) }, { abs(it.centerX + inkCentreOffset - targetCenterX) }))
-        val best = sorted.first()
+
+        val bestCx = spotCx[bestIdx]
+        val bestTop = spotTop[bestIdx]
+        val best = score(bestCx, bestTop, width, ink, inkBands, targetCenterX, preferredTop, obstacles, p, weights)
+
         // The runner-up worth naming in the trace: the best spot more than 2 dp away.
-        val runnerUp = sorted.firstOrNull { hypot(it.centerX - best.centerX, it.top - best.top) > 2f * p }
+        val minFarDistSq = (2f * p) * (2f * p)
+        var runnerIdx = -1
+        var runnerScore = Float.POSITIVE_INFINITY
+        var runnerDyPref = Float.POSITIVE_INFINITY
+        var runnerDxTarget = Float.POSITIVE_INFINITY
+        for (i in 0 until spotCount) {
+            val s = spotScore[i]
+            if (s > runnerScore) continue
+            val ddx = spotCx[i] - bestCx
+            val ddy = spotTop[i] - bestTop
+            if (ddx * ddx + ddy * ddy <= minFarDistSq) continue
+            val dyPref = abs(spotTop[i] - preferredTop)
+            val dxTarget = abs(spotCx[i] + inkCentreOffset - targetCenterX)
+            if (
+                s < runnerScore ||
+                (s == runnerScore && (dyPref < runnerDyPref || (dyPref == runnerDyPref && dxTarget < runnerDxTarget)))
+            ) {
+                runnerIdx = i
+                runnerScore = s
+                runnerDyPref = dyPref
+                runnerDxTarget = dxTarget
+            }
+        }
+        val runnerUp = if (runnerIdx >= 0) {
+            score(spotCx[runnerIdx], spotTop[runnerIdx], width, ink, inkBands, targetCenterX, preferredTop, obstacles, p, weights)
+        } else {
+            null
+        }
         return Result(best, runnerUp)
+    }
+
+    private fun rawGap(dx: Float, dy: Float): Float = when {
+        dx >= 0f && dy >= 0f -> hypot(dx, dy)
+        dx >= 0f -> dx
+        dy >= 0f -> dy
+        else -> max(dx, dy)
     }
 
     private fun score(

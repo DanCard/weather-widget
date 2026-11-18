@@ -312,7 +312,7 @@ object DailyRainLabelLayout {
                 " runnerUp=${runner?.let { "(${it.centerX.r()},${it.top.r()},${it.score.r()})" }}" +
                 " ink=(${labelInk.left.r()},${labelInk.top.r()},${labelInk.right.r()},${labelInk.bottom.r()})" +
                 " floorInkTop=${input.floorInkTop.r()} edgeMargin=${edge.r()} bitmapScale=${input.bitmapScale}" +
-                " obstacles=${obstacles.joinToString(";", "[", "]") { "${it.left.r()},${it.top.r()},${it.right.r()},${it.bottom.r()}" }}",
+                " obstacles=${obstacles.size}",
         )
         return label to labelInk
     }

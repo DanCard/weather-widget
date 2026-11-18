@@ -263,12 +263,20 @@ internal fun runDesktopUiApplication() = application {
         // live DB, so this is always current. rememberUpdatedState keeps the repository reference fresh
         // so a lambda captured once (e.g. in a LaunchedEffect(Unit) watcher) still sees the latest repo.
         val currentRepository = rememberUpdatedState(repository)
+        val currentConfigState = rememberUpdatedState(currentConfig)
+        val snapshotCache = remember { DesktopSnapshotCache() }
+        val reloadDeduplicator = remember { DesktopReloadDeduplicator() }
+        var activeReloadJob by remember { mutableStateOf<Job?>(null) }
         // The one way a finished load reaches the popup: only from the repository still selected.
         // false = dropped, see [DesktopSnapshotPublish].
         fun publishIfCurrent(repo: DesktopWeatherRepository, snapshot: ForecastSnapshot, origin: String): Boolean {
             val current = currentRepository.value
             if (DesktopSnapshotPublish.isCurrent(repo, current)) {
                 forecast = snapshot
+                currentConfigState.value?.let { cfg ->
+                    snapshotCache.put(DesktopSnapshotCache.keyFor(cfg, snapshot.sourceId), snapshot)
+                }
+                DesktopSourceSwitch.onDataShown(snapshot.sourceId)
                 return true
             }
             val line = DesktopSnapshotPublish.dropLine(repo.sourceId, current?.sourceId, origin)
@@ -291,8 +299,11 @@ internal fun runDesktopUiApplication() = application {
         }
         val reloadCachedForecast: (String) -> Unit = remember {
             fn@{ reason: String ->
+                if (!reloadDeduplicator.shouldRun(reason)) return@fn
                 val repo = currentRepository.value ?: return@fn
-                uiScope.launch {
+                snapshotCache.invalidateAll()
+                activeReloadJob?.cancel()
+                activeReloadJob = uiScope.launch {
                     try {
                         val cached = repo.loadCached()
                         if (cached == null) {
@@ -551,16 +562,31 @@ internal fun runDesktopUiApplication() = application {
         LaunchedEffect(repository) {
             val repo = repository ?: return@LaunchedEffect
             try {
-                Log.i(TAG, "Loading cached data...")
                 noDataSourceId = null
-                val cached = repo.loadCached()
+                val cfg = currentConfigState.value
+                val cacheKey = cfg?.let { DesktopSnapshotCache.keyFor(it, repo.sourceId) }
+                val memoryCached = cacheKey?.let { snapshotCache.get(it) }
+                val cached = if (memoryCached != null) {
+                    memoryCached
+                } else {
+                    Log.i(TAG, "Loading cached data...")
+                    repo.loadCached()?.also { loaded ->
+                        if (cacheKey != null) snapshotCache.put(cacheKey, loaded)
+                    }
+                }
                 if (cached == null) adoptEmptySource(repo, fetchEnded = false)
                 if (cached != null && !holdForLocationChange(cached)) {
                     forecast = cached
                     DesktopSourceSwitch.onDataShown(cached.sourceId)
-                    val lastFetch = weatherDao.getLastSuccessfulFetch(currentConfig?.settings?.weatherSource)
-                    dataStatus = DataStatus.Live(lastFetch ?: System.currentTimeMillis())
+                    val lastFetch = if (memoryCached != null) {
+                        (dataStatus as? DataStatus.Live)?.updatedAt ?: System.currentTimeMillis()
+                    } else {
+                        weatherDao.getLastSuccessfulFetch(cfg?.settings?.weatherSource) ?: System.currentTimeMillis()
+                    }
+                    dataStatus = DataStatus.Live(lastFetch)
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to load initial cache: ${e.message}")
             }
@@ -576,7 +602,10 @@ internal fun runDesktopUiApplication() = application {
                 if (!resumed && now - lastReloadMs < UI_FALLBACK_RELOAD_MS) continue
                 if (!fallbackReloadAdmitted(resumed)) continue
                 try {
-                    repo.loadCached()?.takeUnless { holdForLocationChange(it) }?.let { forecast = it }
+                    snapshotCache.invalidateAll()
+                    repo.loadCached()?.takeUnless { holdForLocationChange(it) }?.let { loaded ->
+                        publishIfCurrent(repo, loaded, "fallback")
+                    }
                     // Also re-evaluates the status banner (see the dataUpdateCount-keyed effect).
                     dataUpdateCount++
                     lastReloadMs = now

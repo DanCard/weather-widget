@@ -93,11 +93,15 @@ A source switch (API button, daily home button) logs `SOURCE_SWITCH_E2E` on both
 `phase=critical … persistMs= paintMs= criticalMs=` as soon as the new source is painted, then
 `phase=done … refresh=<QUEUED|FRESH|DELEGATED|SKIPPED|FAILED> deferredMs=`, also stored in `app_logs`.
 A missing `phase=done` line after a `phase=critical` line means the deferred phase is stuck. Desktop
-`paintMs` is ~0: Compose repaints from the saved config, and the daemon's reload follows
-(`LAUNCH_REFRESH_CHECK reason=source_change`). Desktop therefore adds
-`phase=data_ready sinceSwitchMs=` once the UI holds the new source's data, about 600 ms normally.
-Until then the header updates in two parts: the source label moves on the click, and rain, icon and the
-rest stay on the snapshot's own source (`ForecastSnapshot.sourceId`). `HEADER_CONTENT` logs both on either
+`paintMs` is ~0: Compose repaints from the saved config, while the UI serves from its in-memory
+per-source snapshot cache (`DesktopSnapshotCache`, invalidated on daemon updates) or loads once from
+SQLite, and the daemon checks staleness independently (`LAUNCH_REFRESH_CHECK reason=source_change`,
+notifying the UI only when an actual fetch runs). Desktop therefore adds two post-critical lines:
+`phase=data_ready sinceSwitchMs=` once the UI holds the new source's snapshot, and
+`phase=rendered sinceSwitchMs= renderMs=` after the first Compose draw pass containing that snapshot
+finishes (`DesktopSourceSwitch.onFrameRendered`). Until `data_ready`, the header updates in two parts:
+the source label moves on the click, and rain, icon and the rest stay on the snapshot's own source
+(`ForecastSnapshot.sourceId`). `HEADER_CONTENT` logs both on either
 platform, as `source=` (the data) and `label=`. The graphs and daily columns also draw for
 `ForecastSnapshot.sourceId`, so the old source's complete view stays up until the new data arrives, and
 the hourly pan check waits for it too. `NAN_TEMP_INDICES` right after `CONFIG_SAVE` means something is
@@ -116,7 +120,7 @@ origin=`). A dropped result's rows are stored; a refresh then reloads through th
 bypassed this check. Compare `HEADER_CONTENT source=` with `label=`.
 
 Desktop breadcrumbs written from code that must not wait on the database (`CURR_TEMP_RESULT`,
-`CURRENT_STATUS_PUBLISH`, `CONFIG_SAVE`, refresh notices, `data_ready`) go through
+`CURRENT_STATUS_PUBLISH`, `CONFIG_SAVE`, refresh notices, `data_ready`, `rendered`) go through
 `DesktopAppLogQueue`: one `app-log-writer` thread per process, rows stamped when logged. Written inline,
 a `CURR_TEMP_RESULT` row held both processes' source-change reloads for the 5 s busy timeout.
 
