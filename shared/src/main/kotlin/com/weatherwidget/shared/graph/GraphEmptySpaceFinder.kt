@@ -358,6 +358,12 @@ object RainAmountLabelPlacer {
         graphBottom: Float,
         graphHeight: Float,
         initialCollisionBounds: List<GraphRect>,
+        /**
+         * The rain-chance curve's vertices (x ascending). A label the line passes through is not a
+         * clear placement. Required so no caller can skip it: the Fold 4 drew "Act .4in" on the
+         * line on 2026-11-18 (plans/261118-rain-amount-labels-avoid-curve.md). Empty = no curve.
+         */
+        curvePoints: List<Pair<Float, Float>>,
         labelPrefix: String = "",
         /** True for the observed ("Act") series: a trace-only period reads "trace". */
         observed: Boolean = false,
@@ -383,6 +389,7 @@ object RainAmountLabelPlacer {
             var bestY = 0f
             var bestBounds = GraphRect.Zero
             var bestOverlapArea = Float.MAX_VALUE
+            var bestCrossesCurve = true
             var found = false
 
             val candidateXs = period.anchorX?.let { listOf(it) }
@@ -402,7 +409,8 @@ object RainAmountLabelPlacer {
 
                     val paddedBounds = candidateBounds.inflate(paddingPx)
                     val overlapping = rainCollisionBounds.filter { it.intersects(paddedBounds) }
-                    if (overlapping.isEmpty()) {
+                    val crossesCurve = curveCrosses(paddedBounds, curvePoints)
+                    if (overlapping.isEmpty() && !crossesCurve) {
                         bestX = cx
                         bestY = cy
                         bestBounds = candidateBounds
@@ -411,12 +419,18 @@ object RainAmountLabelPlacer {
                         break@outer
                     }
 
+                    // Fallback order: least overlap with other labels first (text over text is
+                    // unreadable), then clear of the curve. Pricing a crossing as label area let
+                    // "Act" land on "Pred" to dodge a steep climb (Fold 4, 2026-11-18).
                     val overlapArea = overlapping.sumOf { existing ->
                         existing.intersectionArea(paddedBounds).toDouble()
                     }.toFloat()
+                    val better = overlapArea < bestOverlapArea ||
+                        (overlapArea == bestOverlapArea && bestCrossesCurve && !crossesCurve)
 
-                    if (overlapArea < bestOverlapArea) {
+                    if (better) {
                         bestOverlapArea = overlapArea
+                        bestCrossesCurve = crossesCurve
                         bestX = cx
                         bestY = cy
                         bestBounds = candidateBounds
@@ -431,5 +445,27 @@ object RainAmountLabelPlacer {
             }
         }
         return placements
+    }
+
+    /** Spacing (px) between curve samples across a label box. */
+    private const val CURVE_SAMPLE_STEP_PX = 4f
+
+    /**
+     * True when the curve passes through [box]: a sampled y lies inside it, or the curve is above
+     * the box at one sample and below it at the next (a steep segment between samples).
+     */
+    internal fun curveCrosses(box: GraphRect, curvePoints: List<Pair<Float, Float>>): Boolean {
+        if (curvePoints.size < 2) return false
+        val samples = maxOf(2, kotlin.math.ceil(box.width / CURVE_SAMPLE_STEP_PX).toInt())
+        var previousAbove: Boolean? = null
+        for (i in 0..samples) {
+            val x = box.left + box.width * (i.toFloat() / samples)
+            val y = SimLoopPill.curveYAt(curvePoints, x) ?: continue
+            if (y in box.top..box.bottom) return true
+            val above = y < box.top
+            if (previousAbove != null && previousAbove != above) return true
+            previousAbove = above
+        }
+        return false
     }
 }

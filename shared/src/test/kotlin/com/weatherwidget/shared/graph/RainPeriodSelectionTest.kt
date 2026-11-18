@@ -230,4 +230,29 @@ class RainPeriodSelectionTest {
         assertEquals("24 hours x 1mm", 24f, periods.forecast.single().totalAmountMm)
         assertEquals("4 elapsed hours x 0.5mm", 2f, periods.actual.single().totalAmountMm)
     }
+
+    @Test
+    fun `an actual period in a segment spanning NOW is anchored over its elapsed hours`() {
+        // 2026-11-18 desktop, Silurian: NOW at 12:00 inside the 8a-8p day run; "Act .28in" was
+        // centred at 2p (the whole run's midpoint), i.e. right of NOW, reading as future rain.
+        val hourWidth = 10f
+        val nowIndex = 12
+        val hours = dayOfHours(
+            forecastByHour = { 2f },
+            actualByHour = { i -> if (i < nowIndex) 1f else null },
+        )
+
+        val periods = RainPeriodSelection.selectPeriods(hours, RainPeriodSelection.Mode.DAY_NIGHT, hourWidth)
+        val dayActual = periods.actual.single { it.startIndex == 8 }
+        val dayForecast = periods.forecast.single { it.startIndex == 8 }
+        println("dayActual=$dayActual dayForecast=$dayForecast")
+
+        assertEquals("Actual ends at the last elapsed hour", nowIndex - 1, dayActual.endIndex)
+        assertEquals("Actual end label follows the trimmed range", "11h", dayActual.endLabel)
+        assertEquals("Anchored at the elapsed midpoint (8..11)", hourWidth * (8 + 11) / 2f, dayActual.anchorX!!, 0.001f)
+        assertTrue("Actual anchor is left of NOW", dayActual.anchorX!! < hourWidth * nowIndex)
+        assertEquals("Total = 4 elapsed hours x 1mm", 4f, dayActual.totalAmountMm)
+        assertEquals("Forecast keeps the whole run", 19, dayForecast.endIndex)
+        assertEquals("Forecast anchor unchanged", hourWidth * (8 + 19) / 2f, dayForecast.anchorX!!, 0.001f)
+    }
 }

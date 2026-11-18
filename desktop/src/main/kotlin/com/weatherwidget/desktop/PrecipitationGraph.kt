@@ -266,6 +266,7 @@ fun PrecipitationGraph(
         val forecastRainPeriods = selectedRain.forecast
         val actualRainPeriods = selectedRain.actual
 
+        val rainCurvePoints = coords.map { it.x to it.y }
         val rainPlacements = calculateRainAmountPlacements(
             rainPeriods = forecastRainPeriods,
             widthPx = w,
@@ -273,6 +274,7 @@ fun PrecipitationGraph(
             graphBottom = graphBottom,
             graphHeight = graphHeight,
             initialCollisionBounds = drawnLabels,
+            curvePoints = rainCurvePoints,
             labelPrefix = "Pred ",
             textMeasurer = textMeasurer,
             textStyle = TextStyle(fontSize = (10 * scale).sp, color = COLOR_RAIN_AMOUNT, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
@@ -285,6 +287,7 @@ fun PrecipitationGraph(
             graphBottom = graphBottom,
             graphHeight = graphHeight,
             initialCollisionBounds = drawnLabels + rainPlacements.map { it.bounds },
+            curvePoints = rainCurvePoints,
             labelPrefix = "Act ",
             observed = true,
             textMeasurer = textMeasurer,
@@ -474,6 +477,7 @@ private fun calculateRainAmountPlacements(
     graphBottom: Float,
     graphHeight: Float,
     initialCollisionBounds: List<Rect>,
+    curvePoints: List<Pair<Float, Float>>,
     labelPrefix: String = "",
     observed: Boolean = false,
     textMeasurer: androidx.compose.ui.text.TextMeasurer,
@@ -490,6 +494,7 @@ private fun calculateRainAmountPlacements(
         graphBottom = graphBottom,
         graphHeight = graphHeight,
         initialCollisionBounds = sharedBounds,
+        curvePoints = curvePoints,
         labelPrefix = labelPrefix,
         observed = observed,
         measureText = { textMeasurer.measure(it, textStyle).size.width.toFloat() },

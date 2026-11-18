@@ -694,4 +694,101 @@ class PrecipitationGraphRendererTest {
             layout.probabilityPlacements.all { it.debug.probability in signal },
         )
     }
+
+    @Test
+    fun `DAY_NIGHT Act label for a run spanning NOW is placed left of NOW`() {
+        // 2026-11-18: "Act .28in" drawn right of NOW at the 8a-8p run's midpoint. Through the real
+        // layout: shared selection + RainAmountLabelPlacer + this renderer's NOW geometry.
+        val hours = dayNightHours(
+            predByHour = { 2f },
+            actualByHour = { i -> if (i < 12) 1f else null },
+        ).mapIndexed { i, h -> h.copy(isCurrentHour = i == 12) }
+
+        val layout = PrecipitationGraphRenderer.calculateLayout(
+            hours = hours,
+            widthPx = 1000,
+            heightPx = 420,
+            currentTime = LocalDateTime.of(2026, 5, 20, 12, 0),
+            rainLabelMode = com.weatherwidget.shared.graph.RainPeriodSelection.Mode.DAY_NIGHT,
+            showHourlyIcons = false,
+            textMeasurer = mockTextMeasurer,
+        )
+        val nowX = checkNotNull(layout.nowX) { "NOW is inside the window" }
+        val acts = layout.actualRainAmountPlacements
+        val preds = layout.rainAmountPlacements
+        println("nowX=$nowX acts=${acts.map { it.text to it.x }} preds=${preds.map { it.text to it.x }}")
+
+        assertEquals("Night 0-7 and day 8-11 actuals", 2, acts.size)
+        assertTrue("Every Act label centre is left of NOW", acts.all { it.x < nowX })
+        assertTrue("The day Pred label still sits over the future part of its run", preds.any { it.x > nowX })
+    }
+
+    /** True when the polyline [curve] passes through [box] (sampled every 2px across its width). */
+    private fun curveThrough(box: PrecipitationGraphRenderer.PrecipRect, curve: List<Pair<Float, Float>>): Boolean {
+        fun yAt(x: Float): Float? {
+            if (x < curve.first().first || x > curve.last().first) return null
+            val i = curve.indexOfLast { it.first <= x }.coerceAtMost(curve.size - 2)
+            val (x0, y0) = curve[i]
+            val (x1, y1) = curve[i + 1]
+            return if (x1 == x0) y0 else y0 + (y1 - y0) * (x - x0) / (x1 - x0)
+        }
+        var prevAbove: Boolean? = null
+        var x = box.left
+        while (x <= box.right) {
+            val y = yAt(x)
+            if (y != null) {
+                if (y in box.top..box.bottom) return true
+                val above = y < box.top
+                if (prevAbove != null && prevAbove != above) return true
+                prevAbove = above
+            }
+            x += 2f
+        }
+        return false
+    }
+
+    @Test
+    fun `Fold 4 plateau day - no rain amount label sits on the curve`() {
+        // Fold 4, 2026-11-18: chance 25% at 3a climbing to a ~90% plateau 7a-2p, NOW 12:00;
+        // "Act .4in" drew on the line at 9a.
+        val start = LocalDateTime.of(2026, 11, 18, 3, 0)
+        val probs = listOf(25, 45, 70, 85, 88, 89, 90, 91, 91, 90, 90, 88, 60, 47, 55, 60, 63)
+        val hours = probs.mapIndexed { i, prob ->
+            val t = start.plusHours(i.toLong())
+            PrecipitationGraphRenderer.PrecipHourData(
+                dateTime = t,
+                precipProbability = prob,
+                precipAmountMm = 2f,
+                actualPrecipAmountMm = if (t.hour < 12) 1f else null,
+                label = "${t.hour}h",
+                showLabel = true,
+                isCurrentHour = t.hour == 12,
+            )
+        }
+
+        val layout = PrecipitationGraphRenderer.calculateLayout(
+            hours = hours,
+            widthPx = 1000,
+            heightPx = 420,
+            currentTime = LocalDateTime.of(2026, 11, 18, 12, 0),
+            rainLabelMode = com.weatherwidget.shared.graph.RainPeriodSelection.Mode.DAY_NIGHT,
+            showHourlyIcons = false,
+            textMeasurer = mockTextMeasurer,
+        )
+        val labels = layout.rainAmountPlacements + layout.actualRainAmountPlacements
+        println("fold-plateau labels=${labels.map { it.text to it.bounds }} curve=${layout.points}")
+
+        assertTrue("Pred and Act labels placed", labels.any { it.text.startsWith("Act ") } && labels.any { it.text.startsWith("Pred ") })
+        // Text over text is the worse failure: no two rain-amount labels may overlap, even where a
+        // steep climb (3a-7a) leaves no row clear of the curve.
+        for (i in labels.indices) for (j in i + 1 until labels.size) {
+            val a = labels[i].bounds
+            val b = labels[j].bounds
+            val overlap = a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom
+            assertFalse("${labels[i].text} overlaps ${labels[j].text}: $a vs $b", overlap)
+        }
+        // The 9a-noon Act label sits under the plateau, where a clear row exists: never on the line.
+        val dayAct = labels.single { it.text.startsWith("Act ") && it.x > layout.points[4].first }
+        assertFalse("Day Act ${dayAct.bounds} crossed by the curve", curveThrough(dayAct.bounds, layout.points))
+    }
 }

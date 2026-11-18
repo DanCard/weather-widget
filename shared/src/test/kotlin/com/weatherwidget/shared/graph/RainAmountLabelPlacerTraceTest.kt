@@ -29,6 +29,7 @@ class RainAmountLabelPlacerTraceTest {
             graphBottom = 200f,
             graphHeight = 200f,
             initialCollisionBounds = emptyList(),
+            curvePoints = emptyList(),
             labelPrefix = prefix,
             observed = observed,
             measureText = { it.length * 6f },

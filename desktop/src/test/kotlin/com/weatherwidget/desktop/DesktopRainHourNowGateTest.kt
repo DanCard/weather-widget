@@ -166,4 +166,24 @@ class DesktopRainHourNowGateTest {
 
         assertTrue("Unmeasured hours are null, not 0", rows.all { it.actualPrecipAmountMm == null })
     }
+
+    @Test
+    fun `an actual in a day run spanning NOW is anchored left of NOW`() {
+        // 2026-11-18 desktop screenshot: "Act .28in" right of NOW at 12:00. Desktop seam + shared
+        // selection end-to-end.
+        val hourWidth = 10f
+        val points = (0 until 24).map { forecastHour(it, 2f) }
+        val observations = (8 until 12).map { observation(it, 1f) }
+
+        val periods = RainPeriodSelection.selectPeriods(
+            hours = buildRainHours(points, observations, now = epoch(12)),
+            mode = RainPeriodSelection.Mode.DAY_NIGHT,
+            hourWidth = hourWidth,
+        )
+        val act = periods.actual.single()
+        println("act=$act forecast=${periods.forecast}")
+
+        assertEquals("Four elapsed day hours x 1mm", 4f, act.totalAmountMm)
+        assertTrue("Act anchor ${act.anchorX} left of NOW x ${hourWidth * 12}", act.anchorX!! < hourWidth * 12)
+    }
 }

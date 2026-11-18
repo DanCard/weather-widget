@@ -78,6 +78,18 @@ object RainPeriodSelection {
     ) {
         fun centerX(hourWidth: Float): Float = hourWidth * (startIndex + endIndex) / 2f
 
+        /**
+         * This segment cut back to its last hour with a non-null [amountFor] value, or null when it
+         * has none. For the actual series that is the elapsed part of the segment (callers null
+         * every hour that has not elapsed), so the label anchors over hours that have already
+         * happened, never past NOW. Observed 2026-11-18: "Act .28in" centred at 2p for an 8a-8p
+         * day run at 12p. See plans/261118-actual-rain-label-anchor-elapsed-hours.md.
+         */
+        fun trimmedToLastValue(hours: List<RainHour>, amountFor: (RainHour) -> Float?): DayNightSegment? {
+            val last = (endIndex downTo startIndex).firstOrNull { amountFor(hours[it]) != null } ?: return null
+            return copy(endIndex = last)
+        }
+
         /** Sums [amountFor] over the segment; null when the segment has no rain of that kind. */
         fun toRainPeriod(
             hours: List<RainHour>,
@@ -112,12 +124,16 @@ object RainPeriodSelection {
         windowHours: Int = 0,
     ): RainPeriods = when (mode) {
         Mode.DAY_NIGHT -> {
-            // Both series use the SAME segments on purpose: the day/night anchors are regions of
-            // the window, so forecast and actual totals for one region must land in one place.
+            // Both series are chosen from the SAME segments, so a region's forecast and actual totals
+            // describe one region. The actual is then trimmed to the region's elapsed hours: a
+            // segment that spans NOW would otherwise centre "Act" over the future.
             val segments = selectDayNightSegments(hours)
+            val actualOf: (RainHour) -> Float? = { h -> h.actualPrecipAmountMm }
             RainPeriods(
                 forecast = segments.mapNotNull { it.toRainPeriod(hours, hourWidth) { h -> h.precipAmountMm } },
-                actual = segments.mapNotNull { it.toRainPeriod(hours, hourWidth) { h -> h.actualPrecipAmountMm } },
+                actual = segments.mapNotNull { seg ->
+                    seg.trimmedToLastValue(hours, actualOf)?.toRainPeriod(hours, hourWidth, actualOf)
+                },
             )
         }
         Mode.PER_HOUR -> RainPeriods(
