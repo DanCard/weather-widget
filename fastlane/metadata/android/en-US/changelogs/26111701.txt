@@ -1,0 +1,1 @@
+Show combined daily rain chance for Google, WeatherAPI, and Tomorrow.io, size All sources columns cleanly, reload Forecast Comparison when new data arrives, repair missing NWS station observations on startup, and improve HTTP timeout and Open-Meteo fallback reliability.
