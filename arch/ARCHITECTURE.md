@@ -45,10 +45,13 @@ Examples include:
   source's newest forecast for the day at the nearest site, run through `DailyColumnBuilder` with that
   source as the display source (so the high, rain %, peak hour and noon cloud match the widget's daily
   view), sorted by high by default; a source with no row is listed last. Columns: short name, high, low, day rain %,
-  peak hour, night rain, amount (8am–8pm hourly sum as on the widget; dropped below 380 dp or when no
-  row has one), noon cloud, 30-day
+  peak hour, night rain, amount (8am–8pm hourly sum as on the widget; only when some row has one),
+  noon cloud, 30-day
   high bias, and age since `lastConfirmedAt` (dimmed past 24 h). Hosts: `RoomDaySourceComparisonHost`,
   `DesktopDaySourceComparisonHost`; `DAY_SOURCE_COMPARE` logs each build.
+  Columns are sized to their widest text (`DaySourceComparison.layout`; each platform only measures
+  text), spare width shared as even gaps. A table too narrow for `MIN_COLUMN_GAP_DP` gaps steps
+  down: whole-degree lows, then no Amount, then both (`FitStep`; `DAY_SOURCE_LAYOUT` at VERBOSE).
   Clicking a column header sorts by it (`Sort.tapped`: same column flips, a new column starts
   descending except Source A–Z, Peak earliest-first and Age freshest-first); blanks stay last and ties keep the source
   order. The sort is remembered (`source_compare_sort` pref / `DesktopConfig.sourceCompareSort`);

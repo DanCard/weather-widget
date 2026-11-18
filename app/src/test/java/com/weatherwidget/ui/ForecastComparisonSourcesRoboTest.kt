@@ -28,6 +28,8 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
+import com.weatherwidget.data.local.HourlyForecastEntity
 import java.time.LocalDate
 
 /**
@@ -246,5 +248,97 @@ class ForecastComparisonSourcesRoboTest {
         val legend = activity.findViewById<TextView>(R.id.source_comparison_legend).text.toString()
         println("ForecastComparisonSourcesRoboTest today legend: $legend")
         assertTrue(legend, legend.endsWith("grey after 24 h\n* " + context.getString(R.string.source_compare_legend_star)))
+    }
+
+    /**
+     * Pixel 7 Pro width (411 dp at 420 dpi, real font metrics): seven sources with decimal lows and an
+     * Open-Meteo 8am–8pm hourly amount still fit every column, Amount included, with decimals kept.
+     * plans/261117-all-sources-content-sized-columns.md
+     */
+    @Test
+    @Config(sdk = [35], qualifiers = "w411dp-h891dp-420dpi")
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun `phone-width table fits the Amount column with decimal lows`() {
+        // Its own site, so these hourly rows never reach the other tests' tables.
+        val siteLat = 40.015
+        val siteLon = -105.27
+        val tomorrow = LocalDate.now().plusDays(1)
+        val epoch = tomorrow.toEpochDay() * 86_400_000L
+        val now = System.currentTimeMillis()
+        val sources = listOf(
+            WeatherSource.OPEN_WEATHER_MAP to (58.0f to 48.2f), WeatherSource.NWS to (60f to 47f),
+            WeatherSource.GOOGLE_WEATHER to (55.8f to 53f), WeatherSource.WEATHER_API to (55.1f to 51.2f),
+            WeatherSource.TOMORROW_IO to (54f to 49.4f), WeatherSource.SILURIAN to (54.5f to 50.9f),
+            WeatherSource.OPEN_METEO to (53.7f to 47f),
+        )
+        val zone = java.time.ZoneId.systemDefault()
+        try {
+            runBlocking {
+                db.forecastDao().insertAll(
+                    sources.map { (source, temps) ->
+                        ForecastEntity(
+                            targetDate = epoch, dateOfPrediction = LocalDate.now().toEpochDay() * 86_400_000L,
+                            locationLat = siteLat, locationLon = siteLon, highTemp = temps.first, lowTemp = temps.second,
+                            condition = "Rain", source = source.id, noonCloudPercent = 100, hourlyDayPrecipMax = 100,
+                            hourlyNightPrecipMax = 100, fetchedAt = now - 60_000L, lastConfirmedAt = now - 60_000L,
+                        )
+                    },
+                )
+                db.hourlyForecastDao().insertAll(
+                    (8 until 20).map { hour ->
+                        HourlyForecastEntity(
+                            dateTime = tomorrow.atTime(hour, 0).atZone(zone).toInstant().toEpochMilli(),
+                            locationLat = siteLat, locationLon = siteLon, temperature = 52f, condition = "Rain",
+                            source = WeatherSource.OPEN_METEO.id, precipProbability = 100, precipAmountMm = 2f,
+                            fetchedAt = now - 60_000L,
+                        )
+                    },
+                )
+            }
+            WidgetStateManager(context).setVisibleSourcesOrder(sources.map { it.first })
+            WidgetStateManager(context).setSourceCompareSort(DaySourceComparison.Sort.DEFAULT.encode())
+            val intent = Intent(context, ForecastComparisonActivity::class.java).apply {
+                putExtra(ForecastComparisonActivity.EXTRA_TARGET_DATE, tomorrow.toString())
+                putExtra(ForecastComparisonActivity.EXTRA_LAT, siteLat)
+                putExtra(ForecastComparisonActivity.EXTRA_LON, siteLon)
+                putExtra(ForecastComparisonActivity.EXTRA_SOURCE, WeatherSource.NWS.displayName)
+            }
+            val controller = Robolectric.buildActivity(ForecastComparisonActivity::class.java, intent)
+            val activity = controller.get()
+            controller.setup()
+            val table = activity.findViewById<LinearLayout>(R.id.source_comparison_table)
+            val deadline = System.currentTimeMillis() + 10_000
+            while (table.childCount == 0 && System.currentTimeMillis() < deadline) {
+                Thread.sleep(20)
+                shadowOf(Looper.getMainLooper()).idle()
+            }
+            println("ForecastComparisonSourcesRoboTest phone widthDp=${activity.resources.configuration.screenWidthDp} density=${activity.resources.displayMetrics.density}")
+            fun cells(row: Int) = (table.getChildAt(row) as LinearLayout).let { r -> (0 until r.childCount).map { r.getChildAt(it) as TextView } }
+            (0 until table.childCount).forEach { row ->
+                println("ForecastComparisonSourcesRoboTest phone row $row: " + cells(row).map { "${it.text}@${it.layoutParams.width}" })
+            }
+
+            val header = cells(0).map { it.text.toString() }
+            assertEquals("all ten columns", 10, header.size)
+            assertEquals("Amount", header[6])
+            val owm = cells((1 until table.childCount).first { cells(it)[0].text == "OWM" }).map { it.text.toString() }
+            assertEquals("48.2°", owm[2]) // decimals kept: rounding is only a fallback
+            val meteo = cells((1 until table.childCount).first { cells(it)[0].text == "Meteo" }).map { it.text.toString() }
+            assertTrue("Open-Meteo amount ${meteo[6]}", meteo[6] != "—")
+            // Every cell's text fits its width (no clipping), and the row fits the table.
+            val tablePx = activity.resources.displayMetrics.widthPixels - (48 * activity.resources.displayMetrics.density).toInt()
+            (0 until table.childCount).forEach { row ->
+                val views = cells(row)
+                assertTrue("row $row fits", views.sumOf { it.layoutParams.width } <= tablePx)
+                views.forEach { v -> assertTrue("'${v.text}' fits ${v.layoutParams.width}", v.paint.measureText(v.text.toString()) <= v.layoutParams.width) }
+            }
+            val legend = activity.findViewById<TextView>(R.id.source_comparison_legend).text.toString()
+            assertTrue(legend, legend.contains("Amount "))
+        } finally {
+            runBlocking { db.forecastDao().deleteForecastsAtSite(siteLat, siteLon) }
+            db.openHelper.writableDatabase.execSQL(
+                "DELETE FROM hourly_forecasts WHERE locationLat = ? AND locationLon = ?", arrayOf<Any>(siteLat, siteLon),
+            )
+        }
     }
 }

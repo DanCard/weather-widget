@@ -918,9 +918,6 @@ class ForecastComparisonActivity : AppCompatActivity() {
         val useCelsius = widgetStateManager.useCelsius()
         val nowMs = System.currentTimeMillis()
         val cells = sorted.map { DaySourceComparison.cells(it, nowMs, useCelsius) }
-        // Card margins (12 + 12) and padding (12 + 12) around the table.
-        val tableWidthDp = resources.displayMetrics.widthPixels / resources.displayMetrics.density - 48f
-        val showAmount = DaySourceComparison.showAmountColumn(tableWidthDp, cells)
         val primary = DataScreenStyler.color(com.weatherwidget.shared.graph.DataScreenStyle.TEXT_PRIMARY)
         val secondary = DataScreenStyler.color(com.weatherwidget.shared.graph.DataScreenStyle.TEXT_SECONDARY)
         val names = listOf(
@@ -930,15 +927,21 @@ class ForecastComparisonActivity : AppCompatActivity() {
             R.string.source_compare_col_cloud, R.string.source_compare_col_bias, R.string.source_compare_col_age,
         ).map { getString(it) }
         val header = names.mapIndexed { i, name -> DaySourceComparison.headerLabel(name, DaySourceComparison.SortColumn.entries[i], sort) }
+        // Card margins (12 + 12) and padding (12 + 12) around the table.
+        val tableWidthPx = resources.displayMetrics.widthPixels - dpToPx(48)
+        val layout = DaySourceComparison.layout(
+            tableWidthPx.toFloat(), DaySourceComparison.MIN_COLUMN_GAP_DP * resources.displayMetrics.density,
+            header, cells, comparisonTextMeasurer(),
+        )
         table.addView(
-            comparisonRow(header, showAmount, secondary, bold = false, staleAge = false) { i ->
-                onSourceCompareHeaderTap(DaySourceComparison.SortColumn.entries[i])
+            comparisonRow(layout.headers(header), layout, secondary, bold = false, staleAge = false) { column ->
+                onSourceCompareHeaderTap(DaySourceComparison.SortColumn.entries[column])
             },
         )
         cells.forEachIndexed { i, c ->
-            table.addView(comparisonRow(c.values(), showAmount, primary, bold = sorted[i].source == cachedRequestedSource, staleAge = c.ageIsStale))
+            table.addView(comparisonRow(layout.values(c), layout, primary, bold = sorted[i].source == cachedRequestedSource, staleAge = c.ageIsStale))
         }
-        findViewById<TextView>(R.id.source_comparison_legend).text = sourceComparisonLegend(names, showAmount, DaySourceComparison.showStarNote(cells))
+        findViewById<TextView>(R.id.source_comparison_legend).text = sourceComparisonLegend(names, layout.showAmount, DaySourceComparison.showStarNote(cells))
     }
 
     /** One line per column, "Rain highest hourly chance, 8am–8pm": shared column choice, bold names, localized notes. */
@@ -976,9 +979,22 @@ class ForecastComparisonActivity : AppCompatActivity() {
         renderSourceComparison(date, rows)
     }
 
+    /** A cell's width in px at the table's 12sp, rounded up so a fixed-width TextView never clips it. */
+    private fun comparisonTextMeasurer(): (String, Boolean) -> Float {
+        // Paints from TextViews set up as comparisonRow's cells, so the theme's font is the one measured.
+        fun cellPaint(bold: Boolean) = TextView(this).apply {
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+            if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
+        }.paint
+        val regular = cellPaint(bold = false)
+        val bold = cellPaint(bold = true)
+        return { text, isBold -> kotlin.math.ceil((if (isBold) bold else regular).measureText(text)) }
+    }
+
+    /** One table row: [values] are the [layout]'s shown columns; [onCellClick] gets the shared column index. */
     private fun comparisonRow(
         values: List<String>,
-        showAmount: Boolean,
+        layout: DaySourceComparison.Layout,
         color: Int,
         bold: Boolean,
         staleAge: Boolean,
@@ -990,8 +1006,8 @@ class ForecastComparisonActivity : AppCompatActivity() {
         }
         val secondary = DataScreenStyler.color(com.weatherwidget.shared.graph.DataScreenStyle.TEXT_SECONDARY)
         values.forEachIndexed { i, v ->
-            if (i == DaySourceComparison.AMOUNT_COLUMN && !showAmount) return@forEachIndexed
-            val isAge = i == values.lastIndex
+            val column = layout.columns[i]
+            val isAge = column == DaySourceComparison.SortColumn.AGE.ordinal
             row.addView(
                 TextView(this).apply {
                     text = v
@@ -1000,12 +1016,16 @@ class ForecastComparisonActivity : AppCompatActivity() {
                     if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
                     gravity = if (i == 0) android.view.Gravity.START else android.view.Gravity.END
                     maxLines = 1
-                    layoutParams = android.widget.LinearLayout.LayoutParams(0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, DaySourceComparison.COLUMN_WEIGHTS[i])
+                    setPadding(0, 0, 0, 0)
+                    layoutParams = android.widget.LinearLayout.LayoutParams(
+                        layout.widths[i].toInt(), android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+                    )
                     if (onCellClick != null) {
-                        setOnClickListener { onCellClick(i) }
+                        setOnClickListener { onCellClick(column) }
                         val ripple = TypedValue()
                         context.theme.resolveAttribute(android.R.attr.selectableItemBackground, ripple, true)
                         setBackgroundResource(ripple.resourceId)
+                        setPadding(0, 0, 0, 0)
                     }
                 },
             )

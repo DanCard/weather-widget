@@ -9,14 +9,18 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextAlign
@@ -77,28 +81,35 @@ internal fun DaySourceComparisonTable(
     DataCard(Modifier.fillMaxWidth()) {
         BoxWithConstraints(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
             val cells = sorted.map { DaySourceComparison.cells(it, nowMs, useCelsius) }
-            val showAmount = DaySourceComparison.showAmountColumn(maxWidth.value, cells)
+            val header = HEADERS.mapIndexed { i, h ->
+                DaySourceComparison.headerLabel(h, DaySourceComparison.SortColumn.entries[i], sort)
+            }
+            val textMeasurer = rememberTextMeasurer()
+            val density = LocalDensity.current.density
+            val baseStyle = LocalTextStyle.current.copy(fontSize = 12.sp)
+            val layout = DaySourceComparison.layout(maxWidth.value, DaySourceComparison.MIN_COLUMN_GAP_DP, header, cells) { text, bold ->
+                val style = baseStyle.copy(fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal)
+                textMeasurer.measure(text, style, maxLines = 1, softWrap = false).size.width / density
+            }
             Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 TableRow(
                     "source_compare_header",
-                    HEADERS.mapIndexed { i, h ->
-                        DaySourceComparison.headerLabel(h, DaySourceComparison.SortColumn.entries[i], sort)
-                    },
-                    showAmount, color = ObsStyle.textSecondary, bold = false, staleAge = false,
-                    onCellClick = { i -> onSortTap(DaySourceComparison.SortColumn.entries[i]) },
+                    layout.headers(header),
+                    layout, color = ObsStyle.textSecondary, bold = false, staleAge = false,
+                    onCellClick = { column -> onSortTap(DaySourceComparison.SortColumn.entries[column]) },
                 )
                 cells.forEachIndexed { i, c ->
                     TableRow(
                         "source_compare_row_$i",
-                        c.values(),
-                        showAmount,
+                        layout.values(c),
+                        layout,
                         color = Color.White,
                         bold = sorted[i].source == viewedSource,
                         staleAge = c.ageIsStale,
                     )
                 }
                 Text(
-                    legendText(showAmount, DaySourceComparison.showStarNote(cells)),
+                    legendText(layout.showAmount, DaySourceComparison.showStarNote(cells)),
                     modifier = Modifier.padding(top = 5.dp).testTag("source_compare_legend"),
                     color = ObsStyle.textSecondary,
                     fontSize = 12.sp,
@@ -142,11 +153,12 @@ internal val LEGEND_TEXT: Map<DaySourceComparison.SortColumn, String> = mapOf(
 
 private val HEADERS = listOf("Source", "High", "Low", "Rain", "Peak", "Night", "Amount", "Cloud", "Bias", "Age")
 
+/** One table row: [values] are the [layout]'s shown columns; cell tags and [onCellClick] use the shared column index. */
 @Composable
 private fun TableRow(
     tag: String,
     values: List<String>,
-    showAmount: Boolean,
+    layout: DaySourceComparison.Layout,
     color: Color,
     bold: Boolean,
     staleAge: Boolean,
@@ -154,12 +166,12 @@ private fun TableRow(
 ) {
     Row(Modifier.fillMaxWidth().testTag(tag)) {
         values.forEachIndexed { i, v ->
-            if (i == DaySourceComparison.AMOUNT_COLUMN && !showAmount) return@forEachIndexed
-            val isAge = i == values.lastIndex
+            val column = layout.columns[i]
+            val isAge = column == DaySourceComparison.SortColumn.AGE.ordinal
             Text(
                 v,
-                modifier = Modifier.weight(DaySourceComparison.COLUMN_WEIGHTS[i])
-                    .then(if (onCellClick != null) Modifier.clickable { onCellClick(i) }.testTag("${tag}_$i") else Modifier),
+                modifier = Modifier.width(layout.widths[i].dp)
+                    .then(if (onCellClick != null) Modifier.clickable { onCellClick(column) }.testTag("${tag}_$column") else Modifier),
                 color = if (isAge && staleAge) ObsStyle.textSecondary else color,
                 fontSize = 12.sp,
                 fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,

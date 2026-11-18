@@ -274,13 +274,70 @@ class DaySourceComparisonTest {
         assertEquals("+1.0°", DaySourceComparison.formatBias(1.8, useCelsius = true))
     }
 
+    /** Every character 7 units wide, bold 8: the widths below are easy to count. */
+    private val fakeMeasure: (String, Boolean) -> Float = { text, bold -> text.length * if (bold) 8f else 7f }
+    private val layoutHeaders = listOf("Source", "High", "Low", "Rain", "Peak", "Night", "Amount", "Cloud", "Bias", "Age")
+
+    private fun layoutCells(amount: String = "0.25\"") = listOf(
+        DaySourceComparison.Cells("Google", "55.8°", "48.2°", "100%", "9am", "75%", amount, "99%", "−0.4°", "0m", false, lowWhole = "48°"),
+        DaySourceComparison.Cells("NWS", "60°", "47°", "100%", "8am", "98%", "", "99%", "+0.6°", "0m", false, lowWhole = "47°"),
+    )
+
+    /** Content widths with [fakeMeasure]: header vs bold cells, per shown column. */
+    private fun contentSum(layout: DaySourceComparison.Layout, cells: List<DaySourceComparison.Cells>): Float =
+        layout.columns.indices.sumOf { i ->
+            maxOf(fakeMeasure(layoutHeaders[layout.columns[i]], false), cells.maxOf { fakeMeasure(layout.values(it)[i], true) }).toDouble()
+        }.toFloat()
+
     @Test
-    fun `amount column only when wide enough and some row has an amount`() {
-        val withAmount = DaySourceComparison.Cells("A", "", "", "", "", "", "0.02in", "", "", "", false)
-        val without = withAmount.copy(amount = "")
-        assertTrue(DaySourceComparison.showAmountColumn(400f, listOf(withAmount, without)))
-        assertFalse(DaySourceComparison.showAmountColumn(340f, listOf(withAmount)))
-        assertFalse(DaySourceComparison.showAmountColumn(600f, listOf(without)))
+    fun `layout shows every column with decimals when they fit, spare width as even gaps`() {
+        val cells = layoutCells()
+        val layout = DaySourceComparison.layout(600f, 6f, layoutHeaders, cells, fakeMeasure)
+        println("DaySourceComparisonTest wide layout: $layout")
+        assertEquals(DaySourceComparison.FitStep.ALL, layout.step)
+        assertEquals((0 until 10).toList(), layout.columns)
+        assertEquals("48.2°", layout.values(cells[0])[2])
+        assertEquals(600f, layout.widths.sum(), 0.01f)
+        // Source keeps its content width ("Google" bold = 48); every other column carries the same gap.
+        assertEquals(48f, layout.widths[0], 0.01f)
+        val gap = (600f - contentSum(layout, cells)) / 9
+        assertEquals(contentSum(layout, cells) + 9 * gap, layout.widths.sum(), 0.01f)
+    }
+
+    @Test
+    fun `layout rounds Low before dropping Amount, then drops Amount`() {
+        val cells = layoutCells()
+        val all = contentSum(DaySourceComparison.Layout(DaySourceComparison.FitStep.ALL, (0 until 10).toList(), emptyList()), cells)
+        val whole = contentSum(DaySourceComparison.Layout(DaySourceComparison.FitStep.WHOLE_LOWS, (0 until 10).toList(), emptyList()), cells)
+        println("DaySourceComparisonTest content all=$all wholeLows=$whole")
+        assertTrue(whole < all)
+
+        // Just too narrow for decimals at the minimum gap, wide enough for whole lows.
+        val rounded = DaySourceComparison.layout(all + 9 * 6f - 1f, 6f, layoutHeaders, cells, fakeMeasure)
+        assertEquals(DaySourceComparison.FitStep.WHOLE_LOWS, rounded.step)
+        assertEquals(listOf("Google", "55.8°", "48°"), rounded.values(cells[0]).take(3))
+        assertTrue(rounded.showAmount)
+
+        // Too narrow even for whole lows: Amount goes, decimals come back.
+        val noAmount = DaySourceComparison.layout(whole + 9 * 6f - 1f, 6f, layoutHeaders, cells, fakeMeasure)
+        assertEquals(DaySourceComparison.FitStep.NO_AMOUNT, noAmount.step)
+        assertFalse(DaySourceComparison.AMOUNT_COLUMN in noAmount.columns)
+        assertEquals(9, noAmount.values(cells[0]).size)
+        assertEquals("48.2°", noAmount.values(cells[0])[2])
+        assertEquals("Cloud", noAmount.headers(layoutHeaders)[6])
+    }
+
+    @Test
+    fun `layout never shows Amount when no row has one, and shrinks proportionally when nothing fits`() {
+        val cells = layoutCells(amount = "")
+        val wide = DaySourceComparison.layout(600f, 6f, layoutHeaders, cells, fakeMeasure)
+        assertEquals(DaySourceComparison.FitStep.NO_AMOUNT, wide.step)
+
+        val tiny = DaySourceComparison.layout(100f, 6f, layoutHeaders, cells, fakeMeasure)
+        println("DaySourceComparisonTest tiny layout: $tiny")
+        assertEquals(DaySourceComparison.FitStep.NO_AMOUNT_WHOLE_LOWS, tiny.step)
+        assertEquals(100f, tiny.widths.sum(), 0.01f)
+        assertTrue(tiny.widths.all { it > 0f })
     }
 
     @Test
@@ -470,7 +527,6 @@ class DaySourceComparisonTest {
         assertEquals(10, SortColumn.entries.size)
         assertEquals(6, DaySourceComparison.AMOUNT_COLUMN)
         assertEquals(DaySourceComparison.AMOUNT_COLUMN, SortColumn.AMOUNT.ordinal)
-        assertEquals(DaySourceComparison.COLUMN_WEIGHTS.size, SortColumn.entries.size)
     }
 
     @Test

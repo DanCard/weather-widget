@@ -93,6 +93,8 @@ object DaySourceComparison {
         val ageIsStale: Boolean,
         /** [Row.noLongerSent]: [age] ends in [AGE_STAR]. */
         val ageNoLongerSent: Boolean = false,
+        /** [low] rounded to whole degrees, for a table too narrow for decimals ([FitStep.wholeLows]). */
+        val lowWhole: String = low,
     ) {
         /** The cells in column order ([SortColumn]), blanks as "—". */
         fun values(): List<String> =
@@ -392,6 +394,7 @@ object DaySourceComparison {
             age = age?.let { formatAge(it) + if (row.noLongerSent) AGE_STAR else "" }.orEmpty(),
             ageIsStale = age != null && age > STALE_AGE_MS,
             ageNoLongerSent = age != null && row.noLongerSent,
+            lowWhole = TempUtils.formatDayTemp(row.low, useCelsius, wholeDegrees = true).orEmpty(),
         )
     }
 
@@ -410,18 +413,81 @@ object DaySourceComparison {
     /** Index of the Amount column in the shared column order ([SortColumn]). */
     val AMOUNT_COLUMN = SortColumn.AMOUNT.ordinal
 
-    /** Relative column widths, both platforms, in the shared column order. */
-    val COLUMN_WEIGHTS = listOf(1.25f, 0.8f, 0.8f, 0.85f, 0.85f, 0.85f, 1.1f, 0.85f, 0.95f, 0.75f)
+    /** Index of the Low column in the shared column order ([SortColumn]). */
+    private val LOW_COLUMN = SortColumn.LOW.ordinal
 
-    /** Narrowest table (dp) that still fits the Amount column on one line at 12sp. */
-    const val AMOUNT_MIN_WIDTH_DP = 380f
+    /** Smallest space (dp) between two columns' text before the table steps down ([layout]). */
+    const val MIN_COLUMN_GAP_DP = 5f
+
+    /** How the table fits its width, tried in this order ([layout]; plans/261117-all-sources-content-sized-columns.md). */
+    enum class FitStep(val showAmount: Boolean, val wholeLows: Boolean) {
+        ALL(true, false),
+        WHOLE_LOWS(true, true),
+        NO_AMOUNT(false, false),
+        NO_AMOUNT_WHOLE_LOWS(false, true),
+    }
 
     /**
-     * Both platforms: Amount is shown only when the table is wide enough and some row has one;
-     * a narrow table drops it rather than wrapping.
+     * The table's columns, both platforms: [columns] are the shown column indices (shared order) and
+     * [widths] their widths in the caller's unit, summing to the table width.
      */
-    fun showAmountColumn(tableWidthDp: Float, cells: List<Cells>): Boolean =
-        tableWidthDp >= AMOUNT_MIN_WIDTH_DP && cells.any { it.amount.isNotEmpty() }
+    data class Layout(val step: FitStep, val columns: List<Int>, val widths: List<Float>) {
+        val showAmount: Boolean get() = step.showAmount
+
+        /** [cells]' text for the shown columns, Low rounded to whole degrees under [FitStep.wholeLows]. */
+        fun values(cells: Cells): List<String> {
+            val all = cells.values().toMutableList()
+            if (step.wholeLows) all[LOW_COLUMN] = cells.lowWhole.ifEmpty { "—" }
+            return columns.map { all[it] }
+        }
+
+        /** The header texts for the shown columns. */
+        fun headers(all: List<String>): List<String> = columns.map { all[it] }
+    }
+
+    /**
+     * Sizes the columns to their text, both platforms: each shown column is as wide as its widest
+     * header or cell, and the spare width is shared evenly as the gap left of each end-aligned column
+     * (Source, start-aligned, gets none). Steps through [FitStep] until every gap is at least [minGap];
+     * Amount is never shown when no row has one. When nothing fits, the last step's columns shrink in
+     * proportion (cells clip on one line). [measure] is the platform's width of a text at 12sp, in the
+     * same unit as [tableWidth] and [minGap]; [headers] are the header texts in column order.
+     */
+    fun layout(
+        tableWidth: Float,
+        minGap: Float,
+        headers: List<String>,
+        cells: List<Cells>,
+        measure: (text: String, bold: Boolean) -> Float,
+    ): Layout {
+        val anyAmount = cells.any { it.amount.isNotEmpty() }
+        val steps = FitStep.entries.filter { anyAmount || !it.showAmount }
+        for ((n, step) in steps.withIndex()) {
+            val columns = SortColumn.entries.indices.filter { step.showAmount || it != AMOUNT_COLUMN }
+            val draft = Layout(step, columns, emptyList())
+            val rows = cells.map { draft.values(it) }
+            // Rows measured bold (the viewed source's row is), so switching source never re-lays out.
+            val content = columns.indices.map { i ->
+                maxOf(measure(headers[columns[i]], false), rows.maxOfOrNull { measure(it[i], true) } ?: 0f)
+            }
+            val gaps = columns.size - 1
+            val slack = tableWidth - content.sum()
+            val fits = slack >= minGap * gaps
+            if (!fits && n < steps.lastIndex) continue
+            val widths = if (slack >= 0f) {
+                content.mapIndexed { i, w -> if (i == 0) w else w + slack / gaps }
+            } else {
+                content.map { it * tableWidth / content.sum() }
+            }
+            Log.v(TAG) {
+                "DAY_SOURCE_LAYOUT width=${"%.0f".format(Locale.US, tableWidth)} step=$step fits=$fits " +
+                    "gap=${"%.1f".format(Locale.US, slack / gaps)} " +
+                    "content=${content.joinToString(",") { "%.0f".format(Locale.US, it) }}"
+            }
+            return Layout(step, columns, widths)
+        }
+        error("no FitStep") // FitStep.entries always leaves the no-Amount steps.
+    }
 
     /**
      * The legend under the table, both platforms: the columns whose header alone is ambiguous, in

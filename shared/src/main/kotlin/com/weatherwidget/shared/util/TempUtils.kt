@@ -37,7 +37,7 @@ object TempUtils {
      * A daily column's temperature label, both platforms. [wholeDegrees] is the column's
      * `DailyColumn.printsWholeDegrees` (a future provider forecast); otherwise as [formatTemp].
      * Forecasts are stored at the provider's precision (plans/261105-store-full-precision-forecast-temps.md);
-     * this is where a column rounds. Forecast Comparison never rounds (it calls [formatTemp]).
+     * this is where a column rounds. Forecast Comparison rounds only an all-sources Low too narrow for decimals.
      */
     fun formatDayTemp(v: Float?, useCelsius: Boolean, wholeDegrees: Boolean): String? {
         if (v == null) return null
