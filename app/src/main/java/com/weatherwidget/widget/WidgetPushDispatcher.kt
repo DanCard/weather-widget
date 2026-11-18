@@ -258,6 +258,9 @@ object WidgetPushDispatcher {
             else -> ""
         }
 
+        if (bodyComplete) {
+            DebugTouchZoneOverlay.apply(views)
+        }
         if (effectivePartial) {
             appWidgetManager.partiallyUpdateAppWidget(appWidgetId, views)
         } else {

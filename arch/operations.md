@@ -191,6 +191,11 @@ $ADB -s <serial> shell am broadcast -a com.weatherwidget.debug.SET_LOCATION \
   -n com.weatherwidget/com.weatherwidget.debug.DebugLocationReceiver --es lat 37.7749 --es lon -122.4194
 $ADB -s <serial> shell am broadcast -a com.weatherwidget.debug.CLEAR_LOCATION \
   -n com.weatherwidget/com.weatherwidget.debug.DebugLocationReceiver
+# Tint widget header/navigation touch zones for visual alignment verification (green=API, red=Settings).
+$ADB -s <serial> shell am broadcast -a com.weatherwidget.debug.TOUCH_ZONES \
+  -n com.weatherwidget/com.weatherwidget.debug.DebugTouchZoneReceiver --ez enabled true
+$ADB -s <serial> shell am broadcast -a com.weatherwidget.debug.TOUCH_ZONES \
+  -n com.weatherwidget/com.weatherwidget.debug.DebugTouchZoneReceiver --ez enabled false
 ```
 
 `FULL_SYNC` enqueues through `WidgetWorkScheduler.enqueueForcedSync` with KEEP, so it never cancels a

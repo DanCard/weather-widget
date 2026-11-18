@@ -53,6 +53,7 @@ class WeatherWidgetApp : Application(), Configuration.Provider {
         com.weatherwidget.data.model.HindcastGuard.setMaxPriorAgeHours(
             com.weatherwidget.widget.WidgetStateManager(this).getHindcastMaxPriorAgeHours(),
         )
+        com.weatherwidget.widget.DebugTouchZoneOverlay.init(this)
         installCrashLogger()
         processStartElapsedRealtime = SystemClock.elapsedRealtime()
         // Cold-start trace anchor. This line's logcat timestamp is process birth (wall-clock); the

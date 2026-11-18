@@ -1523,7 +1523,12 @@
         android:visibility="visible" />
 
     <!-- Top-right header container for API and Settings.
-         Declared after navigation zones for touch priority. -->
+         Declared after navigation zones for touch priority.
+         Geometry matches DailyForecastHeaderRenderer (gear right at width-2dp, width 18dp ->
+         [width-20dp, width-2dp]; API label right at width-34dp; midpoint at width-27dp):
+         container marginEnd=-2dp puts its right edge at width+2dp, settings_touch_zone is 29dp
+         wide ([width-27dp, width+2dp]) with the gear 4dp from its right edge ([width-20dp, width-2dp]),
+         and api_touch_zone sits immediately left with paddingEnd=7dp so its text ends at width-34dp. -->
     <LinearLayout
         android:id="@+id/top_right_header_container"
         android:layout_width="wrap_content"
@@ -1540,8 +1545,8 @@
             android:layout_height="50dp"
             android:clickable="true"
             android:focusable="true"
-            android:paddingStart="8dp"
-            android:paddingEnd="4dp">
+            android:paddingStart="10dp"
+            android:paddingEnd="7dp">
             <TextView
                 android:id="@+id/api_source"
                 android:layout_width="wrap_content"
@@ -1555,7 +1560,7 @@
 
         <FrameLayout
             android:id="@+id/settings_touch_zone"
-            android:layout_width="44dp"
+            android:layout_width="29dp"
             android:layout_height="50dp"
             android:clickable="true"
             android:focusable="true">
@@ -1563,7 +1568,8 @@
                 android:id="@+id/settings_icon"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_gravity="center"
+                android:layout_gravity="center_vertical|end"
+                android:layout_marginEnd="4dp"
                 android:layout_marginTop="-10dp"
                 android:src="@drawable/ic_settings_gear"
                 android:contentDescription="@string/settings"

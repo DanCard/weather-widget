@@ -49,6 +49,11 @@ object WidgetRenderer {
     private val dailyPaintedForDate: MutableMap<Int, LocalDate> =
         java.util.concurrent.ConcurrentHashMap()
 
+    /** Force the next UI-only DAILY repaint to rebuild rather than skipping on same-day cache. */
+    internal fun invalidateDailyPaintCache() {
+        dailyPaintedForDate.clear()
+    }
+
     /**
      * Whether a UI-only DAILY repaint may skip the rebuild: only when the graph on screen was painted
      * this process for [today]. No entry: the widget may be on "Loading…". An older date: the window
