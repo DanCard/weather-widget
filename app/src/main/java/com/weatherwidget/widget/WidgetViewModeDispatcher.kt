@@ -37,6 +37,7 @@ object WidgetViewModeDispatcher {
         val forecastSnapshots: Map<LocalDate, List<ForecastEntity>>,
         val currentTemps: List<ObservationEntity>,
         val dailyActualsBySource: DailyActualsBySource,
+        val actualsProvisional: Boolean = false,
         val centerTime: LocalDateTime,
         val displaySource: WeatherSource,
         val targetPrecip: Int?,
@@ -163,6 +164,7 @@ object WidgetViewModeDispatcher {
                         hourlyForecasts = params.unifiedHourlyForecasts,
                         currentTemps = params.currentTemps,
                         dailyActualsBySource = params.dailyActualsBySource,
+                        actualsProvisional = params.actualsProvisional,
                     ),
                     observationData = ObservationData(
                         lastObservedTemp = params.observation?.temperature,

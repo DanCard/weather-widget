@@ -22,13 +22,20 @@ internal fun computeMissingDataRefreshes(
     today: LocalDate,
     displaySource: WeatherSource,
     dailyActuals: DailyActualMap,
+    /**
+     * The startup's provisional stored-rows actuals: a gap there may be one the live blend fills
+     * seconds later, so the actuals refreshes wait for the live repaint. Without this every cold
+     * start whose stored today row lagged forced an NWS fetch (`missing_actuals_NWS_today`, Pixel
+     * 2026-11-18). performance/261118-cold-start-daily-actuals-cost.md
+     */
+    actualsProvisional: Boolean = false,
     visibleDates: Set<LocalDate> = emptySet(),
     todayHasSnapshot: Boolean = true,
     todayHasForecast: Boolean = true,
 ): List<MissingDataRefreshDecision> {
     val decisions = mutableListOf<MissingDataRefreshDecision>()
 
-    if (dailyActuals[today] == null) {
+    if (!actualsProvisional && dailyActuals[today] == null) {
         decisions.add(
             MissingDataRefreshDecision(
                 refreshType = "actuals_today",
@@ -50,7 +57,7 @@ internal fun computeMissingDataRefreshes(
 
     // A day filled wholesale from a previous site (PreviousSiteHistory) is still missing HERE —
     // keep asking for it exactly as before borrowing existed.
-    if (visibleDates.any { date ->
+    if (!actualsProvisional && visibleDates.any { date ->
             date.isBefore(today) && dailyActuals[date].let { it == null || it.borrowedWithoutLocalRow }
         }
     ) {

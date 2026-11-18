@@ -188,6 +188,7 @@ internal object DailyGraphRenderer {
             today = ctx.today,
             displaySource = ctx.displaySource,
             dailyActuals = ctx.dailyActuals,
+            actualsProvisional = ctx.actualsProvisional,
             visibleDates = displayDays.map { it.date }.toSet(),
             todayHasSnapshot = displayDays.find { it.isToday }
                 ?.let { it.snapshotHigh != null || it.snapshotLow != null } ?: false,

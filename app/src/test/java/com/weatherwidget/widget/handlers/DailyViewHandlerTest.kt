@@ -1390,6 +1390,27 @@ class DailyViewHandlerTest {
         assertEquals("missing_actuals_NWS_today", decisions[0].reason)
     }
 
+    /**
+     * The startup's provisional stored-rows paint: a gap there may be one the live blend fills, so
+     * it requests no actuals refresh. On the Pixel (2026-11-18) every cold start whose stored today
+     * row lagged forced `missing_actuals_NWS_today`. The snapshot decision is not about actuals.
+     */
+    @Test
+    fun `computeMissingDataRefreshes makes no actuals request from provisional actuals`() {
+        val today = LocalDate.of(2030, 6, 15)
+
+        val decisions = computeMissingDataRefreshes(
+            today = today,
+            displaySource = WeatherSource.NWS,
+            dailyActuals = emptyMap(),
+            actualsProvisional = true,
+            visibleDates = setOf(today.minusDays(1)),
+            todayHasSnapshot = false,
+        )
+
+        assertEquals(listOf("today_snapshot"), decisions.map { it.refreshType })
+    }
+
     @Test
     fun `computeMissingDataRefreshes still requests history when yesterday is wholly borrowed from a previous site`() {
         // PreviousSiteHistory fills the DISPLAY; this site still has no row, so keep asking for it.

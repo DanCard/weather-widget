@@ -46,8 +46,12 @@ internal class WidgetStartupCoordinator(
         val snapshotGapFillMs: Long,
         val hourlyQueryMs: Long,
         val currentTempQueryMs: Long,
+        /** The provisional (stored-rows) actuals read; the live blend is [LiveActualsPass]. */
         val extremesQueryMs: Long,
     )
+
+    /** The second pass: the live blend, and the widgets it repainted. */
+    private data class LiveActualsPass(val durationMs: Long, val repainted: IntArray, val changedSources: Set<String>)
 
     suspend fun updateWidgets(
         context: Context,
@@ -103,6 +107,7 @@ internal class WidgetStartupCoordinator(
 
         var staleCheckMs = 0L
         var queryResult: StartupQueryResult? = null
+        var livePass: LiveActualsPass? = null
         try {
             if (latestWeather == null) {
                 // No data *and* no location is a settled state, not a wait. The sync we would enqueue
@@ -168,14 +173,44 @@ internal class WidgetStartupCoordinator(
                                 gapFiller = gapFiller,
                                 loadWindow = DailyLoadWindowResolver.resolve(context),
                             )
-                        renderStartupWidgets(
-                            context = context,
-                            appWidgetManager = appWidgetManager,
-                            appWidgetIds = unpaintedIds,
-                            result = queryResult,
-                            startupToken = startupToken,
-                            appLogDao = appLogDao,
-                        )
+                        // A widget's paint can be superseded by a newer one: WidgetUpdateTracker cancels a
+                        // tracked UI_PAINT job when another paint of that widget starts (a worker's
+                        // UI-only paint, Pixel 2026-11-18 07:40:03), and the batch rethrows it although
+                        // this coroutine was never cancelled. That aborted the live pass and left the
+                        // provisional paint up.
+                        continueIfSuperseded(
+                            onSuperseded = { e ->
+                                appLogDao.log(
+                                    "HOURLY_PAINT_TRACE",
+                                    "phase=startup_SUPERSEDED widgets=${unpaintedIds.joinToString(",")} msg=${e.message}",
+                                    "INFO",
+                                )
+                            },
+                        ) {
+                            renderStartupWidgets(
+                                context = context,
+                                appWidgetManager = appWidgetManager,
+                                appWidgetIds = unpaintedIds,
+                                result = queryResult,
+                                startupToken = startupToken,
+                                appLogDao = appLogDao,
+                            )
+                        }
+                        // Still inside the pending paint: background syncs wait for the live pass
+                        // too, so the blend does not contend with them (StartupCooldown).
+                        if (needsDailyData) {
+                            livePass = refreshLiveActuals(
+                                context = context,
+                                appWidgetManager = appWidgetManager,
+                                appWidgetIds = unpaintedIds,
+                                result = queryResult,
+                                latestWeather = latestWeather,
+                                activeSourceList = activeSources.toList(),
+                                stateManager = stateManager,
+                                startupToken = startupToken,
+                                appLogDao = appLogDao,
+                            )
+                        }
                     } finally {
                         cooldown.onStartupPaintSettled()
                     }
@@ -234,6 +269,9 @@ internal class WidgetStartupCoordinator(
                     "hourlyMs" to (queryResult?.hourlyQueryMs ?: 0L),
                     "currentTempMs" to (queryResult?.currentTempQueryMs ?: 0L),
                     "extremesMs" to (queryResult?.extremesQueryMs ?: 0L),
+                    "liveExtremesMs" to (livePass?.durationMs ?: 0L),
+                    "liveRepainted" to (livePass?.repainted?.joinToString(",") ?: ""),
+                    "liveChanged" to (livePass?.changedSources?.sorted()?.joinToString(",") ?: ""),
                     "staleCheckMs" to staleCheckMs,
                     "totalMs" to totalMs,
                     "dbEvent" to latestDbLifecycle?.tag,
@@ -377,15 +415,17 @@ internal class WidgetStartupCoordinator(
             }
         val snapshotGapFillMs = elapsedRealtime() - snapshotGapFillStartMs
         val hourly = hourlyDeferred.await()
+        // Stored rows only: the live blend (13.2 s of a 20 s cold first paint on the Pixel 7 Pro,
+        // 2026-11-18) runs after the first paint, in refreshLiveActuals.
+        // performance/261118-cold-start-daily-actuals-cost.md
         val dailyActualsDeferred =
             operationTimer.async(this) {
                 if (!needsDailyData) {
                     emptyMap()
                 } else {
-                    repository.getDailyActualsWithLiveToday(
-                        latestWeather.locationLat,
-                        latestWeather.locationLon,
-                        hourlyForecasts = hourly.value,
+                    repository.getDailyActualsStored(
+                        latitude = latestWeather.locationLat,
+                        longitude = latestWeather.locationLon,
                         activeSourceList = activeSourceList,
                     )
                 }
@@ -416,6 +456,66 @@ internal class WidgetStartupCoordinator(
         )
     }
 
+    /**
+     * The live daily actuals after the provisional first paint; repaints only the widgets whose
+     * display source's actuals changed ([StartupActualsRefresh]).
+     */
+    private suspend fun refreshLiveActuals(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetIds: IntArray,
+        result: StartupQueryResult,
+        latestWeather: ForecastEntity,
+        activeSourceList: List<String>,
+        stateManager: WidgetStateManager,
+        startupToken: String,
+        appLogDao: AppLogDao,
+    ): LiveActualsPass {
+        val startMs = elapsedRealtime()
+        // The provisional paint is already on screen: a failed live read leaves it there for the
+        // next sync's paint, and must not skip the staleness check and periodic schedule after it.
+        val live = try {
+            repository.getDailyActualsWithLiveToday(
+                latitude = latestWeather.locationLat,
+                longitude = latestWeather.locationLon,
+                hourlyForecasts = result.hourlyForecasts,
+                activeSourceList = activeSourceList,
+            )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "startup live actuals failed token=$startupToken; keeping the provisional paint", e)
+            appLogDao.log("STARTUP_LIVE_ACTUALS", "token=$startupToken outcome=failed msg=${e.message}", "WARN")
+            return LiveActualsPass(elapsedRealtime() - startMs, IntArray(0), emptySet())
+        }
+        val durationMs = elapsedRealtime() - startMs
+        val changed = StartupActualsRefresh.changedSources(result.dailyActualsBySource, live)
+        val repaint = StartupActualsRefresh.widgetsToRepaint(
+            appWidgetIds.associateWith { stateManager.getCurrentDisplaySource(it).id },
+            changed,
+            result.dailyActualsBySource,
+            LocalDate.now(),
+        )
+        appLogDao.log(
+            "STARTUP_LIVE_ACTUALS",
+            "token=$startupToken liveMs=$durationMs changed=${changed.sorted()} repaint=${repaint.joinToString(",")} " +
+                "diff=[${changed.sorted().joinToString("; ") { "$it ${StartupActualsRefresh.describeChange(result.dailyActualsBySource, live, it)}" }}]",
+            "INFO",
+        )
+        if (repaint.isNotEmpty()) {
+            renderStartupWidgets(
+                context = context,
+                appWidgetManager = appWidgetManager,
+                appWidgetIds = repaint,
+                result = result.copy(dailyActualsBySource = live),
+                startupToken = startupToken,
+                appLogDao = appLogDao,
+                actualsProvisional = false,
+            )
+        }
+        return LiveActualsPass(durationMs, repaint, changed)
+    }
+
     private suspend fun renderStartupWidgets(
         context: Context,
         appWidgetManager: AppWidgetManager,
@@ -423,6 +523,8 @@ internal class WidgetStartupCoordinator(
         result: StartupQueryResult,
         startupToken: String,
         appLogDao: AppLogDao,
+        /** True for the first pass (stored-rows actuals; see [refreshLiveActuals]). */
+        actualsProvisional: Boolean = true,
     ) {
         val stateManager = WidgetStateManager(context)
         val viewModes = appWidgetIds.associateWith(stateManager::getViewMode)
@@ -454,6 +556,9 @@ internal class WidgetStartupCoordinator(
                         dailyActualsBySource = result.dailyActualsBySource,
                         repository = repository,
                         startupToken = startupToken,
+                        // Only meaningful when the batch loaded daily data: otherwise the map is
+                        // empty either way and the daily handler is not reached.
+                        actualsProvisional = actualsProvisional,
                         origin = WidgetPushDispatcher.Origin.PROVIDER_ON_UPDATE,
                     )
                     appLogDao.log(

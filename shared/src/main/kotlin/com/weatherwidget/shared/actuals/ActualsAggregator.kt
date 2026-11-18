@@ -255,12 +255,14 @@ object ActualsAggregator {
         var blendMs = 0L
         var observationsBlended = 0L
         var precipMs = 0L
+        /** Observed-rain reductions actually run; less than [datesBlended] when groups share a provider. */
+        var rainReductions = 0
         var groupingMs = 0L
         var totalMs = 0L
 
         fun logFragment(): String =
             "groups=$groups blended=$datesBlended skipped=$datesSkipped blendMs=$blendMs blendObs=$observationsBlended " +
-                "precipMs=$precipMs groupingMs=$groupingMs aggregateMs=$totalMs"
+                "precipMs=$precipMs rainReductions=$rainReductions groupingMs=$groupingMs aggregateMs=$totalMs"
     }
 
     /**
@@ -284,6 +286,15 @@ object ActualsAggregator {
          */
         wanted: ((sourceId: String, date: LocalDate) -> Boolean)? = null,
         stats: AggregateStats? = null,
+        /**
+         * The source groups to build, by the row's source id; null for every displayable source.
+         * A borrowed group is kept when its BORROWING source is listed, not its provider. The daily
+         * view's live read passes the sources on screen: without it every configurable source that
+         * borrows a listed provider got a full blend nobody read (Pixel cold start 2026-11-18:
+         * groups=4 for two displayed sources, GOOGLE_WEATHER and OPEN_METEO equal to NWS to the
+         * last digit). performance/261118-cold-start-daily-actuals-cost.md
+         */
+        sources: Set<String>? = null,
     ): List<DailyHistory> {
         val aggregateStartNs = System.nanoTime()
         val today = LocalDate.now(zoneId)
@@ -333,9 +344,17 @@ object ActualsAggregator {
             // is already taken by the borrowed group.
             .filter { (api, _) -> api in displayableIds && api !in redirected }
             .map { it.key to it.value } + borrowedGroups
+        val keptGroups = if (sources == null) groups else groups.filter { (sourceId, _) -> sourceId in sources }
 
-        stats?.groups = groups.size
-        val rows = groups
+        // Observed rain is a pure function of (rows, date, zone), and groups that share a provider
+        // share its list INSTANCE (`byApi[providerId]`), so their per-date window and totals are
+        // equal: reduce once per (list, date). Keyed by identity, so a hit is cheap and two lists
+        // that merely look alike are never merged. The forecast fallback stays per source.
+        val observedRainMemo = java.util.IdentityHashMap<List<ObservationReading>, HashMap<LocalDate, ObservedPrecip.Totals>>()
+        val decodedMetars = HashMap<String, com.weatherwidget.shared.observations.MetarDecoder.MetarRemarks?>()
+
+        stats?.groups = keptGroups.size
+        val rows = keptGroups
             .flatMap { (sourceId, obsList) ->
                 val groupingStartNs = System.nanoTime()
                 val sourceHourly = hourlyForecasts.filter { it.source == sourceId || it.source == "GENERIC_GAP" }
@@ -389,9 +408,16 @@ object ActualsAggregator {
                         // The context window, not just the day: a 23:58 SPECI belongs to the period
                         // the next day's first routine report closes.
                         val precipStartNs = System.nanoTime()
+                        val observedRain = observedRainMemo
+                            .getOrPut(obsList) { HashMap() }
+                            .getOrPut(date) {
+                                stats?.let { it.rainReductions++ }
+                                ObservedPrecip.daily(windowObs, date, zoneId, decodedMetars)
+                            }
                         val precip = resolveDailyPrecip(
                             windowObs, sourceHourly, date, zoneId,
                             allowForecastFallback = !date.isBefore(today),
+                            observed = observedRain,
                         )
                         stats?.let { it.precipMs += (System.nanoTime() - precipStartNs) / 1_000_000L }
 
@@ -474,8 +500,9 @@ object ActualsAggregator {
         date: LocalDate,
         zone: ZoneId,
         allowForecastFallback: Boolean = true,
+        /** [ObservedPrecip.daily] over [observations]; passed by [aggregate], which shares it per provider. */
+        observed: ObservedPrecip.Totals = ObservedPrecip.daily(observations, date, zone),
     ): DailyPrecip {
-        val observed = ObservedPrecip.daily(observations, date, zone)
         // The night can be known alone: rain measured only after midnight still belongs to [date].
         if (observed.total != null || observed.night != null) {
             return DailyPrecip(total = observed.total, day = observed.day, night = observed.night)

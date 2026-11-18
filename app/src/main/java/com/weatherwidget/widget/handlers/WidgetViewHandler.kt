@@ -17,6 +17,12 @@ data class WeatherData(
     val hourlyForecasts: List<HourlyForecastEntity>,
     val currentTemps: List<ObservationEntity> = emptyList(),
     val dailyActualsBySource: DailyActualsBySource = emptyMap(),
+    /**
+     * [dailyActualsBySource] is the startup's provisional stored-rows read: a missing actual there
+     * may be one the live blend fills, so it must not trigger a forced refresh. The live pass
+     * repaints with the real map. performance/261118-cold-start-daily-actuals-cost.md
+     */
+    val actualsProvisional: Boolean = false,
 )
 
 data class ObservationData(

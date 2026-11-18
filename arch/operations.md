@@ -65,7 +65,10 @@ otherwise. See [testing strategy](testing-strategy.md) for the full test command
 
 `COLD_START_PERF` in `app_logs` (first paints of 8 s or more) splits the delay: `firstTriggerAgeMs`
 is the OS delivering the broadcast, the rest is the app. `WIDGET_STARTUP_PERF` then names the slow
-load step.
+load step. Its `extremesMs` is the provisional stored-rows actuals read that the first paint waits
+for. `liveExtremesMs` is the live blend that runs after the paint, and `liveRepainted` lists the
+widgets it changed (logcat `DAILY_ACTUALS_STORED` gives the provisional split). See
+[the daily view's actuals read](daily-history-extremes.md#the-daily-views-actuals-read).
 
 Background syncs wait for the startup paint (`StartupCooldown`): a run arriving while it is pending
 logs `SYNC_DEFERRED_STARTUP … cause=paint_pending`, and `cause=cooldown` when only the 6 s clock

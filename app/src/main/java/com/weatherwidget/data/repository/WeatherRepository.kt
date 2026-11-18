@@ -166,6 +166,13 @@ class WeatherRepository
             lookbackDays: Long = DailyActualsStore.DEFAULT_LOOKBACK_DAYS,
         ): com.weatherwidget.widget.DailyActualsBySource =
             observationRepository.getDailyActualsWithLiveToday(latitude, longitude, hourlyForecasts, activeSourceList, lookbackDays)
+        /** Provisional startup actuals: stored rows only, no blend. See [DailyActualsStore.getDailyActualsStored]. */
+        suspend fun getDailyActualsStored(
+            latitude: Double,
+            longitude: Double,
+            activeSourceList: List<String>,
+        ): com.weatherwidget.widget.DailyActualsBySource =
+            observationRepository.getDailyActualsStored(latitude, longitude, activeSourceList)
         suspend fun getMainObservationsWithComputedNwsBlend(
             latitude: Double,
             longitude: Double,

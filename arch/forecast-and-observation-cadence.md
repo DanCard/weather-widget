@@ -214,7 +214,8 @@ snapshots and hourly through `WidgetInteractionCache`, kept 60 s per site, day, 
 hourly source set, so a source switch never reads another source's hours. Its actuals come from the
 same `DailyActualsStore.getDailyActualsWithLiveToday` (`:shared` `DailyActualsAssembler`) as worker
 paints, so a tap draws the same today — live fog, gated low — as the refresh before it
-(`plans/261111-tap-render-today-fog-shared-actuals.md`). An entry also ends at the next stored-data write: the shared write runners (`ForecastPersistRun`,
+(`plans/261111-tap-render-today-fog-shared-actuals.md`). Only the startup paint draws a provisional
+today first ([the daily view's actuals read](daily-history-extremes.md#the-daily-views-actuals-read)). An entry also ends at the next stored-data write: the shared write runners (`ForecastPersistRun`,
 `CurrentConditionsRun`, `NwsGapFillRun`) bump `StoredDataVersion` after they store rows, and
 `VersionedTtlCache` (`:shared`) misses on any bump since the entry's load began. So the UI-only
 repaint a screen sends after its fetch (History, Observations) draws the fetched rows, without each

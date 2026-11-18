@@ -38,6 +38,26 @@ newest first with gaps filled from the others.
 pre-dawn or afternoon window. `DailyBlendRecomputeRun.WRITE_RULES_VERSION` is part of the skip
 signature; bump it when the write rules change so days with unchanged readings are rebuilt once.
 
+### The daily view's actuals read
+
+`DailyActualsAssembler.assemble` (both platforms) returns stored past rows plus a live blend of today
+for the **caller's sources only**: a source that borrows a listed source's provider is not blended
+(`ActualsAggregator.aggregate(sources = …)`). The recompute passes no list and still builds every
+displayable source, which accuracy needs. Within one `aggregate` call, observed rain is reduced once
+per provider's rows and date, and the forecast fallback stays per source (`AggregateStats.rainReductions`).
+
+Android's startup paint runs in two passes (`WidgetStartupCoordinator`). The first paints from
+`DailyActualsAssembler.assembleStored`: stored rows through today, no blend. A source's stored today
+row, as the last recompute left it, is painted with no freshness check (user decision 2026-11-18): a
+check refused it on nearly every cold start, because some feed reports every few minutes. It is
+reduced to the fields a live today row carries, and the late-start low gate still applies. When the
+provider has no rows today, today has no actual. Otherwise
+today has no actual; the forecast never stands in. The live `assemble` follows, and only widgets whose
+display source's actuals changed, or whose provisional map had no today, are repainted
+(`StartupActualsRefresh`, `STARTUP_LIVE_ACTUALS`). The provisional render makes no missing-actuals
+refresh request (`WeatherData.actualsProvisional`); the live render makes it when one is due.
+Taps and worker paints use the live read only. `performance/261118-cold-start-daily-actuals-cost.md`
+
 The current observation table can include NWS, METAR, Synoptic, and provider analysis/history data.
 Provenance matters: Synoptic web-fallback rows filed under NWS represent redistributed station
 observations, while a forecast-only provider's elapsed forecast hours must not become measured

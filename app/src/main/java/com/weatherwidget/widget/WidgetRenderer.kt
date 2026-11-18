@@ -357,6 +357,8 @@ object WidgetRenderer {
         dailyActualsBySource: DailyActualsBySource = emptyMap(),
         repository: WeatherRepository? = null,
         startupToken: String? = null,
+        /** See [com.weatherwidget.widget.handlers.WeatherData.actualsProvisional]. */
+        actualsProvisional: Boolean = false,
         // True for opportunistic UI-only repaints (now-tracking alarm); lets the TEMPERATURE handler
         // skip re-rendering an anchored (static) graph from a narrow now-centered window.
         uiOnly: Boolean = false,
@@ -548,6 +550,7 @@ object WidgetRenderer {
                 forecastSnapshots = forecastSnapshots,
                 currentTemps = currentTemps,
                 dailyActualsBySource = dailyActualsBySource,
+                actualsProvisional = actualsProvisional,
                 centerTime = centerTime,
                 displaySource = displaySource,
                 targetPrecip = targetPrecip,

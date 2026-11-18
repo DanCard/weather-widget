@@ -99,8 +99,12 @@ object ObservedPrecip {
      * The site's amount per local hour, for hours where some station within [MAX_STATION_KM] knew
      * it. Hours nobody knew are absent, not 0.
      */
-    fun byHour(rows: List<ObservationReading>, zone: ZoneId = ZoneId.systemDefault()): Map<LocalDateTime, Float> {
-        val decoded = HashMap<String, MetarDecoder.MetarRemarks?>()
+    fun byHour(
+        rows: List<ObservationReading>,
+        zone: ZoneId = ZoneId.systemDefault(),
+        /** Decoded remarks by raw METAR; a caller reducing overlapping windows passes one map to all. */
+        decoded: MutableMap<String, MetarDecoder.MetarRemarks?> = HashMap(),
+    ): Map<LocalDateTime, Float> {
         // hour -> (distance, amount) of the nearest station that knew it.
         val nearest = HashMap<LocalDateTime, Pair<Float, Float>>()
         for ((_, stationRows) in rows.groupBy { it.stationId to it.api }) {
@@ -125,8 +129,13 @@ object ObservedPrecip {
      * morning, the window of the night chance and of the label drawn after [date]. So [rows] must
      * reach that morning, and day + night is not the total.
      */
-    fun daily(rows: List<ObservationReading>, date: LocalDate, zone: ZoneId = ZoneId.systemDefault()): Totals {
-        val allHours = byHour(rows, zone)
+    fun daily(
+        rows: List<ObservationReading>,
+        date: LocalDate,
+        zone: ZoneId = ZoneId.systemDefault(),
+        decoded: MutableMap<String, MetarDecoder.MetarRemarks?> = HashMap(),
+    ): Totals {
+        val allHours = byHour(rows, zone, decoded)
         val hours = allHours.filterKeys { it.toLocalDate() == date }
         val nightStart = date.atTime(DayNightHours.DAY_END_HOUR, 0)
         val nightEnd = date.plusDays(1).atTime(DayNightHours.DAY_START_HOUR, 0)

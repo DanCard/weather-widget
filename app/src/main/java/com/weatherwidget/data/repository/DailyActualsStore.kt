@@ -126,6 +126,63 @@ class DailyActualsStore @Inject constructor(
         return result.bySource
     }
 
+    /**
+     * The provisional startup paint's actuals ([DailyActualsAssembler.assembleStored]): stored
+     * rows through today, no blend. Reads today's provider observations only for the freshness
+     * check and the late-start low gate. The live [getDailyActualsWithLiveToday] replaces it.
+     * performance/261118-cold-start-daily-actuals-cost.md
+     */
+    suspend fun getDailyActualsStored(
+        latitude: Double,
+        longitude: Double,
+        activeSourceList: List<String>,
+        lookbackDays: Long = DEFAULT_LOOKBACK_DAYS,
+    ): DailyActualsBySource {
+        val sources = activeSourceList.map(WeatherSource::fromId)
+        if (sources.isEmpty()) return emptyMap()
+        val zone = ZoneId.systemDefault()
+        val today = LocalDate.now()
+        val startDate = today.minusDays(lookbackDays).toEpochDay() * WidgetConstants.MS_IN_A_DAY
+        val todayKey = today.toEpochDay() * WidgetConstants.MS_IN_A_DAY
+        val todayStartMs = today.atStartOfDay(zone).toInstant().toEpochMilli()
+        val tomorrowMs = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        val providerApis = sources
+            .filter { com.weatherwidget.shared.observations.ActualsProviderResolver.hasTemperatureActuals(it) }
+            .flatMap { listOf(it.id, com.weatherwidget.shared.observations.ActualsProviderResolver.providerIdFor(it)) }
+            .distinct()
+
+        val readStartMs = android.os.SystemClock.elapsedRealtime()
+        val rows = dailyHistoryDao.getExtremesInRange(startDate, todayKey, latitude, longitude).map { it.toDailyHistory() }
+        val yesterdayDonors = dailyHistoryDao
+            .getMeasuredExtremesForDateAnySite(today.minusDays(1).toEpochDay() * WidgetConstants.MS_IN_A_DAY)
+            .map { it.toDailyHistory() }
+        val todayObservations = if (providerApis.isEmpty()) {
+            emptyList()
+        } else {
+            observationDao.getObservationsInRange(todayStartMs, tomorrowMs, latitude, longitude, apis = providerApis)
+                .map { it.toReading() }
+        }
+        val readMs = android.os.SystemClock.elapsedRealtime() - readStartMs
+        val stored = DailyActualsAssembler.assembleStored(
+            activeSources = sources,
+            pastRows = rows,
+            yesterdayDonors = yesterdayDonors,
+            todayObservations = todayObservations,
+            latitude = latitude,
+            longitude = longitude,
+            today = today,
+            zone = zone,
+        )
+        val accepted = stored.result.live.joinToString("; ") { "${it.source}[high=${it.high},low=${it.low},rows=${it.rows}]" }
+        val rejected = stored.rejected.joinToString("; ") { "${it.source}:${it.reason}" }
+        Log.d(
+            TAG,
+            "DAILY_ACTUALS_STORED readMs=$readMs todayObs=${todayObservations.size} rows=${rows.size} " +
+                "today=[${accepted.ifEmpty { "none" }}] rejected=[${rejected.ifEmpty { "none" }}]",
+        )
+        return stored.result.bySource
+    }
+
     /** `:shared` [DailyBlendRecomputeRun] over this site's Room host. */
     internal fun blendRecomputeHost(latitude: Double, longitude: Double) = RoomDailyBlendRecomputeHost(
         lat = latitude,

@@ -6,6 +6,7 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.supervisorScope
 
 internal data class TimedResult<T>(
@@ -57,3 +58,20 @@ internal suspend fun runStartupTasksIsolated(
                 }.also { onStarted(appWidgetId, it) }
             }.awaitAll()
     }
+
+/**
+ * Runs [block]; a [CancellationException] it throws while the CALLER is still active (a child job
+ * cancelled from outside, e.g. a widget paint superseded through [WidgetUpdateTracker]) goes to
+ * [onSuperseded] and the caller continues. The caller's own cancellation still propagates.
+ */
+internal suspend fun continueIfSuperseded(
+    onSuperseded: suspend (CancellationException) -> Unit,
+    block: suspend () -> Unit,
+) {
+    try {
+        block()
+    } catch (e: CancellationException) {
+        kotlinx.coroutines.currentCoroutineContext().ensureActive()
+        onSuperseded(e)
+    }
+}

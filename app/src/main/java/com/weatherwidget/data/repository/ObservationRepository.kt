@@ -111,6 +111,13 @@ class ObservationRepository private constructor(
             lookbackDays,
         )
 
+    suspend fun getDailyActualsStored(
+        latitude: Double,
+        longitude: Double,
+        activeSourceList: List<String>,
+    ): DailyActualsBySource =
+        components.dailyActualsStore.getDailyActualsStored(latitude, longitude, activeSourceList)
+
     suspend fun getRecentObservations(sinceMs: Long): List<ObservationEntity> =
         observationDao.getRecentObservations(sinceMs)
 

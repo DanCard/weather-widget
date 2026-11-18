@@ -136,12 +136,7 @@ object DailyBlendRecomputeRun {
         // A day's extremes cannot move while its observations are unchanged (Samsung 2026-09-06: 91% of
         // per-day recomputes were byte-identical). Content-derived; `MAX(fetchedAt)` never fired.
         val key = if (force) null else signatureKey(date, host.lat, host.lon)
-        // Through the next 8am: the day's night rain falls after its midnight (DayNightHours).
-        val nightEndMs = date.plusDays(1).atTime(DayNightHours.DAY_START_HOUR, 0).atZone(zone).toInstant().toEpochMilli()
-        // The providers too: a switched provider builds the day from other rows though none changed.
-        // [WRITE_RULES_VERSION] re-reduces every tracked day once when the write rules change.
-        val signature = if (force) null else host.observationSignature(dayStartMs, nightEndMs)
-            ?.let { "$it|${providerSignature()}|$WRITE_RULES_VERSION" }
+        val signature = if (force) null else currentSignature(host, date, zone)
         if (key != null && signature != null && host.signatures[key] == signature) {
             host.log("DAILY_RECOMPUTE_SKIP", "date=$date sig=$signature at=${host.lat},${host.lon}", "VERBOSE")
             return 0
@@ -241,6 +236,18 @@ object DailyBlendRecomputeRun {
     }
 
     /** Which sources take their actuals from another feed: `OPEN_METEO=NWS,TOMORROW_IO=NWS`. */
+    /**
+     * What [day]'s skip compares: the stored observations' signature through the next 8am (the
+     * day's night rain falls after its midnight, DayNightHours), the resolved actuals providers (a
+     * switched provider builds the day from other rows though none changed), and
+     * [WRITE_RULES_VERSION] (re-reduces every tracked day once when the write rules change).
+     */
+    private suspend fun currentSignature(host: Host, date: LocalDate, zone: ZoneId): String? {
+        val dayStartMs = date.atStartOfDay(zone).toInstant().toEpochMilli()
+        val nightEndMs = date.plusDays(1).atTime(DayNightHours.DAY_START_HOUR, 0).atZone(zone).toInstant().toEpochMilli()
+        return host.observationSignature(dayStartMs, nightEndMs)?.let { "$it|${providerSignature()}|$WRITE_RULES_VERSION" }
+    }
+
     private fun providerSignature(): String =
         WeatherSourceOrdering.ALL_CONFIGURABLE
             .map { it.id to ActualsProviderResolver.providerIdFor(it) }
