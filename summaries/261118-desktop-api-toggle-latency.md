@@ -91,3 +91,14 @@
 ### Round 2 verification
 - `./scripts/staggered-tests.sh --install && ./scripts/buildStart-desktop.sh`: **7,199 unit tests passed**, **128 emulator tests passed**, installed on 3 Android devices, desktop app rebuilt and restarted.
 - 14 consecutive rapid toggles (2 full cycles of all 7 APIs at ~165 ms spacing via `xdotool`): **14/14 completed in 34–82 ms external wall-clock** (**30–78 ms** `phase=rendered`, median **39 ms**; `data_ready` **1–19 ms**).
+
+## Round 3 follow-up (pointer-down API switching experiment)
+
+### Additional user prompts
+18. "Can we experiment with #5 and #6 now? I'm wondering if the multi-step rendering will look cool or not. Lets not do fade effects."
+19. "Does seem much faster now. I don't see the effects of multi-step rendering"
+20. "yes" (revert #5, keep and commit #6)
+
+### Outcome
+- **Kept #6** ([DesktopWidgetHeader.kt](../desktop/src/main/kotlin/com/weatherwidget/desktop/DesktopWidgetHeader.kt)): switched the header bar and API label to cycle sources immediately on `PointerEventType.Press` (primary = forward, secondary = backward, ignoring presses already consumed by other header buttons) with a subtle press highlight (`alpha` 0.6 → 1.0), shaving ~60–100 ms of mouse-release dwell time from perceived toggle latency.
+- **Reverted #5** (two-step night-label draw in `DailyForecastGraph.kt`): because night labels now take only ~7 ms total, Frame 2 landed ~16 ms later with no visible progressive effect while forcing a redundant second Canvas draw.

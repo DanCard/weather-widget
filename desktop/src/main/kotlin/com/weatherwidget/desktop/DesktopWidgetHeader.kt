@@ -7,11 +7,18 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.onClick
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerButton
+import androidx.compose.ui.input.pointer.isPrimaryPressed
+import androidx.compose.ui.input.pointer.isSecondaryPressed
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
@@ -211,19 +218,42 @@ internal fun WidgetHeader(
         )
     }
 
+    var sourcePressed by remember { mutableStateOf(false) }
+    val latestForward by rememberUpdatedState(cycleSourceForward)
+    val latestBackward by rememberUpdatedState(cycleSourceBackward)
+    val canCycleSources = config.effectiveSources.size > 1
+
+    fun Modifier.switchSourceOnPress(enabled: Boolean): Modifier =
+        if (!enabled) this else this.pointerInput(Unit) {
+            awaitPointerEventScope {
+                while (true) {
+                    val event = awaitPointerEvent()
+                    when (event.type) {
+                        androidx.compose.ui.input.pointer.PointerEventType.Press -> {
+                            val change = event.changes.firstOrNull()
+                            if (change != null && !change.isConsumed) {
+                                sourcePressed = true
+                                change.consume()
+                                if (event.buttons.isSecondaryPressed) {
+                                    latestBackward()
+                                } else if (event.buttons.isPrimaryPressed) {
+                                    latestForward()
+                                }
+                            }
+                        }
+                        androidx.compose.ui.input.pointer.PointerEventType.Release,
+                        androidx.compose.ui.input.pointer.PointerEventType.Exit -> {
+                            sourcePressed = false
+                        }
+                    }
+                }
+            }
+        }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(
-                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                indication = null,
-            ) { cycleSourceForward() }
-            .then(
-                if (config.effectiveSources.size > 1) {
-                    @OptIn(ExperimentalFoundationApi::class)
-                    Modifier.onClick(matcher = PointerMatcher.mouse(PointerButton.Secondary)) { cycleSourceBackward() }
-                } else Modifier
-            )
+            .switchSourceOnPress(enabled = canCycleSources)
     ) {
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             val measuredWidth = maxWidth.value
@@ -466,20 +496,19 @@ internal fun WidgetHeader(
             Text(
                 text = content.sourceLabel,
                 style = sourceStyle,
-                color = Color.White.copy(alpha = if (visibleSources.size > 1) 0.6f else 0.5f),
+                color = Color.White.copy(
+                    alpha = when {
+                        visibleSources.size <= 1 -> 0.5f
+                        sourcePressed -> 1.0f
+                        else -> 0.6f
+                    },
+                ),
                 maxLines = 1,
                 softWrap = false,
                 modifier = Modifier
                     .align(Alignment.CenterStart)
                     .offset(x = sourceLeft.dp, y = (-1.5f * scale).dp)
-                    .then(
-                        if (visibleSources.size > 1) {
-                            @OptIn(ExperimentalFoundationApi::class)
-                            Modifier
-                                .clickable { cycleSourceForward() }
-                                .onClick(matcher = PointerMatcher.mouse(PointerButton.Secondary)) { cycleSourceBackward() }
-                        } else Modifier
-                    )
+                    .switchSourceOnPress(enabled = visibleSources.size > 1)
                     .testTag("header_source_label"),
             )
         }
