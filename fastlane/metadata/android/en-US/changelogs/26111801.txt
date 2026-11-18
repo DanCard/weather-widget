@@ -1,0 +1,1 @@
+Paint cold-start widgets immediately before blending daily actuals, keep hourly rain-amount labels left of NOW and clear of the curve, align widget edge labels and arrows to the canvas edge, and lower the WeatherAPI combined rain chance cutoff to 89%.
