@@ -160,6 +160,48 @@ class DesktopApiUsageAndRefreshGateTest {
         assertEquals("source_or_location_change", daemonFetchRestartReason(before, switched.copy(lat = 40.0)))
     }
 
+    /** 2026-11-18: a Settings drag (reorder only) refetched Google's 37-min-old forecast, 8 hour pages. */
+    @Test
+    fun `adding, removing or reordering sources is a list edit, never a location change`() {
+        val before = DesktopConfig(lat = 37.4, lon = -122.0, label = "Mountain View").let {
+            it.copy(
+                settings = it.settings.copy(
+                    weatherSource = "GOOGLE_WEATHER",
+                    visibleSources = listOf("NWS", "SILURIAN", "GOOGLE_WEATHER", "OPEN_METEO"),
+                ),
+            )
+        }
+        fun withSources(vararg ids: String) = before.copy(settings = before.settings.copy(visibleSources = ids.toList()))
+        val cases = mapOf(
+            "reorder" to withSources("NWS", "SILURIAN", "OPEN_METEO", "GOOGLE_WEATHER"),
+            "add" to withSources("NWS", "SILURIAN", "GOOGLE_WEATHER", "OPEN_METEO", "TOMORROW_IO"),
+            "remove" to withSources("NWS", "GOOGLE_WEATHER", "OPEN_METEO"),
+            "remove the displayed source" to withSources("NWS", "SILURIAN", "OPEN_METEO"),
+        )
+        for ((name, after) in cases) {
+            val reason = daemonFetchRestartReason(before, after)
+            println("$name -> $reason (display ${before.displaySource} -> ${after.displaySource})")
+            assertEquals(name, SOURCE_LIST_EDIT_REASON, reason)
+            assertTrue(name, launchRefreshSurvivesRestart(reason!!))
+        }
+        assertEquals(
+            "a location change still wins",
+            "source_or_location_change",
+            daemonFetchRestartReason(before, cases.getValue("add").copy(lon = -121.0)),
+        )
+        assertEquals(
+            "an explicit source switch in the same save is a switch",
+            SOURCE_CYCLE_REASON,
+            daemonFetchRestartReason(before, cases.getValue("reorder").let { it.copy(settings = it.settings.copy(weatherSource = "NWS")) }),
+        )
+    }
+
+    @Test
+    fun `a list edit fetches only when the shown source has nothing to draw`() {
+        assertEquals(LaunchRefreshAction.NONE, sourceListEditLaunchAction(cachePresent = true))
+        assertEquals(LaunchRefreshAction.FULL_FORECAST, sourceListEditLaunchAction(cachePresent = false))
+    }
+
     @Test
     fun `a notebook resumed on low battery refetches a forecast older than 8 h, not 24 h`() {
         val hour = 3_600_000L

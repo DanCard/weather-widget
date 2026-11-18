@@ -179,6 +179,18 @@ fun launchForecastStaleAfterMs(reason: String, isHighBattery: () -> Boolean, cad
     else -> FORECAST_FRESHNESS_THRESHOLD_MS
 }
 
+/**
+ * The launch action after a Settings source-list edit ([SOURCE_LIST_EDIT_REASON]): a full fetch only
+ * when the shown source has nothing to draw, otherwise nothing, not even observations
+ * ([com.weatherwidget.shared.util.SourceListEdit.fetchesForecast], the same rule Android follows).
+ */
+fun sourceListEditLaunchAction(cachePresent: Boolean): LaunchRefreshAction =
+    if (com.weatherwidget.shared.util.SourceListEdit.fetchesForecast(cachePresent)) {
+        LaunchRefreshAction.FULL_FORECAST
+    } else {
+        LaunchRefreshAction.NONE
+    }
+
 enum class LaunchRefreshAction {
     FULL_FORECAST,
     OBSERVATIONS,

@@ -14,6 +14,7 @@ import com.weatherwidget.R
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.BuiltInApiKeys
+import com.weatherwidget.shared.util.SourceListEdit
 import com.weatherwidget.shared.util.WeatherSourceOrdering
 import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.testutil.TestDatabase
@@ -180,6 +181,23 @@ class SettingsSourceListRoboTest {
             assertEquals("one Drag line: $logs", 1, logs.count { it.startsWith("Drag:") })
             val dragLogs = runBlocking { db.appLogDao().getLogsByTag("SOURCE_DRAG", 50) }.map { it.message }
             assertEquals("start and end: $dragLogs", 2, dragLogs.count { it.startsWith("platform=android phase=") })
+            // The shared SourceListEdit line, the same one desktop's daemon logs for this edit.
+            fun readEdits() = runBlocking { db.appLogDao().getLogsByTag(SourceListEdit.LOG_TAG, 50) }.map { it.message }
+            val editDeadline = System.currentTimeMillis() + 5_000
+            var editLogs = readEdits()
+            while (editLogs.isEmpty() && System.currentTimeMillis() < editDeadline) {
+                Thread.sleep(10)
+                idle()
+                editLogs = readEdits()
+            }
+            println("SOURCE_LIST_EDIT: $editLogs")
+            assertEquals(
+                listOf(
+                    "platform=android kind=reorder added=[] removed=[] " +
+                        "order=[SILURIAN, TOMORROW_IO, OPEN_METEO]",
+                ),
+                editLogs,
+            )
         }
     }
 

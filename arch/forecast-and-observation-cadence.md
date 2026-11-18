@@ -39,6 +39,11 @@ for the source's full supported horizon; there is no shorter three-day forecast 
 - Switching to a source fetches its forecast when it is at least 2 hours old at battery ≥ 70% or on a
   charger, otherwise 4 hours (`SourceToggleRefreshPolicy`; desktop
   `LAUNCH_REFRESH_CHECK reason=source_change`).
+- Adding, removing or reordering sources in Settings fetches nothing on either platform, even when a
+  removal moves the display to the next source; only a shown source with no cache at all fetches
+  (`SourceListEdit`, log `SOURCE_LIST_EDIT`). Android repaints; desktop restarts its loops on the new
+  list without a launch fetch (`LAUNCH_REFRESH_CHECK reason=source_list_edit action=NONE`) and leaves
+  a launch refresh already running alone.
 - `SourceFetchGate` excludes sources not viewed recently from routine background work. Targeted user
   actions and on-demand hourly requests are separate from this background gate.
 

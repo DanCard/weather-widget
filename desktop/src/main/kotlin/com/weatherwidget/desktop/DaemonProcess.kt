@@ -7,6 +7,7 @@ import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopDbPaths
 import com.weatherwidget.data.local.desktop.WakeEventLog
 import com.weatherwidget.shared.util.Log
+import com.weatherwidget.shared.util.SourceListEdit
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 
@@ -14,22 +15,24 @@ private const val TAG = "DaemonProcess"
 
 internal const val SOURCE_CYCLE_REASON = "source_change"
 
+/**
+ * Adding, removing or reordering sources: the loops restart so they read the new list, but nothing
+ * fetches unless the shown source has nothing to draw ([SourceListEdit], shared with Android).
+ */
+internal const val SOURCE_LIST_EDIT_REASON = "source_list_edit"
+
 internal fun daemonFetchRestartReason(
     previous: DesktopConfig?,
     updated: DesktopConfig,
-): String? {
-    val locationOrVisibilityChanged = previous == null ||
-        updated.lat != previous.lat ||
-        updated.lon != previous.lon ||
-        updated.settings.visibleSources != previous.settings.visibleSources
-    return when {
-        locationOrVisibilityChanged -> "source_or_location_change"
-        // Cycling the displayed source alone: see [isSourceCycle].
-        updated.settings.weatherSource != previous.settings.weatherSource -> SOURCE_CYCLE_REASON
-        previous.settings.actualsProviders != updated.settings.actualsProviders ->
-            "actuals_provider_change"
-        else -> null
-    }
+): String? = when {
+    previous == null || updated.lat != previous.lat || updated.lon != previous.lon -> "source_or_location_change"
+    // Cycling the displayed source: see [isSourceCycle]. A removal that moves the display to the
+    // next source leaves weatherSource alone, so it stays a list edit, as on Android.
+    updated.settings.weatherSource != previous.settings.weatherSource -> SOURCE_CYCLE_REASON
+    previous.settings.actualsProviders != updated.settings.actualsProviders -> "actuals_provider_change"
+    SourceListEdit.classify(previous.settings.visibleSources, updated.settings.visibleSources) != null ->
+        SOURCE_LIST_EDIT_REASON
+    else -> null
 }
 
 fun runDaemon(reopenUi: Boolean = false) {

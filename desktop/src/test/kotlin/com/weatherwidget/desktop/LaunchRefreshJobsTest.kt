@@ -85,8 +85,9 @@ class LaunchRefreshJobsTest {
     private fun cancelledLogged() = dao.getRecentLogsByTags(listOf("REFRESH_CANCELLED")).isNotEmpty()
 
     @Test
-    fun `only a source change leaves the previous launch refresh running`() {
+    fun `only a source change or a source-list edit leaves the previous launch refresh running`() {
         assertTrue(launchRefreshSurvivesRestart(SOURCE_CYCLE_REASON))
+        assertTrue(launchRefreshSurvivesRestart(SOURCE_LIST_EDIT_REASON))
         listOf(STARTUP_REASON, "source_or_location_change", "actuals_provider_change", "resume:logind", "network:restored")
             .forEach { assertFalse(it, launchRefreshSurvivesRestart(it)) }
     }
@@ -115,6 +116,31 @@ class LaunchRefreshJobsTest {
 
         assertFalse(first!!.isCancelled)
         assertNotNull("the NWS-equivalent refresh finished and logged REFRESH", dao.getLastSuccessfulFetch(source))
+        assertFalse(cancelledLogged())
+    }
+
+    /** A Settings add/remove/reorder restarts the loops but must neither cancel nor repeat a fetch. */
+    @Test
+    fun `a source-list edit does not cancel the fetch in flight or start another`() = runBlocking {
+        val held = HeldService()
+        val jobs = LaunchRefreshJobs(scope)
+        jobs.start(STARTUP_REASON) { jobs.fetchOnce(key) { held.repo.refresh(reason = "launch:startup") } }
+        withTimeout(10_000) { held.entered.await() }
+
+        // What runLaunchRefresh does for the edit when a cache exists: nothing to fetch.
+        val editAction = sourceListEditLaunchAction(cachePresent = true)
+        val first = jobs.start(SOURCE_LIST_EDIT_REASON) {
+            if (editAction != LaunchRefreshAction.NONE) jobs.fetchOnce(key) { held.repo.refresh(reason = "launch:edit") }
+        }
+        held.release.complete(Unit)
+        withTimeout(10_000) { first!!.join() }
+        withTimeout(10_000) { jobs.current()!!.join() }
+
+        println("edit action=$editAction fetchCalls=${held.calls.get()}")
+        assertEquals(LaunchRefreshAction.NONE, editAction)
+        assertFalse(first!!.isCancelled)
+        assertEquals("one forecast fetch, the startup one", 1, held.calls.get())
+        assertNotNull(dao.getLastSuccessfulFetch(source))
         assertFalse(cancelledLogged())
     }
 

@@ -46,6 +46,7 @@ import com.weatherwidget.shared.util.ApiKeySignupUrls
 import com.weatherwidget.shared.util.RefreshNotice
 import com.weatherwidget.shared.util.SettingsRefreshAllSources
 import com.weatherwidget.shared.util.RefreshOutcome
+import com.weatherwidget.shared.util.SourceListEdit
 import com.weatherwidget.widget.RefreshToast
 import com.weatherwidget.shared.util.WeatherSourceOrdering
 import android.Manifest
@@ -471,7 +472,14 @@ class SettingsActivity : AppCompatActivity() {
     private fun persistSourceOrder(summary: String, updatedIds: List<String>) {
         Log.d("SOURCE_ORDER", summary)
         eventLogger.log("SOURCE_ORDER", summary)
+        val previousIds = widgetStateManager.getEnabledSourcesOrder().map { it.id }
         widgetStateManager.setVisibleSourcesOrder(updatedIds.map(WeatherSource::fromId))
+        // A list edit fetches nothing (SourceListEdit, shared with desktop): repaint only.
+        SourceListEdit.classify(previousIds, updatedIds)?.let { change ->
+            val message = SourceListEdit.logMessage("android", change, updatedIds)
+            Log.d(SourceListEdit.LOG_TAG, message)
+            eventLogger.log(SourceListEdit.LOG_TAG, message)
+        }
         // The daily home button is bound from the order (first = preferred), and a removal can move
         // a widget's source: an unpainted widget kept a home button that pointed nowhere (Fold 4,
         // 2026-10-22 — Google dragged first while shown; every home tap was "stale", no-op).

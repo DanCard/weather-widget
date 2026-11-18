@@ -18,7 +18,8 @@ import java.util.concurrent.ConcurrentHashMap
  * fetch is for a site or a client that no longer applies.
  * plans/261012-desktop-source-change-keeps-in-flight-fetch.md
  */
-internal fun launchRefreshSurvivesRestart(reason: String): Boolean = reason == SOURCE_CYCLE_REASON
+internal fun launchRefreshSurvivesRestart(reason: String): Boolean =
+    reason == SOURCE_CYCLE_REASON || reason == SOURCE_LIST_EDIT_REASON
 
 /**
  * A launch refresh paints only while its source and site are still the ones displayed. One left

@@ -19,6 +19,7 @@ import com.weatherwidget.data.local.desktop.WakeEventLog
 import com.weatherwidget.data.local.desktop.DesktopSourceRetryState
 import com.weatherwidget.data.local.desktop.SwitchRefreshLog
 import com.weatherwidget.data.remote.FetchErrorCode
+import com.weatherwidget.shared.util.SourceListEdit
 import com.weatherwidget.shared.util.SourceRetry
 import com.weatherwidget.shared.util.SettingsRefreshAllSources
 import com.weatherwidget.shared.notify.DominantTempWatch
@@ -491,6 +492,15 @@ internal class DaemonRuntime(
                         } else {
                             val localConfig = currentConfig
                             val restartReason = daemonFetchRestartReason(localConfig, newConfig)
+                            if (localConfig != null) {
+                                SourceListEdit.classify(localConfig.settings.visibleSources, newConfig.settings.visibleSources)?.let { change ->
+                                    weatherDao.log(
+                                        SourceListEdit.LOG_TAG,
+                                        SourceListEdit.logMessage("desktop", change, newConfig.settings.visibleSources),
+                                        "INFO",
+                                    )
+                                }
+                            }
 
                             // Publish every settings reload before any refresh decision. The
                             // resolver is process-local; updating only currentConfig left the
@@ -897,6 +907,8 @@ internal class DaemonRuntime(
             ) { activeForecastCadenceMs() }
             val launchRefreshAction = if (launchRefreshSkippedWhileAway(reason, presence.isAway)) {
                 LaunchRefreshAction.NONE
+            } else if (reason == SOURCE_LIST_EDIT_REASON) {
+                sourceListEditLaunchAction(cachePresent = cached != null)
             } else {
                 determineLaunchRefreshAction(
                     cachePresent = cached != null,
