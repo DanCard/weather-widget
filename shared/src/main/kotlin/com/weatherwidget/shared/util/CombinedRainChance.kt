@@ -24,7 +24,7 @@ object CombinedRainChance {
     /** Per source: the window's max hourly chance from which the combined chance is shown instead. */
     val MIN_MAX_PERCENT: Map<String, Int> = mapOf(
         WeatherSource.GOOGLE_WEATHER.id to 85,
-        WeatherSource.WEATHER_API.id to 90,
+        WeatherSource.WEATHER_API.id to 89,
         WeatherSource.TOMORROW_IO.id to 85,
     )
 

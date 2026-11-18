@@ -176,7 +176,7 @@ hourly chance (`DailyRainLabels.periodMaxima`, stored on the forecast row by `Da
 days past the hourly store keep it). One exception lives in `:shared` `CombinedRainChance`: sources whose
 hourly chances stop short of certainty show the chance of rain in at least one hour,
 `1 − ∏(1 − pₕ)`, once the window's max reaches a per-source cutoff just under that ceiling — Google
-85 % (its hours stop at 85 % a day out), WeatherAPI 90 % (its hours stop at ~92 %), Tomorrow.io 85 %. Below the cutoff
+85 % (its hours stop at 85 % a day out), WeatherAPI 89 % (its hours stop at ~92 %), Tomorrow.io 85 %. Below the cutoff
 the max stands, since Google's 10 % drizzle floor would otherwise combine to ~72 % over a dry day. The combined value is stored beside
 the max (`forecasts.hourlyDayPrecipCombined` / `hourlyNightPrecipCombined`) and moves with it in
 `carryForward`; the peak hour stays the first hour at the max. Label, icon, bar colour, the

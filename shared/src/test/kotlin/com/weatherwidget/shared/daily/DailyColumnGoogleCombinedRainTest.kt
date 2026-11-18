@@ -97,9 +97,9 @@ class DailyColumnGoogleCombinedRainTest {
     }
 
     @Test
-    fun `WeatherAPI shows the combined chance from 90, Google still from 85`() {
-        assertEquals(100, CombinedRainChance.shown(wapi, max = 90, combined = 100))
-        assertEquals("WeatherAPI below 90 keeps the max", 89, CombinedRainChance.shown(wapi, max = 89, combined = 100))
+    fun `WeatherAPI shows the combined chance from 89, Google still from 85`() {
+        assertEquals(100, CombinedRainChance.shown(wapi, max = 89, combined = 100))
+        assertEquals("WeatherAPI below 89 keeps the max", 88, CombinedRainChance.shown(wapi, max = 88, combined = 100))
         assertEquals("Google's cutoff is its own", 100, CombinedRainChance.shown(google, max = 85, combined = 100))
     }
 
