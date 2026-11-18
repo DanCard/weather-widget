@@ -23,8 +23,8 @@ object ResizeDiagnosticsLogger {
      * one place. Match the layout paddings the renderers subtract; if they ever diverge, this
      * breadcrumb is the place a resize-driven rendering flap will show its arithmetic.
      */
-    private const val GRAPH_HORIZONTAL_PADDING_DP = 24
-    private const val GRAPH_VERTICAL_PADDING_DP = 16
+    private const val GRAPH_HORIZONTAL_PADDING_DP = WidgetInsets.GRAPH_WIDTH_INSET_DP.toInt()
+    private const val GRAPH_VERTICAL_PADDING_DP = WidgetInsets.GRAPH_HEIGHT_INSET_DP.toInt()
 
     suspend fun log(
         context: Context,

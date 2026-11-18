@@ -166,6 +166,7 @@ internal object DailyForecastRainLabelRenderer {
                 floorInkTop = minOf(left.dayNameInkTop, right?.dayNameInkTop ?: left.dayNameInkTop),
                 canvasWidth = layout.widthPx.toFloat(),
                 pxPerDp = layout.density,
+                bitmapScale = layout.bitmapScale,
             )
         }
         val placed = DailyRainLabelLayout.layoutNights(rainLabelHost(paints), inputs.map { it.second }, PLATFORM)

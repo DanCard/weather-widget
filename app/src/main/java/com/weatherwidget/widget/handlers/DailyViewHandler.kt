@@ -65,7 +65,12 @@ object DailyViewHandler : WidgetViewHandler {
     // 2.2 (not 2.0) because the header consumes ~0.2 rows of vertical space,
     // so a 2-row widget needs slightly more than 2.0 to have room for the graph.
     private const val GRAPH_ROW_THRESHOLD = 2.2f
-    private const val NAV_BUTTON_PADDING_DP = 10
+    /**
+     * Nav arrow padding, matching `widget_weather.xml`: none on the widget-edge side, so the
+     * `_edge` chevron's ink sits on the edge; the 40dp button keeps its hit area on the inner side.
+     */
+    private const val NAV_BUTTON_OUTER_PADDING_DP = 0
+    private const val NAV_BUTTON_INNER_PADDING_DP = 16
     // Only probe for incomplete-history backfill when the visible window is recent enough that
     // NWS observation history can still serve it. Older days are beyond the fetch horizon.
     private const val HISTORY_BACKFILL_VISIBLE_DAYS = 3L
@@ -727,11 +732,13 @@ object DailyViewHandler : WidgetViewHandler {
             return
         }
 
-        val paddingPx = WidgetSizeCalculator.dpToPx(context, NAV_BUTTON_PADDING_DP)
+        val outerPx = WidgetSizeCalculator.dpToPx(context, NAV_BUTTON_OUTER_PADDING_DP)
+        val innerPx = WidgetSizeCalculator.dpToPx(context, NAV_BUTTON_INNER_PADDING_DP)
 
         views.setViewVisibility(R.id.nav_left, View.VISIBLE)
         views.setViewVisibility(R.id.nav_left_zone, View.VISIBLE)
-        views.setViewPadding(R.id.nav_left, paddingPx, 0, paddingPx, 0)
+        views.setViewPadding(R.id.nav_left, outerPx, 0, innerPx, 0)
+        views.setViewPadding(R.id.nav_right, innerPx, 0, outerPx, 0)
         bindNavDirection(
             views = views,
             buttonId = R.id.nav_left,

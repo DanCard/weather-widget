@@ -34,10 +34,11 @@ object NavArrowGeometry {
 
     /**
      * `graph_view`'s `layout_marginStart`/`layout_marginEnd`. The bitmap is inset from the widget
-     * edge by this much, so only `ARROW_WIDTH_DP - GRAPH_INSET_DP` of the arrow actually overlaps
-     * the plot. Dropping this term would over-reserve by 4dp on both sides.
+     * edge by this much, so only `ARROW_WIDTH_DP - GRAPH_INSET_DP` of the arrow overlaps the plot.
+     * 0 since 2026-11-18, when the widget's edge padding was removed: the whole arrow overlaps
+     * (plans/261118-remove-widget-edge-padding.md).
      */
-    const val GRAPH_INSET_DP = 4f
+    const val GRAPH_INSET_DP = 0f
 
     /**
      * Arrow button height. Mirrors `android:minHeight` on `nav_left`/`nav_right`, which is what

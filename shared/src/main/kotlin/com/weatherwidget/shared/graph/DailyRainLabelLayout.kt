@@ -188,6 +188,14 @@ object DailyRainLabelLayout {
         val canvasWidth: Float,
         /** dp→px for gaps, steps and margins. */
         val pxPerDp: Float,
+        /**
+         * Bitmap px per screen px: below 1 when the platform draws a downscaled bitmap and stretches
+         * it to the widget (Android, `WidgetSizeCalculator`). The canvas edge margin is a distance
+         * from the screen edge, so it is scaled by this; with the device density alone, the Fold 4's
+         * 0.33x bitmap showed the 4 dp margin as ~10 dp and the last night label stopped short of
+         * the edge (2026-11-18). Desktop draws at full size: 1.
+         */
+        val bitmapScale: Float = 1f,
     )
 
     /**
@@ -226,7 +234,7 @@ object DailyRainLabelLayout {
         weights: NightRainLabelPlacer.Weights,
     ): Pair<Placed, DailyRainLabelPlanner.Box> {
         val p = input.pxPerDp
-        val edge = DailyRainLabels.RAIN_LABEL_EDGE_MARGIN_DP * p
+        val edge = DailyRainLabels.RAIN_LABEL_EDGE_MARGIN_DP * p * input.bitmapScale.coerceIn(0f, 1f)
         val baseScale = DailyRainLabels.rainLabelFontScale(input.isPast, input.probability, input.daysFromToday) *
             DailyRainLabels.NIGHT_SCALE * DailyRainLabels.traceFontScale(input.text)
         val reducedScale = baseScale * NIGHT_REDUCED_SCALE
@@ -303,7 +311,7 @@ object DailyRainLabelLayout {
                 " clear=${best.clear} minGapDp=${(best.minGap / p).r()}" +
                 " runnerUp=${runner?.let { "(${it.centerX.r()},${it.top.r()},${it.score.r()})" }}" +
                 " ink=(${labelInk.left.r()},${labelInk.top.r()},${labelInk.right.r()},${labelInk.bottom.r()})" +
-                " floorInkTop=${input.floorInkTop.r()}" +
+                " floorInkTop=${input.floorInkTop.r()} edgeMargin=${edge.r()} bitmapScale=${input.bitmapScale}" +
                 " obstacles=${obstacles.joinToString(";", "[", "]") { "${it.left.r()},${it.top.r()},${it.right.r()},${it.bottom.r()}" }}",
         )
         return label to labelInk

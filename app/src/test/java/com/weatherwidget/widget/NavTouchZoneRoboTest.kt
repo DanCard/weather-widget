@@ -111,8 +111,8 @@ class NavTouchZoneRoboTest {
     }
 
     /**
-     * Only `ARROW_WIDTH_DP - GRAPH_INSET_DP` of the arrow overlaps the bitmap, because graph_view is
-     * inset from the widget edge. Drop this term and every reservation is 4dp too wide.
+     * Only `ARROW_WIDTH_DP - GRAPH_INSET_DP` of the arrow overlaps the bitmap, because graph_view may
+     * be inset from the widget edge (0 since the edge padding was removed, 2026-11-18).
      */
     @Test
     fun `NavArrowGeometry GRAPH_INSET_DP matches graph_view's horizontal margin`() {

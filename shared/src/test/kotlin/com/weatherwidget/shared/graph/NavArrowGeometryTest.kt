@@ -20,8 +20,11 @@ class NavArrowGeometryTest {
     private val plot = GraphRect(0f, 100f, 1000f, 700f) // 1000 x 600, offset top like a real graph
     private val density = 3f
 
-    /** 40dp button minus graph_view's 4dp inset, at density 3 => 108px of arrow over the plot. */
-    private val expectedWidth = 108f
+    /**
+     * 40dp button minus graph_view's inset (0 since the widget's edge padding was removed,
+     * 2026-11-18), at density 3 => 120px of arrow over the plot.
+     */
+    private val expectedWidth = 120f
 
     /** 80dp minHeight at density 3. */
     private val expectedHeight = 240f
@@ -40,14 +43,14 @@ class NavArrowGeometryTest {
     fun `left arrow hugs the plot's left edge`() {
         val rect = bounds(right = false).single()
         assertEquals("left edge", plot.left, rect.left, 0.01f)
-        assertEquals("width is 36dp of overlap", expectedWidth, rect.width, 0.01f)
+        assertEquals("width is 40dp of overlap", expectedWidth, rect.width, 0.01f)
     }
 
     @Test
     fun `right arrow hugs the plot's right edge`() {
         val rect = bounds(left = false).single()
         assertEquals("right edge", plot.right, rect.right, 0.01f)
-        assertEquals("width is 36dp of overlap", expectedWidth, rect.width, 0.01f)
+        assertEquals("width is 40dp of overlap", expectedWidth, rect.width, 0.01f)
     }
 
     @Test

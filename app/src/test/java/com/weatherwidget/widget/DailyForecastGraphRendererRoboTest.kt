@@ -69,6 +69,7 @@ class DailyForecastGraphRendererRoboTest {
         widthPx: Int = 300,
         heightPx: Int = 200,
         numColumns: Int = 0,
+        bitmapScale: Float = 1f,
     ): List<DailyForecastGraphRenderer.DailyRainLabelPlacement> {
         val results = mutableListOf<DailyForecastGraphRenderer.DailyRainLabelPlacement>()
         val bitmap = runBlocking {
@@ -77,6 +78,7 @@ class DailyForecastGraphRendererRoboTest {
                 days = days,
                 widthPx = widthPx,
                 heightPx = heightPx,
+                bitmapScale = bitmapScale,
                 numColumns = numColumns,
                 onRainLabelDrawn = { results.add(it) }, useCelsius = false,
             )
@@ -1060,6 +1062,35 @@ class DailyForecastGraphRendererRoboTest {
         // Wed's column centre is 3/4 of the width; the old fallback centred the label there.
         assertTrue("right of Wed's column centre", wed.centerX > widthPx * 0.75f + 10f)
         assertTrue("clear of Tue's night label", wed.leftX > tue.rightX)
+    }
+
+    @Test
+    fun renderGraph_lastColumnNightRainLabelEdgeMarginIsScreenDpOnADownscaledBitmap() {
+        // Fold 4, 2026-11-18: the bitmap is drawn at 0.33x and stretched to the widget; with the device
+        // density alone the 4 dp edge margin showed as ~10 dp and "60%" stopped short of the edge.
+        val widthPx = 800
+        val scale = 0.33f
+        val labels = renderRainLabels(
+            days = listOf(
+                DailyForecastGraphRenderer.DayData(
+                    date = LocalDate.of(2026, 11, 24), label = "Tue", solidLineHigh = 56f, solidLineLow = 44f,
+                    rainData = DailyForecastGraphRenderer.RainLabelData(nighttimePrecipProbability = 85, nightRainLabelText = "85%"),
+                ),
+                DailyForecastGraphRenderer.DayData(
+                    date = LocalDate.of(2026, 11, 25), label = "Wed", solidLineHigh = 61f, solidLineLow = 52f,
+                    rainData = DailyForecastGraphRenderer.RainLabelData(nighttimePrecipProbability = 60, nightRainLabelText = "60%"),
+                ),
+            ),
+            widthPx = widthPx,
+            heightPx = 500,
+            bitmapScale = scale,
+        )
+        val wed = labels.single { it.text == "60%" }
+        val density = context.resources.displayMetrics.density
+        val margin = com.weatherwidget.shared.util.DailyRainLabels.RAIN_LABEL_EDGE_MARGIN_DP * density * scale
+        println("downscaled night label: placement=${wed.placement} right=${wed.rightX} expectedRight=${widthPx - margin} density=$density")
+        assertEquals("NIGHT_AT_EDGE", wed.placement)
+        assertEquals("edge margin in screen dp", widthPx - margin, wed.rightX, 0.5f)
     }
 
     @Test

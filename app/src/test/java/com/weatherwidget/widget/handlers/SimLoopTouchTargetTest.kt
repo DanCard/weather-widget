@@ -16,20 +16,21 @@ import org.junit.experimental.categories.Category
 class SimLoopTouchTargetTest {
     @Test
     fun `graph view size matches computeBitmapDimensions paddings`() {
-        assertEquals(376f to 204f, SimLoopTouchTarget.graphViewSizeDp(400, 220))
+        // No edge padding since 2026-11-18: graph_view is the whole widget.
+        assertEquals(400f to 220f, SimLoopTouchTarget.graphViewSizeDp(400, 220))
     }
 
     @Test
     fun `same aspect - bitmap px scale straight into dp, offset by the graph inset`() {
-        // 376x204dp view showing a 2.625x bitmap (Pixel density 2.625, bitmapScale 1).
+        // 400x220dp view showing a 2.625x bitmap (Pixel density 2.625, bitmapScale 1).
         val r = SimLoopTouchTarget.bitmapToContentDp(
             GraphRect(262.5f, 131.25f, 525f, 189f),
-            bitmapWidthPx = 987, bitmapHeightPx = 535,
-            viewWidthDp = 376f, viewHeightDp = 204f,
+            bitmapWidthPx = 1050, bitmapHeightPx = 578,
+            viewWidthDp = 400f, viewHeightDp = 220f,
         )
-        val k = minOf(376f / 987, 204f / 535)
-        assertEquals(4f + (376f - 987 * k) / 2f + 262.5f * k, r.left, 0.01f)
-        assertEquals((204f - 535 * k) / 2f + 131.25f * k, r.top, 0.01f)
+        val k = minOf(400f / 1050, 220f / 578)
+        assertEquals(WidgetInsets.GRAPH_SIDE_MARGIN_DP + (400f - 1050 * k) / 2f + 262.5f * k, r.left, 0.01f)
+        assertEquals((220f - 578 * k) / 2f + 131.25f * k, r.top, 0.01f)
     }
 
     @Test
@@ -40,15 +41,16 @@ class SimLoopTouchTargetTest {
             bitmapWidthPx = 1000, bitmapHeightPx = 400,
             viewWidthDp = 500f, viewHeightDp = 300f,
         )
-        assertEquals(4f, r.left, 0.01f)
+        val inset = WidgetInsets.GRAPH_SIDE_MARGIN_DP
+        assertEquals(inset, r.left, 0.01f)
         assertEquals(50f, r.top, 0.01f) // (300 - 400*0.5) / 2
-        assertEquals(54f, r.right, 0.01f)
+        assertEquals(inset + 50f, r.right, 0.01f)
         assertEquals(75f, r.bottom, 0.01f)
     }
 
     @Test
     fun `zone covers the pill, stays under the header and off the nav arrows`() {
-        val content = 384f to 204f
+        val content = 400f to 220f
         // A pill just under the plot top at the right edge, near the right arrow's band.
         val pill = GraphRect(270f, 50f, 340f, 72f)
         val zone = SimLoopTouchTarget.zoneDp(pill, plotBottomDp = 170f, contentWidthDp = content.first, contentHeightDp = content.second)

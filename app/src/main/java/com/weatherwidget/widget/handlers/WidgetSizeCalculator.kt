@@ -283,8 +283,8 @@ object WidgetSizeCalculator {
         context: Context,
         widgetWidthDp: Int,
         widgetHeightDp: Int,
-        widthPaddingDp: Int = 24,
-        heightPaddingDp: Int = 16,
+        widthPaddingDp: Int = WidgetInsets.GRAPH_WIDTH_INSET_DP.toInt(),
+        heightPaddingDp: Int = WidgetInsets.GRAPH_HEIGHT_INSET_DP.toInt(),
     ): BitmapDimensions {
         val widthDp = widgetWidthDp - widthPaddingDp
         val heightDp = widgetHeightDp - heightPaddingDp

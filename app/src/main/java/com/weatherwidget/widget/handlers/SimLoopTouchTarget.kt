@@ -27,20 +27,21 @@ import com.weatherwidget.ui.RainForecastActivity
  */
 internal object SimLoopTouchTarget {
     /** `widget_root`'s `android:padding`. */
-    const val ROOT_PADDING_DP = 8f
+    const val ROOT_PADDING_DP = WidgetInsets.ROOT_PADDING_DP
 
     /**
      * Bottom of the header buttons in content dp: `top_right_header_container` sits at
-     * `layout_marginTop="-10dp"` with 50dp-tall touch zones.
+     * `layout_marginTop="-2dp"` with 50dp-tall touch zones (the same screen spot as the -10dp it had
+     * inside the old 8dp root padding).
      */
-    const val HEADER_TOUCH_BOTTOM_DP = 40f
+    const val HEADER_TOUCH_BOTTOM_DP = 48f
 
     /** True when this launcher can move the zone onto the pill; the renderer skips the pill otherwise. */
     fun supported(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
 
-    /** graph_view's size in dp — `WidgetSizeCalculator.computeBitmapDimensions`' default paddings. */
+    /** graph_view's size in dp — the same [WidgetInsets] `WidgetSizeCalculator.computeBitmapDimensions` uses. */
     fun graphViewSizeDp(widgetWidthDp: Int, widgetHeightDp: Int): Pair<Float, Float> =
-        (widgetWidthDp - 2 * ROOT_PADDING_DP - 2 * NavArrowGeometry.GRAPH_INSET_DP) to (widgetHeightDp - 2 * ROOT_PADDING_DP)
+        (widgetWidthDp - WidgetInsets.GRAPH_WIDTH_INSET_DP) to (widgetHeightDp - WidgetInsets.GRAPH_HEIGHT_INSET_DP)
 
     /**
      * Maps a bitmap-pixel rect to content dp the way `graph_view` (`scaleType="fitCenter"`, inset

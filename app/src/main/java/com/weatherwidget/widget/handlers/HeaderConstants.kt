@@ -29,8 +29,11 @@ object HeaderConstants {
     /**
      * `layout_marginTop` applied to the shared centre-icon container in the DAILY view, in dp.
      *
-     * The XML value (-10dp) is tuned for the hourly view, whose `current_temp` TextView carries the
-     * same -10dp so icons and text share a line. The daily view PAINTS its header text instead, at
+     * The XML value ([HOURLY_ICON_CONTAINER_MARGIN_TOP_DP]) is tuned for the hourly view, whose
+     * `current_temp` TextView carries -10dp inside its 0dp-margin container so icons and text share
+     * a line. Both were 8dp more negative while `widget_root` had 8dp of padding (removed 2026-11-18,
+     * plans/261118-remove-widget-edge-padding.md); the daily value was not, because the painted line
+     * it follows moved up with the bitmap. The daily view PAINTS its header text instead, at
      * `upOffset` (-2dp), leaving the buttons ~6dp high beside the date. Lifting the date instead
      * was tried and clipped it against the bitmap's top edge — the painted row is already close to
      * the ceiling, so the buttons are the side with room to move.
@@ -40,7 +43,7 @@ object HeaderConstants {
      * applied margin over into the other mode.
      */
     const val DAILY_ICON_CONTAINER_MARGIN_TOP_DP = -4f
-    const val HOURLY_ICON_CONTAINER_MARGIN_TOP_DP = -10f
+    const val HOURLY_ICON_CONTAINER_MARGIN_TOP_DP = -2f
     const val DATE_HORIZONTAL_GAP_DP = 6f
     const val DATE_RIGHT_MARGIN_DP = 112f
     const val DATE_MIN_COLUMNS = 6

@@ -486,9 +486,9 @@ class MonthsViewActivity : AppCompatActivity(), MonthsScreenView.Listener {
     companion object {
         private const val TAG = "MonthsViewActivity"
 
-        /** Graph inset inside the widget card: `computeBitmapDimensions`' 24 dp / 16 dp, per side. */
-        private const val CARD_PADDING_X_DP = 12
-        private const val CARD_PADDING_Y_DP = 8
+        /** Graph inset inside the widget card, per side: the widget's own [WidgetInsets]. */
+        private const val CARD_PADDING_X_DP = (com.weatherwidget.widget.handlers.WidgetInsets.GRAPH_WIDTH_INSET_DP / 2).toInt()
+        private const val CARD_PADDING_Y_DP = (com.weatherwidget.widget.handlers.WidgetInsets.GRAPH_HEIGHT_INSET_DP / 2).toInt()
 
         /** A typical 5×2 phone widget, when none is installed. */
         private const val FALLBACK_WIDTH_DP = 340

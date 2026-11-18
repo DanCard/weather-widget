@@ -131,4 +131,27 @@ class DailyRainLabelLayoutTest {
         assertTrue("moved right of its column centre", label.centerX > columnCenterX + 1f)
         assertTrue("still below its low", label.top >= lowInk.bottom)
     }
+
+    @Test
+    fun `on a downscaled bitmap the last night label's edge margin is 4 screen dp, not 4 device-density dp`() {
+        // Fold 4, 2026-11-18: a 0.33x bitmap at density 2.625 showed the 4 dp margin as ~10 dp.
+        val p = 2.625f
+        val scale = 0.33f
+        val canvasWidth = 566f
+        val lowInk = DailyRainLabelPlanner.Box(520f, 200f, 548f, 220f)
+        val input = DailyRainLabelLayout.NightInput(
+            date = "2026-11-25", text = "60%", probability = 60, isPast = false, daysFromToday = 7,
+            columnCenterX = 538f, gapCenterX = canvasWidth, columnWidth = 56f,
+            leftLowInk = lowInk, rightLowInk = null, obstacles = listOf(lowInk),
+            floorInkTop = 380f, canvasWidth = canvasWidth, pxPerDp = p, bitmapScale = scale,
+        )
+        val label = DailyRainLabelLayout.layoutNights(host, listOf(input), "test").single()
+        val right = label.centerX + label.width / 2f
+        val expectedMargin = DailyRainLabels.RAIN_LABEL_EDGE_MARGIN_DP * p * scale
+        println("downscaled last-column night: right=$right margin=${canvasWidth - right} expected=$expectedMargin placement=${label.placement}")
+        assertEquals("NIGHT_AT_EDGE", label.placement)
+        // Within one placer search step (stepDp at pxPerDp) of the edge margin; the old margin was 10.5 px.
+        val step = NightRainLabelPlacer.DEFAULT_WEIGHTS.stepDp * p
+        assertTrue("right $right within a step of ${canvasWidth - expectedMargin}", right <= canvasWidth - expectedMargin + 0.01f && right >= canvasWidth - expectedMargin - step)
+    }
 }

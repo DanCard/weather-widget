@@ -163,6 +163,11 @@ Shared graph code computes series, geometry, extrema, label placement, overlays,
 Canvas/RemoteViews and desktop Compose execute those plans with platform text measurement and drawing.
 This keeps label and layout decisions testable on the JVM and minimizes platform-specific drift.
 
+The Android widget's graph fills the widget edge to edge: `widget_weather.xml` has no root padding
+and no `graph_view` side margins (`plans/261118-remove-widget-edge-padding.md`). The bitmap size,
+the pill touch zones and the nav-arrow overlap read that inset from `WidgetInsets`, and
+`WidgetEdgeInsetRoboTest` lays out the real XML to keep the two in step.
+
 Hourly-graph labels share one top limit, `GraphLabelArea.TOP` (the canvas edge, not the plot top), so
 no placer carries its own exception. Value and ghost labels do not check for collision with the header
 row. The context annotations — the dominant station (`knuq 71.6° @ 2:35 pm`) and "Actual temperature
@@ -195,7 +200,9 @@ inside 1 dp of other ink (0.5 dp corner to corner), which is large enough that a
 It never rises above the preferred row except toward a 1 dp tuck when room is short, and may pass
 the day names' ink top by 1.5 dp only between names. The 85 % size is used only when full size has
 no clear spot. The last column's gap is the canvas edge, so its label targets that gap clamped inside
-the edge margin (`NIGHT_AT_EDGE`), not the centre of its own low. Labels are placed in column order,
+the edge margin (`NIGHT_AT_EDGE`), not the centre of its own low. The edge margin is 4 screen dp:
+Android draws a downscaled bitmap and stretches it to the widget, so `NightInput.bitmapScale` scales it
+(the device density alone made it ~10 dp on the Fold 4). Labels are placed in column order,
 each avoiding those already placed. Weights live
 in `NightRainLabelPlacer.Weights`; `nightRainLabel position` (tag `DailyRainLabelLayout`) logs the
 chosen spot, each score term, the runner-up, and every obstacle box.
