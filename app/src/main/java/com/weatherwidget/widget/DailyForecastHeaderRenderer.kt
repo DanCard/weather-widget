@@ -572,7 +572,9 @@ internal object DailyForecastHeaderRenderer {
         labelScale: Float,
         density: Float,
     ): HeaderPaintSet {
-        val key = "$labelScale-${header.deltaColor}-${header.precipColor}-${header.precipTextSizeDp}-${header.apiTextSizeDp}"
+        // Density is in the key: every text size below is dp × density, and a Screen zoom change
+        // keeps the process (and this cache) alive (2026-11-19, DailyHeaderPaintDensityRoboTest).
+        val key = "$labelScale-$density-${header.deltaColor}-${header.precipColor}-${header.precipTextSizeDp}-${header.apiTextSizeDp}"
         val cache = headerPaintCache
         if (cache?.key == key) return cache.set
 
