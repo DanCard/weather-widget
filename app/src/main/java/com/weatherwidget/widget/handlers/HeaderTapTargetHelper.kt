@@ -15,12 +15,11 @@ internal object HeaderTapTargetHelper {
     fun shouldShowPrecipTouchZone(headerPrecipProbability: Int?): Boolean =
         headerPrecipProbability != null && headerPrecipProbability > 0
 
-    fun bindToggleTemperatureHeader(
+    private fun viewTogglePendingIntent(
         context: Context,
-        views: RemoteViews,
         appWidgetId: Int,
         interactionSource: String? = null,
-    ) {
+    ): PendingIntent {
         val toggleIntent =
             Intent(context, WidgetInteractionReceiver::class.java).apply {
                 action = WidgetActions.ACTION_TOGGLE_VIEW
@@ -29,16 +28,62 @@ internal object HeaderTapTargetHelper {
                     putExtra(WidgetActions.EXTRA_INTERACTION_SOURCE, it)
                 }
             }
-        val togglePendingIntent =
-            PendingIntent.getBroadcast(
-                context,
-                WidgetRequestCodes.viewToggle(appWidgetId),
-                toggleIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-            )
+        return PendingIntent.getBroadcast(
+            context,
+            WidgetRequestCodes.viewToggle(appWidgetId),
+            toggleIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+    }
+
+    private fun precipTogglePendingIntent(
+        context: Context,
+        appWidgetId: Int,
+    ): PendingIntent {
+        val precipIntent =
+            Intent(context, WidgetInteractionReceiver::class.java).apply {
+                action = WidgetActions.ACTION_TOGGLE_PRECIP
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+            }
+        return PendingIntent.getBroadcast(
+            context,
+            WidgetRequestCodes.precipToggle(appWidgetId),
+            precipIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+    }
+
+    fun bindToggleTemperatureHeader(
+        context: Context,
+        views: RemoteViews,
+        appWidgetId: Int,
+        interactionSource: String? = null,
+    ) {
+        val togglePendingIntent = viewTogglePendingIntent(context, appWidgetId, interactionSource)
         views.setOnClickPendingIntent(R.id.current_temp, togglePendingIntent)
         views.setOnClickPendingIntent(R.id.current_temp_delta, togglePendingIntent)
         views.setOnClickPendingIntent(R.id.current_temp_zone, togglePendingIntent)
+    }
+
+    /**
+     * Binds the header weather icon and its touch zone. While rain is actively falling
+     * ([isRainingNow] = true, blue rain-now dots), tapping opens the hourly rain chance graph
+     * (`ACTION_TOGGLE_PRECIP`); otherwise it uses [defaultPendingIntent] or the standard view toggle.
+     */
+    fun bindWeatherIconHeader(
+        context: Context,
+        views: RemoteViews,
+        appWidgetId: Int,
+        isRainingNow: Boolean,
+        defaultPendingIntent: PendingIntent? = null,
+    ) {
+        val pendingIntent = if (isRainingNow) {
+            precipTogglePendingIntent(context, appWidgetId)
+        } else {
+            defaultPendingIntent ?: viewTogglePendingIntent(context, appWidgetId)
+        }
+        views.setOnClickPendingIntent(R.id.weather_icon, pendingIntent)
+        views.setOnClickPendingIntent(R.id.weather_icon_touch_zone, pendingIntent)
     }
 
     fun bindGraphSelector(
@@ -69,18 +114,7 @@ internal object HeaderTapTargetHelper {
         views: RemoteViews,
         appWidgetId: Int,
     ) {
-        val precipIntent =
-            Intent(context, WidgetInteractionReceiver::class.java).apply {
-                action = WidgetActions.ACTION_TOGGLE_PRECIP
-                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-            }
-        val precipPendingIntent =
-            PendingIntent.getBroadcast(
-                context,
-                WidgetRequestCodes.precipToggle(appWidgetId),
-                precipIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-            )
+        val precipPendingIntent = precipTogglePendingIntent(context, appWidgetId)
         views.setOnClickPendingIntent(R.id.precip_probability, precipPendingIntent)
         views.setOnClickPendingIntent(R.id.precip_touch_zone, precipPendingIntent)
     }

@@ -109,6 +109,49 @@ class DailyHeaderRainLabelTapIntegrationTest : IsolatedIntegrationTest("daily_he
     fun tappingRainLabel_onPhoneWidgetWithoutCurrentTemp_opensRainGraph() =
         assertRainLabelOpensRainGraph(PHONE_WIDTH_DP, PHONE_HEIGHT_DP, deltaFromYesterday = null, withCurrentTemp = false)
 
+    @Test
+    fun tappingActiveRainIcon_inDailyHeader_opensRainGraph() = runBlocking {
+        // Insert a recent raining METAR relative to the test's `now` so AndroidRainNow returns
+        // RAINING and the daily header renders the active rain-now dot icon.
+        db.observationDao().insertAll(
+            listOf(
+                com.weatherwidget.data.local.ObservationEntity(
+                    stationId = "KPAO",
+                    stationName = "Palo Alto",
+                    timestamp = now.minusMinutes(5).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                    temperature = 62f,
+                    condition = "Rain",
+                    locationLat = TestLocations.LAT,
+                    locationLon = TestLocations.LON,
+                    stationType = com.weatherwidget.data.model.StationType.OFFICIAL,
+                    api = WeatherSource.NWS.id,
+                    isMetar = true,
+                    rawMetar = "KPAO 191955Z 18008KT 5SM -RA BKN020 17/14 A2992",
+                ),
+            ),
+        )
+        val hostView = bindWidget(PHONE_WIDTH_DP, PHONE_HEIGHT_DP)
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        awaitPaintedRainLabel(hostView, PHONE_WIDTH_DP, PHONE_HEIGHT_DP, deltaFromYesterday = null, withCurrentTemp = true)
+
+        var iconHit: String? = null
+        var clicked = false
+        instrumentation.runOnMainSync {
+            val root = hostView.findViewById<View>(R.id.widget_root)
+            val iconZone = root.findViewById<View>(R.id.weather_icon_touch_zone)
+            val cx = (iconZone.left + iconZone.right) / 2
+            val cy = (iconZone.top + iconZone.bottom) / 2
+            val target = topClickableAt(root, cx, cy)
+            iconHit = target?.let(::idName)
+            clicked = target?.performClick() == true
+        }
+        assertEquals("Tap on the active rain icon must land on weather_icon_touch_zone", "weather_icon_touch_zone", iconHit)
+        assertTrue("performClick on active rain icon should run the bound PendingIntent", clicked)
+
+        WidgetStateTestUtils.waitForViewMode(context, stateManager, appWidgetId, ViewMode.PRECIPITATION)
+        assertEquals(ViewMode.PRECIPITATION, stateManager.getViewMode(appWidgetId))
+    }
+
     private fun assertRainLabelOpensRainGraph(
         widthDp: Int,
         heightDp: Int,

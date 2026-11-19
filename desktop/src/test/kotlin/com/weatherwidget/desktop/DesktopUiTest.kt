@@ -138,6 +138,68 @@ currentCondition = "Sunny"),
     }
 
     @Test
+    fun testActiveRainIconClickOpensHourlyPrecipitation() {
+        var updatedConfig: DesktopConfig? = null
+        // Use a site away from ~/.cache/weather-widget/radar-now.txt so live local radar cannot
+        // affect the test.
+        val testConfig = stubConfig.copy(lat = 40.7128, lon = -74.0060, label = "New York")
+        val rainingObs = com.weatherwidget.data.model.ObservationReading(
+            stationId = "KNYC",
+            stationName = "New York",
+            timestamp = System.currentTimeMillis() - 5 * 60_000L,
+            temperature = 62f,
+            condition = "Rain",
+            locationLat = testConfig.lat,
+            locationLon = testConfig.lon,
+            stationType = com.weatherwidget.data.model.StationType.OFFICIAL,
+            api = WeatherSource.NWS.id,
+            isMetar = true,
+            rawMetar = "KNYC 191955Z 18008KT 5SM -RA BKN020 17/14 A2992",
+        )
+        val rainingForecast = stubForecast.copy(
+            raw = stubForecast.raw.copy(rawObservations = listOf(rainingObs)),
+        )
+        composeTestRule.setContent {
+            WidgetPopup(
+                config = testConfig,
+                forecast = rainingForecast,
+                dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
+                onUpdateLocation = {},
+                onUpdateConfig = { updatedConfig = it },
+                onOpenSettings = {},
+                onOpenCurrentObservations = {},
+            )
+        }
+
+        composeTestRule.onNodeWithTag("header_weather_icon").performClick()
+
+        assertEquals(ViewMode.PRECIPITATION, updatedConfig?.viewMode)
+    }
+
+    @Test
+    fun testNonRainWeatherIconClickOpensTemperatureGraph() {
+        var updatedConfig: DesktopConfig? = null
+        // Use a site away from ~/.cache/weather-widget/radar-now.txt so live local radar cannot
+        // turn the header icon into rain-now dots during the test.
+        val dryConfig = stubConfig.copy(lat = 40.7128, lon = -74.0060, label = "New York")
+        composeTestRule.setContent {
+            WidgetPopup(
+                config = dryConfig,
+                forecast = stubForecast,
+                dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
+                onUpdateLocation = {},
+                onUpdateConfig = { updatedConfig = it },
+                onOpenSettings = {},
+                onOpenCurrentObservations = {},
+            )
+        }
+
+        composeTestRule.onNodeWithTag("header_weather_icon").performClick()
+
+        assertEquals(ViewMode.TEMPERATURE, updatedConfig?.viewMode)
+    }
+
+    @Test
     fun testCurrentTempAppearsOnceInSemantics() {
         composeTestRule.setContent {
             WidgetPopup(

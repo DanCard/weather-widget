@@ -154,7 +154,7 @@ object WidgetRenderer {
         views.setTextViewText(R.id.api_source, "")
         views.setTextViewText(R.id.text_mode_api_source, "")
         listOf(
-            R.id.current_temp_delta, R.id.current_temp_delta_label, R.id.weather_icon,
+            R.id.current_temp_delta, R.id.current_temp_delta_label, R.id.weather_icon, R.id.weather_icon_touch_zone,
             R.id.precip_touch_zone, R.id.hourly_center_header_container, R.id.api_touch_zone,
             R.id.text_mode_api_source_container, R.id.text_mode_api_touch_zone,
             R.id.nav_left, R.id.nav_left_zone, R.id.nav_right, R.id.nav_right_zone,

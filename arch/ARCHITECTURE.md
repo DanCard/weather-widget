@@ -226,6 +226,9 @@ falling now: then it is blue dots only, no cloud, sized by intensity (`ic_weathe
 `HeaderContent.build` takes the level as a required `rainNow`; Android resolves it per render in
 `AndroidRainNow` (Room rows plus the radar sample in prefs), desktop in `desktopRainNow` (the snapshot's
 rows plus the daemon's `~/.cache/weather-widget/radar-now.txt`). `RAIN_NOW` logs each change of level.
+While rain is falling now (`HeaderContent.Content.isRainingNow`), tapping the header rain-now icon opens
+the hourly precipitation graph (`HeaderContent.rainNowTapTarget`, toggling back to daily if already
+there), whereas non-rain-now weather icons keep their normal view-toggle routing.
 
 The header's rain percentage scans forward by `DisplaySettings.headerRainLookaheadHours` (1–8 h,
 default 6 h; Settings → **Header** on both platforms) from `now` in the daily view and from the panned

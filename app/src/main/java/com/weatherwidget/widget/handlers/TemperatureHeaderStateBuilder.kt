@@ -55,6 +55,7 @@ internal object TemperatureHeaderStateBuilder {
         val headerState = TemperatureWidgetState.HeaderState(
             sourceIndicator = content.sourceLabel,
             iconRes = content.iconName?.let(WeatherIconMapper::fromIconName) ?: 0,
+            isRainingNow = content.isRainingNow,
             currentTemp = content.tempText,
             currentTempSizeDp = HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP,
             deltaText = content.deltaText,

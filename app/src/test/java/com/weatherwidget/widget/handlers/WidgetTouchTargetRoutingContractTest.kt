@@ -136,6 +136,21 @@ class WidgetTouchTargetRoutingContractTest : RobolectricTest() {
     }
 
     @Test
+    fun `active rain header icon routes to precipitation toggle while dry icon toggles view`() {
+        val views = CapturingViews(context.packageName)
+
+        HeaderTapTargetHelper.bindWeatherIconHeader(context, views, widgetId, isRainingNow = true)
+        val rainIconIntent = shadowOf(views.clickIntents[R.id.weather_icon_touch_zone]).savedIntent
+        assertEquals(WidgetInteractionReceiver::class.java.name, rainIconIntent.component?.className)
+        assertEquals(WidgetActions.ACTION_TOGGLE_PRECIP, rainIconIntent.action)
+
+        HeaderTapTargetHelper.bindWeatherIconHeader(context, views, widgetId, isRainingNow = false)
+        val dryIconIntent = shadowOf(views.clickIntents[R.id.weather_icon_touch_zone]).savedIntent
+        assertEquals(WidgetInteractionReceiver::class.java.name, dryIconIntent.component?.className)
+        assertEquals(WidgetActions.ACTION_TOGGLE_VIEW, dryIconIntent.action)
+    }
+
+    @Test
     fun `api source warning tap routes to WidgetInteractionReceiver`() {
         val views = CapturingViews(context.packageName)
         val warning = ApiSourceWarningHelper.SourceWarning(

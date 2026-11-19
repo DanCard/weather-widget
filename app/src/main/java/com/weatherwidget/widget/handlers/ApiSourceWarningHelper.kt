@@ -129,6 +129,7 @@ object ApiSourceWarningHelper {
         views.setViewVisibility(R.id.current_temp_delta_label, View.GONE)
         views.setViewVisibility(R.id.precip_probability, View.GONE)
         views.setViewVisibility(R.id.weather_icon, View.GONE)
+        views.setViewVisibility(R.id.weather_icon_touch_zone, View.GONE)
         views.setViewVisibility(R.id.nav_left, View.GONE)
         views.setViewVisibility(R.id.nav_right, View.GONE)
         views.setViewVisibility(R.id.nav_left_zone, View.GONE)

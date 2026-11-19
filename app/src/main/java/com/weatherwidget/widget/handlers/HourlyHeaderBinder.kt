@@ -114,7 +114,13 @@ internal object HourlyHeaderBinder {
         )
         HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, isPrecipVisible)
 
-        HeaderRemoteViewsBinder.applyFit(views, fit, isDeltaVisible = false, isPrecipVisible = isPrecipVisible)
+        HeaderRemoteViewsBinder.applyFit(
+            views,
+            fit,
+            isDeltaVisible = false,
+            isPrecipVisible = isPrecipVisible,
+            isIconVisible = iconRes != 0,
+        )
 
         return HeaderResult(
             fit = fit,

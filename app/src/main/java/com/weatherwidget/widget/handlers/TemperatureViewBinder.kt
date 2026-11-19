@@ -131,6 +131,7 @@ HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, header.isPrecipVis
             fit,
             isDeltaVisible = header.isDeltaVisible,
             isPrecipVisible = header.isPrecipVisible,
+            isIconVisible = header.iconRes != 0,
         )
 
 // 3. Center Icons & Navigation (headerButtons computed above, before the header fit)
@@ -161,6 +162,7 @@ HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, header.isPrecipVis
 
         
         HeaderTapTargetHelper.bindToggleTemperatureHeader(context, views, appWidgetId)
+        HeaderTapTargetHelper.bindWeatherIconHeader(context, views, appWidgetId, isRainingNow = header.isRainingNow)
         HeaderTapTargetHelper.bindPrecipitationHeader(context, views, appWidgetId)
 
         views.setViewVisibility(R.id.sim_loop_touch_zone, View.GONE)

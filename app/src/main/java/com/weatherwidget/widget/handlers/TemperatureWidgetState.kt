@@ -19,6 +19,8 @@ internal data class TemperatureWidgetState(
     data class HeaderState(
         val sourceIndicator: String,
         val iconRes: Int,
+        /** True when [iconRes] is an active rain-now dot icon (`rainNow != null`). */
+        val isRainingNow: Boolean = false,
         val currentTemp: String?,
         val currentTempSizeDp: Float,
         val deltaText: String?,

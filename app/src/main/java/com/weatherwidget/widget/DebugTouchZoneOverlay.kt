@@ -40,6 +40,7 @@ object DebugTouchZoneOverlay {
         R.id.text_mode_api_touch_zone to 0x6600E676,
         R.id.settings_touch_zone to 0x66FF1744,
         R.id.text_mode_settings_touch_zone to 0x66FF1744,
+        R.id.weather_icon_touch_zone to 0x5540C4FF,
         R.id.current_temp_zone to 0x552979FF,
         R.id.precip_touch_zone to 0x5500E5FF,
         R.id.home_touch_zone to 0x55FFAB00,

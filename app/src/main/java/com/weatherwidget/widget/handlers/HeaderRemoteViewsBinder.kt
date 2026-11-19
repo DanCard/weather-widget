@@ -227,9 +227,12 @@ internal object HeaderRemoteViewsBinder {
         fit: HeaderFit.Plan,
         isDeltaVisible: Boolean,
         isPrecipVisible: Boolean,
+        isIconVisible: Boolean = true,
     ) {
         fun vis(shown: Boolean) = if (shown) View.VISIBLE else View.GONE
-        views.setViewVisibility(R.id.weather_icon, vis(fit.showIcon))
+        val iconVis = vis(isIconVisible && fit.showIcon)
+        views.setViewVisibility(R.id.weather_icon, iconVis)
+        views.setViewVisibility(R.id.weather_icon_touch_zone, iconVis)
         views.setViewVisibility(R.id.current_temp, vis(fit.showTemp))
         views.setViewVisibility(R.id.current_temp_delta, vis(isDeltaVisible && fit.showDelta))
         views.setViewVisibility(R.id.current_temp_delta_label, vis(isDeltaVisible && fit.showCaption))

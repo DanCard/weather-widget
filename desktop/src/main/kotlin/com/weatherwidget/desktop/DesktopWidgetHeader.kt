@@ -262,24 +262,39 @@ internal fun WidgetHeader(
                     horizontalArrangement = Arrangement.Start,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.clickable {
-                            val targetMode = if (isHourly) ViewMode.DAILY else ViewMode.TEMPERATURE
-                            onUpdateConfig(config.copy(viewMode = targetMode))
-                        }.testTag("current_temp_toggle")
-                    ) {
-                        // No icon when an hourly view's source has no row for this hour (HeaderContent).
-                        content.iconName?.takeIf { fit.showIcon }?.let { iconName ->
-                            androidx.compose.foundation.Image(
-                                painter = WeatherIcon.painterForIconName(iconName),
-                                contentDescription = null,
-                                modifier = Modifier.size((18 * scale).dp).padding(end = 4.dp).testTag("header_weather_icon")
-                            )
+                    // No icon when an hourly view's source has no row for this hour (HeaderContent).
+                    // Active rain-now dots open hourly rain chance; other weather icons keep the
+                    // normal temp/daily toggle.
+                    content.iconName?.takeIf { fit.showIcon }?.let { iconName ->
+                        val iconTargetMode = if (content.isRainingNow) {
+                            when (HeaderContent.rainNowTapTarget(desktopHeaderView(config.viewMode))) {
+                                HeaderContent.View.PRECIPITATION -> ViewMode.PRECIPITATION
+                                else -> ViewMode.DAILY
+                            }
+                        } else {
+                            if (isHourly) ViewMode.DAILY else ViewMode.TEMPERATURE
                         }
-                        if (fit.showTemp) {
-                            Text(text = content.tempText ?: "—", style = tempStyle)
-                        }
+                        androidx.compose.foundation.Image(
+                            painter = WeatherIcon.painterForIconName(iconName),
+                            contentDescription = null,
+                            modifier = Modifier
+                                .size((18 * scale).dp)
+                                .clickable { onUpdateConfig(config.copy(viewMode = iconTargetMode)) }
+                                .padding(end = 4.dp)
+                                .testTag("header_weather_icon")
+                        )
+                    }
+                    if (fit.showTemp) {
+                        Text(
+                            text = content.tempText ?: "—",
+                            style = tempStyle,
+                            modifier = Modifier
+                                .clickable {
+                                    val targetMode = if (isHourly) ViewMode.DAILY else ViewMode.TEMPERATURE
+                                    onUpdateConfig(config.copy(viewMode = targetMode))
+                                }
+                                .testTag("current_temp_toggle")
+                        )
                     }
                     content.deltaText?.takeIf { fit.showDelta }?.let { deltaText ->
                         Spacer(Modifier.width(DELTA_MARGIN_DP.dp))

@@ -249,6 +249,7 @@ internal object DailyHeaderResolver {
 
         val headerState = DailyViewHandler.HeaderState(
             iconRes = iconRes,
+            isRainingNow = content.isRainingNow,
             currentTemp = currentTemp,
             formattedTemp = formattedTemp,
             estimatedTemp = currentTempResolution.estimatedTemp,
@@ -289,9 +290,11 @@ internal object DailyHeaderResolver {
         if (useGraph) {
             views.setImageViewResource(R.id.weather_icon, state.iconRes)
             views.setViewVisibility(R.id.weather_icon, View.VISIBLE)
+            views.setViewVisibility(R.id.weather_icon_touch_zone, View.VISIBLE)
             views.setViewVisibility(R.id.current_weather_container, View.VISIBLE)
         } else {
             views.setViewVisibility(R.id.weather_icon, View.GONE)
+            views.setViewVisibility(R.id.weather_icon_touch_zone, View.GONE)
             views.setViewVisibility(R.id.current_weather_container, View.GONE)
         }
 
@@ -371,10 +374,8 @@ internal object DailyHeaderResolver {
                 state.fit,
                 isDeltaVisible = state.deltaVisible,
                 isPrecipVisible = state.isPrecipVisible,
+                isIconVisible = state.iconRes != 0,
             )
-            // The icon is painted with or without a temperature and its touch view lives in this
-            // zone. Left GONE, the row collapses and the rain zone sits left of its painted label.
-            if (state.fit.showIcon) views.setViewVisibility(R.id.current_temp_zone, View.VISIBLE)
         }
     }
 }

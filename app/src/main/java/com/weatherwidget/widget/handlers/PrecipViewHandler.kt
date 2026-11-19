@@ -261,7 +261,7 @@ object PrecipViewHandler {
         val lat = hourlyForecasts.firstOrNull()?.locationLat ?: Double.NaN
         val lon = hourlyForecasts.firstOrNull()?.locationLon ?: Double.NaN
 
-        // Weather icon + bottom graph zone → cloud cover view
+        // Weather icon → hourly rain toggle while rain is falling now, else cloud cover view.
         val goCloudIntent = Intent(context, WidgetInteractionReceiver::class.java).apply {
             action = WidgetActions.ACTION_SET_VIEW
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
@@ -271,7 +271,6 @@ object PrecipViewHandler {
             context, WidgetRequestCodes.iconViewToggle(appWidgetId), goCloudIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        views.setOnClickPendingIntent(R.id.weather_icon, goCloudPending)
 
         views.setViewVisibility(R.id.current_temp_delta, View.GONE)
         views.setViewVisibility(R.id.current_temp_delta_label, View.GONE)
@@ -306,6 +305,13 @@ object PrecipViewHandler {
             rainLookaheadHours = stateManager.getHeaderRainLookaheadHours(),
         )
         val iconRes = content.iconName?.let(WeatherIconMapper::fromIconName) ?: 0
+        HeaderTapTargetHelper.bindWeatherIconHeader(
+            context = context,
+            views = views,
+            appWidgetId = appWidgetId,
+            isRainingNow = content.isRainingNow,
+            defaultPendingIntent = goCloudPending,
+        )
         val sourceIndicator = content.sourceLabel
         val formattedTemp = content.tempText
         val headerPrecipProbability = content.precipProbability

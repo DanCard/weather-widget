@@ -64,6 +64,7 @@ internal object DailyVisibilityManager {
         Log.d("HomeShortcut", "DailyVisibilityManager.setTextModeViews: setting home_touch_zone=GONE (daily text mode)")
         hideUnusedDailyViews(views)
 
+        views.setViewVisibility(R.id.weather_icon_touch_zone, View.GONE)
         views.setViewVisibility(R.id.current_temp_zone, View.GONE)
         views.setViewVisibility(R.id.precip_touch_zone, View.GONE)
         views.setViewVisibility(R.id.api_touch_zone, View.GONE)

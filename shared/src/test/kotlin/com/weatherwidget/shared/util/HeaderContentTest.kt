@@ -264,4 +264,21 @@ class HeaderContentTest {
             assertEquals("$view 8h should see +7h 85%", 85, precipFor(8))
         }
     }
+
+    @Test
+    fun rainNowFlagAndTapTargetRouteToHourlyPrecipitation() {
+        val now = LocalDateTime.of(2026, 11, 19, 12, 0)
+        val hourly = listOf(row(now, precip = 40, source = "NWS"))
+
+        val dry = build(View.DAILY, hourly, now, rainNow = null)
+        assertEquals(false, dry.isRainingNow)
+
+        val wet = build(View.DAILY, hourly, now, rainNow = com.weatherwidget.shared.observations.RainNow.Level.RAINING)
+        assertEquals(true, wet.isRainingNow)
+
+        assertEquals(View.PRECIPITATION, HeaderContent.rainNowTapTarget(View.DAILY))
+        assertEquals(View.PRECIPITATION, HeaderContent.rainNowTapTarget(View.TEMPERATURE))
+        assertEquals(View.PRECIPITATION, HeaderContent.rainNowTapTarget(View.CLOUD_COVER))
+        assertEquals(View.DAILY, HeaderContent.rainNowTapTarget(View.PRECIPITATION))
+    }
 }

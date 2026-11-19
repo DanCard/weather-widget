@@ -365,6 +365,10 @@ internal object DailyGraphRenderer {
         holdSlotIf(R.id.current_temp_delta_label, painted?.deltaLabel)
         holdSlotIf(R.id.precip_probability, painted?.rain)
         holdSlotIf(R.id.weather_icon, painted?.icon)
+        ctx.views.setViewVisibility(
+            R.id.weather_icon_touch_zone,
+            if (painted?.icon == true) View.VISIBLE else View.GONE,
+        )
         ctx.views.setViewVisibility(R.id.api_source, View.INVISIBLE)
         ctx.views.setViewVisibility(R.id.settings_icon, View.INVISIBLE)
         ctx.views.setViewVisibility(R.id.header_date_center, View.GONE)

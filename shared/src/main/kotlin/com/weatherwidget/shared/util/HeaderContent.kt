@@ -41,6 +41,8 @@ object HeaderContent {
     data class Content(
         /** Null in an hourly view whose source has no row for this hour: no icon is drawn. */
         val iconName: String?,
+        /** True when [iconName] is one of the active rain-now dot icons (`rainNow != null`). */
+        val isRainingNow: Boolean = false,
         /** "62.7°", or null with no current temp. */
         val tempText: String?,
         /** "+2.9" in display units, or null when hidden. */
@@ -95,6 +97,7 @@ object HeaderContent {
         val precipText = precip.probability?.let { "$it%" }
         return Content(
             iconName = rainNowIcon(rainNow) ?: iconName(view, iconHourly, displaySourceId, dailyFallback, now, lat, lon, zone),
+            isRainingNow = rainNow != null,
             tempText = currentTemp?.let {
                 CurrentTemperatureResolver.formatDisplayTemperature(it, numColumns, isStaleEstimate, useCelsius)
             },
@@ -198,6 +201,13 @@ object HeaderContent {
         RainNow.Level.RAINING -> WeatherConditionResolver.IC_RAIN_NOW
         RainNow.Level.HEAVY -> WeatherConditionResolver.IC_RAIN_NOW_HEAVY
     }
+
+    /**
+     * View opened when tapping the active rain-now icon in the header: hourly rain chance
+     * ([View.PRECIPITATION]), or back to [View.DAILY] if already there (matching the rain-% tap).
+     */
+    fun rainNowTapTarget(current: View): View =
+        if (current == View.PRECIPITATION) View.DAILY else View.PRECIPITATION
 
     /** Shown in the daily and temperature headers only; the precip and cloud views have no delta. */
     fun deltaText(view: View, currentTemp: Float?, deltaFromYesterday: Float?, useCelsius: Boolean): String? {

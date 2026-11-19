@@ -498,6 +498,12 @@ object DailyViewHandler : WidgetViewHandler {
         val sunInfo = header.sunInfo
         val headerObservations = header.headerObservations
         val headerResolution = header.resolution
+        HeaderTapTargetHelper.bindWeatherIconHeader(
+            context = context,
+            views = views,
+            appWidgetId = appWidgetId,
+            isRainingNow = headerResolution.state.isRainingNow,
+        )
         val currentTemp = headerResolution.state.currentTemp
         val precipProb = headerResolution.state.precipProb
         val resolveMs = headerResolution.state.resolveMs
@@ -956,6 +962,8 @@ object DailyViewHandler : WidgetViewHandler {
 
     internal data class HeaderState(
         val iconRes: Int,
+        /** True when [iconRes] is an active rain-now dot icon (`rainNow != null`). */
+        val isRainingNow: Boolean = false,
         val currentTemp: Float?,
         val formattedTemp: String?,
         val estimatedTemp: Float?,
