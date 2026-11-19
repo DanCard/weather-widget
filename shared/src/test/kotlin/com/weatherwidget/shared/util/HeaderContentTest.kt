@@ -210,11 +210,58 @@ class HeaderContentTest {
     }
 
     @Test
-    fun `precipReserveWindowMs spans 1h before earliest to 7h after latest of now and center`() {
+    fun `precipReserveWindowMs spans 1h before earliest to lookahead+1h after latest of now and center`() {
         val now = LocalDateTime.of(2026, 11, 18, 14, 0)
         val panned = now.plusHours(4)
         val window = HeaderContent.precipReserveWindowMs(now, panned, zone)
         assertEquals(now.minusHours(1).atZone(zone).toInstant().toEpochMilli(), window.first)
         assertEquals(panned.plusHours(7).atZone(zone).toInstant().toEpochMilli(), window.last)
+
+        val wideWindow = HeaderContent.precipReserveWindowMs(now, panned, zone, lookaheadHours = 8)
+        assertEquals(now.minusHours(1).atZone(zone).toInstant().toEpochMilli(), wideWindow.first)
+        assertEquals(panned.plusHours(9).atZone(zone).toInstant().toEpochMilli(), wideWindow.last)
+    }
+
+    @Test
+    fun `rainLookaheadHours controls both daily and hourly headers from 1h to 8h`() {
+        val now = LocalDateTime.of(2026, 11, 18, 10, 0)
+        // Dry for 0..1h, 40% at +3h, 85% at +7h (outside 6h, inside 8h).
+        val hourly = listOf(
+            row(now.plusHours(0), precip = 0, source = "NWS"),
+            row(now.plusHours(1), precip = 0, source = "NWS"),
+            row(now.plusHours(2), precip = 0, source = "NWS"),
+            row(now.plusHours(3), precip = 40, source = "NWS"),
+            row(now.plusHours(4), precip = 0, source = "NWS"),
+            row(now.plusHours(5), precip = 0, source = "NWS"),
+            row(now.plusHours(6), precip = 0, source = "NWS"),
+            row(now.plusHours(7), precip = 85, source = "NWS"),
+            row(now.plusHours(8), precip = 0, source = "NWS"),
+        )
+        for (view in listOf(View.DAILY, View.TEMPERATURE, View.PRECIPITATION, View.CLOUD_COVER)) {
+            fun precipFor(hours: Int) = HeaderContent.build(
+                view = view,
+                hourly = hourly,
+                displaySourceId = "NWS",
+                dailyFallback = null,
+                fallbackDailyPrecip = null,
+                currentTemp = 60f,
+                isStaleEstimate = false,
+                numColumns = 5,
+                deltaFromYesterday = null,
+                now = now,
+                centerTime = now,
+                lat = 37.42,
+                lon = -122.09,
+                useCelsius = false,
+                widthDp = 300,
+                rainNow = null,
+                rainLookaheadHours = hours,
+                zone = zone,
+            ).precipProbability
+
+            assertEquals("$view 1h should be hidden (0%)", null, precipFor(1))
+            assertEquals("$view 6h should see +3h 40%", 40, precipFor(6))
+            assertEquals("$view 8h should see +7h 85%", 85, precipFor(8))
+        }
     }
 }

@@ -568,6 +568,10 @@
     <string name="rain_day_insufficient">%1$s: không đủ giờ đo (%2$d trên 24)</string>
     <string name="rain_day_today">Hôm nay: chấm sau nửa đêm</string>
     <!-- Temporary experiment: HindcastGuard (plans/261113-no-hindcasts-unless-prior-missing.md) -->
+    <string name="header_settings_title">Tiêu đề</string>
+    <string name="header_rain_lookahead_description">Khoảng thời gian dự báo phía trước cho khả năng mưa ở tiêu đề tiện ích, trong cả chế độ xem theo ngày và theo giờ.</string>
+    <string name="header_rain_lookahead_value_singular">1 giờ tới</string>
+    <string name="header_rain_lookahead_value">%1$d giờ tới</string>
     <string name="experimental_title">Thử nghiệm</string>
     <string name="hindcast_guard_description" formatted="false">Chặn dự báo hồi tố: khi một giờ đã bắt đầu (hoặc nhiệt độ thấp nhất hôm nay sau 6:00 / cao nhất sau 16:00), giữ dự báo cuối cùng được đưa ra trước đó nếu nó không cũ hơn mức này. Nếu cũ hơn hoặc không có, dùng lần cập nhật đầu tiên sau khi bắt đầu. Cài đặt tạm thời để thử nghiệm.</string>
     <string name="hindcast_guard_value">Tuổi dự báo tối đa %1$d giờ</string>

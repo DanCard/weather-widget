@@ -568,6 +568,10 @@
     <string name="rain_day_insufficient">%1$s: yetersiz ölçülen saat (%2$d / 24)</string>
     <string name="rain_day_today">Bugün: gece yarısından sonra değerlendirilir</string>
     <!-- Temporary experiment: HindcastGuard (plans/261113-no-hindcasts-unless-prior-missing.md) -->
+    <string name="header_settings_title">Üst Bilgi</string>
+    <string name="header_rain_lookahead_description">Hem günlük hem saatlik görünümlerde widget üst bilgisindeki yağmur olasılığının kaç saat ileriye bakacağı.</string>
+    <string name="header_rain_lookahead_value_singular">Sonraki 1 saat</string>
+    <string name="header_rain_lookahead_value">Sonraki %1$d saat</string>
     <string name="experimental_title">Deneysel</string>
     <string name="hindcast_guard_description" formatted="false">Geriye dönük tahmin koruması: bir saat başladıktan sonra (veya bugünün en düşüğü 06:00 sonrası / en yükseği 16:00 sonrası), ondan önce yapılan son tahmin bu süreden eski değilse korunur. Daha eski veya yoksa başlangıçtan sonraki ilk güncelleme kullanılır. Test için geçici ayar.</string>
     <string name="hindcast_guard_value">Maks. tahmin yaşı %1$d sa</string>

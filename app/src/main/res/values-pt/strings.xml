@@ -568,6 +568,10 @@
     <string name="rain_day_insufficient">%1$s: horas medidas insuficientes (%2$d de 24)</string>
     <string name="rain_day_today">Hoje: avaliado após a meia-noite</string>
     <!-- Temporary experiment: HindcastGuard (plans/261113-no-hindcasts-unless-prior-missing.md) -->
+    <string name="header_settings_title">Cabeçalho</string>
+    <string name="header_rain_lookahead_description">Quantas horas à frente a chance de chuva no cabeçalho do widget considera, nas visualizações diária e por hora.</string>
+    <string name="header_rain_lookahead_value_singular">Próxima 1 hora</string>
+    <string name="header_rain_lookahead_value">Próximas %1$d horas</string>
     <string name="experimental_title">Experimental</string>
     <string name="hindcast_guard_description" formatted="false">Proteção contra retroprevisões: depois que uma hora começa (ou a mínima de hoje após as 6h / a máxima após as 16h), mantém-se a última previsão feita antes, se não for mais antiga que este limite. Se for mais antiga ou faltar, usa-se a primeira atualização após o início. Configuração temporária para testes.</string>
     <string name="hindcast_guard_value">Idade máx. da previsão %1$d h</string>

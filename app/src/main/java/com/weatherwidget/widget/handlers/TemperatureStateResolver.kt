@@ -289,6 +289,7 @@ internal object TemperatureStateResolver {
             precipProbability = precipProbability,
             useCelsius = useCelsius,
             rainNow = com.weatherwidget.widget.AndroidRainNow.level(context, lat, lon, displaySource, where = "temperature"),
+            rainLookaheadHours = stateManager.getHeaderRainLookaheadHours(),
             allApiSourceLabels = stateManager.getVisibleSourcesOrder().map {
                 HeaderContent.sourceLabel(HeaderContent.View.TEMPERATURE, it.id, now, centerTime, dimensions.widthDp)
             },

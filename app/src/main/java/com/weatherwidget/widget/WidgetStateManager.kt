@@ -108,6 +108,17 @@ class WidgetStateManager internal constructor(
         com.weatherwidget.data.model.HindcastGuard.setMaxPriorAgeHours(hours)
     }
 
+    /** Forward window (1..8h, default 6) scanned for the header's rain % in daily & hourly views. */
+    fun getHeaderRainLookaheadHours(): Int = displayPreferences.headerRainLookaheadHours()
+
+    fun setHeaderRainLookaheadHours(hours: Int) {
+        displayPreferences.setHeaderRainLookaheadHours(hours)
+    }
+
+    /** Shared cross-platform snapshot of all display settings. */
+    fun getDisplaySettings(): com.weatherwidget.shared.settings.DisplaySettings =
+        displayPreferences.snapshot()
+
     /** App-wide span (4..8h) of the tight NARROW hourly view. See [ZoomStage.window]. */
     fun getNarrowZoomSpanHours(): Int = displayPreferences.hourlyNarrowSpanHours()
 
@@ -641,7 +652,8 @@ class WidgetStateManager internal constructor(
         const val KEY_RECENT_LOCATIONS = "recent_locations"
 
         const val SOURCE_FAILURE_WATERMARK_THRESHOLD = 3
-        const val DEFAULT_PERSONAL_STATION_DISCOUNT = 95
+        val DEFAULT_PERSONAL_STATION_DISCOUNT =
+            com.weatherwidget.shared.settings.DisplaySettings.PERSONAL_STATION_DISCOUNT.default
 
         const val MIN_DATE_OFFSET = -30
         const val MAX_DATE_OFFSET = 14

@@ -4,6 +4,7 @@ import com.weatherwidget.data.model.RecentLocation
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.graph.HourlyZoomRules
 import com.weatherwidget.shared.graph.ZoomStage
+import com.weatherwidget.shared.settings.DisplaySettings
 import com.weatherwidget.shared.util.SourceCoverage
 import com.weatherwidget.shared.util.WeatherSourceOrdering
 import kotlinx.serialization.Serializable
@@ -31,26 +32,28 @@ data class DesktopSettings(
     val visibleSources: List<String> = WeatherSourceOrdering.DEFAULT_VISIBLE_IDS,
     val apiKeys: Map<String, String> = emptyMap(),
     // Span (4..8h) of the tight NARROW zoom stage, matching Android's Settings → "Hourly Zoom".
-    val narrowZoomSpanHours: Int = HourlyZoomRules.DEFAULT_NARROW_SPAN_HOURS,
+    val narrowZoomSpanHours: Int = DisplaySettings.NARROW_ZOOM_SPAN.default,
     // Whether the click-to-cycle includes the multi-day TWO_DAY stage (48h: 42 back, 6 forward).
     // Off by default, matching Android. Gates the *cycle* only — the mouse wheel is continuous and
     // still reaches multi-day spans regardless, which is why this cannot be a render-time gate.
-    val multiDayZoomEnabled: Boolean = false,
+    val multiDayZoomEnabled: Boolean = DisplaySettings.DEFAULT_MULTI_DAY_ZOOM_ENABLED,
     // App-wide discount (0..100%) applied to personal weather stations in the actual-temperature
     // IDW blend. 0 = no discount; 100 = personal stations ignored.
-    val personalStationDiscount: Int = 95,
+    val personalStationDiscount: Int = DisplaySettings.PERSONAL_STATION_DISCOUNT.default,
     // Temporary experiment: HindcastGuard's max prior age in hours (0 = off). Android:
     // WeatherDisplayPreferences.hindcastMaxPriorAgeHours. plans/261113-no-hindcasts-unless-prior-missing.md
-    val hindcastMaxPriorAgeHours: Int = com.weatherwidget.data.model.HindcastGuard.DEFAULT_MAX_PRIOR_AGE_HOURS,
+    val hindcastMaxPriorAgeHours: Int = DisplaySettings.HINDCAST_MAX_PRIOR_AGE.default,
+    // Forward window (1..8h, default 6) scanned for the header's rain % in daily & hourly views.
+    val headerRainLookaheadHours: Int = DisplaySettings.HEADER_RAIN_LOOKAHEAD.default,
     // Locale-derived for a legacy/first-run config, then materialized by DesktopConfigStore on
     // every save so the daemon and UI cannot derive different defaults from their environments.
     val useCelsius: Boolean = desktopDefaultUseCelsius(),
     // Daily-view large-Today-column overlay texts. All opt-in (default off).
-    val todayOverlayDelta: Boolean = false,
-    val todayOverlayDominantTemp: Boolean = false,
-    val showDailyZoomOutButton: Boolean = false,
+    val todayOverlayDelta: Boolean = DisplaySettings.DEFAULT_TODAY_OVERLAY_DELTA,
+    val todayOverlayDominantTemp: Boolean = DisplaySettings.DEFAULT_TODAY_OVERLAY_DOMINANT_TEMP,
+    val showDailyZoomOutButton: Boolean = DisplaySettings.DEFAULT_SHOW_DAILY_ZOOM_OUT_BUTTON,
     // Future daily columns draw the forecast from 24 h ago beside their own. Off by default, matching Android.
-    val showFuturePriorForecast: Boolean = false,
+    val showFuturePriorForecast: Boolean = DisplaySettings.DEFAULT_SHOW_FUTURE_PRIOR_FORECAST,
     // Per-source override for the feed that supplies a forecast-only source's actuals, keyed by
     // WeatherSource.id -> provider WeatherSource.id. Mirrors Android's `actuals_provider_<SOURCE>`
     // SharedPreferences keys. An ABSENT entry means "use the default"
@@ -62,8 +65,22 @@ data class DesktopSettings(
     // derived per location ([effectiveSources]) and never written to this list.
     val nwsReenabledMigrationDone: Boolean = false,
 ) {
+    /** Shared cross-platform view of all display settings. */
+    fun toDisplaySettings(): DisplaySettings = DisplaySettings(
+        narrowZoomSpanHours = narrowZoomSpanHours,
+        multiDayZoomEnabled = multiDayZoomEnabled,
+        personalStationDiscount = personalStationDiscount,
+        hindcastMaxPriorAgeHours = hindcastMaxPriorAgeHours,
+        headerRainLookaheadHours = headerRainLookaheadHours,
+        useCelsius = useCelsius,
+        todayOverlayDelta = todayOverlayDelta,
+        todayOverlayDominantTemp = todayOverlayDominantTemp,
+        showDailyZoomOutButton = showDailyZoomOutButton,
+        showFuturePriorForecast = showFuturePriorForecast,
+    )
+
     // 0% discount -> weight 1.0 (no discount); 100% discount -> weight 0.0 (PWS ignored).
-    fun personalStationWeight(): Double = 1.0 - personalStationDiscount.coerceIn(0, 100) / 100.0
+    fun personalStationWeight(): Double = toDisplaySettings().personalStationWeight()
 
     /**
      * `field: old -> new` for every field that differs from [other]. Empty when the two agree.
@@ -77,15 +94,8 @@ data class DesktopSettings(
         add("weatherSource", weatherSource, other.weatherSource)
         add("visibleSources", visibleSources, other.visibleSources)
         add("apiKeys", apiKeys.keys.sorted(), other.apiKeys.keys.sorted())
-        add("narrowZoomSpanHours", narrowZoomSpanHours, other.narrowZoomSpanHours)
-        add("multiDayZoomEnabled", multiDayZoomEnabled, other.multiDayZoomEnabled)
-        add("personalStationDiscount", personalStationDiscount, other.personalStationDiscount)
-        add("hindcastMaxPriorAgeHours", hindcastMaxPriorAgeHours, other.hindcastMaxPriorAgeHours)
-        add("useCelsius", useCelsius, other.useCelsius)
+        addAll(toDisplaySettings().diffFrom(other.toDisplaySettings()))
         add("actualsProviders", actualsProviders, other.actualsProviders)
-        add("todayOverlayDelta", todayOverlayDelta, other.todayOverlayDelta)
-        add("todayOverlayDominantTemp", todayOverlayDominantTemp, other.todayOverlayDominantTemp)
-        add("showFuturePriorForecast", showFuturePriorForecast, other.showFuturePriorForecast)
     }
 }
 

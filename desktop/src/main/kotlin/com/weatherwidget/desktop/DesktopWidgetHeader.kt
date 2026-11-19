@@ -94,7 +94,7 @@ internal fun WidgetHeader(
     val rainNow = remember(forecast.raw, forecast.sourceId, config.lat, config.lon, nowEpoch / 60_000L) {
         desktopRainNow(forecast, config.lat, config.lon, nowEpoch)
     }
-    val content = remember(forecast.raw, forecast.sourceId, displaySource, displayTemp, deltaVal, nowLocal, targetHour, config.viewMode, config.lat, config.lon, config.settings.useCelsius, headerWidthDp, rainNow) {
+    val content = remember(forecast.raw, forecast.sourceId, displaySource, displayTemp, deltaVal, nowLocal, targetHour, config.viewMode, config.lat, config.lon, config.settings.useCelsius, config.settings.headerRainLookaheadHours, headerWidthDp, rainNow) {
         desktopHeaderContent(
             forecast = forecast,
             // The label moves on the click; the rest waits for that source's snapshot.
@@ -110,6 +110,7 @@ internal fun WidgetHeader(
             useCelsius = config.settings.useCelsius,
             widthDp = headerWidthDp,
             rainNow = rainNow,
+            rainLookaheadHours = config.settings.headerRainLookaheadHours,
         )
     }
 
@@ -577,6 +578,7 @@ internal fun desktopHeaderContent(
     widthDp: Int,
     rainNow: RainNow.Level?,
     labelSourceId: String = displaySourceId,
+    rainLookaheadHours: Int = com.weatherwidget.shared.settings.DisplaySettings.HEADER_RAIN_LOOKAHEAD.default,
 ): HeaderContent.Content {
     val view = desktopHeaderView(viewMode)
     val today = forecast.raw.daily.firstOrNull { it.date == now.toLocalDate().toString() }
@@ -601,6 +603,7 @@ internal fun desktopHeaderContent(
         widthDp = widthDp,
         rainNow = rainNow,
         labelSourceId = labelSourceId,
+        rainLookaheadHours = rainLookaheadHours,
     )
     HeaderContentLog.changed(displaySourceId, view, content)
     return content

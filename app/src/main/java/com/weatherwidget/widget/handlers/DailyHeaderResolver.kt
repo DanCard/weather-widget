@@ -157,6 +157,7 @@ internal object DailyHeaderResolver {
             useCelsius = stateManager.useCelsius(),
             widthDp = dimensions.widthDp,
             rainNow = rainNow,
+            rainLookaheadHours = stateManager.getHeaderRainLookaheadHours(),
         )
         val iconRes = WeatherIconMapper.fromIconName(content.iconName ?: WeatherConditionResolver.IC_UNKNOWN)
         val formattedTemp = content.tempText

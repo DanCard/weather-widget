@@ -3,6 +3,7 @@ package com.weatherwidget.shared.util
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.observations.RainNow
+import com.weatherwidget.shared.settings.DisplaySettings
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -86,9 +87,11 @@ object HeaderContent {
          * label moves on the click, the rest when that source's data arrives.
          */
         labelSourceId: String = displaySourceId,
+        /** Forward window (hours, clamped to [DisplaySettings.HEADER_RAIN_LOOKAHEAD]) scanned for rain %. */
+        rainLookaheadHours: Int = DisplaySettings.HEADER_RAIN_LOOKAHEAD.default,
         zone: ZoneId = ZoneId.systemDefault(),
     ): Content {
-        val precip = precipitation(view, hourly, displaySourceId, fallbackDailyPrecip, now, centerTime)
+        val precip = precipitation(view, hourly, displaySourceId, fallbackDailyPrecip, now, centerTime, rainLookaheadHours)
         val precipText = precip.probability?.let { "$it%" }
         return Content(
             iconName = rainNowIcon(rainNow) ?: iconName(view, iconHourly, displaySourceId, dailyFallback, now, lat, lon, zone),
@@ -118,9 +121,9 @@ object HeaderContent {
     /** A rain % as [build] would show it: its text and font-size multiplier. */
     data class PrecipLabel(val text: String, val fontScale: Float)
 
-    /** The header's rain % looks 6 h ahead; 1 h back covers the current hour and +7 h covers the end hour. */
+    /** 1 h back covers the current hour; +1 h past the lookahead covers end-hour interpolation. */
     const val PRECIP_RESERVE_LOOKBACK_HOURS = 1L
-    const val PRECIP_RESERVE_LOOKAHEAD_HOURS = 7L
+    const val PRECIP_RESERVE_LOOKAHEAD_HOURS = PrecipProbabilityCalculator.VISIBLE_LOOKAHEAD_HOURS + 1L
 
     /**
      * Epoch-ms range [precipLabels] needs across all sources. Both Android (`HeaderWidthChecker`)
@@ -131,9 +134,11 @@ object HeaderContent {
         now: LocalDateTime,
         centerTime: LocalDateTime = now,
         zone: ZoneId = ZoneId.systemDefault(),
+        lookaheadHours: Int = DisplaySettings.HEADER_RAIN_LOOKAHEAD.default,
     ): LongRange {
+        val clampedLookahead = DisplaySettings.HEADER_RAIN_LOOKAHEAD.clamp(lookaheadHours).toLong()
         val fromMs = minOf(now, centerTime).minusHours(PRECIP_RESERVE_LOOKBACK_HOURS).atZone(zone).toInstant().toEpochMilli()
-        val toMs = maxOf(now, centerTime).plusHours(PRECIP_RESERVE_LOOKAHEAD_HOURS).atZone(zone).toInstant().toEpochMilli()
+        val toMs = maxOf(now, centerTime).plusHours(clampedLookahead + 1L).atZone(zone).toInstant().toEpochMilli()
         return fromMs..toMs
     }
 
@@ -148,8 +153,9 @@ object HeaderContent {
         sourceIds: List<String>,
         now: LocalDateTime,
         centerTime: LocalDateTime,
+        rainLookaheadHours: Int = DisplaySettings.HEADER_RAIN_LOOKAHEAD.default,
     ): Map<String, PrecipLabel?> = sourceIds.associateWith { sourceId ->
-        precipitation(view, hourly, sourceId, null, now, centerTime).probability?.let {
+        precipitation(view, hourly, sourceId, null, now, centerTime, rainLookaheadHours).probability?.let {
             PrecipLabel(text = "$it%", fontScale = DailyRainLabels.headerPrecipFontScale(it))
         }
     }
@@ -203,8 +209,9 @@ object HeaderContent {
     private data class Precip(val probability: Int?, val computed: Int?)
 
     /**
-     * Daily: the next 6 h from now. Hourly views: the next 6 h from the panned hour. Hidden at 0 %
-     * in every view (user, 2026-11-04: the precip view's "0%" should print nothing).
+     * Daily: the next [rainLookaheadHours] h from now. Hourly views: the next [rainLookaheadHours] h
+     * from the panned hour. Hidden at 0 % in every view (user, 2026-11-04: the precip view's "0%"
+     * should print nothing).
      */
     private fun precipitation(
         view: View,
@@ -213,13 +220,16 @@ object HeaderContent {
         fallbackDailyPrecip: Int?,
         now: LocalDateTime,
         centerTime: LocalDateTime,
+        rainLookaheadHours: Int,
     ): Precip {
-        val probability = PrecipProbabilityCalculator.getNext6HourPrecipProbability(
-            hourly,
-            displaySourceId,
-            WeatherSource.GENERIC_GAP.id,
-            fallbackDailyPrecip,
-            if (view == View.DAILY) now else centerTime,
+        val lookahead = DisplaySettings.HEADER_RAIN_LOOKAHEAD.clamp(rainLookaheadHours).toLong()
+        val probability = PrecipProbabilityCalculator.maxPrecipProbabilityWithin(
+            lookaheadHours = lookahead,
+            hourlyForecasts = hourly,
+            displaySourceId = displaySourceId,
+            fallbackSourceId = WeatherSource.GENERIC_GAP.id,
+            fallbackDailyProbability = fallbackDailyPrecip,
+            referenceTime = if (view == View.DAILY) now else centerTime,
         )
         val shown = probability?.takeIf { it > 0 }
         return Precip(shown, probability)

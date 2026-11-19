@@ -50,6 +50,8 @@ import com.weatherwidget.shared.graph.HourlyZoomRules
 import com.weatherwidget.shared.util.ApiKeySignupUrls
 import com.weatherwidget.shared.sourceview.SourceDragRun
 import com.weatherwidget.shared.util.Log
+import com.weatherwidget.shared.settings.DisplaySettings
+import com.weatherwidget.shared.settings.IntSliderSpec
 import com.weatherwidget.shared.settings.SettingsSection
 import com.weatherwidget.shared.util.WeatherSourceOrdering
 import kotlin.math.roundToInt
@@ -490,6 +492,16 @@ internal fun SettingsWindow(
                             )
                         }
 
+                        // Header -- Android: R.string.header_settings_title, header_rain_lookahead_* SeekBar.
+                        SettingsCard(title = SettingsSection.HEADER.title) {
+                            HeaderRainLookaheadSlider(
+                                hours = currentConfig.settings.headerRainLookaheadHours,
+                                onChanged = { hours ->
+                                    updateConfig(currentConfig.copy(settings = currentConfig.settings.copy(headerRainLookaheadHours = hours)))
+                                },
+                            )
+                        }
+
                         // Experimental -- Android: R.string.experimental_title, hindcast_guard_* SeekBar.
                         SettingsCard(title = SettingsSection.EXPERIMENTAL.title) {
                             HindcastGuardSlider(
@@ -612,6 +624,56 @@ private fun TodayOverlayToggleRow(
 }
 
 /**
+ * Shared integer-slider row driven by [IntSliderSpec] so bounds and clamping match Android's
+ * `SettingsActivity.bindSlider`.
+ */
+@Composable
+private fun IntSliderSetting(
+    description: String,
+    spec: IntSliderSpec,
+    value: Int,
+    valueLabel: String,
+    sliderTestTag: String,
+    onChanged: (Int) -> Unit,
+    valueTestTag: String? = null,
+    minLabel: String? = null,
+    maxLabel: String? = null,
+    discrete: Boolean = true,
+) {
+    val clamped = spec.clamp(value)
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            description,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            valueLabel,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Bold,
+            modifier = if (valueTestTag != null) Modifier.testTag(valueTestTag) else Modifier,
+        )
+        Slider(
+            value = clamped.toFloat(),
+            onValueChange = { onChanged(spec.clamp(it.roundToInt())) },
+            valueRange = spec.composeRange,
+            steps = if (discrete) spec.composeSteps else 0,
+            modifier = Modifier.fillMaxWidth().testTag(sliderTestTag),
+        )
+        if (minLabel != null && maxLabel != null) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(minLabel, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(maxLabel, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+/**
  * Span of the tight NARROW zoom stage (4–8h) plus the optional 2-day cycle stop, mirroring
  * Android's "Hourly Zoom" card (slider first, switch second — same order and copy on both
  * platforms).
@@ -624,34 +686,17 @@ private fun HourlyZoomSpan(
     onMultiDayZoomChanged: (Boolean) -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            "Tap the hourly graph to cycle zoom levels. These set which levels the cycle includes " +
+        IntSliderSetting(
+            description = "Tap the hourly graph to cycle zoom levels. These set which levels the cycle includes " +
                 "and how wide the tightest one is. Wider spans scroll further per arrow tap.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            spec = DisplaySettings.NARROW_ZOOM_SPAN,
+            value = spanHours,
+            valueLabel = "$spanHours hours",
+            sliderTestTag = "hourly_zoom_span_slider",
+            onChanged = onChanged,
+            minLabel = "${DisplaySettings.NARROW_ZOOM_SPAN.min} hours",
+            maxLabel = "${DisplaySettings.NARROW_ZOOM_SPAN.max} hours",
         )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            "$spanHours hours",
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Bold
-        )
-        Slider(
-            value = spanHours.toFloat(),
-            onValueChange = { onChanged(HourlyZoomRules.clampNarrowSpan(it.roundToInt())) },
-            valueRange = HourlyZoomRules.MIN_NARROW_SPAN_HOURS.toFloat()..
-                HourlyZoomRules.MAX_NARROW_SPAN_HOURS.toFloat(),
-            // 4..8 inclusive is 5 stops, i.e. 3 interior steps.
-            steps = HourlyZoomRules.MAX_NARROW_SPAN_HOURS - HourlyZoomRules.MIN_NARROW_SPAN_HOURS - 1,
-            modifier = Modifier.fillMaxWidth().testTag("hourly_zoom_span_slider")
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text("4 hours", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("8 hours", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
 
         Spacer(Modifier.height(16.dp))
         Row(
@@ -680,35 +725,43 @@ private fun HourlyZoomSpan(
     }
 }
 
+/** Forward rain lookahead (1–8h) for daily and hourly headers; Android: `setupHeaderRainLookahead`. */
+@Composable
+private fun HeaderRainLookaheadSlider(
+    hours: Int,
+    onChanged: (Int) -> Unit,
+) {
+    val clamped = DisplaySettings.HEADER_RAIN_LOOKAHEAD.clamp(hours)
+    IntSliderSetting(
+        description = "How far ahead the rain chance in the widget header looks, in both daily and hourly views.",
+        spec = DisplaySettings.HEADER_RAIN_LOOKAHEAD,
+        value = clamped,
+        valueLabel = if (clamped == 1) "Next 1 hour" else "Next $clamped hours",
+        sliderTestTag = "header_rain_lookahead_slider",
+        valueTestTag = "header_rain_lookahead_value",
+        onChanged = onChanged,
+        minLabel = "1 hour",
+        maxLabel = "${DisplaySettings.HEADER_RAIN_LOOKAHEAD.max} hours",
+    )
+}
+
 /** Temporary experiment (plans/261113-no-hindcasts-unless-prior-missing.md); Android: `setupHindcastGuard`. */
 @Composable
 private fun HindcastGuardSlider(
     hours: Int,
     onChanged: (Int) -> Unit,
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            "Hindcast guard: once an hour has started (or today's low after 6 AM, high after 4 PM), keep " +
-                "the last forecast made before it if it is at most this old. If it is older or missing, " +
-                "the first fetch after the start is used. Temporary setting for testing.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            com.weatherwidget.data.model.HindcastGuard.formatMaxPriorAge(hours),
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.testTag("hindcast_guard_value"),
-        )
-        Slider(
-            value = hours.toFloat(),
-            onValueChange = { onChanged(it.roundToInt()) },
-            valueRange = 0f..com.weatherwidget.data.model.HindcastGuard.MAX_PRIOR_AGE_HOURS_LIMIT.toFloat(),
-            steps = com.weatherwidget.data.model.HindcastGuard.MAX_PRIOR_AGE_HOURS_LIMIT - 1,
-            modifier = Modifier.fillMaxWidth().testTag("hindcast_guard_slider"),
-        )
-    }
+    IntSliderSetting(
+        description = "Hindcast guard: once an hour has started (or today's low after 6 AM, high after 4 PM), keep " +
+            "the last forecast made before it if it is at most this old. If it is older or missing, " +
+            "the first fetch after the start is used. Temporary setting for testing.",
+        spec = DisplaySettings.HINDCAST_MAX_PRIOR_AGE,
+        value = hours,
+        valueLabel = com.weatherwidget.data.model.HindcastGuard.formatMaxPriorAge(hours),
+        sliderTestTag = "hindcast_guard_slider",
+        valueTestTag = "hindcast_guard_value",
+        onChanged = onChanged,
+    )
 }
 
 @Composable
@@ -716,37 +769,18 @@ private fun PersonalStationDiscount(
     discountPercent: Int,
     onChanged: (Int) -> Unit
 ) {
-    fun labelFor(percent: Int): String =
-        com.weatherwidget.shared.util.formatPersonalStationDiscount(percent)
-
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            "Personal (backyard) stations often over-read in the sun. Discount how much they count " +
-                "toward the measured temperature. 0% = no discount; 100% = ignored.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            labelFor(discountPercent),
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Bold
-        )
-        Slider(
-            value = discountPercent.toFloat(),
-            onValueChange = { onChanged(it.toInt()) },
-            valueRange = 0f..100f,
-            steps = 0,
-            modifier = Modifier.fillMaxWidth().testTag("personal_station_discount_slider")
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text("0% · no discount", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("100% · ignored", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
+    IntSliderSetting(
+        description = "Personal (backyard) stations often over-read in the sun. Discount how much they count " +
+            "toward the measured temperature. 0% = no discount; 100% = ignored.",
+        spec = DisplaySettings.PERSONAL_STATION_DISCOUNT,
+        value = discountPercent,
+        valueLabel = com.weatherwidget.shared.util.formatPersonalStationDiscount(discountPercent),
+        sliderTestTag = "personal_station_discount_slider",
+        onChanged = onChanged,
+        minLabel = "0% · no discount",
+        maxLabel = "100% · ignored",
+        discrete = false,
+    )
 }
 
 /**

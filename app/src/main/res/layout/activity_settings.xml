@@ -847,6 +847,51 @@
                     android:textSize="21sp" />
             </LinearLayout>
 
+            <!-- Header: rain forecast lookahead slider (desktop: SettingsWindow HEADER card). -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:layout_marginBottom="8dp"
+                android:text="@string/header_settings_title"
+                android:tag="settings_section"
+                android:textColor="@color/widget_text_primary"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:background="@drawable/bg_surface_card"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="8dp"
+                    android:text="@string/header_rain_lookahead_description"
+                    android:textColor="@color/widget_text_secondary"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:id="@+id/header_rain_lookahead_value"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="4dp"
+                    android:textColor="@color/widget_text_primary"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    tools:text="Next 6 hours" />
+
+                <SeekBar
+                    android:id="@+id/header_rain_lookahead_seekbar"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:max="7" />
+            </LinearLayout>
+
             <!-- Experimental: temporary HindcastGuard slider (desktop: SettingsWindow EXPERIMENTAL card).
                  plans/261113-no-hindcasts-unless-prior-missing.md -->
             <TextView

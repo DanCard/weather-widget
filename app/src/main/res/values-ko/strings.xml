@@ -568,6 +568,10 @@
     <string name="rain_day_insufficient">%1$s: 측정 시간 부족 (24시간 중 %2$d)</string>
     <string name="rain_day_today">오늘: 자정 이후 평가</string>
     <!-- Temporary experiment: HindcastGuard (plans/261113-no-hindcasts-unless-prior-missing.md) -->
+    <string name="header_settings_title">헤더</string>
+    <string name="header_rain_lookahead_description">일간 및 시간별 보기 모두에서 위젯 헤더의 강수 확률이 몇 시간 앞까지 반영할지 설정합니다.</string>
+    <string name="header_rain_lookahead_value_singular">앞으로 1시간</string>
+    <string name="header_rain_lookahead_value">앞으로 %1$d시간</string>
     <string name="experimental_title">실험 기능</string>
     <string name="hindcast_guard_description" formatted="false">사후 예보 방지: 한 시간이 시작된 후(또는 오전 6시 이후 오늘 최저 / 오후 4시 이후 최고)에는 그 전에 나온 마지막 예보가 이 시간보다 오래되지 않았으면 유지합니다. 더 오래되었거나 없으면 시작 후 첫 업데이트를 사용합니다. 테스트용 임시 설정입니다.</string>
     <string name="hindcast_guard_value">예보 최대 경과 시간 %1$d시간</string>

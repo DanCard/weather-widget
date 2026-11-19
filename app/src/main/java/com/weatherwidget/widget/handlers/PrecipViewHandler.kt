@@ -213,6 +213,7 @@ object PrecipViewHandler {
             useCelsius = stateManager.useCelsius(),
             widthDp = dimensions.widthDp,
             rainNow = com.weatherwidget.widget.AndroidRainNow.level(context, lat, lon, displaySource, where = "precip"),
+            rainLookaheadHours = stateManager.getHeaderRainLookaheadHours(),
         )
         val iconRes = content.iconName?.let(WeatherIconMapper::fromIconName) ?: 0
         val sourceIndicator = content.sourceLabel

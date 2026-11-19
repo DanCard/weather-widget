@@ -568,6 +568,10 @@
     <string name="rain_day_insufficient">%1$s: ساعات القياس غير كافية (%2$d من 24)</string>
     <string name="rain_day_today">اليوم: يُقيَّم بعد منتصف الليل</string>
     <!-- Temporary experiment: HindcastGuard (plans/261113-no-hindcasts-unless-prior-missing.md) -->
+    <string name="header_settings_title">الرأس</string>
+    <string name="header_rain_lookahead_description">مدى التوقع المستقبلي لاحتمال هطول المطر في رأس الأداة، في كل من العرض اليومي والساعي.</string>
+    <string name="header_rain_lookahead_value_singular">الساعة القادمة</string>
+    <string name="header_rain_lookahead_value">الـ %1$d ساعات القادمة</string>
     <string name="experimental_title">تجريبي</string>
     <string name="hindcast_guard_description" formatted="false">حماية التنبؤ اللاحق: بعد بدء ساعة (أو صغرى اليوم بعد 6 ص / كبرى اليوم بعد 4 م) يُحتفظ بآخر توقع صدر قبلها إذا لم يتجاوز عمره هذا الحد. إذا كان أقدم أو مفقودًا يُستخدم أول تحديث بعد البدء. إعداد مؤقت للاختبار.</string>
     <string name="hindcast_guard_value">أقصى عمر للتوقع %1$d س</string>

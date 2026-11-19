@@ -321,7 +321,12 @@ class DesktopWeatherRepository(
             allSourcesHourly = run {
                 val zone = ZoneId.systemDefault()
                 val nowLocal = java.time.Instant.ofEpochMilli(now).atZone(zone).toLocalDateTime()
-                val precipWindow = com.weatherwidget.shared.util.HeaderContent.precipReserveWindowMs(nowLocal, nowLocal, zone)
+                val precipWindow = com.weatherwidget.shared.util.HeaderContent.precipReserveWindowMs(
+                    now = nowLocal,
+                    centerTime = nowLocal,
+                    zone = zone,
+                    lookaheadHours = com.weatherwidget.shared.settings.DisplaySettings.HEADER_RAIN_LOOKAHEAD.max,
+                )
                 weatherDao.getHourlySettledAllSources(
                     latitude, longitude, precipWindow.first, precipWindow.last, now,
                 )

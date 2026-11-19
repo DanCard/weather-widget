@@ -222,6 +222,13 @@ falling now: then it is blue dots only, no cloud, sized by intensity (`ic_weathe
 `AndroidRainNow` (Room rows plus the radar sample in prefs), desktop in `desktopRainNow` (the snapshot's
 rows plus the daemon's `~/.cache/weather-widget/radar-now.txt`). `RAIN_NOW` logs each change of level.
 
+The header's rain percentage scans forward by `DisplaySettings.headerRainLookaheadHours` (1–8 h,
+default 6 h; Settings → **Header** on both platforms) from `now` in the daily view and from the panned
+center hour in hourly views, while `DayClickResolver.TODAY_LOOKAHEAD_HOURS` stays fixed at 6 h to match
+`ZoomStage.WIDE`. Shared display defaults, integer slider bounds (`IntSliderSpec`), clamping, and diffs
+live in `DisplaySettings` (`:shared`) and are mirrored into Android's `WeatherDisplayPreferences` and
+Desktop's `DesktopSettings` (`plans/261118-header-rain-lookahead-slider.md`).
+
 The daily view's morning fog is a see-through ellipse over each bar's cold end, wider than the bar and
 under the labels (`plans/261111-daily-bar-morning-fog.md`). `DailyColumnBuilder` resolves it through
 `DailyMorningFog`, one rule for every column:

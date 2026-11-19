@@ -150,6 +150,9 @@ class SettingsActivity : AppCompatActivity() {
         // Personal weather station discount slider
         setupPersonalStationDiscount()
 
+        // Header: rain forecast lookahead slider
+        setupHeaderRainLookahead()
+
         // Experimental: hindcast guard age slider
         setupHindcastGuard()
 
@@ -662,29 +665,47 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     /**
-     * Span of the tight (NARROW) hourly zoom, 4–8h. The SeekBar is 0..4 and offset by
-     * [HourlyZoomRules.MIN_NARROW_SPAN_HOURS], since SeekBar has no min before API 26.
+     * Binds a Settings [SeekBar] + bold value label using a shared [com.weatherwidget.shared.settings.IntSliderSpec]
+     * so min/max/offset math stays identical to Desktop's Compose sliders.
      */
-    private fun setupHourlyZoomSpan() {
-        val seekBar = findViewById<SeekBar>(R.id.hourly_zoom_seekbar)
-        val valueLabel = findViewById<TextView>(R.id.hourly_zoom_value)
-
-        fun labelFor(spanHours: Int): String = getString(R.string.hourly_zoom_value, spanHours)
-
-        val initial = widgetStateManager.getNarrowZoomSpanHours()
-        seekBar.progress = initial - HourlyZoomRules.MIN_NARROW_SPAN_HOURS
-        valueLabel.text = labelFor(initial)
+    private fun bindSlider(
+        seekBarId: Int,
+        valueLabelId: Int,
+        spec: com.weatherwidget.shared.settings.IntSliderSpec,
+        initialValue: Int,
+        labelFor: (Int) -> String,
+        onCommit: (Int) -> Unit,
+    ) {
+        val seekBar = findViewById<SeekBar>(seekBarId)
+        val valueLabel = findViewById<TextView>(valueLabelId)
+        val clamped = spec.clamp(initialValue)
+        seekBar.max = spec.seekBarMax
+        seekBar.progress = spec.toSeekBarProgress(clamped)
+        valueLabel.text = labelFor(clamped)
 
         seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
-                valueLabel.text = labelFor(progress + HourlyZoomRules.MIN_NARROW_SPAN_HOURS)
+                valueLabel.text = labelFor(spec.fromSeekBarProgress(progress))
             }
 
             override fun onStartTrackingTouch(sb: SeekBar?) {}
 
             override fun onStopTrackingTouch(sb: SeekBar?) {
                 val progress = sb?.progress ?: return
-                val spanHours = progress + HourlyZoomRules.MIN_NARROW_SPAN_HOURS
+                onCommit(spec.fromSeekBarProgress(progress))
+            }
+        })
+    }
+
+    /** Span of the tight (NARROW) hourly zoom, 4–8h. */
+    private fun setupHourlyZoomSpan() {
+        bindSlider(
+            seekBarId = R.id.hourly_zoom_seekbar,
+            valueLabelId = R.id.hourly_zoom_value,
+            spec = com.weatherwidget.shared.settings.DisplaySettings.NARROW_ZOOM_SPAN,
+            initialValue = widgetStateManager.getNarrowZoomSpanHours(),
+            labelFor = { spanHours -> getString(R.string.hourly_zoom_value, spanHours) },
+            onCommit = { spanHours ->
                 widgetStateManager.setNarrowZoomSpanHours(spanHours)
                 Log.d(
                     "SETTINGS",
@@ -692,9 +713,8 @@ class SettingsActivity : AppCompatActivity() {
                         "(navJump=${HourlyZoomRules.navJumpHours(spanHours)}h)",
                 )
                 repaintWidgets()
-            }
-        })
-
+            },
+        )
         setupTwoDayZoomToggle()
     }
 
@@ -719,57 +739,55 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun setupPersonalStationDiscount() {
-        val seekBar = findViewById<SeekBar>(R.id.personal_station_discount_seekbar)
-        val valueLabel = findViewById<TextView>(R.id.personal_station_discount_value)
-
-        fun labelFor(percent: Int): String =
-            com.weatherwidget.shared.util.formatPersonalStationDiscount(percent)
-
-        val initial = widgetStateManager.getPersonalStationDiscountPercent()
-        seekBar.progress = initial
-        valueLabel.text = labelFor(initial)
-
-        seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
-                valueLabel.text = labelFor(progress)
-            }
-
-            override fun onStartTrackingTouch(sb: SeekBar?) {}
-
-            override fun onStopTrackingTouch(sb: SeekBar?) {
-                val percent = sb?.progress ?: return
+        bindSlider(
+            seekBarId = R.id.personal_station_discount_seekbar,
+            valueLabelId = R.id.personal_station_discount_value,
+            spec = com.weatherwidget.shared.settings.DisplaySettings.PERSONAL_STATION_DISCOUNT,
+            initialValue = widgetStateManager.getPersonalStationDiscountPercent(),
+            labelFor = { percent -> com.weatherwidget.shared.util.formatPersonalStationDiscount(percent) },
+            onCommit = { percent ->
                 widgetStateManager.setPersonalStationDiscountPercent(percent)
                 Log.d("SETTINGS", "Personal station discount set to $percent%")
-            }
-        })
+            },
+        )
+    }
+
+    /** Forward rain lookahead (1–8h) for both daily and hourly headers; desktop: `HeaderRainLookaheadSlider`. */
+    private fun setupHeaderRainLookahead() {
+        bindSlider(
+            seekBarId = R.id.header_rain_lookahead_seekbar,
+            valueLabelId = R.id.header_rain_lookahead_value,
+            spec = com.weatherwidget.shared.settings.DisplaySettings.HEADER_RAIN_LOOKAHEAD,
+            initialValue = widgetStateManager.getHeaderRainLookaheadHours(),
+            labelFor = { hours ->
+                if (hours == 1) getString(R.string.header_rain_lookahead_value_singular)
+                else getString(R.string.header_rain_lookahead_value, hours)
+            },
+            onCommit = { hours ->
+                widgetStateManager.setHeaderRainLookaheadHours(hours)
+                Log.d("SETTINGS", "Header rain lookahead set to ${hours}h")
+                repaintWidgets()
+            },
+        )
     }
 
     /** Temporary experiment; desktop: SettingsWindow `HindcastGuardSlider`. */
     private fun setupHindcastGuard() {
-        val seekBar = findViewById<SeekBar>(R.id.hindcast_guard_seekbar)
-        val valueLabel = findViewById<TextView>(R.id.hindcast_guard_value)
-
-        fun labelFor(hours: Int): String =
-            if (hours == 0) getString(R.string.hindcast_guard_off) else getString(R.string.hindcast_guard_value, hours)
-
-        val initial = widgetStateManager.getHindcastMaxPriorAgeHours()
-        seekBar.progress = initial
-        valueLabel.text = labelFor(initial)
-
-        seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
-                valueLabel.text = labelFor(progress)
-            }
-
-            override fun onStartTrackingTouch(sb: SeekBar?) {}
-
-            override fun onStopTrackingTouch(sb: SeekBar?) {
-                val hours = sb?.progress ?: return
+        bindSlider(
+            seekBarId = R.id.hindcast_guard_seekbar,
+            valueLabelId = R.id.hindcast_guard_value,
+            spec = com.weatherwidget.shared.settings.DisplaySettings.HINDCAST_MAX_PRIOR_AGE,
+            initialValue = widgetStateManager.getHindcastMaxPriorAgeHours(),
+            labelFor = { hours ->
+                if (hours == 0) getString(R.string.hindcast_guard_off)
+                else getString(R.string.hindcast_guard_value, hours)
+            },
+            onCommit = { hours ->
                 widgetStateManager.setHindcastMaxPriorAgeHours(hours)
                 Log.d("SETTINGS", "Hindcast guard max prior age set to ${hours}h")
                 repaintWidgets()
-            }
-        })
+            },
+        )
     }
 
     private fun setupLocationSettings() {

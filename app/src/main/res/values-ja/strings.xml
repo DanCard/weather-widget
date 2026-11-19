@@ -568,6 +568,10 @@
     <string name="rain_day_insufficient">%1$s：計測時間が不足（24 時間中 %2$d）</string>
     <string name="rain_day_today">今日：深夜 0 時以降に評価</string>
     <!-- Temporary experiment: HindcastGuard (plans/261113-no-hindcasts-unless-prior-missing.md) -->
+    <string name="header_settings_title">ヘッダー</string>
+    <string name="header_rain_lookahead_description">日別・時間別の両方のビューで、ウィジェットヘッダーの降水確率が何時間先まで見るかを設定します。</string>
+    <string name="header_rain_lookahead_value_singular">今後1時間</string>
+    <string name="header_rain_lookahead_value">今後%1$d時間</string>
     <string name="experimental_title">試験運用</string>
     <string name="hindcast_guard_description" formatted="false">後出し予報ガード: ある時間帯が始まった後（または午前6時以降の今日の最低／午後4時以降の最高）は、それ以前に出された最後の予報がこの時間以内なら保持します。古いか存在しない場合は、開始後の最初の取得を使います。テスト用の一時的な設定です。</string>
     <string name="hindcast_guard_value">予報の最大経過時間 %1$d 時間</string>

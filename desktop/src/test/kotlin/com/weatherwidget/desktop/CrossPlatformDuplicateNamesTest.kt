@@ -59,7 +59,6 @@ class CrossPlatformDuplicateNamesTest {
             "clearCache" to GENERIC,
             "columns" to GENERIC,
             "expire" to GENERIC,
-            "labelFor" to GENERIC,
             "remove" to GENERIC,
             "update" to GENERIC,
         )
