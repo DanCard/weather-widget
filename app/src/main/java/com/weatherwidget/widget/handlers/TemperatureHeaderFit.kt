@@ -39,10 +39,8 @@ internal object TemperatureHeaderFit {
             deltaText = header.deltaText,
             precipText = header.precipProbability,
             precipTextSizeDp = header.precipTextSizeDp,
-            line = header.line,
+            allApiSourceLabels = header.allApiSourceLabels,
         )
-        // The stations zone in the inline nav row shows only for today, so the header fit needs
-        // Current observations only while the graph shows some of today (:shared HeaderButtons).
         val headerButtons = HeaderButtons.hourly(
             observationsInView = HeaderButtons.hourlyObservationsInView(
                 centre = centerTime,
@@ -52,8 +50,6 @@ internal object TemperatureHeaderFit {
             ),
         )
 
-        // The shared drop order (HeaderFit): inline nav zones squeeze, then the icon and
-        // temperature shrink, before anything drops; "from yest" only where it needs neither.
         val deltaLabelText = context.getString(R.string.header_delta_from_yesterday)
         val measured = HeaderWidthChecker.measureHeader(
             context = context,
@@ -72,22 +68,13 @@ internal object TemperatureHeaderFit {
             baseButtons = headerButtons.baseButtons,
             wantHome = headerButtons.wantHome,
             wantMonths = headerButtons.wantMonths,
-            hourly = true,
-            line = header.line,
-            nominalDate = HeaderWidthChecker.nominalDate(today),
+            allApiSourceLabels = header.allApiSourceLabels,
         )
         return Resolved(headerScale, headerButtons, deltaLabelText, measured, HeaderFit.resolve(measured))
     }
 
     /**
      * Where the RemoteViews header row stops covering the graph bitmap, in bitmap px from its top.
-     *
-     * The context annotations (dominant station, "Actual temperature data from X") use this as their
-     * search ceiling (`plans/261106-actuals-source-label-clears-header.md`); value and ghost labels
-     * ignore the header (`da576280`). Vertical only — the annotations are wider than the gaps between
-     * header items.
-     * The band runs from the bitmap top to [HEADER_ROW_CENTER_DP] plus half the row's tallest item:
-     * the temperature, the weather icon, the rain % when shown, or a centre button.
      */
     fun headerBandBottomPx(
         context: Context,
@@ -96,7 +83,7 @@ internal object TemperatureHeaderFit {
         bitmapScale: Float,
     ): Float {
         val density = context.resources.displayMetrics.density
-        val textScale = resolved.headerScale * resolved.fit.textScale
+        val textScale = resolved.headerScale
         val tallestDp = maxOf(
             header.currentTempSizeDp * textScale,
             HeaderConstants.WEATHER_ICON_SIZE_DP * textScale,

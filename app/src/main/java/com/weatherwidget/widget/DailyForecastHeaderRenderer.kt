@@ -63,13 +63,18 @@ internal object DailyForecastHeaderRenderer {
             leftWithLabel = leftClusterWithLabel,
         )
         val effectiveLeftCluster = if (contention.showDeltaLabel) leftClusterWithLabel else leftClusterWithoutLabel
+        val effectiveDateRightBoundary = if (header.centerIconsWidthDp > 0f) {
+            minOf(apiLeft, header.centerIconsLeftFraction * widthPx)
+        } else {
+            apiLeft
+        }
         val dateLayout = if (contention.showDate) {
             resolveHeaderDateLayout(
                 header = header,
                 widthPx = widthPx,
                 layout = layout,
                 leftClusterRight = effectiveLeftCluster,
-                dateRightBoundary = apiLeft,
+                dateRightBoundary = effectiveDateRightBoundary,
                 headerPaints = headerPaints,
                 labelScale = labelScale,
                 upOffset = upOffset,
@@ -347,6 +352,11 @@ internal object DailyForecastHeaderRenderer {
         leftWithLabel: Float = resolveLeftClusterRight(header, headerPaints, labelScale, layout.density, includeDeltaLabel = true),
     ): HeaderContention {
         val hasDateText = !header.dateText.isNullOrBlank()
+        val effectiveDateRightBoundary = if (header.centerIconsWidthDp > 0f) {
+            minOf(apiLeft, header.centerIconsLeftFraction * widthPx)
+        } else {
+            apiLeft
+        }
         fun dateFits(includeDeltaLabel: Boolean): Boolean =
             hasDateText &&
                 resolveHeaderDateLayout(
@@ -354,7 +364,7 @@ internal object DailyForecastHeaderRenderer {
                     widthPx = widthPx,
                     layout = layout,
                     leftClusterRight = if (includeDeltaLabel) leftWithLabel else leftWithoutLabel,
-                    dateRightBoundary = apiLeft,
+                    dateRightBoundary = effectiveDateRightBoundary,
                     headerPaints = headerPaints,
                     labelScale = labelScale,
                     upOffset = upOffset,

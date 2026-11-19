@@ -29,8 +29,7 @@ internal data class TemperatureWidgetState(
         val isCurrentTempVisible: Boolean,
         val isDeltaVisible: Boolean,
         val isStaleEstimate: Boolean,
-        /** What every visible source would show now, for the shared line (`HeaderLine`); null: fixed line. */
-        val line: com.weatherwidget.shared.util.HeaderLine.Inputs? = null,
+        val allApiSourceLabels: List<String> = emptyList(),
     )
 
     data class GraphState(

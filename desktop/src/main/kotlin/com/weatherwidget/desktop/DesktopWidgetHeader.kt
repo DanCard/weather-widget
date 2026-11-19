@@ -36,7 +36,6 @@ import com.weatherwidget.shared.util.HeaderButton
 import com.weatherwidget.shared.util.HeaderButtons
 import com.weatherwidget.shared.util.HeaderButtonZone
 import com.weatherwidget.shared.util.HeaderFit
-import com.weatherwidget.shared.util.HeaderLine
 import com.weatherwidget.shared.util.Log
 import com.weatherwidget.shared.util.PreferredSourceHome
 import java.time.Instant
@@ -159,47 +158,24 @@ internal fun WidgetHeader(
         HeaderButtons.daily(observationsInView = observationsInView, home = homeAction != null, months = wantMonthsButton)
     }
     val graphSelectorStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = (13 * scale).sp)
-    val sourceWidthDp = remember(content.sourceLabel, sourceStyle, headerTextMeasurer, density) {
-        with(density) { headerTextMeasurer.measure(content.sourceLabel, sourceStyle).size.width.toDp().value }
+    val sourceWidthDp = remember(content.sourceLabel, config.effectiveSources, config.viewMode, nowLocal, targetHour, headerWidthDp, sourceStyle, headerTextMeasurer, density) {
+        val labels = (config.effectiveSources.map {
+            HeaderContent.sourceLabel(desktopHeaderView(config.viewMode), WeatherSource.fromDisplaySource(it).id, nowLocal, targetHour, headerWidthDp)
+        } + content.sourceLabel).distinct()
+        with(density) { labels.maxOf { headerTextMeasurer.measure(it, sourceStyle).size.width.toDp().value } }
     }
     val nominalDateWidthDp = remember(dateText, dateStyle, headerTextMeasurer, density) {
         with(density) { headerTextMeasurer.measure(dateText, dateStyle).size.width.toDp().value }
     }
-    // What every visible source would show now, for the shared line's reserve (HeaderLine), and
-    // how wide each piece draws here: a source tap then moves neither the buttons nor the date.
-    val lineInputs = remember(forecast.allSourcesHourly, config.effectiveSources, config.viewMode, nowLocal, targetHour, config.lat, config.lon, headerWidthDp) {
-        HeaderContent.lineInputs(
-            view = desktopHeaderView(config.viewMode),
-            hourly = forecast.allSourcesHourly,
-            sourceIds = config.effectiveSources.map { WeatherSource.fromDisplaySource(it).id },
-            now = nowLocal,
-            centerTime = targetHour,
-            widthDp = headerWidthDp,
-        )
-    }
-    val lineMeasure = remember(scale, tempStyle, deltaStyle, precipStyle, dateStyle, sourceStyle, headerTextMeasurer, density) {
-        fun widthDp(text: String, style: androidx.compose.ui.text.TextStyle) =
-            with(density) { headerTextMeasurer.measure(text, style).size.width.toDp().value }
-        HeaderLine.Measure { piece, text, fontScale ->
-            when (piece) {
-                HeaderLine.Piece.TEMP -> widthDp(text, tempStyle)
-                HeaderLine.Piece.DELTA -> DELTA_MARGIN_DP + widthDp(text, deltaStyle)
-                HeaderLine.Piece.RAIN ->
-                    PRECIP_MARGIN_DP + widthDp(text, precipStyle.copy(fontSize = (HEADER_TEMP_BASE_SP * fontScale * scale).sp))
-                HeaderLine.Piece.DATE -> widthDp(text, dateStyle)
-                HeaderLine.Piece.SOURCE -> widthDp(text, sourceStyle) + 14 * scale
-            }
-        }
-    }
+    val sourceGearGapDp = 6f * scale
+    val gearWidthDp = 14f * scale
     val headerMeasured = remember(content, scale, isHourly, buttonsWant, dateText, headerTextMeasurer, density, headerWidthDp, sourceWidthDp, nominalDateWidthDp) {
         fun widthDp(text: String, style: androidx.compose.ui.text.TextStyle) =
             with(density) { headerTextMeasurer.measure(text, style).size.width.toDp().value }
-        val gearWidth = 14 * scale
         HeaderFit.Measured(
             width = 0f, // the BoxWithConstraints below supplies it
-            rightCluster = sourceWidthDp + gearWidth,
+            rightCluster = sourceWidthDp + sourceGearGapDp + gearWidthDp,
             gap = spacingDp,
-            seamOffset = 0f, // HeaderLine.place floats it, below
             temp = widthDp(content.tempText ?: "—", tempStyle),
             rain = content.precipText?.takeIf { content.precipFontScale != null }
                 ?.let { PRECIP_MARGIN_DP + widthDp(it, precipStyle) } ?: 0f,
@@ -210,11 +186,8 @@ internal fun WidgetHeader(
             baseButtons = buttonsWant.baseButtons,
             wantHome = buttonsWant.wantHome,
             wantMonths = buttonsWant.wantMonths,
-            // Each button sits centred in a zone of its icon plus the shared air (HeaderButtonZone,
-            // as Android's widget), which the fit may narrow; the graph selector's emoji is
-            // centred in the same zone.
-            centreButton = HeaderButtonZone.zoneDp(CENTRE_ICON_DP, headerWidthDp / scale) * scale,
-            minCentreButton = HeaderButtonZone.minZoneDp(CENTRE_ICON_DP) * scale,
+            buttonWidth = HeaderButtonZone.zoneDp(CENTRE_ICON_DP, headerWidthDp / scale) * scale,
+            minButtonWidth = HeaderButtonZone.minZoneDp(CENTRE_ICON_DP) * scale,
         )
     }
 
@@ -258,23 +231,18 @@ internal fun WidgetHeader(
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             val measuredWidth = maxWidth.value
             val unscaledWidthDp = measuredWidth / scale
-            val centreButton = HeaderButtonZone.zoneDp(CENTRE_ICON_DP, unscaledWidthDp) * scale
-            val minCentreButton = HeaderButtonZone.minZoneDp(CENTRE_ICON_DP) * scale
-            val measured = remember(headerMeasured, measuredWidth, centreButton, minCentreButton, lineMeasure, lineInputs, dateText) {
-                HeaderLine.place(
-                    headerMeasured.copy(width = measuredWidth, centreButton = centreButton, minCentreButton = minCentreButton),
-                    lineMeasure,
-                    lineInputs,
-                    iconSlot = 18 * scale,
-                    nominalDate = dateText,
+            val buttonWidth = HeaderButtonZone.zoneDp(CENTRE_ICON_DP, unscaledWidthDp) * scale
+            val minButtonWidth = HeaderButtonZone.minZoneDp(CENTRE_ICON_DP) * scale
+            val measured = remember(headerMeasured, measuredWidth, buttonWidth, minButtonWidth) {
+                headerMeasured.copy(
+                    width = measuredWidth,
+                    buttonWidth = buttonWidth,
+                    minButtonWidth = minButtonWidth,
                 )
             }
             val fit = remember(measured) {
                 HeaderFit.resolve(measured).also { HeaderFitLog.changed(if (isHourly) "hourly" else "daily", scale, it, measured) }
             }
-            // The buttons end on HeaderFit's line right of the middle and the daily date starts just
-            // after it, so neither the temperature's width nor home appearing on a source switch
-            // moves the date — and history stays put when switching daily ↔ hourly.
             val buttonsSpan = HeaderFit.buttonsSpan(measured, fit)
             val dateLeft = HeaderFit.dateLeft(measured, fit)
             Row(
@@ -358,23 +326,37 @@ internal fun WidgetHeader(
                 // date) are overlays at HeaderFit's positions, below.
                 Spacer(Modifier.weight(1f))
 
-                // Settings gear: pinned to the right edge.
+                // Right cluster: API source label + Settings gear pinned to the right edge.
+                val visibleSources = config.effectiveSources
+                Text(
+                    text = content.sourceLabel,
+                    style = sourceStyle,
+                    color = Color.White.copy(
+                        alpha = when {
+                            visibleSources.size <= 1 -> 0.5f
+                            sourcePressed -> 1.0f
+                            else -> 0.6f
+                        },
+                    ),
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier
+                        .offset(y = (-1.5f * scale).dp)
+                        .switchSourceOnPress(enabled = visibleSources.size > 1)
+                        .testTag("header_source_label"),
+                )
+                Spacer(Modifier.width(sourceGearGapDp.dp))
                 Icon(
                     painter = painterResource("drawable/ic_settings_gear.xml"),
                     contentDescription = "Settings",
-                    modifier = Modifier.size((14 * scale).dp).clickable { onOpenSettings() },
+                    modifier = Modifier.size(gearWidthDp.dp).clickable { onOpenSettings() },
                     tint = Color.White.copy(alpha = 0.7f)
                 )
             }
-            // The buttons HeaderButtons shows, in its order (home first, history last), ending on
-            // HeaderFit's line. Sizes and tints match Android's 0xAAFFFFFF / 0x99FFFFFF icons. The
-            // whole zone is the button, and two invisible extensions carry the first and last
-            // halfway to their neighbours (HeaderFit.buttonsTouchSpan): a click nearer a button
-            // never falls through to the header's source toggle. Separate boxes, so the drawn
-            // row stays at the slot to the pixel.
-            buttonsSpan?.let { (slotLeft, slotRight) ->
-                val zoneDp = fit.centreZone.takeIf { it > 0f } ?: measured.centreButton
-                val (touchLeft, touchRight) = HeaderFit.buttonsTouchSpan(measured, fit) ?: (slotLeft to slotRight)
+            // Action buttons in HeaderButtons.ORDER (home first, history last), right-anchored
+            // before the right cluster.
+            buttonsSpan?.let { (slotLeft, _) ->
+                val zoneDp = fit.buttonZone.takeIf { it > 0f } ?: measured.buttonWidth
                 val shownButtons = HeaderButtons.shown(buttonsWant, fit)
                 // A little taller than the icons, so a click just above or below one still lands.
                 val buttonHeightDp = iconSizeDp + 8 * scale
@@ -454,26 +436,6 @@ internal fun WidgetHeader(
                         ) { HeaderButtonGlyph(button, isHourly, homeAction, iconSizeDp, graphSelectorEmoji, graphSelectorStyle) }
                     }
                 }
-                for (ext in listOf(
-                    TouchExtension(shownButtons.first(), touchLeft, slotLeft, "header_touch_extension_start"),
-                    TouchExtension(shownButtons.last(), slotRight, touchRight, "header_touch_extension_end"),
-                )) if (ext.toDp > ext.fromDp) {
-                    val secondary = onSecondaryClick(ext.button)
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.CenterStart)
-                            .offset(x = ext.fromDp.dp)
-                            .size(width = (ext.toDp - ext.fromDp).dp, height = buttonHeightDp.dp)
-                            .clickable(onClick = onClick(ext.button))
-                            .then(
-                                if (secondary != null) {
-                                    @OptIn(ExperimentalFoundationApi::class)
-                                    Modifier.onClick(matcher = PointerMatcher.mouse(PointerButton.Secondary), onClick = secondary)
-                                } else Modifier
-                            )
-                            .testTag(ext.tag),
-                    )
-                }
             }
             dateLeft?.let { x ->
                 Text(
@@ -485,32 +447,6 @@ internal fun WidgetHeader(
                     modifier = Modifier.align(Alignment.CenterStart).offset(x = x.dp).testTag("daily_header_date"),
                 )
             }
-            val sourceLeft = HeaderFit.sourceLeft(
-                m = measured,
-                plan = fit,
-                sourceWidth = sourceWidthDp,
-                gearWidth = 14 * scale,
-                nominalDateWidth = nominalDateWidthDp,
-            )
-            val visibleSources = config.effectiveSources
-            Text(
-                text = content.sourceLabel,
-                style = sourceStyle,
-                color = Color.White.copy(
-                    alpha = when {
-                        visibleSources.size <= 1 -> 0.5f
-                        sourcePressed -> 1.0f
-                        else -> 0.6f
-                    },
-                ),
-                maxLines = 1,
-                softWrap = false,
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .offset(x = sourceLeft.dp, y = (-1.5f * scale).dp)
-                    .switchSourceOnPress(enabled = visibleSources.size > 1)
-                    .testTag("header_source_label"),
-            )
         }
     }
 }
@@ -615,10 +551,7 @@ private fun HeaderButtonGlyph(
     }
 }
 
-/** An invisible click area beside the centred row, from [fromDp] to [toDp], that is [button]. */
-private data class TouchExtension(val button: HeaderButton, val fromDp: Float, val toDp: Float, val tag: String)
-
-/** A centred header button's icon, before the header scale; its zone adds `HeaderButtonZone`'s air. */
+/** A header button's icon, before the header scale; its zone adds `HeaderButtonZone`'s air. */
 private const val CENTRE_ICON_DP = 15f
 
 /** The current temp stays the header's largest text, above the smaller delta and rain % (user, 2026-10-22). */

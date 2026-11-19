@@ -62,7 +62,6 @@ internal object HeaderTapTargetHelper {
             )
         views.setOnClickPendingIntent(R.id.graph_selector_icon, pendingIntent)
         views.setOnClickPendingIntent(R.id.graph_selector_touch_zone, pendingIntent)
-        views.setOnClickPendingIntent(R.id.graph_selector_touch_zone_inline, pendingIntent)
     }
 
     fun bindPrecipitationHeader(

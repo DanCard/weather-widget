@@ -4,10 +4,6 @@ import android.content.Context
 import android.graphics.Paint
 import android.util.TypedValue
 import com.weatherwidget.shared.util.HeaderButtonZone
-import com.weatherwidget.shared.util.HeaderContent
-import com.weatherwidget.shared.util.HeaderLine
-import com.weatherwidget.shared.util.SourceCoverage
-import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.shared.util.HeaderFit
 
 object HeaderWidthChecker {
@@ -24,36 +20,16 @@ object HeaderWidthChecker {
     private const val WIDE_HEADER_OCCUPANCY_THRESHOLD = 0.50f
     private const val WIDE_HEADER_MIN_WIDTH_DP = 450
 
-    /** Narrowest the hourly header's inline zones squeeze to: the 20 dp icon plus 4 dp either side. */
-    const val HOURLY_MIN_INLINE_ZONE_DP = 28f
-
-    /** Smallest scale for the hourly header's weather icon and temperature beside inline buttons. */
-    const val HOURLY_MIN_TEXT_SCALE = 0.8f
-
-    private const val INLINE_NAV_ZONE_XML_WIDTH_DP = 36
-    private const val INLINE_NAV_FIRST_ZONE_MARGIN_DP = 1
-
-    /** The hourly header's inline nav zone width before any squeezing ([HeaderFit]). */
-    fun nominalInlineZoneWidthDp(widthDp: Int): Float =
-        if (canResizeInlineZones()) {
-            when {
-                widthDp < 350 -> 32f
-                widthDp < 400 -> 40f
-                else -> 48f
-            }
-        } else {
-            INLINE_NAV_ZONE_XML_WIDTH_DP.toFloat()
-        }
-
-    /** RemoteViews.setViewLayoutWidth exists from API 31; below it the XML width stands. */
-    private fun canResizeInlineZones(): Boolean =
-        android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S
+    /**
+     * Exact width of `top_right_header_container` minus the `api_source` text width, in dp:
+     * `settings_touch_zone` (29dp) - container `marginEnd` (2dp) + `api_touch_zone` padding (10 + 7dp) = 44dp.
+     */
+    internal const val RIGHT_CLUSTER_FIXED_DP = 44f
 
     /**
-     * A centred header button's preferred zone, daily and hourly alike: the icon plus the shared
-     * [HeaderButtonZone] air for this width. Unscaled, like the zones [positionDailyIcons] /
-     * [positionCenterIcons] lay out. Below API 31 the XML width stands (zones cannot be resized),
-     * so measurement uses that.
+     * A header action button's preferred zone width, daily and hourly alike: the icon plus the
+     * shared [HeaderButtonZone] air for this width. Below API 31 the XML width stands (zones
+     * cannot be resized), so measurement uses that.
      */
     fun centerIconZoneWidthDp(widthDp: Int): Float =
         if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S) {
@@ -62,7 +38,7 @@ object HeaderWidthChecker {
             HeaderButtonZone.zoneDp(HeaderConstants.CENTER_ICON_SIZE_DP, widthDp.toFloat())
         }
 
-    /** Narrowest [HeaderFit] may squeeze a centred zone to; the XML width below API 31 (no squeeze). */
+    /** Narrowest [HeaderFit] may squeeze a button zone to; the XML width below API 31 (no squeeze). */
     fun minCenterIconZoneWidthDp(): Float =
         if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S) {
             HeaderConstants.CENTER_ICON_ZONE_XML_WIDTH_DP
@@ -70,27 +46,15 @@ object HeaderWidthChecker {
             HeaderButtonZone.minZoneDp(HeaderConstants.CENTER_ICON_SIZE_DP)
         }
 
-    /** The centred zone [fit] chose, in dp; the preferred one when it chose none. */
+    /** The button zone width [fit] chose, in dp; the preferred one when it chose none. */
     fun centerIconZoneWidthDp(fit: HeaderFit.Plan, widthDp: Int, density: Float): Float =
-        fit.centreZone.takeIf { it > 0f }?.let { it / density } ?: centerIconZoneWidthDp(widthDp)
-
-    /** Width of the daily header button pair when inline in the left cluster, in dp. */
-    fun dailyInlineIconsWidthDp(iconCount: Int): Float =
-        if (iconCount <= 0) 0f
-        else HeaderConstants.DAILY_INLINE_ICON_ZONE_WIDTH_DP * iconCount +
-            HeaderConstants.DAILY_INLINE_FIRST_ZONE_MARGIN_DP
+        fit.buttonZone.takeIf { it > 0f }?.let { it / density } ?: centerIconZoneWidthDp(widthDp)
 
     /**
-     * A header's pieces measured for the shared drop order ([HeaderFit],
-     * `plans/261022-shared-header-fit-priority.md`); the caller resolves and logs both.
+     * A header's pieces measured for [HeaderFit]; the caller resolves and logs both.
      *
-     * Text, the weather icon and the API label are measured at [headerScale], the size they are
-     * drawn; the button zones are not scaled ([positionDailyIcons] / [positionCenterIcons] size them
-     * in plain dp). A null text or a zero [baseButtons] means that piece is absent, not dropped.
-     *
-     * [hourly]: the hourly header's button zones, and its compression — inline zones narrow to
-     * [HOURLY_MIN_INLINE_ZONE_DP], then the icon and temperature shrink to [HOURLY_MIN_TEXT_SCALE]
-     * before anything drops (user, 2026-10-09; the daily header never shrinks).
+     * Text, the weather icon and the API label are measured at [headerScale]; button zones are
+     * measured in unscaled dp. A null text or zero [baseButtons] means that piece is absent.
      */
     fun measureHeader(
         context: Context,
@@ -109,32 +73,20 @@ object HeaderWidthChecker {
         baseButtons: Int,
         wantHome: Boolean,
         wantMonths: Boolean,
-        hourly: Boolean = false,
-        /**
-         * What every visible source would show now ([HeaderContent.lineInputs]): the shared line
-         * ([HeaderLine]) is placed against it, so a source tap moves neither buttons nor date.
-         * Null keeps the fixed [HeaderFit.SEAM_OFFSET_DP] line.
-         */
-        line: HeaderLine.Inputs? = null,
-        /** The daily date, passed by hourly headers too so the line matches across views. */
-        nominalDate: String? = null,
+        /** All enabled sources' labels so rightCluster (and button positions) stay pinned across API toggles. */
+        allApiSourceLabels: List<String> = emptyList(),
     ): HeaderFit.Measured {
         val widthPx = dpToPx(context, widthDp.toFloat())
         fun scaledDp(dp: Float) = dpToPx(context, dp) * headerScale
         fun scaledText(text: String?, sizeDp: Float, marginDp: Float = 0f) =
             if (text.isNullOrBlank()) 0f else scaledDp(marginDp) + textWidthPx(context, text, sizeDp) * headerScale
-        fun rightCluster(sourceText: String) =
-            (widthPx - resolveApiLeftPx(context, widthPx, sourceText, apiTextSizeDp)) * headerScale
+        val maxApiTextPx = (allApiSourceLabels + apiSourceText).maxOf { textWidthPx(context, it, apiTextSizeDp) }
+        val rightClusterPx = dpToPx(context, RIGHT_CLUSTER_FIXED_DP) + maxApiTextPx * headerScale
         val iconSlot = scaledDp(HeaderConstants.WEATHER_ICON_SIZE_DP + HeaderConstants.WEATHER_ICON_END_MARGIN_DP)
-        val measured = HeaderFit.Measured(
+        return HeaderFit.Measured(
             width = widthPx,
-            rightCluster = rightCluster(apiSourceText),
+            rightCluster = rightClusterPx,
             gap = dpToPx(context, HeaderConstants.DATE_HORIZONTAL_GAP_DP),
-            // The line the buttons end on; positionDailyIcons can only move them off the middle on
-            // API 31+ (setViewLayoutMargin).
-            seamOffset = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                scaledDp(HeaderFit.SEAM_OFFSET_DP)
-            } else null,
             temp = if (currentTempText.isNullOrBlank()) 0f
                 else currentTempTextWidthPx(context, currentTempText, currentTempSizeDp) * headerScale,
             rain = if (precipTextSizeDp == null) 0f
@@ -146,133 +98,25 @@ object HeaderWidthChecker {
             baseButtons = baseButtons,
             wantHome = wantHome,
             wantMonths = wantMonths,
-            centreButton = dpToPx(context, centerIconZoneWidthDp(widthDp)),
-            minCentreButton = dpToPx(context, minCenterIconZoneWidthDp()),
-            inlineButton = dpToPx(context, if (hourly) nominalInlineZoneWidthDp(widthDp) else HeaderConstants.DAILY_INLINE_ICON_ZONE_WIDTH_DP),
-            inlineLead = dpToPx(context, if (hourly) INLINE_NAV_FIRST_ZONE_MARGIN_DP.toFloat() else HeaderConstants.DAILY_INLINE_FIRST_ZONE_MARGIN_DP),
-            minInlineButton = if (hourly && canResizeInlineZones()) dpToPx(context, HOURLY_MIN_INLINE_ZONE_DP) else 0f,
-            minTextScale = if (hourly) HOURLY_MIN_TEXT_SCALE else 1f,
+            buttonWidth = dpToPx(context, centerIconZoneWidthDp(widthDp)),
+            minButtonWidth = dpToPx(context, minCenterIconZoneWidthDp()),
         )
-        line ?: return measured
-        val measure = lineMeasure(context, widthPx, headerScale, apiTextSizeDp, currentTempSizeDp)
-        return HeaderLine.place(measured, measure, line, iconSlot = if (includeIcon) iconSlot else 0f, nominalDate = nominalDate)
-    }
-
-    /** Header pieces at [headerScale], as [measureHeader] draws them, for [HeaderLine]. */
-    private fun lineMeasure(
-        context: Context,
-        widthPx: Float,
-        headerScale: Float,
-        apiTextSizeDp: Float,
-        currentTempSizeDp: Float,
-    ) = HeaderLine.Measure { piece, text, fontScale ->
-        fun scaledText(sizeDp: Float, marginDp: Float = 0f) =
-            if (text.isBlank()) 0f
-            else (dpToPx(context, marginDp) + textWidthPx(context, text, sizeDp)) * headerScale
-        when (piece) {
-            HeaderLine.Piece.TEMP -> currentTempTextWidthPx(context, text, currentTempSizeDp) * headerScale
-            HeaderLine.Piece.DELTA -> scaledText(HeaderConstants.DELTA_TEXT_SIZE_DP, HeaderConstants.DELTA_MARGIN_START_DP)
-            HeaderLine.Piece.RAIN ->
-                scaledText(HeaderConstants.PRECIP_TEXT_BASE_SIZE_DP * fontScale, HeaderConstants.PRECIP_MARGIN_START_DP)
-            HeaderLine.Piece.DATE -> scaledText(HeaderConstants.DATE_TEXT_SIZE_DP)
-            HeaderLine.Piece.SOURCE -> (widthPx - resolveApiLeftPx(context, widthPx, text, apiTextSizeDp)) * headerScale
-        }
     }
 
     /**
      * The header buttons' icon scale: [WIDE_HEADER_SCALE] on any header at least
-     * [WIDE_HEADER_MIN_WIDTH_DP] wide, whatever the row shows, so a source tap never resizes them
-     * (Fold 4, 2026-10-27: they shrank on Google, the one source with a rain %). Capped so the icon
-     * keeps [HeaderButtonZone.MIN_AIR_DP] inside a zone the fit narrowed.
+     * [WIDE_HEADER_MIN_WIDTH_DP] wide, capped so the icon keeps [HeaderButtonZone.MIN_AIR_DP]
+     * inside a zone the fit narrowed.
      */
     fun buttonScale(widthDp: Int, fit: HeaderFit.Plan, density: Float): Float {
         if (widthDp < WIDE_HEADER_MIN_WIDTH_DP) return 1f
         val zoneDp = when (fit.placement) {
-            HeaderFit.ButtonPlacement.CENTER -> centerIconZoneWidthDp(fit, widthDp, density)
-            HeaderFit.ButtonPlacement.INLINE -> fit.inlineZone.takeIf { it > 0f }?.let { it / density }
+            HeaderFit.ButtonPlacement.SHOWN -> centerIconZoneWidthDp(fit, widthDp, density)
             HeaderFit.ButtonPlacement.HIDDEN -> null
         } ?: return WIDE_HEADER_SCALE
         val roomy = (zoneDp - HeaderButtonZone.MIN_AIR_DP) / HeaderConstants.CENTER_ICON_SIZE_DP
         return roomy.coerceIn(1f, WIDE_HEADER_SCALE)
     }
-
-    /**
-     * [HeaderContent.lineInputs] for the widget's visible sources at this site: what
-     * [measureHeader]'s shared line reserves. Reads its own rows — every visible source over the
-     * header's 6 h rain window — because the render paths load only the displayed sources'.
-     */
-    private data class LineInputsCacheKey(
-        val dbId: Int,
-        val view: HeaderContent.View,
-        val latQ: Long,
-        val lonQ: Long,
-        val widthDp: Int,
-        val nowHourEpoch: Long,
-        val centerHourEpoch: Long,
-        val sourceIds: List<String>,
-    )
-
-    private const val LINE_INPUTS_CACHE_TTL_MS = 5 * 60_000L
-    private const val COORD_QUANTIZE = 1_000.0
-    private val lineInputsCache = com.weatherwidget.shared.util.VersionedTtlCache<LineInputsCacheKey, HeaderLine.Inputs>(
-        LINE_INPUTS_CACHE_TTL_MS,
-    )
-
-    internal fun clearLineInputsCache() {
-        lineInputsCache.clear()
-    }
-
-    @Suppress("LongParameterList")
-    suspend fun lineInputs(
-        context: Context,
-        stateManager: com.weatherwidget.widget.WidgetStateManager,
-        view: HeaderContent.View,
-        now: java.time.LocalDateTime,
-        centerTime: java.time.LocalDateTime,
-        lat: Double,
-        lon: Double,
-        widthDp: Int,
-    ): HeaderLine.Inputs {
-        val sourceIds = SourceCoverage.effectiveSources(stateManager.getVisibleSourcesOrder().map { it.id }, lat, lon)
-        val zone = java.time.ZoneId.systemDefault()
-        val nowMs = now.atZone(zone).toInstant().toEpochMilli()
-        val centerMs = centerTime.atZone(zone).toInstant().toEpochMilli()
-        val database = com.weatherwidget.data.local.WeatherDatabase.getDatabase(context)
-        val key = LineInputsCacheKey(
-            dbId = System.identityHashCode(database),
-            view = view,
-            latQ = Math.round(lat * COORD_QUANTIZE),
-            lonQ = Math.round(lon * COORD_QUANTIZE),
-            widthDp = widthDp,
-            nowHourEpoch = nowMs / 3_600_000L,
-            centerHourEpoch = centerMs / 3_600_000L,
-            sourceIds = sourceIds,
-        )
-        return lineInputsCache.getOrLoad(key, { android.os.SystemClock.elapsedRealtime() }) {
-            val precipWindow = HeaderContent.precipReserveWindowMs(now, centerTime, zone)
-            val rows = GraphDataLoader.loadSettledHourlyForecasts(
-                database.hourlyForecastDao(),
-                database.hourlyForecastHistoryDao(),
-                lat,
-                lon,
-                precipWindow.first,
-                precipWindow.last,
-                sourceIds + com.weatherwidget.data.model.WeatherSource.GENERIC_GAP.id,
-                nowMs,
-            )
-            HeaderContent.lineInputs(
-                view = view,
-                hourly = rows.map { it.toHourlyForecast() },
-                sourceIds = sourceIds,
-                now = now,
-                centerTime = centerTime,
-                widthDp = widthDp,
-            )
-        }
-    }
-
-    /** The daily header's date, reserved by every header's line so it matches across views. */
-    fun nominalDate(today: java.time.LocalDate): String = today.format(DailyViewHandler.headerDateFormatter())
 
     fun computeHeaderScale(
         context: Context,
@@ -284,15 +128,10 @@ object HeaderWidthChecker {
         precipText: String?,
         precipTextSizeDp: Float?,
         currentTempSizeDp: Float = HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP,
-        /**
-         * What every visible source would show ([HeaderLine.reserve]): occupancy is judged against
-         * it, so every source gets the same scale. Wider live text still counts.
-         */
-        line: HeaderLine.Inputs? = null,
+        allApiSourceLabels: List<String> = emptyList(),
     ): Float {
         val widthPx = dpToPx(context, widthDp.toFloat())
         if (widthPx <= 0f) return 1f
-
         if (widthDp < WIDE_HEADER_MIN_WIDTH_DP) return 1f
 
         val liveLeft = resolveLeftClusterRightPx(
@@ -304,17 +143,9 @@ object HeaderWidthChecker {
             includeIcon = true,
             currentTempSizeDp = currentTempSizeDp,
         )
-        val apiLeft = resolveApiLeftPx(context, widthPx, apiSourceText, apiTextSizeDp)
-
-        // Occupied = left cluster + (widthPx - apiLeft), i.e. the right cluster width
-        val liveRight = (widthPx - apiLeft).coerceAtLeast(0f)
-        val reserve = line?.let {
-            val iconSlot = dpToPx(context, HeaderConstants.WEATHER_ICON_SIZE_DP + HeaderConstants.WEATHER_ICON_END_MARGIN_DP)
-            HeaderLine.reserve(lineMeasure(context, widthPx, 1f, apiTextSizeDp, currentTempSizeDp), it, iconSlot)
-        }
-        val occupiedWidth = maxOf(liveLeft, reserve?.left ?: 0f) + maxOf(liveRight, reserve?.right ?: 0f)
-        val occupancy = occupiedWidth / widthPx
-
+        val maxApiTextPx = (allApiSourceLabels + apiSourceText).maxOf { textWidthPx(context, it, apiTextSizeDp) }
+        val liveRight = dpToPx(context, RIGHT_CLUSTER_FIXED_DP) + maxApiTextPx
+        val occupancy = (liveLeft + liveRight) / widthPx
         return if (occupancy < WIDE_HEADER_OCCUPANCY_THRESHOLD) WIDE_HEADER_SCALE else 1f
     }
 
@@ -348,20 +179,6 @@ object HeaderWidthChecker {
             width += textWidthPx(context, precipText, precipTextSizeDp)
         }
         return width
-    }
-
-    internal fun resolveApiLeftPx(
-        context: Context,
-        widthPx: Float,
-        apiSourceText: String,
-        apiTextSizeDp: Float,
-    ): Float {
-        val apiContainerWidth = dpToPx(context, HeaderConstants.API_SOURCE_CONTAINER_PADDING_DP) +
-            textWidthPx(context, apiSourceText, apiTextSizeDp)
-        val isDualApiText = apiSourceText.contains(" - ")
-        val marginEndDp = HeaderConstants.API_SOURCE_MARGIN_END_DP +
-            (if (isDualApiText) 0f else HeaderConstants.API_SINGLE_SOURCE_EXTRA_MARGIN_DP)
-        return widthPx - dpToPx(context, marginEndDp) - apiContainerWidth
     }
 
     internal fun dpToPx(context: Context, dp: Float): Float {

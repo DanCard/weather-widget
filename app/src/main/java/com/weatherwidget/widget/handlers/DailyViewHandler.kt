@@ -384,9 +384,6 @@ object DailyViewHandler : WidgetViewHandler {
             dateOffset = dateOffset,
             skipYesterday = skipYesterday,
             rainNow = com.weatherwidget.widget.AndroidRainNow.level(context, lat, lon, displaySource, where = "daily", nowMs = nowMs),
-            line = HeaderWidthChecker.lineInputs(
-                context, stateManager, HeaderContent.View.DAILY, now, now, lat, lon, dimensions.widthDp,
-            ),
         )
 
         val currentTemp = headerResolution.state.currentTemp

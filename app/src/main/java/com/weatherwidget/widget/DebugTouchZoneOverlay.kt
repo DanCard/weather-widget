@@ -47,11 +47,6 @@ object DebugTouchZoneOverlay {
         R.id.graph_selector_touch_zone to 0x55FFAB00,
         R.id.months_view_touch_zone to 0x55D500F9,
         R.id.forecast_comparison_activity_touch_zone to 0x55FFAB00,
-        R.id.home_touch_zone_inline to 0x55FFAB00,
-        R.id.weather_stations_touch_zone_inline to 0x55D500F9,
-        R.id.graph_selector_touch_zone_inline to 0x55FFAB00,
-        R.id.months_view_touch_zone_inline to 0x55D500F9,
-        R.id.forecast_comparison_activity_touch_zone_inline to 0x55FFAB00,
         R.id.nav_left_zone to 0x26FFFFFF,
         R.id.nav_right_zone to 0x26FFFFFF,
     )

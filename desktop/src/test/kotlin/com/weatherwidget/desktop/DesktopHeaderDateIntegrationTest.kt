@@ -100,30 +100,26 @@ class DesktopHeaderDateIntegrationTest {
     }
 
     @Test
-    fun dailyDateIsVisibleAndSourceLabelIsCenteredBetweenDateAndGear() {
+    fun dailyDateIsVisibleLeftOfButtonsAndSourceLabelSitsBesideGear() {
         renderPopup(baseConfig.copy(viewMode = ViewMode.DAILY))
 
-        // 1. Date must be present and displayed (regression test for HeaderFit dropping date at scale ~2.19)
+        // 1. Date must be present and displayed
         val dateNode = composeTestRule.onAllNodesWithTag("daily_header_date", useUnmergedTree = true)
             .fetchSemanticsNodes().singleOrNull()
         assertTrue("Daily header date must be visible in 812x701 window", dateNode != null)
         val dateBounds = dateNode!!.boundsInRoot
 
-        // 2. Source API label and gear icon must be displayed
+        // 2. Source API label and gear icon sit at the right edge
         val sourceBounds = composeTestRule.onAllNodesWithTag("header_source_label", useUnmergedTree = true)
             .fetchSemanticsNodes().single().boundsInRoot
         val gearBounds = composeTestRule.onAllNodesWithContentDescription("Settings", useUnmergedTree = true)
             .fetchSemanticsNodes().single().boundsInRoot
+        val historyBounds = composeTestRule.onAllNodesWithTag("open_forecast_comparison_daily_icon", useUnmergedTree = true)
+            .fetchSemanticsNodes().single().boundsInRoot
 
-        // 3. Source API label must be centered symmetrically between date and gear
-        val leftGap = sourceBounds.left - dateBounds.right
-        val rightGap = gearBounds.left - sourceBounds.right
-        assertEquals(
-            "Source label must be centered between date and gear: leftGap=$leftGap rightGap=$rightGap",
-            leftGap,
-            rightGap,
-            2f,
-        )
+        assertTrue("Date ($dateBounds) sits left of buttons ($historyBounds)", dateBounds.right < historyBounds.left)
+        assertTrue("Buttons ($historyBounds) sit left of source label ($sourceBounds)", historyBounds.right < sourceBounds.left)
+        assertTrue("Source label ($sourceBounds) sits left of gear ($gearBounds)", sourceBounds.right < gearBounds.left)
     }
 
     @Test

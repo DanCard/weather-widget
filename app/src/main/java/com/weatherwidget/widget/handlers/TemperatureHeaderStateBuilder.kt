@@ -26,7 +26,7 @@ internal object TemperatureHeaderStateBuilder {
         useCelsius: Boolean,
         /** Rain falling now ([com.weatherwidget.widget.AndroidRainNow]): the icon becomes blue dots. */
         rainNow: com.weatherwidget.shared.observations.RainNow.Level?,
-        line: com.weatherwidget.shared.util.HeaderLine.Inputs? = null,
+        allApiSourceLabels: List<String> = emptyList(),
     ): Pair<TemperatureWidgetState.HeaderState, Int?> {
         // Icon, temp, rain % and delta: the shared header rule (desktop draws the same content).
         val content = HeaderContent.build(
@@ -63,7 +63,7 @@ internal object TemperatureHeaderStateBuilder {
             isCurrentTempVisible = content.tempText != null,
             isDeltaVisible = content.deltaText != null,
             isStaleEstimate = currentTempResolution.isStaleEstimate,
-            line = line,
+            allApiSourceLabels = allApiSourceLabels,
         )
         return headerState to content.computedPrecipProbability
     }

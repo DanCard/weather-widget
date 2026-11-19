@@ -243,9 +243,9 @@ object PrecipViewHandler {
             numRows = numRows,
             sourceIndicator = sourceIndicator,
             buttons = headerButtons,
-            line = HeaderWidthChecker.lineInputs(
-                context, stateManager, HeaderContent.View.PRECIPITATION, now, centerTime, lat, lon, dimensions.widthDp,
-            ),
+            allApiSourceLabels = stateManager.getVisibleSourcesOrder().map {
+                HeaderContent.sourceLabel(HeaderContent.View.PRECIPITATION, it.id, now, centerTime, dimensions.widthDp)
+            },
         )
         val headerScale = headerResult.headerScale
         val fit = headerResult.fit
@@ -272,7 +272,7 @@ object PrecipViewHandler {
             setupApiToggle(context, views, appWidgetId, numRows, scale = headerScale)
         }
 
-        positionCenterIcons(views, dimensions.widthDp, context.resources.displayMetrics.density, isPrecipVisible && fit.showRain, headerResult.measured, fit, headerResult.shown)
+        positionCenterIcons(views, dimensions.widthDp, context.resources.displayMetrics.density, headerResult.measured, fit, headerResult.shown)
 
 // Use graph mode for 2+ rows, text mode for 1 row
         val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP

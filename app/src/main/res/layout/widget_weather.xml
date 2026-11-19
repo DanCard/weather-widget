@@ -1745,121 +1745,19 @@
                 android:textColor="#AA5AC8FA" />
         </FrameLayout>
 
-        <!-- Inline nav icons: shown on narrow widgets when precip % is visible,
-             replacing the floating center_horizontal icons. Order: HeaderButtons.ORDER (home first). -->
-        <FrameLayout
-            android:id="@+id/home_touch_zone_inline"
-            android:layout_width="36dp"
-            android:layout_height="40dp"
-            android:layout_marginStart="1dp"
-            android:background="@android:color/transparent"
-            android:clickable="true"
-            android:focusable="true"
-            android:visibility="gone">
-            <ImageView
-                android:id="@+id/home_icon_inline"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:layout_marginTop="-10dp"
-                android:src="@drawable/ic_home"
-                android:contentDescription="@string/home_forecast"
-                android:tint="#AAFFFFFF" />
-        </FrameLayout>
-
-        <FrameLayout
-            android:id="@+id/weather_stations_touch_zone_inline"
-            android:layout_width="36dp"
-            android:layout_height="40dp"
-            android:layout_marginStart="0dp"
-            android:background="@android:color/transparent"
-            android:clickable="true"
-            android:focusable="true"
-            android:visibility="gone">
-            <ImageView
-                android:id="@+id/weather_stations_icon_inline"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:layout_marginTop="-10dp"
-                android:src="@drawable/ic_thermometer"
-                android:contentDescription="@string/current_stations_desc"
-                android:tint="#AAFFFFFF" />
-        </FrameLayout>
-
-        <FrameLayout
-            android:id="@+id/graph_selector_touch_zone_inline"
-            android:layout_width="36dp"
-            android:layout_height="40dp"
-            android:layout_marginStart="0dp"
-            android:background="@android:color/transparent"
-            android:clickable="true"
-            android:focusable="true"
-            android:visibility="gone">
-            <TextView
-                android:id="@+id/graph_selector_icon_inline"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:layout_marginTop="-10dp"
-                android:textColor="#AAFFFFFF"
-                android:textSize="16sp"
-                android:gravity="center" />
-        </FrameLayout>
-
-        <FrameLayout
-            android:id="@+id/months_view_touch_zone_inline"
-            android:layout_width="36dp"
-            android:layout_height="40dp"
-            android:layout_marginStart="0dp"
-            android:background="@android:color/transparent"
-            android:clickable="true"
-            android:focusable="true"
-            android:visibility="gone">
-            <ImageView
-                android:id="@+id/months_view_icon_inline"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:layout_marginTop="-10dp"
-                android:src="@drawable/ic_months_view"
-                android:contentDescription="@string/months_view_open"
-                android:tint="#AAFFFFFF" />
-        </FrameLayout>
-
-        <FrameLayout
-            android:id="@+id/forecast_comparison_activity_touch_zone_inline"
-            android:layout_width="36dp"
-            android:layout_height="40dp"
-            android:layout_marginStart="0dp"
-            android:background="@android:color/transparent"
-            android:clickable="true"
-            android:focusable="true"
-            android:visibility="gone">
-            <ImageView
-                android:id="@+id/history_icon_inline"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:layout_marginTop="-10dp"
-                android:src="@drawable/ic_forecast_comparison_line"
-                android:contentDescription="@string/forecast_comparison"
-                android:tint="#AAFFFFFF" />
-        </FrameLayout>
-
     </LinearLayout>
 
-    <!-- Header buttons (daily and hourly), positioned in top-middle. Child order is
-         HeaderButtons.ORDER (home first); PositionDailyIconsRoboTest pins it.
-         Declared after the navigation zones AND after current_weather_container: where the
-         temp / rain-% tap targets overlap a button, the button wins (a home tap on the emulator,
-         2026-10-22, landed on the rain-% zone and opened the precip view). -->
+    <!-- Header action buttons (daily and hourly), right-anchored immediately to the left of
+         top_right_header_container (marginEnd set dynamically on API 31+; 80dp fallback on older).
+         Child order is HeaderButtons.ORDER (home first, history last).
+         Declared after navigation zones AND after current_weather_container so buttons win taps. -->
     <LinearLayout
         android:id="@+id/hourly_center_header_container"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="top|center_horizontal"
+        android:layout_gravity="top|end"
         android:layout_marginTop="-2dp"
+        android:layout_marginEnd="80dp"
         android:orientation="horizontal"
         android:gravity="center_vertical">
 

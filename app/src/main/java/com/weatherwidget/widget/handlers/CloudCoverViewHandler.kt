@@ -310,9 +310,9 @@ object CloudCoverViewHandler {
             numRows = numRows,
             sourceIndicator = sourceIndicator,
             buttons = headerButtons,
-            line = HeaderWidthChecker.lineInputs(
-                context, stateManager, HeaderContent.View.CLOUD_COVER, now, centerTime, lat, lon, dimensions.widthDp,
-            ),
+            allApiSourceLabels = stateManager.getVisibleSourcesOrder().map {
+                HeaderContent.sourceLabel(HeaderContent.View.CLOUD_COVER, it.id, now, centerTime, dimensions.widthDp)
+            },
         )
         val headerScale = headerResult.headerScale
         val fit = headerResult.fit
@@ -339,7 +339,7 @@ object CloudCoverViewHandler {
             setupApiToggle(context, views, appWidgetId, numRows, scale = headerScale)
         }
 
-        positionCenterIcons(views, dimensions.widthDp, context.resources.displayMetrics.density, isPrecipVisible && fit.showRain, headerResult.measured, fit, headerResult.shown)
+        positionCenterIcons(views, dimensions.widthDp, context.resources.displayMetrics.density, headerResult.measured, fit, headerResult.shown)
 
 val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
         val useGraph = rawRows >= 1.4f

@@ -32,8 +32,7 @@ internal object HourlyHeaderBinder {
         sourceIndicator: String?,
         /** Which buttons the row wants ([HeaderButtons.hourly]). */
         buttons: HeaderButtons.Want,
-        /** What every visible source would show now, for the shared line ([HeaderWidthChecker.lineInputs]). */
-        line: com.weatherwidget.shared.util.HeaderLine.Inputs? = null,
+        allApiSourceLabels: List<String> = emptyList(),
     ): HeaderResult {
         val safeSourceIndicator = sourceIndicator ?: ""
         val headerScale = HeaderWidthChecker.computeHeaderScale(
@@ -45,12 +44,10 @@ internal object HourlyHeaderBinder {
             deltaText = null,
             precipText = if (isPrecipVisible && headerPrecipProbability != null) "$headerPrecipProbability%" else null,
             precipTextSizeDp = precipTextSizeDp,
-            line = line,
+            allApiSourceLabels = allApiSourceLabels,
         )
 
         val precipText = if (isPrecipVisible && headerPrecipProbability != null) "$headerPrecipProbability%" else null
-        // The shared drop order (HeaderFit): inline nav zones squeeze, then the icon and
-        // temperature shrink, before anything drops.
         val measured = HeaderWidthChecker.measureHeader(
             context = context,
             widthDp = widthDp,
@@ -68,9 +65,7 @@ internal object HourlyHeaderBinder {
             baseButtons = buttons.baseButtons,
             wantHome = buttons.wantHome,
             wantMonths = buttons.wantMonths,
-            hourly = true,
-            line = line,
-            nominalDate = HeaderWidthChecker.nominalDate(java.time.LocalDate.now()),
+            allApiSourceLabels = allApiSourceLabels,
         )
         val fit = HeaderFit.resolve(measured)
         android.util.Log.d(HeaderFit.LOG_TAG, HeaderFit.logLine("hourly", widthDp.toFloat(), headerScale, fit, measured))
@@ -100,14 +95,14 @@ internal object HourlyHeaderBinder {
             viewId = R.id.weather_icon,
             iconRes = iconRes,
             sizeDp = HeaderConstants.WEATHER_ICON_SIZE_DP,
-            scale = headerScale * fit.textScale,
+            scale = headerScale,
         )
 
         HeaderRemoteViewsBinder.bindCurrentTemp(
             context = context,
             views = views,
             formattedTemp = formattedTemp,
-            scale = headerScale * fit.textScale,
+            scale = headerScale,
         )
 
         HeaderRemoteViewsBinder.bindPrecipProbability(

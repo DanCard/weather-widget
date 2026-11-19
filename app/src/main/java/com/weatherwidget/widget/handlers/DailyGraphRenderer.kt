@@ -263,9 +263,7 @@ internal object DailyGraphRenderer {
                 showDelta = deltaVisible && fit.showDelta,
                 showPrecip = isPrecipVisible && headerPrecipPlacement.showHeaderPrecip,
                 headerScale = headerScale,
-                // Non-zero only when the buttons are CENTER-placed. Inline buttons get no slot: the
-                // fit never keeps the date beside them (HeaderFit.fits).
-                centerIconsWidthDp = if (fit.placement == HeaderFit.ButtonPlacement.CENTER) {
+                centerIconsWidthDp = if (fit.placement == HeaderFit.ButtonPlacement.SHOWN) {
                     buttonsSpan?.let { (l, r) -> (r - l) / ctx.context.resources.displayMetrics.density } ?: 0f
                 } else 0f,
                 centerIconsLeftFraction = buttonsSpan?.let { it.first / measured.width } ?: 0.5f,
@@ -361,7 +359,8 @@ internal object DailyGraphRenderer {
         }
         positionDailyIcons(
             views = ctx.views,
-            placement = fit.placement,
+            measured = measured,
+            fit = fit,
             shown = HeaderButtons.shown(
                 HeaderButtons.daily(
                     observationsInView = observationsInView,
@@ -372,8 +371,6 @@ internal object DailyGraphRenderer {
             ),
             widthDp = dimensions.widthDp,
             density = ctx.context.resources.displayMetrics.density,
-            scale = headerScale,
-            centre = centreButtonsLayout(measured, fit, dimensions.widthDp, ctx.context.resources.displayMetrics.density),
         )
         if (observationsInView != headerState.observationsInView) {
             Log.w(

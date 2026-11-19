@@ -378,7 +378,6 @@ object WidgetRenderer {
         if (!uiOnly) {
             com.weatherwidget.widget.handlers.WidgetInteractionCache.clear()
             com.weatherwidget.data.repository.DailyActualsStore.clearCache()
-            com.weatherwidget.widget.handlers.HeaderWidthChecker.clearLineInputsCache()
         }
         val renderStartMs = SystemClock.elapsedRealtime()
         val stateManager = WidgetStateManager(context)

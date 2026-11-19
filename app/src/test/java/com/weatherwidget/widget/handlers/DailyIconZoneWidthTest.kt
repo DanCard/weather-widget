@@ -18,7 +18,7 @@ class DailyIconZoneWidthTest {
     @Test
     fun `the laid-out zone is the one the fit chose, else the preferred`() {
         val density = 2.625f
-        assertEquals(29f, HeaderWidthChecker.centerIconZoneWidthDp(HeaderFit.Plan(centreZone = 29f * density), 440, density), 0.01f)
+        assertEquals(29f, HeaderWidthChecker.centerIconZoneWidthDp(HeaderFit.Plan(buttonZone = 29f * density), 440, density), 0.01f)
         assertEquals(
             HeaderWidthChecker.centerIconZoneWidthDp(440),
             HeaderWidthChecker.centerIconZoneWidthDp(HeaderFit.Plan(), 440, density),

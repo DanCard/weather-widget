@@ -130,10 +130,8 @@ class HistoryIconVisibilityRoboTest {
         for (id in listOf(
             R.id.history_icon,
             R.id.forecast_comparison_activity_touch_zone,
-            R.id.forecast_comparison_activity_touch_zone_inline,
             R.id.weather_stations_icon,
             R.id.weather_stations_touch_zone,
-            R.id.weather_stations_touch_zone_inline,
         )) {
             assertEquals(
                 "view $id should be GONE in daily text mode",

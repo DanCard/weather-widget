@@ -134,13 +134,8 @@ class TemperatureHomeTouchRoutingInstrumentedTest :
     }
 
     private fun findActiveHomeTarget(root: View): View? {
-        val floating = root.findViewById<View>(R.id.home_touch_zone)
-        if (floating.visibility == View.VISIBLE) return floating
-
-        val inline = root.findViewById<View>(R.id.home_touch_zone_inline)
-        if (inline.visibility == View.VISIBLE) return inline
-
-        return null
+        val zone = root.findViewById<View>(R.id.home_touch_zone)
+        return zone.takeIf { it.visibility == View.VISIBLE }
     }
 
     private fun applyViews(views: RemoteViews): View {

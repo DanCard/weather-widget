@@ -88,7 +88,7 @@ internal object TemperatureViewBinder {
             viewId = R.id.weather_icon,
             iconRes = header.iconRes,
             sizeDp = HeaderConstants.WEATHER_ICON_SIZE_DP,
-            scale = headerScale * fit.textScale,
+            scale = headerScale,
         )
         
         HeaderRemoteViewsBinder.bindCurrentTemp(
@@ -96,7 +96,7 @@ internal object TemperatureViewBinder {
             views = views,
             formattedTemp = header.currentTemp,
             textSizeDp = header.currentTempSizeDp,
-            scale = headerScale * fit.textScale,
+            scale = headerScale,
         )
 
         HeaderRemoteViewsBinder.bindDelta(
@@ -156,7 +156,7 @@ HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, header.isPrecipVis
 
         positionCenterIcons(
             views, state.widthDp, context.resources.displayMetrics.density,
-            header.isPrecipVisible && fit.showRain, measured, fit, HeaderButtons.shown(headerButtons, fit),
+            measured, fit, HeaderButtons.shown(headerButtons, fit),
         )
 
         

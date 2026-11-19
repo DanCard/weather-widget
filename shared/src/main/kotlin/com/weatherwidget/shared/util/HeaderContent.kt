@@ -115,23 +115,6 @@ object HeaderContent {
         return if (view.isHourly) HeaderFormatter.formatSourceIndicator(centerTime, now, sourceName, widthDp) else sourceName
     }
 
-    /**
-     * Each of [sourceIds]' label and the rain % it would show now, for [HeaderLine]'s reserve.
-     * [hourly] holds every source's rows.
-     */
-    @Suppress("LongParameterList")
-    fun lineInputs(
-        view: View,
-        hourly: List<HourlyForecast>,
-        sourceIds: List<String>,
-        now: LocalDateTime,
-        centerTime: LocalDateTime,
-        widthDp: Int,
-    ): HeaderLine.Inputs = HeaderLine.Inputs(
-        sourceLabels = sourceIds.map { sourceLabel(view, it, now, centerTime, widthDp) },
-        rainLabels = precipLabels(view, hourly, sourceIds, now, centerTime).values.filterNotNull(),
-    )
-
     /** A rain % as [build] would show it: its text and font-size multiplier. */
     data class PrecipLabel(val text: String, val fontScale: Float)
 

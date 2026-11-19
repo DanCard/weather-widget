@@ -66,8 +66,6 @@ internal object DailyHeaderResolver {
         skipYesterday: Boolean,
         /** Rain falling now ([com.weatherwidget.widget.AndroidRainNow]): the icon becomes blue dots. */
         rainNow: com.weatherwidget.shared.observations.RainNow.Level?,
-        /** What every visible source would show now ([HeaderWidthChecker.lineInputs]); null: fixed line. */
-        line: com.weatherwidget.shared.util.HeaderLine.Inputs? = null,
     ): HeaderResolution {
         val resolution = resolveState(
             context = context,
@@ -91,7 +89,6 @@ internal object DailyHeaderResolver {
             dateOffset = dateOffset,
             skipYesterday = skipYesterday,
             rainNow = rainNow,
-            line = line,
         )
         bind(
             context = context,
@@ -128,8 +125,6 @@ internal object DailyHeaderResolver {
         skipYesterday: Boolean,
         /** Rain falling now ([com.weatherwidget.widget.AndroidRainNow]): the icon becomes blue dots. */
         rainNow: com.weatherwidget.shared.observations.RainNow.Level?,
-        /** What every visible source would show now ([HeaderWidthChecker.lineInputs]); null: fixed line. */
-        line: com.weatherwidget.shared.util.HeaderLine.Inputs? = null,
     ): HeaderResolution {
         val today = now.toLocalDate()
 
@@ -179,6 +174,7 @@ internal object DailyHeaderResolver {
         // Pick API label
         val apiSourceText = content.sourceLabel
         val apiTextSizeDp = HeaderConstants.apiTextSizeDp(numRows)
+        val allApiSourceLabels = stateManager.getVisibleSourcesOrder().map { it.shortDisplayName }
         val headerScale = HeaderWidthChecker.computeHeaderScale(
             context = context,
             widthDp = dimensions.widthDp,
@@ -189,7 +185,7 @@ internal object DailyHeaderResolver {
             precipText = headerPrecipText,
             precipTextSizeDp = precipTextSizeDp,
             currentTempSizeDp = HeaderConstants.DAILY_CURRENT_TEMP_TEXT_SIZE_DP,
-            line = line,
+            allApiSourceLabels = allApiSourceLabels,
         )
 
         // Daily header buttons. `observationsInView` uses the shared visible-date-range helper rather
@@ -237,8 +233,7 @@ internal object DailyHeaderResolver {
             baseButtons = if (dimensions.isIconWidth) 0 else buttons.baseButtons,
             wantHome = buttons.wantHome,
             wantMonths = buttons.wantMonths,
-            line = line,
-            nominalDate = HeaderWidthChecker.nominalDate(today),
+            allApiSourceLabels = allApiSourceLabels,
         )
         val fit = HeaderFit.resolve(measured)
         Log.d(HeaderContent.LOG_TAG, "widget=$appWidgetId " + HeaderContent.logLine(displaySource.id, HeaderContent.View.DAILY, content))

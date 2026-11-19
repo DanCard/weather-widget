@@ -24,15 +24,14 @@ class HeaderButtonsTest {
         width = width,
         rightCluster = 60f,
         gap = 6f,
-        seamOffset = 20f,
         temp = 60f,
         icon = 30f,
         date = if (want.hourly) 0f else 46f,
         baseButtons = want.baseButtons,
         wantHome = want.wantHome,
         wantMonths = want.wantMonths,
-        centreButton = 30f,
-        centreButtonSpacing = 10f,
+        buttonWidth = 30f,
+        buttonSpacing = 10f,
     )
 
     private fun layout(want: HeaderButtons.Want, width: Float = 2000f): Map<HeaderButton, Float> {
@@ -41,7 +40,7 @@ class HeaderButtonsTest {
         val shown = HeaderButtons.shown(want, plan)
         assertEquals("shown matches the fit's count: $plan", plan.buttons, shown.size)
         val (left, _) = HeaderFit.buttonsSpan(m, plan) ?: return emptyMap()
-        return shown.withIndex().associate { (i, b) -> b to left + i * (m.centreButton + m.centreButtonSpacing) }
+        return shown.withIndex().associate { (i, b) -> b to left + i * (m.buttonWidth + m.buttonSpacing) }
     }
 
     @Test
@@ -83,7 +82,7 @@ class HeaderButtonsTest {
     fun `nothing is shown that the fit dropped`() {
         val want = HeaderButtons.daily(observationsInView = true, home = true, months = true)
         // Room for the two base buttons but not home or months.
-        val plan = HeaderFit.Plan(buttons = 2, placement = HeaderFit.ButtonPlacement.CENTER)
+        val plan = HeaderFit.Plan(buttons = 2, placement = HeaderFit.ButtonPlacement.SHOWN)
         assertEquals(listOf(OBSERVATIONS, HISTORY), HeaderButtons.shown(want, plan))
         assertEquals(emptyList<HeaderButton>(), HeaderButtons.shown(want, HeaderFit.Plan()))
         // A header too narrow for any button.

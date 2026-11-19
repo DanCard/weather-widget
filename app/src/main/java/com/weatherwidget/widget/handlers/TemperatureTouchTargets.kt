@@ -251,18 +251,8 @@ internal fun setupHistoryShortcutAt(
         scale = scale,
         tintColor = 0xAAFFFFFF.toInt()
     )
-    HeaderRemoteViewsBinder.bindScaledIcon(
-        context = context,
-        views = views,
-        viewId = R.id.history_icon_inline,
-        iconRes = R.drawable.ic_forecast_comparison_line,
-        sizeDp = HeaderConstants.CENTER_ICON_SIZE_DP,
-        scale = scale,
-        tintColor = 0xAAFFFFFF.toInt()
-    )
     views.setOnClickPendingIntent(R.id.history_icon, pendingIntent)
     views.setOnClickPendingIntent(R.id.forecast_comparison_activity_touch_zone, pendingIntent)
-    views.setOnClickPendingIntent(R.id.forecast_comparison_activity_touch_zone_inline, pendingIntent)
     if (setVisibility) {
         views.setViewVisibility(R.id.history_icon, View.VISIBLE)
         views.setViewVisibility(R.id.forecast_comparison_activity_touch_zone, View.VISIBLE)
@@ -288,7 +278,7 @@ internal fun setupHomeShortcut(
         homeIntent,
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
-    Log.d("HomeShortcut", "setupHomeShortcut: widget=$appWidgetId requestCode=$requestCode setVisibility=$setVisibility -> ACTION_SET_VIEW target=DAILY (bound to home_icon, home_touch_zone, home_touch_zone_inline)")
+    Log.d("HomeShortcut", "setupHomeShortcut: widget=$appWidgetId requestCode=$requestCode setVisibility=$setVisibility -> ACTION_SET_VIEW target=DAILY")
     HeaderRemoteViewsBinder.bindScaledIcon(
         context = context,
         views = views,
@@ -298,18 +288,8 @@ internal fun setupHomeShortcut(
         scale = scale,
         tintColor = 0xAAFFFFFF.toInt()
     )
-    HeaderRemoteViewsBinder.bindScaledIcon(
-        context = context,
-        views = views,
-        viewId = R.id.home_icon_inline,
-        iconRes = R.drawable.ic_home,
-        sizeDp = HeaderConstants.CENTER_ICON_SIZE_DP,
-        scale = scale,
-        tintColor = 0xAAFFFFFF.toInt()
-    )
     views.setOnClickPendingIntent(R.id.home_icon, pendingIntent)
     views.setOnClickPendingIntent(R.id.home_touch_zone, pendingIntent)
-    views.setOnClickPendingIntent(R.id.home_touch_zone_inline, pendingIntent)
     if (setVisibility) {
         views.setViewVisibility(R.id.home_icon, View.VISIBLE)
         views.setViewVisibility(R.id.home_touch_zone, View.VISIBLE)
@@ -317,16 +297,10 @@ internal fun setupHomeShortcut(
 }
 
 /**
- * The DAILY view's home button: same `ic_home` glyph and the same two zones, but the tap never
- * changes the view mode — the daily view is already home in that sense, so [setupHomeShortcut]'s
- * ACTION_SET_VIEW would be a no-op here. It exits whichever other axis the widget is off home on
- * ([com.weatherwidget.shared.util.PreferredSourceHome.homeAction]):
- *
+ * The DAILY view's home button: same `ic_home` glyph, but exits whichever axis the widget is off
+ * home on ([com.weatherwidget.shared.util.PreferredSourceHome.homeAction]):
  * - [HomeAction.RESET_SOURCE]: the API indicator was tapped away from the preferred source.
- * - [HomeAction.RECENTER_TODAY]: on the preferred source, today was panned off screen; the tap
- *   brings back yesterday + today.
- *
- * Bound only while there is such an axis, so the icon appearing is itself the message.
+ * - [HomeAction.RECENTER_TODAY]: on the preferred source, today was panned off screen.
  */
 internal fun setupDailyHomeShortcut(
     context: Context,
@@ -351,20 +325,17 @@ internal fun setupDailyHomeShortcut(
         homeIntent,
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
-    for (viewId in listOf(R.id.home_icon, R.id.home_icon_inline)) {
-        HeaderRemoteViewsBinder.bindScaledIcon(
-            context = context,
-            views = views,
-            viewId = viewId,
-            iconRes = R.drawable.ic_home,
-            sizeDp = HeaderConstants.CENTER_ICON_SIZE_DP,
-            scale = scale,
-            tintColor = 0xAAFFFFFF.toInt(),
-        )
-    }
+    HeaderRemoteViewsBinder.bindScaledIcon(
+        context = context,
+        views = views,
+        viewId = R.id.home_icon,
+        iconRes = R.drawable.ic_home,
+        sizeDp = HeaderConstants.CENTER_ICON_SIZE_DP,
+        scale = scale,
+        tintColor = 0xAAFFFFFF.toInt(),
+    )
     views.setOnClickPendingIntent(R.id.home_icon, pendingIntent)
     views.setOnClickPendingIntent(R.id.home_touch_zone, pendingIntent)
-    views.setOnClickPendingIntent(R.id.home_touch_zone_inline, pendingIntent)
     Log.d(
         "HomeShortcut",
         "setupDailyHomeShortcut: widget=$appWidgetId requestCode=$requestCode -> ${homeAction.name}",
@@ -372,10 +343,8 @@ internal fun setupDailyHomeShortcut(
 }
 
 /**
- * The daily header's months-view button: opens [com.weatherwidget.ui.MonthsViewActivity] (the daily
- * view zoomed out to a line graph over months) for this widget's source and site. The widget id
- * rides along so the screen's column view takes this widget's shape. Seated by
- * [HeaderWidthChecker.measureHeader] only where the header has room.
+ * The daily header's months-view button: opens [com.weatherwidget.ui.MonthsViewActivity] for this
+ * widget's source and site. Seated by [HeaderWidthChecker.measureHeader] only where the header has room.
  */
 internal fun setupMonthsViewShortcut(
     context: Context,
@@ -388,8 +357,6 @@ internal fun setupMonthsViewShortcut(
 ) {
     val intent = com.weatherwidget.ui.MonthsViewActivity.intent(context, displaySource, lat, lon).apply {
         putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-        // CLEAR_TASK: this screen reads its source only in onCreate; NEW_TASK alone would bring a
-        // still-alive copy to the front unchanged (see ForecastComparison launch).
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
     }
     val pendingIntent = PendingIntent.getActivity(
@@ -398,20 +365,17 @@ internal fun setupMonthsViewShortcut(
         intent,
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
-    for (viewId in listOf(R.id.months_view_icon, R.id.months_view_icon_inline)) {
-        HeaderRemoteViewsBinder.bindScaledIcon(
-            context = context,
-            views = views,
-            viewId = viewId,
-            iconRes = R.drawable.ic_months_view,
-            sizeDp = HeaderConstants.CENTER_ICON_SIZE_DP,
-            scale = scale,
-            tintColor = 0xAAFFFFFF.toInt(),
-        )
-    }
+    HeaderRemoteViewsBinder.bindScaledIcon(
+        context = context,
+        views = views,
+        viewId = R.id.months_view_icon,
+        iconRes = R.drawable.ic_months_view,
+        sizeDp = HeaderConstants.CENTER_ICON_SIZE_DP,
+        scale = scale,
+        tintColor = 0xAAFFFFFF.toInt(),
+    )
     views.setOnClickPendingIntent(R.id.months_view_icon, pendingIntent)
     views.setOnClickPendingIntent(R.id.months_view_touch_zone, pendingIntent)
-    views.setOnClickPendingIntent(R.id.months_view_touch_zone_inline, pendingIntent)
 }
 
 internal fun setupWeatherStationsShortcut(
@@ -423,8 +387,6 @@ internal fun setupWeatherStationsShortcut(
 ) {
     val obsIntent = Intent(context, WeatherObservationsActivity::class.java).apply {
         putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-        // CLEAR_TASK: this screen reads its source only in onCreate; NEW_TASK alone would bring a
-        // still-alive copy to the front unchanged (see ForecastComparison launch).
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
     }
 
@@ -443,18 +405,8 @@ internal fun setupWeatherStationsShortcut(
         scale = scale,
         tintColor = 0xAAFFFFFF.toInt()
     )
-    HeaderRemoteViewsBinder.bindScaledIcon(
-        context = context,
-        views = views,
-        viewId = R.id.weather_stations_icon_inline,
-        iconRes = R.drawable.ic_thermometer,
-        sizeDp = HeaderConstants.CENTER_ICON_SIZE_DP,
-        scale = scale,
-        tintColor = 0xAAFFFFFF.toInt()
-    )
     views.setOnClickPendingIntent(R.id.weather_stations_icon, pendingIntent)
     views.setOnClickPendingIntent(R.id.weather_stations_touch_zone, pendingIntent)
-    views.setOnClickPendingIntent(R.id.weather_stations_touch_zone_inline, pendingIntent)
     if (setVisibility) {
         views.setViewVisibility(R.id.weather_stations_icon, View.VISIBLE)
         views.setViewVisibility(R.id.weather_stations_touch_zone, View.VISIBLE)
@@ -487,227 +439,113 @@ internal fun positionCenterIcons(
     views: RemoteViews,
     widthDp: Int,
     density: Float,
-    isPrecipVisible: Boolean,
-    /** What [fit] was resolved from: where the CENTER buttons sit ([HeaderFit.buttonsSpan]). */
     measured: HeaderFit.Measured,
-    /** CENTER (on HeaderFit's line or the middle), INLINE (zones of [HeaderFit.Plan.inlineZone]) or HIDDEN. */
     fit: HeaderFit.Plan,
-    /** [HeaderButtons.shown]: home, observations (today on screen), graph selector, history. */
     shown: List<HeaderButton>,
 ) {
-    val floatingVis = if (fit.placement == HeaderFit.ButtonPlacement.CENTER) View.VISIBLE else View.GONE
-    val inlineVis = if (fit.placement == HeaderFit.ButtonPlacement.INLINE) View.VISIBLE else View.GONE
-    Log.d("HomeShortcut", "positionCenterIcons: widthDp=$widthDp isPrecipVisible=$isPrecipVisible placement=${fit.placement} shown=$shown")
-    showHeaderButtons(views, fit.placement, shown)
-    val inlineZoneWidthDp = fit.inlineZone.takeIf { it > 0f }?.let { it / density }
-
-    if (inlineVis == View.VISIBLE && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        val touchWidthDp = inlineZoneWidthDp ?: HeaderWidthChecker.nominalInlineZoneWidthDp(widthDp)
-        val touchWidthPx = (touchWidthDp * density).toInt()
-        for (id in listOf(R.id.graph_selector_touch_zone_inline, R.id.weather_stations_touch_zone_inline, R.id.home_touch_zone_inline, R.id.forecast_comparison_activity_touch_zone_inline)) {
-            views.setViewLayoutWidth(id, touchWidthPx.toFloat(), android.util.TypedValue.COMPLEX_UNIT_PX)
-        }
-        Log.d("HomeShortcut", "positionCenterIcons: inline touch zones resized to ${touchWidthDp}dp for widthDp=$widthDp")
-    }
-
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        // Restore the hourly line explicitly; the daily view moves this same container.
-        views.setViewLayoutMargin(
-            R.id.hourly_center_header_container,
-            RemoteViews.MARGIN_TOP,
-            HeaderConstants.HOURLY_ICON_CONTAINER_MARGIN_TOP_DP,
-            android.util.TypedValue.COMPLEX_UNIT_DIP,
-        )
-        // Centred buttons end on HeaderFit's line (as the daily ones do, so history stays put when
-        // switching views) unless only the middle had room; a reapply keeps whatever margin the
-        // last update set, so it is always written.
-        val centre = centreButtonsLayout(measured, fit, widthDp, density)
-        views.setViewLayoutMargin(
-            R.id.hourly_center_header_container,
-            RemoteViews.MARGIN_LEFT,
-            centre.offsetDp,
-            android.util.TypedValue.COMPLEX_UNIT_DIP,
-        )
-        if (floatingVis == View.VISIBLE) {
-            applyCentreZones(views, shown, centre, density)
-            Log.d("HomeShortcut", "positionCenterIcons: floating zones $centre for widthDp=$widthDp")
-        }
-    }
-
+    positionHeaderButtons(
+        views = views,
+        marginTopDp = HeaderConstants.HOURLY_ICON_CONTAINER_MARGIN_TOP_DP,
+        measured = measured,
+        fit = fit,
+        shown = shown,
+        widthDp = widthDp,
+        density = density,
+        logTag = "HomeShortcut",
+        caller = "positionCenterIcons",
+    )
 }
 
 /**
- * Every header button's views, floating and inline, by [HeaderButton]. Both views share
- * `hourly_center_header_container` and the inline row, whose child order is [HeaderButtons.ORDER].
+ * Every header button's views by [HeaderButton]. Daily and hourly share
+ * `hourly_center_header_container`, whose child order is [HeaderButtons.ORDER].
  */
 internal enum class HeaderButtonViews(
     val button: HeaderButton,
     val icon: Int,
     val zone: Int,
-    val inlineIcon: Int,
-    val inlineZone: Int,
 ) {
-    HOME(HeaderButton.HOME, R.id.home_icon, R.id.home_touch_zone, R.id.home_icon_inline, R.id.home_touch_zone_inline),
-    OBSERVATIONS(
-        HeaderButton.OBSERVATIONS, R.id.weather_stations_icon, R.id.weather_stations_touch_zone,
-        R.id.weather_stations_icon_inline, R.id.weather_stations_touch_zone_inline,
-    ),
-    GRAPH_SELECTOR(
-        HeaderButton.GRAPH_SELECTOR, R.id.graph_selector_icon, R.id.graph_selector_touch_zone,
-        R.id.graph_selector_icon_inline, R.id.graph_selector_touch_zone_inline,
-    ),
-    MONTHS(
-        HeaderButton.MONTHS, R.id.months_view_icon, R.id.months_view_touch_zone,
-        R.id.months_view_icon_inline, R.id.months_view_touch_zone_inline,
-    ),
-    HISTORY(
-        HeaderButton.HISTORY, R.id.history_icon, R.id.forecast_comparison_activity_touch_zone,
-        R.id.history_icon_inline, R.id.forecast_comparison_activity_touch_zone_inline,
-    ),
+    HOME(HeaderButton.HOME, R.id.home_icon, R.id.home_touch_zone),
+    OBSERVATIONS(HeaderButton.OBSERVATIONS, R.id.weather_stations_icon, R.id.weather_stations_touch_zone),
+    GRAPH_SELECTOR(HeaderButton.GRAPH_SELECTOR, R.id.graph_selector_icon, R.id.graph_selector_touch_zone),
+    MONTHS(HeaderButton.MONTHS, R.id.months_view_icon, R.id.months_view_touch_zone),
+    HISTORY(HeaderButton.HISTORY, R.id.history_icon, R.id.forecast_comparison_activity_touch_zone),
     ;
-
-    companion object {
-        fun of(button: HeaderButton): HeaderButtonViews = entries.first { it.button == button }
-    }
-}
-
-/**
- * Shows exactly [shown] in the row [placement] draws and hides every other header button view.
- * Every view is written: RemoteViews visibility is sticky across partial pushes, so a daily render's
- * months or home would otherwise survive into the hourly header, and the other way round.
- */
-/**
- * The CENTER buttons' container offset (dp right of the widget's centre), one zone's width, and how
- * far the first and last zones reach past their icons' zones into the free space beside them
- * ([HeaderFit.buttonsTouchSpan]) — so a tap just past history opens history rather than falling
- * through to the root's source toggle. Zones resize only on API 31+, so no reach below it.
- */
-internal data class CentreButtonsLayout(
-    val offsetDp: Float = 0f,
-    val zoneDp: Float,
-    val extraStartDp: Float = 0f,
-    val extraEndDp: Float = 0f,
-)
-
-internal fun centreButtonsLayout(
-    measured: HeaderFit.Measured,
-    fit: HeaderFit.Plan,
-    widthDp: Int,
-    density: Float,
-): CentreButtonsLayout {
-    val zoneDp = HeaderWidthChecker.centerIconZoneWidthDp(fit, widthDp, density)
-    val slot = HeaderFit.buttonsSpan(measured, fit) ?: return CentreButtonsLayout(zoneDp = zoneDp)
-    val touch = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        HeaderFit.buttonsTouchSpan(measured, fit) ?: slot
-    } else slot
-    return CentreButtonsLayout(
-        // The container is centre_horizontal: its centre is the touch span's.
-        offsetDp = ((touch.first + touch.second) / 2f - measured.width / 2f) / density,
-        zoneDp = zoneDp,
-        extraStartDp = (slot.first - touch.first) / density,
-        extraEndDp = (touch.second - slot.second) / density,
-    )
-}
-
-/**
- * Sizes the floating zones: [CentreButtonsLayout.zoneDp] each, the first [shown] one widened by
- * [CentreButtonsLayout.extraStartDp] and padded by as much on its start so its icon stays put, the
- * last likewise at its end. Every zone's padding is written, since a reapply keeps the last one's.
- */
-internal fun applyCentreZones(views: RemoteViews, shown: List<HeaderButton>, centre: CentreButtonsLayout, density: Float) {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
-    val first = shown.firstOrNull()
-    val last = shown.lastOrNull()
-    for (v in HeaderButtonViews.entries) {
-        val startPx = if (v.button == first) (centre.extraStartDp * density).toInt() else 0
-        val endPx = if (v.button == last) (centre.extraEndDp * density).toInt() else 0
-        val widthPx = (centre.zoneDp * density).toInt() + startPx + endPx
-        views.setViewLayoutWidth(v.zone, widthPx.toFloat(), android.util.TypedValue.COMPLEX_UNIT_PX)
-        views.setViewPadding(v.zone, startPx, 0, endPx, 0)
-    }
 }
 
 internal fun showHeaderButtons(views: RemoteViews, placement: HeaderFit.ButtonPlacement, shown: List<HeaderButton>) {
-    val floating = placement == HeaderFit.ButtonPlacement.CENTER
-    val inline = placement == HeaderFit.ButtonPlacement.INLINE
+    val visible = placement == HeaderFit.ButtonPlacement.SHOWN
     for (v in HeaderButtonViews.entries) {
-        val on = v.button in shown
-        val floatingVis = if (floating && on) View.VISIBLE else View.GONE
-        val inlineVis = if (inline && on) View.VISIBLE else View.GONE
-        views.setViewVisibility(v.icon, floatingVis)
-        views.setViewVisibility(v.zone, floatingVis)
-        views.setViewVisibility(v.inlineIcon, inlineVis)
-        views.setViewVisibility(v.inlineZone, inlineVis)
+        val vis = if (visible && v.button in shown) View.VISIBLE else View.GONE
+        views.setViewVisibility(v.icon, vis)
+        views.setViewVisibility(v.zone, vis)
     }
 }
 
-/**
- * Places the daily view's header buttons: [shown] from [HeaderButtons.shown] (home first, then
- * observations while today or yesterday is on screen, months, history), in the container the
- * hourly header shares; [showHeaderButtons] hides the graph selector and anything the fit dropped.
- *
- * Home is the source-reset / recentre button, not a view switch — see [setupDailyHomeShortcut] and
- * [com.weatherwidget.shared.util.PreferredSourceHome].
- *
- * Inline zone widths are set from the same fixed [HeaderConstants.DAILY_INLINE_ICON_ZONE_WIDTH_DP]
- * the fit math used, rather than the hourly ladder, so layout and measurement cannot drift.
- */
-internal fun positionDailyIcons(
+private fun positionHeaderButtons(
     views: RemoteViews,
-    placement: HeaderFit.ButtonPlacement,
-    /** [HeaderButtons.shown]: home, observations, months, history — whichever the fit kept. */
+    marginTopDp: Float,
+    measured: HeaderFit.Measured,
+    fit: HeaderFit.Plan,
     shown: List<HeaderButton>,
     widthDp: Int,
     density: Float,
-    scale: Float = 1.0f,
-    /** Where the CENTER zones sit and how wide they are ([centreButtonsLayout]). */
-    centre: CentreButtonsLayout = CentreButtonsLayout(zoneDp = HeaderWidthChecker.centerIconZoneWidthDp(widthDp)),
+    logTag: String,
+    caller: String,
 ) {
-    val floating = placement == HeaderFit.ButtonPlacement.CENTER
-    val inline = placement == HeaderFit.ButtonPlacement.INLINE
-
-    showHeaderButtons(views, placement, shown)
+    showHeaderButtons(views, fit.placement, shown)
+    val zoneDp = HeaderWidthChecker.centerIconZoneWidthDp(fit, widthDp, density)
+    val marginEndDp = (measured.rightCluster + measured.gap) / density
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        // Drop the shared container onto the daily view's PAINTED text line. See
-        // HeaderConstants.DAILY_ICON_CONTAINER_MARGIN_TOP_DP.
         views.setViewLayoutMargin(
             R.id.hourly_center_header_container,
             RemoteViews.MARGIN_TOP,
-            HeaderConstants.DAILY_ICON_CONTAINER_MARGIN_TOP_DP,
+            marginTopDp,
             android.util.TypedValue.COMPLEX_UNIT_DIP,
         )
-        // Centred buttons end on HeaderFit's line right of the middle unless only the middle had
-        // room: the container is centre_horizontal in a FrameLayout, so a left margin moves it by
-        // exactly that much.
         views.setViewLayoutMargin(
             R.id.hourly_center_header_container,
-            RemoteViews.MARGIN_LEFT,
-            if (floating) centre.offsetDp else 0f,
+            RemoteViews.MARGIN_END,
+            marginEndDp,
             android.util.TypedValue.COMPLEX_UNIT_DIP,
         )
-        // Zones wide enough that the buttons read as separate controls (:shared HeaderButtonZone).
-        // Widths must match what the fit measured, or the reserved slot and the drawn buttons
-        // disagree.
-        if (inline) {
-            val widthPx = (HeaderConstants.DAILY_INLINE_ICON_ZONE_WIDTH_DP * density).toInt().toFloat()
-            for (id in listOf(
-                R.id.weather_stations_touch_zone_inline,
-                R.id.home_touch_zone_inline,
-                R.id.months_view_touch_zone_inline,
-                R.id.forecast_comparison_activity_touch_zone_inline,
-            )) {
-                views.setViewLayoutWidth(id, widthPx, android.util.TypedValue.COMPLEX_UNIT_PX)
-            }
-        } else {
-            applyCentreZones(views, shown, centre, density)
+        val widthPx = (zoneDp * density).toInt().toFloat()
+        for (v in HeaderButtonViews.entries) {
+            views.setViewLayoutWidth(v.zone, widthPx, android.util.TypedValue.COMPLEX_UNIT_PX)
+            views.setViewPadding(v.zone, 0, 0, 0, 0)
         }
     }
 
     Log.d(
-        "DailyHeaderIcons",
-        "positionDailyIcons: placement=$placement shown=$shown widthDp=$widthDp " +
-            "centre=$centre scale=$scale",
+        logTag,
+        "$caller: placement=${fit.placement} shown=$shown widthDp=$widthDp zoneDp=$zoneDp marginEndDp=$marginEndDp",
+    )
+}
+
+/**
+ * Places the daily view's header buttons: [shown] from [HeaderButtons.shown] (home first, then
+ * observations while today or yesterday is on screen, months, history), right-anchored before
+ * `top_right_header_container`.
+ */
+internal fun positionDailyIcons(
+    views: RemoteViews,
+    measured: HeaderFit.Measured,
+    fit: HeaderFit.Plan,
+    shown: List<HeaderButton>,
+    widthDp: Int,
+    density: Float,
+) {
+    positionHeaderButtons(
+        views = views,
+        marginTopDp = HeaderConstants.DAILY_ICON_CONTAINER_MARGIN_TOP_DP,
+        measured = measured,
+        fit = fit,
+        shown = shown,
+        widthDp = widthDp,
+        density = density,
+        logTag = "DailyHeaderIcons",
+        caller = "positionDailyIcons",
     )
 }
 
@@ -718,12 +556,9 @@ internal fun setupGraphSelectorShortcut(
     currentViewMode: ViewMode,
     scale: Float = 1.0f,
 ) {
-    // The next view and its emoji are :shared GraphSelector (desktop draws the same); which row
-    // shows it is showHeaderButtons'.
     val emoji = GraphSelector.emoji(currentViewMode)
     HeaderTapTargetHelper.bindGraphSelector(context, views, appWidgetId, GraphSelector.next(currentViewMode))
     views.setTextViewText(R.id.graph_selector_icon, emoji)
-    views.setTextViewText(R.id.graph_selector_icon_inline, emoji)
 
     val apiPx = android.util.TypedValue.applyDimension(
         android.util.TypedValue.COMPLEX_UNIT_DIP,
@@ -731,7 +566,6 @@ internal fun setupGraphSelectorShortcut(
         context.resources.displayMetrics
     )
     views.setTextViewTextSize(R.id.graph_selector_icon, android.util.TypedValue.COMPLEX_UNIT_PX, apiPx)
-    views.setTextViewTextSize(R.id.graph_selector_icon_inline, android.util.TypedValue.COMPLEX_UNIT_PX, apiPx)
 }
 
 /**

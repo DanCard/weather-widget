@@ -418,14 +418,7 @@ class CurrentTempTouchRoutingRoboTest {
     }
 
     private fun clickGraphSelector(views: RemoteViews): android.content.Intent? {
-        val applied = applyViews(views)
-        val floatingZone = applied.findViewById<View>(R.id.graph_selector_touch_zone)
-        val targetId = if (floatingZone != null && floatingZone.visibility == View.VISIBLE) {
-            R.id.graph_selector_touch_zone
-        } else {
-            R.id.graph_selector_touch_zone_inline
-        }
-        return clickView(views, targetId)
+        return clickView(views, R.id.graph_selector_touch_zone)
     }
 
     private fun clickAtCoordinate(views: RemoteViews, dpX: Float, dpY: Float): android.content.Intent? {

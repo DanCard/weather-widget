@@ -69,30 +69,6 @@ class WeatherObservationsShortcutTest {
     }
 
     @Test
-    fun `TemperatureViewHandler inline thermometer touch zone starts WeatherObservationsActivity directly`() = runBlocking {
-        val views = renderTemperatureWidget()
-        val applied = applyViews(views)
-        
-        val stationsIcon = applied.findViewById<View>(R.id.weather_stations_touch_zone_inline)
-        assertNotNull("Inline touch zone should be present", stationsIcon)
-        // Note: The visibility of this one depends on positionCenterIcons.
-        // We will just perform click anyway as it's wired.
-
-        stationsIcon.performClick()
-
-        val nextStartedActivity = shadowOf(app).nextStartedActivity
-        assertNotNull("Clicking inline touch zone should start an activity", nextStartedActivity)
-        assertEquals(
-            WeatherObservationsActivity::class.java.name,
-            nextStartedActivity.component?.className
-        )
-        assertEquals(
-            appWidgetId,
-            nextStartedActivity.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1)
-        )
-    }
-
-    @Test
     fun `TemperatureViewHandler thermometer icon hidden when viewing future day`() = runBlocking {
         val future = LocalDateTime.now().plusDays(2)
         val views = renderTemperatureWidget(centerTime = future)

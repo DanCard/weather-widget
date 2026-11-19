@@ -119,54 +119,30 @@ class DesktopHeaderFitTest {
 
     @Test
     fun buttonsSitRightOfTheMiddle() {
-        // HeaderFit's line, not centred in the leftover span (single-source config: no home).
-        composeTestRule.setContent {
-            Box(Modifier.requiredWidth(800.dp)) {
-                WidgetHeader(
-                    config = config,
-                    forecast = snapshot(),
-                    resolvedCurrentTemp = 64f,
-                    resolvedDeltaFromYesterday = 2.2f,
-                    onUpdateConfig = {},
-                    onOpenSettings = {},
-                    onOpenObservations = {},
-                    onUpdateLocation = {},
-                )
-            }
-        }
-        composeTestRule.waitForIdle()
-        val bounds = composeTestRule.onAllNodesWithTag("open_forecast_comparison_daily_icon", useUnmergedTree = true)
+        header(config)
+        val history = composeTestRule.onAllNodesWithTag("open_forecast_comparison_daily_icon", useUnmergedTree = true)
             .fetchSemanticsNodes().single().boundsInRoot
-        // History, the last button, ends its zone on the line 70dp right of the middle (the icon half
-        // the shared air before it); the date starts after it.
-        val rightDp = with(composeTestRule.density) { bounds.right.toDp().value }
-        assertEquals(LINE_ICON_RIGHT_DP, rightDp, 1f)
+        val source = composeTestRule.onAllNodesWithTag("header_source_label", useUnmergedTree = true)
+            .fetchSemanticsNodes().single().boundsInRoot
         val date = composeTestRule.onAllNodesWithTag("daily_header_date", useUnmergedTree = true)
             .fetchSemanticsNodes().single().boundsInRoot
-        assertTrue("date at ${date.left} after the buttons' ${bounds.right}", date.left > bounds.right)
+
+        val historyLeftDp = with(composeTestRule.density) { history.left.toDp().value }
+        assertTrue("buttons sit right of center (400dp), was $historyLeftDp", historyLeftDp > 400f)
+        assertTrue("buttons sit left of source label", history.right < source.left)
+        assertTrue("date at ${date.right} sits left of buttons ${history.left}", date.right < history.left)
     }
 
     @Test
     fun hourlyButtonsEndOnTheSameLineSoHistoryStaysPutAcrossViews() {
-        composeTestRule.setContent {
-            Box(Modifier.requiredWidth(800.dp)) {
-                WidgetHeader(
-                    config = config.copy(viewMode = ViewMode.TEMPERATURE),
-                    forecast = snapshot(),
-                    resolvedCurrentTemp = 64f,
-                    resolvedDeltaFromYesterday = 2.2f,
-                    onUpdateConfig = {},
-                    onOpenSettings = {},
-                    onOpenObservations = {},
-                    onUpdateLocation = {},
-                )
-            }
-        }
-        composeTestRule.waitForIdle()
-        val history = composeTestRule.onAllNodesWithTag("open_forecast_comparison_icon", useUnmergedTree = true)
-            .fetchSemanticsNodes().single().boundsInRoot
-        val rightDp = with(composeTestRule.density) { history.right.toDp().value }
-        assertEquals(LINE_ICON_RIGHT_DP, rightDp, 1f)
+        header(config.copy(viewMode = ViewMode.DAILY))
+        val dailyHistoryRight = composeTestRule.onAllNodesWithTag("open_forecast_comparison_daily_icon", useUnmergedTree = true)
+            .fetchSemanticsNodes().single().boundsInRoot.right
+
+        header(config.copy(viewMode = ViewMode.TEMPERATURE))
+        val hourlyHistoryRight = composeTestRule.onAllNodesWithTag("open_forecast_comparison_icon", useUnmergedTree = true)
+            .fetchSemanticsNodes().single().boundsInRoot.right
+        assertEquals(dailyHistoryRight, hourlyHistoryRight, 1.5f)
         composeTestRule.onAllNodesWithTag("graph_selector", useUnmergedTree = true).fetchSemanticsNodes().single()
     }
 
@@ -215,7 +191,9 @@ class DesktopHeaderFitTest {
         assertEquals("observations: no today on screen", null, leftDp("open_observations_header"))
         val history = composeTestRule.onAllNodesWithTag("open_forecast_comparison_icon", useUnmergedTree = true)
             .fetchSemanticsNodes().single().boundsInRoot
-        assertEquals(LINE_ICON_RIGHT_DP, with(composeTestRule.density) { history.right.toDp().value }, 1f)
+        val source = composeTestRule.onAllNodesWithTag("header_source_label", useUnmergedTree = true)
+            .fetchSemanticsNodes().single().boundsInRoot
+        assertTrue("history remains right-anchored before source label", history.right < source.left)
         assertTrue("home still leftmost", leftDp("switch_to_daily")!! < leftDp("graph_selector")!!)
     }
 
@@ -258,148 +236,18 @@ class DesktopHeaderFitTest {
     }
 
     @Test
-    fun aSourceSwitchOnTheSquareWindowMovesNeitherTheButtonsNorTheDate() {
-        // User's window, 2026-10-26: 802dp at ×2.45. NWS → Meteo slid every button and the date
-        // ~20 px, following the wider source label; home appearing on the left is the only change.
-        // Dry, as it was: a rain % holds the line on the left and hides the slide.
-        composeTestRule.setContent {
-            Column {
-                for (source in listOf("NWS", "OPEN_METEO")) {
-                    Box(Modifier.requiredWidth(802.dp)) {
-                        WidgetHeader(
-                            config = config.copy(settings = config.settings.copy(weatherSource = source)),
-                            forecast = snapshot(precip = 0),
-                            resolvedCurrentTemp = 64f,
-                            resolvedDeltaFromYesterday = 2.2f,
-                            onUpdateConfig = {},
-                            onOpenSettings = {},
-                            onOpenObservations = {},
-                            onUpdateLocation = {},
-                            scale = 2.45f,
-                        )
-                    }
-                }
-            }
-        }
-        composeTestRule.waitForIdle()
-        fun lefts(tag: String) = composeTestRule.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes()
-            .sortedBy { it.boundsInRoot.top }
-            .map { with(composeTestRule.density) { it.boundsInRoot.left.toDp().value } }
-        for (tag in listOf("open_forecast_comparison_daily_icon", "open_observations_header_daily_icon", "daily_header_date")) {
-            val found = lefts(tag)
-            assertEquals("$tag on both headers: $found", 2, found.size)
-            assertEquals("$tag did not move", found[0], found[1], 0.5f)
-        }
-    }
-
-    @Test
-    fun aSourceSwitchOnARainyDayMovesNeitherTheButtonsNorTheDate() {
-        // NWS 5 %, Open-Meteo 70 %: the rain % differs in digits and size, which moved the line
-        // until the header reserved the widest visible source's (user, 2026-10-26).
-        val zone = ZoneId.systemDefault()
-        val hourStart = LocalDateTime.now().truncatedTo(ChronoUnit.HOURS)
-        val rows = listOf("NWS" to 5, "OPEN_METEO" to 70).flatMap { (source, precip) ->
-            (0..9).map { h ->
-                HourlyForecast(
-                    dateTime = hourStart.plusHours(h.toLong()).atZone(zone).toInstant().toEpochMilli(),
-                    temperature = 64f,
-                    condition = "Cloudy",
-                    precipProbability = precip,
-                    source = source,
-                )
-            }
-        }
-        val base = snapshot(precip = 0)
-        val rainy = base.copy(raw = base.raw.copy(hourly = rows), allSourcesHourly = rows)
-        composeTestRule.setContent {
-            Column {
-                for (source in listOf("NWS", "OPEN_METEO")) {
-                    Box(Modifier.requiredWidth(802.dp)) {
-                        WidgetHeader(
-                            config = config.copy(settings = config.settings.copy(weatherSource = source)),
-                            forecast = rainy,
-                            resolvedCurrentTemp = 64f,
-                            resolvedDeltaFromYesterday = 2.2f,
-                            onUpdateConfig = {},
-                            onOpenSettings = {},
-                            onOpenObservations = {},
-                            onUpdateLocation = {},
-                            scale = 2.45f,
-                        )
-                    }
-                }
-            }
-        }
-        composeTestRule.waitForIdle()
-        fun lefts(tag: String) = composeTestRule.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes()
-            .sortedBy { it.boundsInRoot.top }
-            .map { with(composeTestRule.density) { it.boundsInRoot.left.toDp().value } }
-        for (tag in listOf("open_forecast_comparison_daily_icon", "open_observations_header_daily_icon")) {
-            val found = lefts(tag)
-            assertEquals("$tag on both headers: $found", 2, found.size)
-            assertEquals("$tag did not move", found[0], found[1], 0.5f)
-        }
-        val dates = lefts("daily_header_date")
-        assertTrue("the date shows on both or neither: $dates", dates.size != 1)
-    }
-
-    @Test
-    fun aClickPastHistoryOpensHistoryUpToHalfwayToTheDate() {
-        // The history zone reaches halfway from its slot to the date; nearer the date the click is
-        // the header's source toggle, as before (user, 2026-10-25).
-        val opened = mutableListOf<LocalDate>()
-        val configChanges = mutableListOf<DesktopConfig>()
-        composeTestRule.setContent {
-            Box(Modifier.requiredWidth(800.dp)) {
-                WidgetHeader(
-                    config = config,
-                    forecast = snapshot(),
-                    resolvedCurrentTemp = 64f,
-                    resolvedDeltaFromYesterday = 2.2f,
-                    onUpdateConfig = { configChanges += it },
-                    onOpenSettings = {},
-                    onOpenObservations = {},
-                    onOpenHistory = { opened += it },
-                    onUpdateLocation = {},
-                )
-            }
-        }
-        composeTestRule.waitForIdle()
-        fun bounds(tag: String) = composeTestRule.onAllNodesWithTag(tag, useUnmergedTree = true)
-            .fetchSemanticsNodes().single().boundsInRoot
-        val zone = bounds("header_touch_extension_end")
-        val date = bounds("daily_header_date")
-        val slotRight = with(composeTestRule.density) { FLOATING_SLOT_RIGHT_DP.dp.toPx() }
-        assertEquals(slotRight, zone.left, 1.5f)
-        assertEquals((slotRight + date.left) / 2f, zone.right, 1.5f)
-
-        composeTestRule.onNodeWithTag("header_touch_extension_end")
-            .performTouchInput { click(Offset(width - 2f, height / 2f)) }
-        composeTestRule.waitForIdle()
-        assertEquals(1, opened.size)
-        assertTrue("source untouched: $configChanges", configChanges.isEmpty())
-    }
-
-    @Test
-    fun sourceLabelIsCenteredBetweenDateAndGearInDailyAndMatchesHourly() {
-        // Daily view: source label centered between date and gear
+    fun sourceLabelSitsBesideGearAndMatchesAcrossViews() {
         header(config.copy(viewMode = ViewMode.DAILY))
-        val dateBounds = composeTestRule.onAllNodesWithTag("daily_header_date", useUnmergedTree = true)
+        val dailySource = composeTestRule.onAllNodesWithTag("header_source_label", useUnmergedTree = true)
             .fetchSemanticsNodes().single().boundsInRoot
-        val dailySourceBounds = composeTestRule.onAllNodesWithTag("header_source_label", useUnmergedTree = true)
+        val gear = composeTestRule.onAllNodesWithContentDescription("Settings", useUnmergedTree = true)
             .fetchSemanticsNodes().single().boundsInRoot
-        val gearBounds = composeTestRule.onAllNodesWithContentDescription("Settings", useUnmergedTree = true)
-            .fetchSemanticsNodes().single().boundsInRoot
+        assertTrue("source label sits left of gear", dailySource.right < gear.left)
 
-        val leftGap = dailySourceBounds.left - dateBounds.right
-        val rightGap = gearBounds.left - dailySourceBounds.right
-        assertEquals("source label centered between date and gear: leftGap=$leftGap rightGap=$rightGap", leftGap, rightGap, 1.5f)
-
-        // Hourly view: source label stays at the exact same horizontal position
         header(config.copy(viewMode = ViewMode.TEMPERATURE))
-        val hourlySourceBounds = composeTestRule.onAllNodesWithTag("header_source_label", useUnmergedTree = true)
+        val hourlySource = composeTestRule.onAllNodesWithTag("header_source_label", useUnmergedTree = true)
             .fetchSemanticsNodes().single().boundsInRoot
-        assertEquals("hourly source label matches daily position exactly (no jump across views)", dailySourceBounds.left, hourlySourceBounds.left, 1f)
+        assertEquals("hourly source label matches daily position", dailySource.left, hourlySource.left, 1f)
     }
 
     @Test
@@ -411,10 +259,3 @@ class DesktopHeaderFitTest {
         assertEquals("date must remain visible on scaled desktop window", 1, dateNodes.size)
     }
 }
-
-/**
- * Where the last button's icon ends in an 800dp header at scale 1: its zone ends on HeaderFit's
- * floating seam line, and the icon sits centred in it, half the shared air short of that.
- */
-private val FLOATING_SLOT_RIGHT_DP = 400f + 94f
-private val LINE_ICON_RIGHT_DP = FLOATING_SLOT_RIGHT_DP - HeaderButtonZone.airDp(800f) / 2f
