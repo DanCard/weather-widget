@@ -56,8 +56,19 @@ class ForecastComparisonSourcesRoboTest {
         runBlocking { db.forecastDao().deleteForecastsAtSite(lat, lon) }
     }
 
+    /**
+     * Every activity opened here. A resumed one left behind keeps collecting `dataSeen.reloads()`,
+     * so a later test in the same JVM sees its reloads (HistoryReloadOnReturnRoboTest counted 4-5
+     * extra `SCREEN_RELOAD` lines from a leaked tomorrow-dated screen, 2026-11-19).
+     */
+    private val opened = mutableListOf<org.robolectric.android.controller.ActivityController<ForecastComparisonActivity>>()
+
     @After
-    fun tearDown() = runBlocking { db.forecastDao().deleteForecastsAtSite(lat, lon); Unit }
+    fun tearDown() = runBlocking {
+        opened.forEach { runCatching { it.pause().stop().destroy() }.onFailure { e -> println("teardown: ${e.message}") } }
+        db.forecastDao().deleteForecastsAtSite(lat, lon)
+        Unit
+    }
 
     @Test
     fun `card lists every visible source sorted by high with the viewed source bold`() {
@@ -93,6 +104,7 @@ class ForecastComparisonSourcesRoboTest {
             putExtra(ForecastComparisonActivity.EXTRA_SOURCE, WeatherSource.NWS.displayName)
         }
         val controller = Robolectric.buildActivity(ForecastComparisonActivity::class.java, intent)
+        opened += controller
         val activity = controller.get()
         controller.setup()
 
@@ -171,6 +183,7 @@ class ForecastComparisonSourcesRoboTest {
                 putExtra(ForecastComparisonActivity.EXTRA_SOURCE, WeatherSource.NWS.displayName)
             }
             val controller = Robolectric.buildActivity(ForecastComparisonActivity::class.java, intent)
+            opened += controller
             controller.setup()
             val table = controller.get().findViewById<LinearLayout>(R.id.source_comparison_table)
             val deadline = System.currentTimeMillis() + 10_000
@@ -232,6 +245,7 @@ class ForecastComparisonSourcesRoboTest {
             putExtra(ForecastComparisonActivity.EXTRA_SOURCE, WeatherSource.NWS.displayName)
         }
         val controller = Robolectric.buildActivity(ForecastComparisonActivity::class.java, intent)
+        opened += controller
         val activity = controller.get()
         controller.setup()
         val table = activity.findViewById<LinearLayout>(R.id.source_comparison_table)
@@ -304,6 +318,7 @@ class ForecastComparisonSourcesRoboTest {
                 putExtra(ForecastComparisonActivity.EXTRA_SOURCE, WeatherSource.NWS.displayName)
             }
             val controller = Robolectric.buildActivity(ForecastComparisonActivity::class.java, intent)
+            opened += controller
             val activity = controller.get()
             controller.setup()
             val table = activity.findViewById<LinearLayout>(R.id.source_comparison_table)

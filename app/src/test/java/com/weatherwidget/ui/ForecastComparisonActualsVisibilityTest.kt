@@ -33,6 +33,14 @@ class ForecastComparisonActualsVisibilityTest {
 
     private lateinit var context: Context
 
+    /** Opened activities, closed after each test: a resumed leftover keeps reloading on later tests' writes. */
+    private val opened = mutableListOf<org.robolectric.android.controller.ActivityController<ForecastComparisonActivity>>()
+
+    @org.junit.After
+    fun closeOpenedActivities() {
+        opened.forEach { runCatching { it.pause().stop().destroy() }.onFailure { e -> println("teardown: ${e.message}") } }
+    }
+
     @Before
     fun setup() {
         context = ApplicationProvider.getApplicationContext<Context>()
@@ -53,6 +61,8 @@ class ForecastComparisonActualsVisibilityTest {
         }
 
         val controller = Robolectric.buildActivity(ForecastComparisonActivity::class.java, intent)
+
+        opened += controller
         val activity = controller.get()
         
         activity.forecastDao = mockk(relaxed = true)
@@ -113,6 +123,8 @@ class ForecastComparisonActualsVisibilityTest {
         }
 
         val controller = Robolectric.buildActivity(ForecastComparisonActivity::class.java, intent)
+
+        opened += controller
         val activity = controller.get()
 
         // @AndroidEntryPoint injects real DAOs during onCreate (controller.setup()), overwriting

@@ -564,7 +564,10 @@ object DailyForecastGraphRenderer {
             widthPx = widthPx,
             layout = layout,
             extraPaddingPx = padding,
-        ) ?: return headerData
+        ) ?: return headerData.also {
+            // No room for the date at this width (header fit dropped it), so no rain test runs.
+            Log.v(TAG, "suppressHeaderDateForRainOverlap: dateText=${headerData.dateText} skipped=date_not_laid_out widthPx=$widthPx density=${layout.density}")
+        }
 
         days.forEach { normalizedDay ->
             val day = normalizedDay.day

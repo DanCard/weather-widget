@@ -33,6 +33,13 @@ class DailyForecastGraphRendererInstrumentedTest {
         val date = LocalDate.of(2026, 7, 30)
         val sameText = "100000000000000000000000000000000000000000000000000000%"
         val headerDraws = mutableListOf<DailyForecastGraphRenderer.HeaderDrawnDebug>()
+        // Sized in dp, not px: a fixed 500 px is 250 dp at 320 dpi but only 190 dp on the 420 dpi
+        // Foldable, where the header fit has no room for the date and drops it before any rain
+        // overlap test runs, so the assertion below measured the emulator, not the rule.
+        val density = context.resources.displayMetrics.density
+        val widthPx = (250 * density).toInt()
+        val heightPx = (200 * density).toInt()
+        println("equalDayAndNight: density=$density widthPx=$widthPx heightPx=$heightPx")
 
         val result =
             DailyForecastGraphRenderer.renderGraph(
@@ -54,8 +61,8 @@ class DailyForecastGraphRendererInstrumentedTest {
                                 ),
                         ),
                     ),
-                widthPx = 500,
-                heightPx = 400,
+                widthPx = widthPx,
+                heightPx = heightPx,
                 headerData =
                     DailyForecastGraphRenderer.HeaderRenderData(
                         dateText = "Thu, Jul 30",
@@ -66,8 +73,8 @@ class DailyForecastGraphRendererInstrumentedTest {
                 useCelsius = false,
             )
 
-        assertEquals(500, result.bitmap.width)
-        assertEquals(400, result.bitmap.height)
+        assertEquals(widthPx, result.bitmap.width)
+        assertEquals(heightPx, result.bitmap.height)
         assertEquals(
             setOf(
                 DailyForecastGraphRenderer.RainLabelKind.DAY,
