@@ -370,6 +370,7 @@
     <string name="bug_report_share_failed">Nie udało się uruchomić udostępniania</string>
     <string name="bug_report_email_subject">Zgłoszenie błędu Widżetu Pogody</string>
     <string name="blend_tab">Mieszanie</string>
+    <string name="observations_tab">Obserwacje</string>
     <string name="blend_no_points">Brak dostępnego punktu mieszania.</string>
     <string name="blend_no_location">Brak lokalizacji do mieszania.</string>
     <string name="blend_load_failed">Nie udało się utworzyć tabeli mieszania: %1$s</string>

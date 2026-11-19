@@ -355,6 +355,7 @@
     <string name="bug_report_share_failed">Не вдалося запустити надсилання</string>
     <string name="bug_report_email_subject">Звіт про помилку Weather Widget</string>
     <string name="blend_tab">Змішування</string>
+    <string name="observations_tab">Спостереження</string>
     <string name="blend_no_points">Точка змішування ще недоступна.</string>
     <string name="blend_no_location">Немає місцезнаходження для змішування.</string>
     <string name="blend_load_failed">Не вдалося створити таблицю змішування: %1$s</string>

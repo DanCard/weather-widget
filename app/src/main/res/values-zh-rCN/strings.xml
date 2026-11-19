@@ -370,6 +370,7 @@
     <string name="bug_report_share_failed">无法启动分享</string>
     <string name="bug_report_email_subject">天气小部件错误报告</string>
     <string name="blend_tab">混合</string>
+    <string name="observations_tab">观测</string>
     <string name="blend_no_points">暂无混合数据点。</string>
     <string name="blend_no_location">没有可用于混合的位置。</string>
     <string name="blend_load_failed">无法生成混合表：%1$s</string>

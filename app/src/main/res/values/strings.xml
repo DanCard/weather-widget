@@ -344,6 +344,7 @@
     <string name="station_origin_stale">Stale</string>
     <string name="fetch_logs">Fetch Logs</string>
     <string name="blend_tab">Blend</string>
+    <string name="observations_tab">Observations</string>
     <string name="blend_no_points">No blended point available yet.</string>
     <string name="blend_no_location">No location available for the blend.</string>
     <string name="blend_load_failed">Could not build the blend table: %1$s</string>

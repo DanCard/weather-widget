@@ -370,6 +370,7 @@
     <string name="bug_report_share_failed">Không khởi động được tính năng chia sẻ</string>
     <string name="bug_report_email_subject">Báo cáo lỗi Tiện ích Thời tiết</string>
     <string name="blend_tab">Pha trộn</string>
+    <string name="observations_tab">Quan trắc</string>
     <string name="blend_no_points">Chưa có điểm pha trộn nào.</string>
     <string name="blend_no_location">Không có vị trí cho việc pha trộn.</string>
     <string name="blend_load_failed">Không thể tạo bảng pha trộn: %1$s</string>

@@ -370,6 +370,7 @@
     <string name="bug_report_share_failed">साझाकरण शुरू नहीं हो सका</string>
     <string name="bug_report_email_subject">मौसम विजेट बग रिपोर्ट</string>
     <string name="blend_tab">मिश्रण</string>
+    <string name="observations_tab">अवलोकन</string>
     <string name="blend_no_points">अभी तक कोई मिश्रित बिंदु उपलब्ध नहीं है।</string>
     <string name="blend_no_location">मिश्रण के लिए कोई स्थान उपलब्ध नहीं है।</string>
     <string name="blend_load_failed">मिश्रण तालिका नहीं बनाई जा सकी: %1$s</string>

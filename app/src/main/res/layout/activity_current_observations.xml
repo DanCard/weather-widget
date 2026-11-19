@@ -121,7 +121,7 @@
                 android:clickable="true"
                 android:focusable="true"
                 android:gravity="center"
-                android:text="@string/current_observations_title"
+                android:text="@string/observations_tab"
                 android:textColor="#AAAAAA"
                 android:textSize="16sp" />
 
