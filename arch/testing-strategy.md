@@ -115,9 +115,10 @@ Before instrumenting, the gate's per-emulator path (`emulator-tests.sh`'s `verif
 the app APK with `scripts/verify-apk-dex.sh` (dex2oat `--compiler-filter=verify` on a pushed copy) and
 fails that emulator's run on any `Verification error` in `com.weatherwidget`, naming the method. Release
 bundles get the same check in Fastlane's `build` lane. A class is verified only when first loaded, so a rejected
-class otherwise crashes only the runs that happen to load it. `staggered-tests.sh` then prints, report
-only, the methods over the dex size budget (`scripts/dex-method-budget.sh`: 6,000 instructions or 150
-registers). See [operations](operations.md#art-verifyerror) for diagnosis.
+class otherwise crashes only the runs that happen to load it. `staggered-tests.sh` then lists the methods
+over the dex size budget (`scripts/dex-method-budget.sh`: 6,000 instructions or 150 registers) and fails
+the gate when any is over; split the method rather than raise the budget (`REPORT_ONLY=1` measures
+without failing). See [operations](operations.md#art-verifyerror) for diagnosis.
 
 Test runs are serialized per checkout by `scripts/lib/test-lock.sh`, because concurrent Gradle builds of one project corrupt shared `build/` outputs. A second `unit-tests.sh`, `emulator-tests.sh`, or `staggered-tests.sh` queues for up to 6 minutes (`WW_TEST_LOCK_WAIT`), then exits 75, and a run holding the lock has its process tree stopped after 5 minutes (`WW_TEST_TIMEOUT`). `emulator-tests.sh -d` raises its own limit; raise `WW_TEST_TIMEOUT` for a cold build or a long `staggered-tests.sh`. Emulator cache hits and `--boot-only` skip the lock. Direct `./gradlew` calls and other scripts do not take it.
 

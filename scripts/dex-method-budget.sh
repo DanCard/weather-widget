@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # Lists com.weatherwidget methods in the debug APK over the dex size budget (instructions or
-# registers), largest first. Report-only for now: always exits 0 unless the APK or dexdump is missing.
+# registers), largest first, and exits 1 when any is over (REPORT_ONLY=1: always exit 0). Exits 1 too
+# when the APK or dexdump is missing.
 #
-# Why: ART rejected CloudCoverViewHandler.updateWidget's dex on 2026-11-19 (VerifyError). The defect
-# came from an incremental build's bytecode (a clean build of the same commit verifies), so size is a
-# risk heuristic, not a known threshold. The real guard is emulator-tests.sh's verify_app_dex.
+# Why: ART rejected CloudCoverViewHandler.updateWidget's dex on 2026-11-19 (VerifyError) in every
+# build from b786b019e until 11815ea3a; a one-line addition had tipped the code generator. Size is a
+# risk heuristic, not a known threshold: the real guard is emulator-tests.sh's verify_app_dex.
 # plans/261119-split-oversized-android-suspend-functions.md
 #
-# Usage: scripts/dex-method-budget.sh [apk]   (env: MAX_INSNS=6000 MAX_REGS=150 TOP=0)
+# Usage: scripts/dex-method-budget.sh [apk]   (env: MAX_INSNS=6000 MAX_REGS=150 TOP=0 REPORT_ONLY=0)
 set -uo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -15,6 +16,7 @@ APK="${1:-$PROJECT_DIR/app/build/outputs/apk/debug/app-debug.apk}"
 MAX_INSNS="${MAX_INSNS:-6000}"
 MAX_REGS="${MAX_REGS:-150}"
 TOP="${TOP:-0}"   # >0: also print the TOP largest methods even when under budget
+REPORT_ONLY="${REPORT_ONLY:-0}"
 
 SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/.Android/Sdk}}"
 [ -d "$SDK" ] || SDK="$HOME/Android/Sdk"
@@ -42,10 +44,15 @@ count=$(printf '%s' "$over" | grep -c . || true)
 
 fmt() { sed -E "s/'//g; s/Lcom\/weatherwidget\///; s/;\././" | awk '{ printf "  %7d insns %4d regs  %s\n", $1, $2, $3 }'; }
 
-echo "dex budget: $count of $total com.weatherwidget methods over ${MAX_INSNS} insns or ${MAX_REGS} registers (report-only)"
+mode=$([ "$REPORT_ONLY" = 1 ] && echo "report-only" || echo "fails when over")
+echo "dex budget: $count of $total com.weatherwidget methods over ${MAX_INSNS} insns or ${MAX_REGS} registers ($mode)"
 [ "$count" -gt 0 ] && printf '%s\n' "$over" | fmt
 if [ "$TOP" -gt 0 ]; then
     echo "dex budget: top $TOP by instructions"
     head -"$TOP" "$WORK/methods.txt" | fmt
+fi
+if [ "$count" -gt 0 ] && [ "$REPORT_ONLY" != 1 ]; then
+    echo "dex budget: split the methods above (plans/261119-split-oversized-android-suspend-functions.md)"
+    exit 1
 fi
 exit 0

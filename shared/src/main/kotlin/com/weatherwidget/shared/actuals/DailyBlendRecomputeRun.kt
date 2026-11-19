@@ -116,6 +116,106 @@ object DailyBlendRecomputeRun {
         return written
     }
 
+    /** [day]'s reduction result: the day's rows and what its PERF line reports. */
+    private class Reduced(
+        val rows: List<DailyHistory>,
+        val hourly: List<HourlyForecast>,
+        val afterHourlyMs: Long,
+        val stats: ActualsAggregator.AggregateStats,
+    )
+
+    /**
+     * The blend of [day]: this date's rows with observed fog. Split out (2026-11-19) so the captured
+     * `hourly` / timing vars live in a small frame
+     * (plans/261119-split-oversized-android-suspend-functions.md).
+     */
+    private suspend fun reduce(
+        host: Host,
+        date: LocalDate,
+        dateKey: Long,
+        contextObs: List<ObservationReading>,
+        windowStartMs: Long,
+        windowEndMs: Long,
+        afterQueryMs: Long,
+        nowMs: Long,
+        zone: ZoneId,
+    ): Reduced {
+        var hourly = emptyList<HourlyForecast>()
+        var afterHourlyMs = afterQueryMs
+        // apiHigh/apiLow are never derived here: the stored pool's NWS API subset is too thinly
+        // sampled to carry a daily peak; NwsStationActualsRun's complete pull writes them.
+        val blendStats = ActualsAggregator.AggregateStats()
+        val rows = ActualsAggregator
+            .aggregateStored(
+                observations = contextObs,
+                windowStartMs = windowStartMs,
+                windowEndMs = windowEndMs,
+                readHourlyAllSources = { start, end ->
+                    hourly = host.hourlyAllSources(start, end)
+                    afterHourlyMs = host.elapsedMs()
+                    hourly
+                },
+                locationLat = host.lat,
+                locationLon = host.lon,
+                zoneId = zone,
+                updatedAtMs = nowMs,
+                personalStationWeight = host.personalStationWeight(),
+                // The window's other dates are this day's context, not days to reduce.
+                wanted = { _, rowDate -> rowDate == date },
+                stats = blendStats,
+            )
+            .filter { it.date == dateKey }
+            // Each source's observed morning fog, from its own actuals provider's readings.
+            // Neighbors from the wider context, so a report across midnight can confirm or retract one.
+            .map { row ->
+                val providerApi = blendInputApi(row.source)
+                row.withObservedFog(
+                    com.weatherwidget.shared.fog.ObservedMorningFog.forDate(contextObs.filter { it.api == providerApi }, date, zone, nowMs),
+                )
+            }
+        return Reduced(rows, hourly, afterHourlyMs, blendStats)
+    }
+
+    /** Writes [day]'s plan and then records its signature; returns rows written. */
+    private suspend fun persist(
+        host: Host,
+        date: LocalDate,
+        dateKey: Long,
+        newRows: List<DailyHistory>,
+        dayObs: List<ObservationReading>,
+        nowMs: Long,
+        zone: ZoneId,
+        key: String?,
+        signature: String?,
+    ): Int {
+        // Read here, immediately before the write: a concurrent station pull landing during the blend
+        // must be seen, and the conditional update skips a row that changes after this read.
+        val plan = DailyBlendWrite.plan(
+            date = date,
+            today = Instant.ofEpochMilli(nowMs).atZone(zone).toLocalDate(),
+            newRows = newRows,
+            existingInBox = host.dailyHistoryAt(dateKey),
+            latitude = host.lat,
+            longitude = host.lon,
+            dayReadings = dayObs,
+            zone = zone,
+        )
+        plan.updates.forEach { update ->
+            if (host.updateBlendIfUnchanged(update.merged, update.newUpdatedAt, update.expectedUpdatedAt) == 0) {
+                DailyBlendWrite.raceLine(update, date).let { host.log(it.tag, it.message, it.level) }
+            }
+        }
+        plan.logs.forEach { host.log(it.tag, it.message, it.level) }
+        if (plan.inserts.isNotEmpty()) host.insert(plan.inserts)
+
+        // Recorded only once the day is written, so a failure part way leaves it open.
+        if (key != null && signature != null) {
+            if (host.signatures.size >= MAX_TRACKED_DAYS) host.signatures.clear()
+            host.signatures[key] = signature
+        }
+        return plan.inserts.size + plan.updates.size
+    }
+
     /**
      * One local day: skipped when its observations are unchanged since it was last reduced (unless
      * [force], for the repair paths that call precisely because they distrust what is stored).
@@ -149,39 +249,11 @@ object DailyBlendRecomputeRun {
         val dayObs = contextObs.filter { it.timestamp in dayStartMs until dayEndMs }
         if (dayObs.isEmpty()) return 0
 
-        var hourly = emptyList<HourlyForecast>()
-        var afterHourlyMs = afterQueryMs
-        // apiHigh/apiLow are never derived here: the stored pool's NWS API subset is too thinly
-        // sampled to carry a daily peak; NwsStationActualsRun's complete pull writes them.
-        val blendStats = ActualsAggregator.AggregateStats()
-        val newRows = ActualsAggregator
-            .aggregateStored(
-                observations = contextObs,
-                windowStartMs = windowStartMs,
-                windowEndMs = windowEndMs,
-                readHourlyAllSources = { start, end ->
-                    hourly = host.hourlyAllSources(start, end)
-                    afterHourlyMs = host.elapsedMs()
-                    hourly
-                },
-                locationLat = host.lat,
-                locationLon = host.lon,
-                zoneId = zone,
-                updatedAtMs = nowMs,
-                personalStationWeight = host.personalStationWeight(),
-                // The window's other dates are this day's context, not days to reduce.
-                wanted = { _, rowDate -> rowDate == date },
-                stats = blendStats,
-            )
-            .filter { it.date == dateKey }
-            // Each source's observed morning fog, from its own actuals provider's readings.
-            // Neighbors from the wider context, so a report across midnight can confirm or retract one.
-            .map { row ->
-                val providerApi = blendInputApi(row.source)
-                row.withObservedFog(
-                    com.weatherwidget.shared.fog.ObservedMorningFog.forDate(contextObs.filter { it.api == providerApi }, date, zone, nowMs),
-                )
-            }
+        val reduced = reduce(host, date, dateKey, contextObs, windowStartMs, windowEndMs, afterQueryMs, nowMs, zone)
+        val newRows = reduced.rows
+        val hourly = reduced.hourly
+        val afterHourlyMs = reduced.afterHourlyMs
+        val blendStats = reduced.stats
         logFogSpikes(host, date, dayObs, nowMs)
         val afterExtremesMs = host.elapsedMs()
         // What the blend did, always: the PERF row below appears only for a slow day.
@@ -191,31 +263,7 @@ object DailyBlendRecomputeRun {
         host.afterReduce(date, dayObs, hourly)
         val afterDiagMs = host.elapsedMs()
 
-        // Read here, immediately before the write: a concurrent station pull landing during the blend
-        // must be seen, and the conditional update skips a row that changes after this read.
-        val plan = DailyBlendWrite.plan(
-            date = date,
-            today = Instant.ofEpochMilli(nowMs).atZone(zone).toLocalDate(),
-            newRows = newRows,
-            existingInBox = host.dailyHistoryAt(dateKey),
-            latitude = host.lat,
-            longitude = host.lon,
-            dayReadings = dayObs,
-            zone = zone,
-        )
-        plan.updates.forEach { update ->
-            if (host.updateBlendIfUnchanged(update.merged, update.newUpdatedAt, update.expectedUpdatedAt) == 0) {
-                DailyBlendWrite.raceLine(update, date).let { host.log(it.tag, it.message, it.level) }
-            }
-        }
-        plan.logs.forEach { host.log(it.tag, it.message, it.level) }
-        if (plan.inserts.isNotEmpty()) host.insert(plan.inserts)
-
-        // Recorded only once the day is written, so a failure part way leaves it open.
-        if (key != null && signature != null) {
-            if (host.signatures.size >= MAX_TRACKED_DAYS) host.signatures.clear()
-            host.signatures[key] = signature
-        }
+        val written = persist(host, date, dateKey, newRows, dayObs, nowMs, zone, key, signature)
         val endMs = host.elapsedMs()
         if (endMs - startedMs >= SLOW_DAY_MS) {
             host.log(
@@ -232,7 +280,7 @@ object DailyBlendRecomputeRun {
                 "INFO",
             )
         }
-        return plan.inserts.size + plan.updates.size
+        return written
     }
 
     /** Which sources take their actuals from another feed: `OPEN_METEO=NWS,TOMORROW_IO=NWS`. */

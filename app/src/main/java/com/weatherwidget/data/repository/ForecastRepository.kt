@@ -240,127 +240,16 @@ class ForecastRepository
 
                 syncMutex.withLock {
                     cachedForecasts = getCachedData(latitude, longitude)
-                    if (
-                        !forceRefresh &&
-                        !fetchCoordinator.requiresNetworkFetch(
-                            cachedForecasts,
-                            fetchContext,
-                            gate?.forecasts,
-                            latitude,
-                            longitude,
-                        )
-                    ) {
-                        return Result.success(cachedForecasts)
-                    }
-                    // The time limit for FORCED requests. Every check above and below is
-                    // `!forceRefresh`, so a force that queued behind an in-flight fetch of this
-                    // site used to re-fetch every source the moment the lock was released
-                    // (2026-09-12 12:09:49: five sources, 10 s, 70 ms after an identical fetch
-                    // completed — see performance/260912-forced-sync-refetches-under-the-lock.md).
-                    // The worker's dropSatisfiedForce asks the same question, but at worker start,
-                    // before the wait; here is where the answer is known. Compared against the
-                    // fetch that just released the lock (site + sources + completion time), not
-                    // the global lastFetchTime: a fetch for the site just left must not satisfy
-                    // this one.
-                    val priorFetch = lastCompletedFetch
-                    if (
-                        forceRefresh &&
-                        ForcedRefreshSatisfaction.isSatisfiedByCompletedFetch(
-                            requestedAtMs, priorFetch, latitude, longitude, targetSourceId,
-                        )
-                    ) {
-                        appLogDao.log(
-                            "NET_FETCH_COALESCED",
-                            "reason=satisfied_under_lock requestedAt=$requestedAtMs " +
-                                "fetchCompletedAt=${priorFetch?.completedAtMs} " +
-                                "fetched=${priorFetch?.sourceIds?.joinToString(",")} " +
-                                "target=${targetSourceId ?: "all"}",
-                            "INFO",
-                        )
-                        return Result.success(cachedForecasts)
-                    }
-                    val duePlan = fetchCoordinator.planSync(
-                        cachedForecasts = cachedForecasts,
-                        forceRefresh = forceRefresh,
-                        targetSourceId = targetSourceId,
-                        fetchContext = fetchContext,
-                        backgroundSources = gate?.forecasts,
-                        latitude = latitude,
-                        longitude = longitude,
-                    )
-                    val syncPlan = if (!forceRefresh && cachedForecasts.isNotEmpty()) {
-                        duePlan.withoutRecentlyTried(
-                            lastTriedMs = { FetchMetadata.getLastForecastSourceTryTime(context, it, latitude, longitude) },
-                            nowMs = System.currentTimeMillis(),
-                            minIntervalMs = MIN_NETWORK_INTERVAL_MS,
-                        )
-                    } else {
-                        duePlan
-                    }
-                    (duePlan.due.keys - syncPlan.due.keys).takeIf { it.isNotEmpty() }?.let { held ->
-                        appLogDao.log("NET_FETCH_THROTTLED", "sources=${held.joinToString(",")}")
-                    }
-                    if (!forceRefresh && syncPlan.due.isEmpty()) return Result.success(cachedForecasts)
-
-                    appLogDao.log(
-                        "NET_FETCH_START",
-                        "force=$forceRefresh target=$targetSourceId " +
-                            "ctx=${fetchContext?.let {
-                                "charging=${it.isCharging}," +
-                                    "screen=${it.isScreenInteractive}," +
-                                    "batt=${it.batteryLevel}," +
-                                    "active=${it.activeSourceIds}"
-                            } ?: "none"}",
-                    )
-                    if (
-                        forceRefresh &&
-                        fetchCoordinator.isTargetSourceDisabled(targetSourceId)
-                    ) {
-                        appLogDao.log(
-                            "NET_FETCH_SKIP_DISABLED",
-                            "target=$targetSourceId",
-                        )
-                        return Result.success(cachedForecasts)
-                    }
+                    val syncPlan = planSyncUnderLock(
+                        cachedForecasts, latitude, longitude, forceRefresh, targetSourceId, fetchContext, requestedAtMs,
+                        gate,
+                    ) ?: return Result.success(cachedForecasts)
                     val fetchPlan = syncPlan.due.mapKeys { (id, _) -> WeatherSource.entries.first { it.id == id } }
-                    val sourcesToFetch = fetchPlan.keys
                     triedSourceIds = syncPlan.due.keys
-                    // `FETCH_PLAN parts=… horizons=…`: one line, both platforms (:shared ForecastFetchPlan).
-                    appLogDao.log(com.weatherwidget.data.model.ForecastParts.PLAN_TAG, syncPlan.line, "INFO")
-                    val storedSources = fetchCoordinator.fetchFromAllApis(
-                        latitude,
-                        longitude,
-                        fetchPlan,
-                        fetchContext,
+                    return fetchAndRecord(
+                        latitude, longitude, syncPlan, fetchPlan, fetchContext, targetSourceId, triedSourceIds,
+                        fetchStartTime,
                     )
-                    // Retired observation products are cleaned up by each observation write
-                    // (ObservationWriteRun, shared with desktop), per api written.
-                    climateNormalsRepository.warmBestEffort(
-                        latitude,
-                        longitude,
-                    )
-                    cleanOldData()
-                    val totalFetchTime =
-                        System.currentTimeMillis() - fetchStartTime
-                    lastFetchTime = System.currentTimeMillis()
-                    FetchMetadata.setLastForecastSourceTryTime(context, triedSourceIds, latitude, longitude, lastFetchTime)
-                    lastCompletedFetch = ForcedRefreshSatisfaction.CompletedFetch(
-                        lat = latitude,
-                        lon = longitude,
-                        targetSourceId = targetSourceId,
-                        // Only sources that answered: a source that failed (e.g. Open-Meteo
-                        // timing out, Pixel 2026-11-15 00:07:09) schedules a retry stamped a few ms
-                        // before this completion; counting the failed source here made that retry
-                        // "satisfied_under_lock" and it never re-fetched.
-                        sourceIds = storedSources.map { it.id }.toSet(),
-                        completedAtMs = lastFetchTime,
-                    )
-                    appLogDao.log(
-                        "NET_FETCH_COMPLETE",
-                        "durationMs=$totalFetchTime sources=" +
-                            sourcesToFetch.joinToString(",") { it.id },
-                    )
-                    return Result.success(getCachedData(latitude, longitude))
                 }
             } catch (cancellation: CancellationException) {
                 throw cancellation
@@ -379,6 +268,155 @@ class ForecastRepository
                     Result.failure(exception)
                 }
             }
+        }
+
+        /**
+         * [getWeatherData]'s decision under the lock: the plan to fetch, or null when the cache must be
+         * served (nothing due, a force already satisfied, a disabled target). Split out (2026-11-19;
+         * plans/261119-split-oversized-android-suspend-functions.md).
+         */
+        private suspend fun planSyncUnderLock(
+            cachedForecasts: List<ForecastEntity>,
+            latitude: Double,
+            longitude: Double,
+            forceRefresh: Boolean,
+            targetSourceId: String?,
+            fetchContext: ForecastFetchContext?,
+            requestedAtMs: Long,
+            gate: com.weatherwidget.shared.sourceview.SourceFetchGate.BackgroundFetch?,
+        ): com.weatherwidget.data.remote.ForecastFetchPlan.Plan? {
+            if (
+                !forceRefresh &&
+                !fetchCoordinator.requiresNetworkFetch(
+                    cachedForecasts,
+                    fetchContext,
+                    gate?.forecasts,
+                    latitude,
+                    longitude,
+                )
+            ) {
+                return null
+            }
+            // The time limit for FORCED requests. Every check above and below is
+            // `!forceRefresh`, so a force that queued behind an in-flight fetch of this
+            // site used to re-fetch every source the moment the lock was released
+            // (2026-09-12 12:09:49: five sources, 10 s, 70 ms after an identical fetch
+            // completed — see performance/260912-forced-sync-refetches-under-the-lock.md).
+            // The worker's dropSatisfiedForce asks the same question, but at worker start,
+            // before the wait; here is where the answer is known. Compared against the
+            // fetch that just released the lock (site + sources + completion time), not
+            // the global lastFetchTime: a fetch for the site just left must not satisfy
+            // this one.
+            val priorFetch = lastCompletedFetch
+            if (
+                forceRefresh &&
+                ForcedRefreshSatisfaction.isSatisfiedByCompletedFetch(
+                    requestedAtMs, priorFetch, latitude, longitude, targetSourceId,
+                )
+            ) {
+                appLogDao.log(
+                    "NET_FETCH_COALESCED",
+                    "reason=satisfied_under_lock requestedAt=$requestedAtMs " +
+                        "fetchCompletedAt=${priorFetch?.completedAtMs} " +
+                        "fetched=${priorFetch?.sourceIds?.joinToString(",")} " +
+                        "target=${targetSourceId ?: "all"}",
+                    "INFO",
+                )
+                return null
+            }
+            val duePlan = fetchCoordinator.planSync(
+                cachedForecasts = cachedForecasts,
+                forceRefresh = forceRefresh,
+                targetSourceId = targetSourceId,
+                fetchContext = fetchContext,
+                backgroundSources = gate?.forecasts,
+                latitude = latitude,
+                longitude = longitude,
+            )
+            val syncPlan = if (!forceRefresh && cachedForecasts.isNotEmpty()) {
+                duePlan.withoutRecentlyTried(
+                    lastTriedMs = { FetchMetadata.getLastForecastSourceTryTime(context, it, latitude, longitude) },
+                    nowMs = System.currentTimeMillis(),
+                    minIntervalMs = MIN_NETWORK_INTERVAL_MS,
+                )
+            } else {
+                duePlan
+            }
+            (duePlan.due.keys - syncPlan.due.keys).takeIf { it.isNotEmpty() }?.let { held ->
+                appLogDao.log("NET_FETCH_THROTTLED", "sources=${held.joinToString(",")}")
+            }
+            if (!forceRefresh && syncPlan.due.isEmpty()) return null
+
+            appLogDao.log(
+                "NET_FETCH_START",
+                "force=$forceRefresh target=$targetSourceId " +
+                    "ctx=${fetchContext?.let {
+                        "charging=${it.isCharging}," +
+                            "screen=${it.isScreenInteractive}," +
+                            "batt=${it.batteryLevel}," +
+                            "active=${it.activeSourceIds}"
+                    } ?: "none"}",
+            )
+            if (
+                forceRefresh &&
+                fetchCoordinator.isTargetSourceDisabled(targetSourceId)
+            ) {
+                appLogDao.log(
+                    "NET_FETCH_SKIP_DISABLED",
+                    "target=$targetSourceId",
+                )
+                return null
+            }
+            return syncPlan
+        }
+
+        /** Fetches [fetchPlan] and records the completed fetch; returns the refreshed cache. */
+        private suspend fun fetchAndRecord(
+            latitude: Double,
+            longitude: Double,
+            syncPlan: com.weatherwidget.data.remote.ForecastFetchPlan.Plan,
+            fetchPlan: Map<WeatherSource, com.weatherwidget.data.model.ForecastParts>,
+            fetchContext: ForecastFetchContext?,
+            targetSourceId: String?,
+            triedSourceIds: Set<String>,
+            fetchStartTime: Long,
+        ): Result<List<ForecastEntity>> {
+            // `FETCH_PLAN parts=… horizons=…`: one line, both platforms (:shared ForecastFetchPlan).
+            appLogDao.log(com.weatherwidget.data.model.ForecastParts.PLAN_TAG, syncPlan.line, "INFO")
+            val storedSources = fetchCoordinator.fetchFromAllApis(
+                latitude,
+                longitude,
+                fetchPlan,
+                fetchContext,
+            )
+            // Retired observation products are cleaned up by each observation write
+            // (ObservationWriteRun, shared with desktop), per api written.
+            climateNormalsRepository.warmBestEffort(
+                latitude,
+                longitude,
+            )
+            cleanOldData()
+            val totalFetchTime =
+                System.currentTimeMillis() - fetchStartTime
+            lastFetchTime = System.currentTimeMillis()
+            FetchMetadata.setLastForecastSourceTryTime(context, triedSourceIds, latitude, longitude, lastFetchTime)
+            lastCompletedFetch = ForcedRefreshSatisfaction.CompletedFetch(
+                lat = latitude,
+                lon = longitude,
+                targetSourceId = targetSourceId,
+                // Only sources that answered: a source that failed (e.g. Open-Meteo
+                // timing out, Pixel 2026-11-15 00:07:09) schedules a retry stamped a few ms
+                // before this completion; counting the failed source here made that retry
+                // "satisfied_under_lock" and it never re-fetched.
+                sourceIds = storedSources.map { it.id }.toSet(),
+                completedAtMs = lastFetchTime,
+            )
+            appLogDao.log(
+                "NET_FETCH_COMPLETE",
+                "durationMs=$totalFetchTime sources=" +
+                    fetchPlan.keys.joinToString(",") { it.id },
+            )
+            return Result.success(getCachedData(latitude, longitude))
         }
 
         internal suspend fun dailyHistoryAfterFetch(latitude: Double, longitude: Double) =

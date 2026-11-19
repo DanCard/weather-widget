@@ -183,25 +183,24 @@ internal class FullSyncPipeline(
         startMs: Long,
     ): ListenableWorker.Result {
         val load = loadAndBackfill(weatherList, input, location)
-        val afterWeatherMs = load.afterWeatherMs
-        val forecastSnapshots = load.forecastSnapshots
-        val hourlySourceIdsAtLoad = load.hourlySourceIdsAtLoad
-        val hourlyForecasts = load.hourlyForecasts
-        val afterHourlyMs = load.afterHourlyMs
-        val afterNwsBackfillMs = load.afterNwsBackfillMs
-        val metarDoneMs = load.metarDoneMs
-        val afterBackfillMs = load.afterBackfillMs
         val actuals = recomputeActuals(weatherList, input, location, activeSourceList, load)
-        val currentTemps = actuals.currentTemps
-        val afterCurrentTempsMs = actuals.afterCurrentTempsMs
-        val actualsSourceList = actuals.actualsSourceList
-        val renderHourlyForecasts = actuals.renderHourlyForecasts
-        val renderHourlySourceIds = actuals.renderHourlySourceIds
-        val dailyActuals = actuals.dailyActuals
-        val afterRecomputeMs = actuals.afterRecomputeMs
-        val afterRepairsMs = actuals.afterRepairsMs
-        val afterActualsMs = actuals.afterActualsMs
+        val afterUpdateMs = paintAll(weatherList, input, location, bannerPlace, load, actuals)
+        logSyncPerf(input, startMs, load, actuals, afterUpdateMs)
+        scheduleAfterSync(input, device)
 
+        SyncDoneNotice.announce(context, widgetStateManager, input, syncOk = true)
+        return ListenableWorker.Result.success()
+    }
+
+    /** The paint of [onFetchSuccess] and its banner bookkeeping; returns when it finished. */
+    private suspend fun paintAll(
+        weatherList: List<com.weatherwidget.data.local.ForecastEntity>,
+        input: WorkInput,
+        location: Pair<Double, Double>,
+        bannerPlace: String?,
+        load: LoadPhase,
+        actuals: ActualsPhase,
+    ): Long {
         appLogDao.log(
             "WIDGET_LIFECYCLE",
             "phase=worker_paint_start uiOnly=${input.uiOnlyRefresh} thread=${Thread.currentThread().name}",
@@ -214,15 +213,15 @@ internal class FullSyncPipeline(
         }
         painter.updateAllWidgets(
             weatherList = weatherList,
-            forecastSnapshots = forecastSnapshots,
-            hourlyForecasts = renderHourlyForecasts,
-            currentTemps = currentTemps,
-            dailyActuals = dailyActuals,
+            forecastSnapshots = load.forecastSnapshots,
+            hourlyForecasts = actuals.renderHourlyForecasts,
+            currentTemps = actuals.currentTemps,
+            dailyActuals = actuals.dailyActuals,
             jobType = jobType,
             uiOnly = input.uiOnlyRefresh,
             origin = workerOrigin,
-            loadedActualsSourceIds = actualsSourceList,
-            loadedHourlySourceIds = renderHourlySourceIds,
+            loadedActualsSourceIds = actuals.actualsSourceList,
+            loadedHourlySourceIds = actuals.renderHourlySourceIds,
             hourlyLat = location.first,
             hourlyLon = location.second,
             // This escape hatch fires when a widget's source changed during the paint —
@@ -239,7 +238,7 @@ internal class FullSyncPipeline(
         val afterUpdateMs = SystemClock.elapsedRealtime()
         appLogDao.log(
             "WIDGET_LIFECYCLE",
-            "phase=worker_paint_done uiOnly=${input.uiOnlyRefresh} elapsedMs=${afterUpdateMs - afterActualsMs}",
+            "phase=worker_paint_done uiOnly=${input.uiOnlyRefresh} elapsedMs=${afterUpdateMs - actuals.afterActualsMs}",
         )
         // "Success" with no rows is a failure from the interstitial's point of view: every
         // source declined and the repository fell back to an (empty) cache. Nothing above
@@ -249,26 +248,40 @@ internal class FullSyncPipeline(
             bannerPlace?.let { painter.finishLocationChangeBanner(it, succeeded = false, reason = "sync_success_empty") }
         }
 
+        return afterUpdateMs
+    }
+
+    /** SYNC_PERF for a slow [onFetchSuccess]. */
+    private suspend fun logSyncPerf(
+        input: WorkInput,
+        startMs: Long,
+        load: LoadPhase,
+        actuals: ActualsPhase,
+        afterUpdateMs: Long,
+    ) {
         val totalMs = afterUpdateMs - startMs
         if (totalMs > 500) {
             appLogDao.log(
                 "SYNC_PERF",
                 "uiOnly=${input.uiOnlyRefresh} total=${totalMs}ms " +
-                    "weather=${afterWeatherMs - startMs}ms " +
-                    "hourly=${afterHourlyMs - afterWeatherMs}ms " +
-                    "backfill=${afterBackfillMs - afterHourlyMs}ms " +
-                    "[nwsObs=${afterNwsBackfillMs - afterHourlyMs}ms " +
-                    "metar=${metarDoneMs - afterNwsBackfillMs}ms " +
-                    "synoptic=${afterBackfillMs - metarDoneMs}ms] " +
-                    "actuals=${afterActualsMs - afterBackfillMs}ms " +
-                    "[currentTemps=${afterCurrentTempsMs - afterBackfillMs}ms " +
-                    "recompute=${afterRecomputeMs - afterCurrentTempsMs}ms " +
-                    "repairs=${afterRepairsMs - afterRecomputeMs}ms " +
-                    "notifier=${afterActualsMs - afterRepairsMs}ms] " +
-                    "widgets=${afterUpdateMs - afterActualsMs}ms",
+                    "weather=${load.afterWeatherMs - startMs}ms " +
+                    "hourly=${load.afterHourlyMs - load.afterWeatherMs}ms " +
+                    "backfill=${load.afterBackfillMs - load.afterHourlyMs}ms " +
+                    "[nwsObs=${load.afterNwsBackfillMs - load.afterHourlyMs}ms " +
+                    "metar=${load.metarDoneMs - load.afterNwsBackfillMs}ms " +
+                    "synoptic=${load.afterBackfillMs - load.metarDoneMs}ms] " +
+                    "actuals=${actuals.afterActualsMs - load.afterBackfillMs}ms " +
+                    "[currentTemps=${actuals.afterCurrentTempsMs - load.afterBackfillMs}ms " +
+                    "recompute=${actuals.afterRecomputeMs - actuals.afterCurrentTempsMs}ms " +
+                    "repairs=${actuals.afterRepairsMs - actuals.afterRecomputeMs}ms " +
+                    "notifier=${actuals.afterActualsMs - actuals.afterRepairsMs}ms] " +
+                    "widgets=${afterUpdateMs - actuals.afterActualsMs}ms",
             )
         }
+    }
 
+    /** What a finished sync arms next (UI loop for a UI-only run). */
+    private suspend fun scheduleAfterSync(input: WorkInput, device: DeviceContext) {
         if (!input.uiOnlyRefresh) {
             UIUpdateScheduler(context).scheduleNextUpdate()
             // Re-pin the periodic full-sync cadence to the battery state observed at the
@@ -288,9 +301,6 @@ internal class FullSyncPipeline(
         } else {
             WidgetLoopScheduler.manageCurrentTempLoopAfterRun(context, appLogDao, device)
         }
-
-        SyncDoneNotice.announce(context, widgetStateManager, input, syncOk = true)
-        return ListenableWorker.Result.success()
     }
 
     /** What [loadAndBackfill] hands to the rest of [onFetchSuccess]; the timestamps feed SYNC_PERF. */

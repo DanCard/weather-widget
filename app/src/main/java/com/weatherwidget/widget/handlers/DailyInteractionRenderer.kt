@@ -204,11 +204,28 @@ internal object DailyInteractionRenderer {
         render(request.copy(actionTag = "DAILY_RECENTER_TODAY", extraMetadata = "offset=$homeOffset"))
     }
 
-    suspend fun render(
+    /** What [assemble] loaded for one interaction paint, with each stage's time for DAILY_INTERACTION_PERF. */
+    private class Assembled(
+        val stateManager: WidgetStateManager,
+        val loaded: DailyRenderData,
+        val finalWeatherList: List<com.weatherwidget.data.local.ForecastEntity>,
+        val forecastSnapshots: Map<LocalDate, List<com.weatherwidget.data.local.ForecastEntity>>,
+        val hourlyForecasts: List<com.weatherwidget.data.local.HourlyForecastEntity>,
+        val currentTemps: List<com.weatherwidget.data.local.ObservationEntity>,
+        val currentTempHourlyForecasts: List<com.weatherwidget.data.local.HourlyForecastEntity>,
+        val observation: ObservationResolver.ObservedCurrentTemperature?,
+        val stageMs: List<Pair<String, Long>>,
+    )
+
+    /**
+     * The load stages of [render]. Split out (2026-11-19) so their locals and suspension points live
+     * in their own frame (plans/261119-split-oversized-android-suspend-functions.md).
+     */
+    private suspend fun assemble(
         request: DailyRenderRequest,
-        preloaded: DailyRenderData? = null,
-    ) {
-        val pipelineStartMs = SystemClock.elapsedRealtime()
+        preloaded: DailyRenderData?,
+        pipelineStartMs: Long,
+    ): Assembled {
         var stageStartMs = pipelineStartMs
         val context = request.context
         val database = request.refreshContext.database
@@ -249,36 +266,8 @@ internal object DailyInteractionRenderer {
             )
         val gapFillMs = SystemClock.elapsedRealtime() - stageStartMs
         stageStartMs = SystemClock.elapsedRealtime()
-        val forecastSnapshots = loaded.forecastSnapshots ?: run {
-            val pastSnapshots =
-                forecastDao.getLatestForecastsInRange(
-                    range.historyStart,
-                    range.pastSnapshotEnd,
-                    lat,
-                    lon,
-                )
-            val recentSnapshots =
-                forecastDao.getAllForecastsInRange(
-                    range.recentSnapshotStart,
-                    range.forecastEnd,
-                    lat,
-                    lon,
-                )
-            val priorCandidates =
-                forecastDao.getPriorForecastCandidates(range.historyStart, range.pastSnapshotEnd, lat, lon)
-            gapFiller.appendGapsToSnapshots(
-                (pastSnapshots + recentSnapshots + priorCandidates).distinct()
-                    .groupBy {
-                        LocalDate.ofEpochDay(
-                            it.targetDate / WeatherTimeUtils.MILLIS_PER_DAY,
-                        )
-                    },
-                lat,
-                lon,
-                today,
-                horizonDays = NAV_FORECAST_HORIZON_DAYS,
-            )
-        }
+        val forecastSnapshots = loaded.forecastSnapshots
+            ?: loadSnapshots(forecastDao, gapFiller, range, lat, lon, today)
         val snapshotsMs = SystemClock.elapsedRealtime() - stageStartMs
 
         stageStartMs = SystemClock.elapsedRealtime()
@@ -331,29 +320,97 @@ internal object DailyInteractionRenderer {
             )
         val currentResolveMs = SystemClock.elapsedRealtime() - stageStartMs
 
-        stageStartMs = SystemClock.elapsedRealtime()
+        return Assembled(
+            stateManager = stateManager,
+            loaded = loaded,
+            finalWeatherList = finalWeatherList,
+            forecastSnapshots = forecastSnapshots,
+            hourlyForecasts = hourlyForecasts,
+            currentTemps = currentTemps,
+            currentTempHourlyForecasts = currentTempHourlyForecasts,
+            observation = observation,
+            stageMs = listOf(
+                "dailyDataMs" to dailyDataMs,
+                "gapFillMs" to gapFillMs,
+                "snapshotsMs" to snapshotsMs,
+                "hourlyMs" to hourlyMs,
+                "observationsMs" to observationsMs,
+                "currentHourlyMs" to currentHourlyMs,
+                "currentResolveMs" to currentResolveMs,
+            ),
+        )
+    }
+
+    /** [render]'s snapshot read when nothing was preloaded: past latest, recent all, prior candidates. */
+    private suspend fun loadSnapshots(
+        forecastDao: com.weatherwidget.data.local.ForecastDao,
+        gapFiller: ClimateGapFiller,
+        range: DailyRange,
+        lat: Double,
+        lon: Double,
+        today: LocalDate,
+    ): Map<LocalDate, List<com.weatherwidget.data.local.ForecastEntity>> {
+        val pastSnapshots =
+            forecastDao.getLatestForecastsInRange(
+                range.historyStart,
+                range.pastSnapshotEnd,
+                lat,
+                lon,
+            )
+        val recentSnapshots =
+            forecastDao.getAllForecastsInRange(
+                range.recentSnapshotStart,
+                range.forecastEnd,
+                lat,
+                lon,
+            )
+        val priorCandidates =
+            forecastDao.getPriorForecastCandidates(range.historyStart, range.pastSnapshotEnd, lat, lon)
+        return gapFiller.appendGapsToSnapshots(
+            (pastSnapshots + recentSnapshots + priorCandidates).distinct()
+                .groupBy {
+                    LocalDate.ofEpochDay(
+                        it.targetDate / WeatherTimeUtils.MILLIS_PER_DAY,
+                    )
+                },
+            lat,
+            lon,
+            today,
+            horizonDays = NAV_FORECAST_HORIZON_DAYS,
+        )
+    }
+
+    suspend fun render(
+        request: DailyRenderRequest,
+        preloaded: DailyRenderData? = null,
+    ) {
+        val pipelineStartMs = SystemClock.elapsedRealtime()
+        val a = assemble(request, preloaded, pipelineStartMs)
+        val context = request.context
+        val database = request.refreshContext.database
+        val stageStartMs = SystemClock.elapsedRealtime()
         DailyViewHandler.updateWidget(
             context = context,
             appWidgetManager = AppWidgetManager.getInstance(context),
             appWidgetId = request.appWidgetId,
             weatherData =
                 WeatherData(
-                    weatherList = finalWeatherList,
-                    forecastSnapshots = forecastSnapshots,
-                    hourlyForecasts = hourlyForecasts,
-                    currentTemps = currentTemps,
-                    dailyActualsBySource = loaded.dailyActuals,
+                    weatherList = a.finalWeatherList,
+                    forecastSnapshots = a.forecastSnapshots,
+                    hourlyForecasts = a.hourlyForecasts,
+                    currentTemps = a.currentTemps,
+                    dailyActualsBySource = a.loaded.dailyActuals,
                 ),
             observationData =
                 ObservationData(
-                    lastObservedTemp = observation?.temperature,
-                    observedAt = observation?.observedAt,
-                    deltaFromYesterday = observation?.deltaFromYesterday,
-                    currentTempHourlyForecasts = currentTempHourlyForecasts,
+                    lastObservedTemp = a.observation?.temperature,
+                    observedAt = a.observation?.observedAt,
+                    deltaFromYesterday = a.observation?.deltaFromYesterday,
+                    currentTempHourlyForecasts = a.currentTempHourlyForecasts,
                 ),
             now = request.now,
             startupToken = null,
-            stateManagerNullable = stateManager,
+            stateManagerNullable = a.stateManager,
             repository = request.repository,
             partialPush = request.partialPush,
             origin = request.origin,
@@ -370,18 +427,12 @@ internal object DailyInteractionRenderer {
                 "action" to request.actionTag,
                 "metadata" to request.extraMetadata.ifEmpty { "none" }.replace(' ', ','),
                 "preloaded" to (preloaded != null),
-                "dailyDataMs" to dailyDataMs,
-                "gapFillMs" to gapFillMs,
-                "snapshotsMs" to snapshotsMs,
-                "hourlyMs" to hourlyMs,
-                "observationsMs" to observationsMs,
-                "currentHourlyMs" to currentHourlyMs,
-                "currentResolveMs" to currentResolveMs,
+                *a.stageMs.toTypedArray(),
                 "renderMs" to renderMs,
-                "weatherRows" to loaded.weatherListRaw.size,
-                "snapshotRows" to forecastSnapshots.values.sumOf { it.size },
-                "hourlyRows" to hourlyForecasts.size,
-                "observationRows" to currentTemps.size,
+                "weatherRows" to a.loaded.weatherListRaw.size,
+                "snapshotRows" to a.forecastSnapshots.values.sumOf { it.size },
+                "hourlyRows" to a.hourlyForecasts.size,
+                "observationRows" to a.currentTemps.size,
                 "totalMs" to pipelineTotalMs,
             ),
             debugTag = "DailyInteractionRenderer",

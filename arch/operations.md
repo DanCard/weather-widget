@@ -224,8 +224,8 @@ com.weatherwidget`, then `logcat -d | grep "Verification error" | grep com.weath
 On 2026-11-19 `CloudCoverViewHandler.updateWidget` (a ~500-line suspend function) was rejected in
 every build from `b786b019e` until the fix in `11815ea3a`, on Generic_Foldable_API36 and
 Medium_Phone_API_36 alike; a one-line addition had tipped the code generator. The gate runs this check
-on every emulator run ([testing strategy](testing-strategy.md)); `scripts/dex-method-budget.sh` lists
-the largest methods.
+on every emulator run ([testing strategy](testing-strategy.md)); `scripts/dex-method-budget.sh` fails
+the gate on methods over the size budget (`MAX_INSNS=0 MAX_REGS=0 REPORT_ONLY=1` lists them all).
 
 Quote the device-side command as one string (`adb shell "date +'%m-%d %H:%M:%S.000'"`): unquoted, adb
 re-splits it, `date` fails, and `logcat -T ""` shows only its last line, so the grep finds nothing.

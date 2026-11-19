@@ -481,35 +481,11 @@ object DailyViewHandler : WidgetViewHandler {
         )
 
         if (
-            ApiSourceWarningHelper.checkAndRenderBlockingWarning(
-                context = context,
-                views = views,
-                appWidgetId = appWidgetId,
-                numRows = numRows,
-                appLogDao = appLogDao,
-                displaySource = displaySource,
-                hasSelectedSourceData = weatherList.any { it.source == displaySource.id && !it.isClimateNormal },
-                callerTag = "DAILY",
-                includeTextMode = true,
+            renderBlockingWarning(
+                context, appWidgetManager, views, appWidgetId, numRows, appLogDao, stateManager, displaySource,
+                weatherList, dateOffset, numColumns, skipYesterday, centerDate,
             )
         ) {
-            logDailyRenderSummary(
-                appLogDao = appLogDao,
-                appWidgetId = appWidgetId,
-                dateOffset = dateOffset,
-                displaySource = displaySource,
-                numColumns = numColumns,
-                numRows = numRows,
-                useGraph = false,
-                skipYesterday = skipYesterday,
-                centerDate = centerDate,
-                visibleDates = emptyList(),
-            )
-            bindTransientMessage(views, stateManager, appWidgetId, callerTag = "DAILY")
-            appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=DAILY state=warning thread=${Thread.currentThread().name}")
-            if (com.weatherwidget.widget.TestModeWidgetGuard.allows(appWidgetId, caller = "DAILY_WARNING")) {
-                appWidgetManager.updateAppWidget(appWidgetId, views)
-            }
             return
         }
 
@@ -566,7 +542,92 @@ object DailyViewHandler : WidgetViewHandler {
             headerObservations = headerObservations,
         )
 
-        val (prepareMs, renderMs) = if (useGraph) {
+        val (prepareMs, renderMs) = renderBody(
+            ctx, headerResolution, dimensions, startupToken, resolveMs, lat, lon, useGraph, context, appLogDao,
+            stateManager, appWidgetId, displaySource, dailyActuals, weatherData, today,
+        )
+
+        finishAndPush(
+            appWidgetManager, views, appWidgetId, stateManager, appLogDao, isIconWidth, origin, partialPush,
+            handlerStartMs, startupToken, useGraph, resolveMs, prepareMs, renderMs, weatherList.size,
+            hourlyForecasts.size,
+        )
+    }
+
+    /**
+     * The blocking API-source warning: when it applies, paints and pushes it and returns true.
+     * Split out of [updateWidget] (plans/261119-split-oversized-android-suspend-functions.md).
+     */
+    private suspend fun renderBlockingWarning(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        views: RemoteViews,
+        appWidgetId: Int,
+        numRows: Int,
+        appLogDao: com.weatherwidget.data.local.AppLogDao,
+        stateManager: WidgetStateManager,
+        displaySource: WeatherSource,
+        weatherList: List<ForecastEntity>,
+        dateOffset: Int,
+        numColumns: Int,
+        skipYesterday: Boolean,
+        centerDate: LocalDate,
+    ): Boolean {
+        if (
+            !ApiSourceWarningHelper.checkAndRenderBlockingWarning(
+                context = context,
+                views = views,
+                appWidgetId = appWidgetId,
+                numRows = numRows,
+                appLogDao = appLogDao,
+                displaySource = displaySource,
+                hasSelectedSourceData = weatherList.any { it.source == displaySource.id && !it.isClimateNormal },
+                callerTag = "DAILY",
+                includeTextMode = true,
+            )
+        ) {
+            return false
+        }
+        logDailyRenderSummary(
+            appLogDao = appLogDao,
+            appWidgetId = appWidgetId,
+            dateOffset = dateOffset,
+            displaySource = displaySource,
+            numColumns = numColumns,
+            numRows = numRows,
+            useGraph = false,
+            skipYesterday = skipYesterday,
+            centerDate = centerDate,
+            visibleDates = emptyList(),
+        )
+        bindTransientMessage(views, stateManager, appWidgetId, callerTag = "DAILY")
+        appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=DAILY state=warning thread=${Thread.currentThread().name}")
+        if (com.weatherwidget.widget.TestModeWidgetGuard.allows(appWidgetId, caller = "DAILY_WARNING")) {
+            appWidgetManager.updateAppWidget(appWidgetId, views)
+        }
+        return true
+    }
+
+    /** Graph or text body of [updateWidget]; returns (prepareMs, renderMs). */
+    private suspend fun renderBody(
+        ctx: DailyRenderContext,
+        headerResolution: DailyHeaderResolver.HeaderResolution,
+        dimensions: WidgetDimensions,
+        startupToken: String?,
+        resolveMs: Long,
+        lat: Double,
+        lon: Double,
+        useGraph: Boolean,
+        context: Context,
+        appLogDao: com.weatherwidget.data.local.AppLogDao,
+        stateManager: WidgetStateManager,
+        appWidgetId: Int,
+        displaySource: WeatherSource,
+        dailyActuals: Map<LocalDate, DailyHistory>,
+        weatherData: WeatherData,
+        today: LocalDate,
+    ): Pair<Long, Long> {
+        return if (useGraph) {
             val metrics = DailyGraphRenderer.render(
                 ctx = ctx,
                 headerState = headerResolution.state,
@@ -582,7 +643,27 @@ object DailyViewHandler : WidgetViewHandler {
             bindTextMode(ctx, context, appLogDao, stateManager, appWidgetId, displaySource, dailyActuals, weatherData, today)
             0L to 0L
         }
+    }
 
+    /** Final binds, the push, and the WIDGET_RENDER_PERF line of [updateWidget]. */
+    private suspend fun finishAndPush(
+        appWidgetManager: AppWidgetManager,
+        views: RemoteViews,
+        appWidgetId: Int,
+        stateManager: WidgetStateManager,
+        appLogDao: com.weatherwidget.data.local.AppLogDao,
+        isIconWidth: Boolean,
+        origin: com.weatherwidget.widget.WidgetPushDispatcher.Origin,
+        partialPush: Boolean,
+        handlerStartMs: Long,
+        startupToken: String?,
+        useGraph: Boolean,
+        resolveMs: Long,
+        prepareMs: Long,
+        renderMs: Long,
+        forecastCount: Int,
+        hourlyCount: Int,
+    ) {
         if (isIconWidth) {
             HeaderRemoteViewsBinder.hideIconWidthControls(views)
         }
@@ -615,8 +696,8 @@ object DailyViewHandler : WidgetViewHandler {
                 // What none of the above explains. This was 798 of 893ms on 2026-09-07 and the
                 // named fields all read fast; see WidgetPerfLogger.residualMs.
                 "otherMs" to WidgetPerfLogger.residualMs(totalMs, resolveMs, prepareMs, renderMs),
-                "forecastCount" to weatherList.size,
-                "hourlyCount" to hourlyForecasts.size,
+                "forecastCount" to forecastCount,
+                "hourlyCount" to hourlyCount,
                 "totalMs" to totalMs,
             ),
             debugTag = TAG,

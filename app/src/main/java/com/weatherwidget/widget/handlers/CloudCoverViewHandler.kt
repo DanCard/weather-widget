@@ -152,29 +152,8 @@ object CloudCoverViewHandler {
         val appLogDao = WeatherDatabase.getDatabase(context).appLogDao()
 
         // Gate bitmap rebuilds on real change for opportunistic UI-only repaints.
-        if (uiOnly) {
-            val zoom = stateManager.getZoomWindow(appWidgetId)
-            val lastRender = stateManager.getLastGraphRender(appWidgetId)
-            val bitmapDims = WidgetSizeCalculator.computeBitmapDimensions(context, dimensions.widthDp, dimensions.heightDp)
-            val windowSpanMinutes = zoom.totalSpanHours * 60
-            val gateDecision = GraphRepaintGate.shouldRebuildBitmap(
-                displayedTemp = null,
-                currentDisplayedTemp = null,
-                lastRenderMs = lastRender?.renderMs ?: 0L,
-                nowMs = SystemClock.elapsedRealtime(),
-                windowSpanMinutes = windowSpanMinutes,
-                bitmapWidthPx = bitmapDims.widthPx,
-                lastWatermarkMs = lastRender?.dataWatermarkMs,
-                currentWatermarkMs = dataWatermarkMs ?: ObservationWatermark.NONE,
-                paintOwed = paintOwed,
-            )
-            if (!gateDecision.shouldRebuild) {
-                appLogDao.log(
-                    WidgetPerfLogger.TAG_WIDGET_PAINT,
-                    "widget=$appWidgetId caller=CLOUD_COVER state=skipped reason=${gateDecision.reason} thread=${Thread.currentThread().name}",
-                )
-                return
-            }
+        if (uiOnly && repaintUnchanged(context, appWidgetId, stateManager, appLogDao, dimensions, dataWatermarkMs, paintOwed)) {
+            return
         }
 
         val sourceRows = hourlyForecasts.count { it.source == displaySource.id }
@@ -231,6 +210,108 @@ object CloudCoverViewHandler {
         }
 
 
+        val header = bindCloudHeader(
+            context, views, appWidgetId, stateManager, hourlyForecasts, currentTempHourlyForecasts, centerTime,
+            displaySource, precipProbability, lastObservedTemp, observedAt, dimensions, zoom,
+        )
+        val now = header.now
+        val lat = header.lat
+        val lon = header.lon
+        val resolveMs = header.resolveMs
+
+        val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
+        val useGraph = rawRows >= 1.4f
+
+        val graphTimings = if (useGraph) {
+            bindCloudGraph(
+                context, views, appWidgetId, stateManager, appLogDao, hourlyForecasts, windowHourKeys,
+                effectiveDisplaySource, repository, now, centerTime, numColumns, zoom, hourlyOffset,
+                dimensions, lat, lon, sourceMissingFromLoad,
+            )
+        } else {
+            views.setViewVisibility(R.id.error_pill_touch_zone, View.GONE)
+            views.setViewVisibility(R.id.text_container, View.VISIBLE)
+            views.setViewVisibility(R.id.graph_view, View.GONE)
+            views.setViewVisibility(R.id.graph_hour_zones, View.GONE)
+            views.setViewVisibility(R.id.graph_body_tap_zone, View.GONE)
+            views.setViewVisibility(R.id.graph_bottom_zone, View.GONE)
+            views.setViewVisibility(R.id.graph_bottom_hour_zones, View.GONE)
+            views.setViewVisibility(R.id.graph_bottom_reserved_space, View.VISIBLE)
+            updateCloudTextMode(views, hourlyForecasts, centerTime, numColumns, effectiveDisplaySource)
+            CloudGraphTimings.NONE
+        }
+
+        if (isIconWidth) {
+            HeaderRemoteViewsBinder.hideIconWidthControls(views)
+        }
+
+        finishAndPush(
+            appWidgetManager, views, appWidgetId, stateManager, appLogDao, origin, partialPush, dataWatermarkMs,
+            handlerStartMs, startupToken, useGraph, resolveMs, graphTimings, hourlyForecasts.size, displaySource,
+        )
+    }
+
+    /** UI-only repaint gate: true (logged) when nothing changed, so no bitmap rebuild is due. */
+    private suspend fun repaintUnchanged(
+        context: Context,
+        appWidgetId: Int,
+        stateManager: WidgetStateManager,
+        appLogDao: com.weatherwidget.data.local.AppLogDao,
+        dimensions: WidgetDimensions,
+        dataWatermarkMs: Long?,
+        paintOwed: Boolean,
+    ): Boolean {
+        val zoom = stateManager.getZoomWindow(appWidgetId)
+        val lastRender = stateManager.getLastGraphRender(appWidgetId)
+        val bitmapDims = WidgetSizeCalculator.computeBitmapDimensions(context, dimensions.widthDp, dimensions.heightDp)
+        val windowSpanMinutes = zoom.totalSpanHours * 60
+        val gateDecision = GraphRepaintGate.shouldRebuildBitmap(
+            displayedTemp = null,
+            currentDisplayedTemp = null,
+            lastRenderMs = lastRender?.renderMs ?: 0L,
+            nowMs = SystemClock.elapsedRealtime(),
+            windowSpanMinutes = windowSpanMinutes,
+            bitmapWidthPx = bitmapDims.widthPx,
+            lastWatermarkMs = lastRender?.dataWatermarkMs,
+            currentWatermarkMs = dataWatermarkMs ?: ObservationWatermark.NONE,
+            paintOwed = paintOwed,
+        )
+        if (!gateDecision.shouldRebuild) {
+            appLogDao.log(
+                WidgetPerfLogger.TAG_WIDGET_PAINT,
+                "widget=$appWidgetId caller=CLOUD_COVER state=skipped reason=${gateDecision.reason} thread=${Thread.currentThread().name}",
+            )
+            return true
+        }
+        return false
+    }
+
+    private class CloudHeader(val now: LocalDateTime, val lat: Double, val lon: Double, val resolveMs: Long)
+
+    /**
+     * The header of [updateWidget]: current temp, icon, rain %, buttons and shortcuts. Split out
+     * (2026-11-19) after this method's dex was rejected by ART once
+     * (plans/261119-split-oversized-android-suspend-functions.md).
+     */
+    private suspend fun bindCloudHeader(
+        context: Context,
+        views: RemoteViews,
+        appWidgetId: Int,
+        stateManager: WidgetStateManager,
+        hourlyForecasts: List<HourlyForecastEntity>,
+        currentTempHourlyForecasts: List<HourlyForecastEntity>,
+        centerTime: LocalDateTime,
+        displaySource: WeatherSource,
+        precipProbability: Int?,
+        lastObservedTemp: Float?,
+        observedAt: Long?,
+        dimensions: WidgetDimensions,
+        zoom: com.weatherwidget.widget.ZoomWindow,
+    ): CloudHeader {
+        val numColumns = dimensions.cols
+        val numRows = dimensions.rows
+        val isIconWidth = dimensions.isIconWidth
+        val effectiveDisplaySource = displaySource
         val now = LocalDateTime.now()
         // NaN, never a hardcoded coordinate: this is derived from the rows about to be drawn, so it
         // only fires when there are none. NaN degrades honestly downstream (sun shading falls back to
@@ -341,33 +422,27 @@ object CloudCoverViewHandler {
         }
 
         positionCenterIcons(views, dimensions.widthDp, context.resources.displayMetrics.density, headerResult.measured, fit, headerResult.shown)
+        return CloudHeader(now, lat, lon, resolveMs)
+    }
 
-val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
-        val useGraph = rawRows >= 1.4f
-
-        val graphTimings = if (useGraph) {
-            bindCloudGraph(
-                context, views, appWidgetId, stateManager, appLogDao, hourlyForecasts, windowHourKeys,
-                effectiveDisplaySource, repository, now, centerTime, numColumns, zoom, hourlyOffset,
-                dimensions, lat, lon, sourceMissingFromLoad,
-            )
-        } else {
-            views.setViewVisibility(R.id.error_pill_touch_zone, View.GONE)
-            views.setViewVisibility(R.id.text_container, View.VISIBLE)
-            views.setViewVisibility(R.id.graph_view, View.GONE)
-            views.setViewVisibility(R.id.graph_hour_zones, View.GONE)
-            views.setViewVisibility(R.id.graph_body_tap_zone, View.GONE)
-            views.setViewVisibility(R.id.graph_bottom_zone, View.GONE)
-            views.setViewVisibility(R.id.graph_bottom_hour_zones, View.GONE)
-            views.setViewVisibility(R.id.graph_bottom_reserved_space, View.VISIBLE)
-            updateCloudTextMode(views, hourlyForecasts, centerTime, numColumns, effectiveDisplaySource)
-            CloudGraphTimings.NONE
-        }
-
-        if (isIconWidth) {
-            HeaderRemoteViewsBinder.hideIconWidthControls(views)
-        }
-
+    /** The push, the repaint gate's render record, and WIDGET_RENDER_PERF of [updateWidget]. */
+    private suspend fun finishAndPush(
+        appWidgetManager: AppWidgetManager,
+        views: RemoteViews,
+        appWidgetId: Int,
+        stateManager: WidgetStateManager,
+        appLogDao: com.weatherwidget.data.local.AppLogDao,
+        origin: com.weatherwidget.widget.WidgetPushDispatcher.Origin,
+        partialPush: Boolean,
+        dataWatermarkMs: Long?,
+        handlerStartMs: Long,
+        startupToken: String?,
+        useGraph: Boolean,
+        resolveMs: Long,
+        graphTimings: CloudGraphTimings,
+        hourlyCount: Int,
+        displaySource: WeatherSource,
+    ) {
         appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=CLOUD_COVER origin=${origin.name} state=data push=${if (partialPush) "partial" else "full"} thread=${Thread.currentThread().name}")
         com.weatherwidget.widget.WidgetPushDispatcher.push(
             appWidgetManager = appWidgetManager,
@@ -403,8 +478,8 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                 "resolveMs" to resolveMs,
                 "buildHoursMs" to graphTimings.buildHoursMs,
                 "renderMs" to graphTimings.renderMs,
-                "hourlyCount" to hourlyForecasts.size,
-                "source" to effectiveDisplaySource.id,
+                "hourlyCount" to hourlyCount,
+                "source" to displaySource.id,
                 "totalMs" to totalMs,
             ),
             debugTag = TAG,

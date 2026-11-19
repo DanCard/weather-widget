@@ -85,70 +85,7 @@ class CurrentConditionsRun(
         val startMs = nowMs()
         return try {
             val waitStart = nowMs()
-            mutex.withLock {
-                val waitMs = nowMs() - waitStart
-                if (waitMs > 100) host.log("CURR_FETCH_MUTEX", "reason=$reason waitMs=$waitMs", "WARN")
-
-                val lastRun = host.lastRunMs(latitude, longitude)
-                val sinceLast = nowMs() - lastRun
-                if (!force && sinceLast < FRESHNESS_MS) {
-                    host.log(
-                        "CURR_FETCH_FRESH_SKIP",
-                        "reason=$reason ageMs=$sinceLast freshnessMs=$FRESHNESS_MS lastFetchMs=$lastRun",
-                        "INFO",
-                    )
-                    return Result.success(0)
-                }
-
-                val plan = plan(latitude, longitude, source, bypassThrottle = force || source != null)
-                if (plan.throttled.isNotEmpty()) {
-                    host.log(
-                        "CURR_FETCH_THROTTLE_SKIP",
-                        "reason=$reason throttled=${plan.throttled.entries.joinToString { "${it.key.id}@rank${it.value}" }} " +
-                            "intervalMs=$LOW_PRIORITY_INTERVAL_MS",
-                        "INFO",
-                    )
-                }
-                host.log(
-                    "CURR_FETCH_START",
-                    "reason=$reason targets=${plan.targets.joinToString { it.id }} thread=${Thread.currentThread().name}",
-                    "DEBUG",
-                )
-
-                var successCount = 0
-                for (feed in plan.targets) {
-                    val feedStart = nowMs()
-                    // Recorded up front so the throttle window starts even when the fetch fails (a 429
-                    // must not invite rapid retries against a tight quota).
-                    host.markAttempt(feed.id, feedStart)
-                    try {
-                        val reading = host.fetch(feed, latitude, longitude)
-                        if (reading != null) {
-                            successCount++
-                            // [Host.fetch] stored it (and its day's extremes): cached reads are stale.
-                            version.bump("current_conditions feed=${feed.id}")
-                            host.recordSuccess(feed)
-                        }
-                        logSourceResult(reason, feed, reading, null, nowMs() - feedStart)
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        host.recordFailure(feed, e)
-                        logFailure(feed, e)
-                        logSourceResult(reason, feed, null, e, nowMs() - feedStart)
-                    }
-                }
-
-                sampleRadar(latitude, longitude, reason)
-                host.setLastRunMs(latitude, longitude, nowMs())
-                host.log(
-                    "CURR_FETCH_COMPLETE",
-                    "reason=$reason successCount=$successCount totalMs=${nowMs() - startMs} " +
-                        "targets=${plan.targets.joinToString(",") { it.id }} attempted=${plan.targets.size}",
-                    "DEBUG",
-                )
-                Result.success(plan.targets.size)
-            }
+            mutex.withLock { runLocked(latitude, longitude, source, reason, force, startMs, waitStart) }
         } catch (e: CancellationException) {
             host.log("CURR_FETCH_ERROR", "Current temp fetch orchestrator failed (reason=$reason, totalMs=${nowMs() - startMs}): ${e.message}", "ERROR")
             throw e
@@ -156,6 +93,89 @@ class CurrentConditionsRun(
             host.log("CURR_FETCH_ERROR", "Current temp fetch orchestrator failed (reason=$reason, totalMs=${nowMs() - startMs}): ${e.message}", "ERROR")
             Result.failure(e)
         }
+    }
+
+    /** [run]'s body under the lock: the freshness gate, the plan, the fetches, the radar sample. */
+    private suspend fun runLocked(
+        latitude: Double,
+        longitude: Double,
+        source: WeatherSource?,
+        reason: String,
+        force: Boolean,
+        startMs: Long,
+        waitStart: Long,
+    ): Result<Int> {
+        val waitMs = nowMs() - waitStart
+        if (waitMs > 100) host.log("CURR_FETCH_MUTEX", "reason=$reason waitMs=$waitMs", "WARN")
+
+        val lastRun = host.lastRunMs(latitude, longitude)
+        val sinceLast = nowMs() - lastRun
+        if (!force && sinceLast < FRESHNESS_MS) {
+            host.log(
+                "CURR_FETCH_FRESH_SKIP",
+                "reason=$reason ageMs=$sinceLast freshnessMs=$FRESHNESS_MS lastFetchMs=$lastRun",
+                "INFO",
+            )
+            return Result.success(0)
+        }
+
+        val plan = plan(latitude, longitude, source, bypassThrottle = force || source != null)
+        if (plan.throttled.isNotEmpty()) {
+            host.log(
+                "CURR_FETCH_THROTTLE_SKIP",
+                "reason=$reason throttled=${plan.throttled.entries.joinToString { "${it.key.id}@rank${it.value}" }} " +
+                    "intervalMs=$LOW_PRIORITY_INTERVAL_MS",
+                "INFO",
+            )
+        }
+        host.log(
+            "CURR_FETCH_START",
+            "reason=$reason targets=${plan.targets.joinToString { it.id }} thread=${Thread.currentThread().name}",
+            "DEBUG",
+        )
+
+        val successCount = fetchFeeds(plan, latitude, longitude, reason)
+
+        sampleRadar(latitude, longitude, reason)
+        host.setLastRunMs(latitude, longitude, nowMs())
+        host.log(
+            "CURR_FETCH_COMPLETE",
+            "reason=$reason successCount=$successCount totalMs=${nowMs() - startMs} " +
+                "targets=${plan.targets.joinToString(",") { it.id }} attempted=${plan.targets.size}",
+            "DEBUG",
+        )
+        return Result.success(plan.targets.size)
+    }
+
+    /**
+     * Fetches each planned feed in turn; returns how many produced a reading. Split out of [run]
+     * (2026-11-19; plans/261119-split-oversized-android-suspend-functions.md).
+     */
+    private suspend fun fetchFeeds(plan: Plan, latitude: Double, longitude: Double, reason: String): Int {
+        var successCount = 0
+        for (feed in plan.targets) {
+            val feedStart = nowMs()
+            // Recorded up front so the throttle window starts even when the fetch fails (a 429
+            // must not invite rapid retries against a tight quota).
+            host.markAttempt(feed.id, feedStart)
+            try {
+                val reading = host.fetch(feed, latitude, longitude)
+                if (reading != null) {
+                    successCount++
+                    // [Host.fetch] stored it (and its day's extremes): cached reads are stale.
+                    version.bump("current_conditions feed=${feed.id}")
+                    host.recordSuccess(feed)
+                }
+                logSourceResult(reason, feed, reading, null, nowMs() - feedStart)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                host.recordFailure(feed, e)
+                logFailure(feed, e)
+                logSourceResult(reason, feed, null, e, nowMs() - feedStart)
+            }
+        }
+        return successCount
     }
 
     /** One radar sample; a changed rain level bumps [version] so cached renders repaint. */

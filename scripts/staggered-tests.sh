@@ -413,15 +413,17 @@ if [ "$INSTALL_MODE" = true ] && [ "$UNIT_STATUS" -eq 0 ] && [ "$EMULATOR_STATUS
     fi
 fi
 
-# Report-only: methods over the dex size budget (plans/261119-split-oversized-android-suspend-functions.md).
+# Methods over the dex size budget fail the gate (plans/261119-split-oversized-android-suspend-functions.md).
+BUDGET_STATUS=0
 if [ -x "$PROJECT_DIR/scripts/dex-method-budget.sh" ]; then
-    "$PROJECT_DIR/scripts/dex-method-budget.sh" 2>&1 | to_summary || true
+    "$PROJECT_DIR/scripts/dex-method-budget.sh" 2>&1 | to_summary
+    BUDGET_STATUS=${PIPESTATUS[0]}
 fi
 
 TOTAL_DURATION=$(( $(date +%s) - TOTAL_START ))
-phase "Done: unit=$UNIT_STATUS emulator=$EMULATOR_STATUS install=$INSTALL_STATUS total=${TOTAL_DURATION}s (summary: $SUMMARY_LOG_FILE)"
+phase "Done: unit=$UNIT_STATUS emulator=$EMULATOR_STATUS install=$INSTALL_STATUS budget=$BUDGET_STATUS total=${TOTAL_DURATION}s (summary: $SUMMARY_LOG_FILE)"
 
-if [ "$UNIT_STATUS" -eq 0 ] && [ "$EMULATOR_STATUS" -eq 0 ] && [ "$INSTALL_STATUS" -eq 0 ]; then
+if [ "$UNIT_STATUS" -eq 0 ] && [ "$EMULATOR_STATUS" -eq 0 ] && [ "$INSTALL_STATUS" -eq 0 ] && [ "$BUDGET_STATUS" -eq 0 ]; then
     echo -e "${GREEN}Both unit tests and emulator tests passed${NC} (${TOTAL_DURATION}s)"
     exit 0
 fi
@@ -436,6 +438,10 @@ if [ "$EMULATOR_STATUS" -ne 0 ]; then
     echo -e "${RED}Emulator tests failed with exit code $EMULATOR_STATUS${NC}"
     echo -e "${RED}Full emulator test log:${NC}"
     cat "$EMULATOR_LOG_FILE"
+fi
+
+if [ "$BUDGET_STATUS" -ne 0 ]; then
+    echo -e "${RED}Dex method budget exceeded (exit $BUDGET_STATUS) — see the dex budget lines above${NC}"
 fi
 
 echo -e "${RED}Tests failed${NC} (${TOTAL_DURATION}s)"

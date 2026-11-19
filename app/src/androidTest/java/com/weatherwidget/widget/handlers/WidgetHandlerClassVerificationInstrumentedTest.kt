@@ -28,6 +28,15 @@ class WidgetHandlerClassVerificationInstrumentedTest {
         // Split 2026-11-19 (plans/261119-split-oversized-android-suspend-functions.md).
         "com.weatherwidget.widget.FullSyncPipeline",
         "com.weatherwidget.widget.handlers.TemperatureStateResolver",
+        // Phase 2 of the same plan.
+        "com.weatherwidget.widget.handlers.DailyInteractionRenderer",
+        "com.weatherwidget.widget.handlers.DailyGraphRenderer",
+        "com.weatherwidget.widget.handlers.TemperatureGraphHoursLoader",
+        "com.weatherwidget.widget.WeatherWidgetWorker",
+        "com.weatherwidget.data.repository.ForecastRepository",
+        "com.weatherwidget.shared.actuals.DailyBlendRecomputeRun",
+        "com.weatherwidget.shared.observations.CurrentConditionsRun",
+        "com.weatherwidget.shared.graph.TemperatureExtrema",
     )
 
     @Test

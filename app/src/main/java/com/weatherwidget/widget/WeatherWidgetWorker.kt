@@ -401,16 +401,7 @@ class WeatherWidgetWorker
                         null
                     }
                 val targetSource = targetSourceId?.let(WeatherSource::fromId)
-                var resultMessage = "success"
-                var fetchDurationMs = 0L
-                var attemptedSourceCount = 0
-                // Hoisted out of the fetch branch below so the dominant-temp watch can reuse the
-                // location this run actually fetched for; null means no fetch happened.
-                var fetchedLocation: Pair<Double, Double>? = null
-                // A fetched nowcast changes what the header shows even when no source was attempted.
-                var nowcastFetched = false
-
-                if (!CurrentTempFetchPolicy.shouldFetchNow(
+                val outcome = if (!CurrentTempFetchPolicy.shouldFetchNow(
                         isCharging = device.isCharging,
                         isScreenInteractive = device.isScreenInteractive,
                         isOpportunisticContext = input.opportunisticCurrentTemp,
@@ -426,54 +417,22 @@ class WeatherWidgetWorker
                             "interactive=${device.isScreenInteractive} opportunistic=${input.opportunisticCurrentTemp}",
                         "INFO",
                     )
-                    resultMessage = "skipped_policy_blocked"
+                    CurrentFetchOutcome.POLICY_BLOCKED
                 } else {
                     val location = ActiveLocationResolver.resolve(context, widgetStateManager, WeatherDatabase.getDatabase(context).forecastDao())
                         ?: return painter.renderNoLocationAndFinish("current_temp_only")
-                    fetchedLocation = location
-                    val fetchStartMs = SystemClock.elapsedRealtime()
-                    val refreshResult = weatherRepository.refreshCurrentTemperature(
-                        latitude = location.first,
-                        longitude = location.second,
-                        source = targetSource,
-                        reason = input.currentTempReason,
-                        forceRefresh = input.forceRefresh,
-                    )
-                    fetchDurationMs = SystemClock.elapsedRealtime() - fetchStartMs
-                    // Only fires when a no-actuals source is the DISPLAYED one, so the curve the
-                    // user is looking at refreshes on the same schedule as the forecast beside it.
-                    metarRefresher.refreshIfDue(
-                        setOf(MetarFetchPolicy.Tier.PRIMARY), location.first, location.second,
-                        reason = input.currentTempReason,
-                    )
-                    synopticRefresher.refreshIfDue(
-                        setOf(com.weatherwidget.shared.util.SynopticFetchPolicy.Tier.PRIMARY), location.first, location.second,
-                        reason = input.currentTempReason,
-                    )
-                    try {
-                        nowcastFetched = nowcastRefresher.refreshIfDue(location.first, location.second, reason = input.currentTempReason)
-                    } catch (e: kotlinx.coroutines.CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        appLogDao.logException("NOWCAST_FETCH", "refresh failed (current_temp_only)", e)
-                    }
-                    refreshResult.fold(
-                        onSuccess = { attempted ->
-                            attemptedSourceCount = attempted
-                            resultMessage = "success"
-                        },
-                        onFailure = { e ->
-                            appLogDao.log("CURR_FETCH_FAIL", "reason=${input.currentTempReason} ${e.message}", "ERROR")
-                            resultMessage = "fetch_failure:${e.message}"
-                        },
-                    )
+                    fetchCurrentTemp(input, targetSource, location)
                 }
+                val resultMessage = outcome.resultMessage
+                val fetchDurationMs = outcome.fetchDurationMs
+                val attemptedSourceCount = outcome.attemptedSourceCount
+                val nowcastFetched = outcome.nowcastFetched
 
                 // The current-temp loop is where fresh observations actually land, so the watch is
                 // evaluated here too — waiting for the next full sync could delay the alert by hours.
                 // `location` is scoped to the fetch branch above; a policy-blocked run had no fetch
                 // and so has nothing new to compare.
-                fetchedLocation?.let { (lat, lon) ->
+                outcome.fetchedLocation?.let { (lat, lon) ->
                     try {
                         com.weatherwidget.notify.DominantTempChangeNotifier.check(
                             context = context,
@@ -496,17 +455,17 @@ class WeatherWidgetWorker
                     fetchFailed = resultMessage.startsWith("fetch_failure"),
                     attemptedSourceCount = attemptedSourceCount,
                 )
-                var cacheRefreshDurationMs = 0L
-                if (skipRepaint) {
+                val cacheRefreshDurationMs = if (skipRepaint) {
                     appLogDao.log(
                         "CURR_PAINT_SKIP",
                         "reason=${input.currentTempReason} result=$resultMessage attemptedSources=$attemptedSourceCount",
                         "INFO",
                     )
+                    0L
                 } else {
                     val cacheRefreshStartMs = SystemClock.elapsedRealtime()
                     painter.refreshWidgetsFromCache()
-                    cacheRefreshDurationMs = SystemClock.elapsedRealtime() - cacheRefreshStartMs
+                    SystemClock.elapsedRealtime() - cacheRefreshStartMs
                 }
 
                 WidgetLoopScheduler.manageCurrentTempLoopAfterRun(context, appLogDao, device, ignoreRunningWorkId = id)
@@ -540,6 +499,72 @@ class WeatherWidgetWorker
                 WidgetLoopScheduler.manageCurrentTempLoopAfterRun(context, appLogDao, device, ignoreRunningWorkId = id)
                 Result.retry()
             }
+        }
+
+        /** What [handleCurrentTempOnlyWork]'s fetch did; [fetchedLocation] null = no fetch happened. */
+        private data class CurrentFetchOutcome(
+            val resultMessage: String,
+            val fetchDurationMs: Long,
+            val attemptedSourceCount: Int,
+            // The dominant-temp watch reuses the location this run actually fetched for.
+            val fetchedLocation: Pair<Double, Double>?,
+            // A fetched nowcast changes what the header shows even when no source was attempted.
+            val nowcastFetched: Boolean,
+        ) {
+            companion object {
+                val POLICY_BLOCKED = CurrentFetchOutcome("skipped_policy_blocked", 0L, 0, null, false)
+            }
+        }
+
+        /**
+         * The fetch of [handleCurrentTempOnlyWork]: current temps, the due METAR/Synoptic pulls and the
+         * nowcast. Split out (2026-11-19): the conditionally assigned `var`s it replaces are the shape
+         * whose dex ART rejected (plans/261119-split-oversized-android-suspend-functions.md).
+         */
+        private suspend fun fetchCurrentTemp(
+            input: WorkInput,
+            targetSource: WeatherSource?,
+            location: Pair<Double, Double>,
+        ): CurrentFetchOutcome {
+            val fetchStartMs = SystemClock.elapsedRealtime()
+            val refreshResult = weatherRepository.refreshCurrentTemperature(
+                latitude = location.first,
+                longitude = location.second,
+                source = targetSource,
+                reason = input.currentTempReason,
+                forceRefresh = input.forceRefresh,
+            )
+            val fetchDurationMs = SystemClock.elapsedRealtime() - fetchStartMs
+            // Only fires when a no-actuals source is the DISPLAYED one, so the curve the
+            // user is looking at refreshes on the same schedule as the forecast beside it.
+            metarRefresher.refreshIfDue(
+                setOf(MetarFetchPolicy.Tier.PRIMARY), location.first, location.second,
+                reason = input.currentTempReason,
+            )
+            synopticRefresher.refreshIfDue(
+                setOf(com.weatherwidget.shared.util.SynopticFetchPolicy.Tier.PRIMARY), location.first, location.second,
+                reason = input.currentTempReason,
+            )
+            val nowcastFetched = try {
+                nowcastRefresher.refreshIfDue(location.first, location.second, reason = input.currentTempReason)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                appLogDao.logException("NOWCAST_FETCH", "refresh failed (current_temp_only)", e)
+                false
+            }
+            val attempted = refreshResult.getOrNull()
+            val failure = refreshResult.exceptionOrNull()
+            if (failure != null) {
+                appLogDao.log("CURR_FETCH_FAIL", "reason=${input.currentTempReason} ${failure.message}", "ERROR")
+            }
+            return CurrentFetchOutcome(
+                resultMessage = if (failure != null) "fetch_failure:${failure.message}" else "success",
+                fetchDurationMs = fetchDurationMs,
+                attemptedSourceCount = attempted ?: 0,
+                fetchedLocation = location,
+                nowcastFetched = nowcastFetched,
+            )
         }
 
         private suspend fun handleNonPrimaryCurrentTempOnlyWork(

@@ -60,18 +60,7 @@ internal object DailyGraphRenderer {
     ): RenderMetrics {
         val todayStr = ctx.today.format(DateTimeFormatter.ISO_LOCAL_DATE)
         val isIconWidth = dimensions.isIconWidth
-        val formattedTemp = headerState.formattedTemp
-        val iconRes = headerState.iconRes
-        val deltaVisible = headerState.deltaVisible
-        // Header-in-bitmap delta shows the YESTERDAY delta, same as the RemoteViews header.
-        val delta = headerState.yesterdayDelta
-        val isPrecipVisible = headerState.isPrecipVisible
-        val apiSourceText = headerState.apiSourceText
-        val apiTextSizeDp = HeaderConstants.apiTextSizeDp(ctx.numRows)
         val fit = headerState.fit
-        val measured = headerState.measured
-        val buttonsSpan = HeaderFit.buttonsSpan(measured, fit)
-        val headerScale = headerState.headerScale
 
         DailyVisibilityManager.setGraphModeViews(ctx.views)
 
@@ -117,53 +106,7 @@ internal object DailyGraphRenderer {
         val days = preparedDays.map(DailyViewLogic.PreparedGraphDay::renderDay)
         val prepareMs = SystemClock.elapsedRealtime() - prepareStartMs
 
-        days.find { it.isToday }?.let { todayDay ->
-            val sky = AdaptiveBarStrokes.sky(
-                noonCloudRatio = todayDay.cloudCoverRatioOverride,
-                fallbackIconName = todayDay.iconRes?.let(WeatherIconMapper::iconResToName),
-                dayRainPercent = todayDay.rainData.dailyPrecipProbability,
-            )
-            val clearPct = Math.round(sky.clear * 100)
-            val cloudPct = Math.round(sky.cloud * 100)
-            val rainPct = Math.round(sky.rain * 100)
-            ctx.appLogDao.log(
-                DailyViewHandler.LOG_TAG_TODAY_BAR_DEBUG,
-                "widget=${ctx.appWidgetId} mode=GRAPH obsHigh=${todayDay.solidLineHigh} obsLow=${todayDay.solidLineLow} " +
-                    "fHigh=${todayDay.dashedLineHigh} fLow=${todayDay.dashedLineLow} " +
-                    "trueHigh=${todayDay.ghostLineHigh} bStackLow=${todayDay.bottomStackLow} " +
-                    "sHigh=${todayDay.snapshotHigh} sLow=${todayDay.snapshotLow} " +
-                    "fallback=${todayDay.isTodayForecastFallback} " +
-                    "cloudRatio=${todayDay.cloudCoverRatioOverride} rainChance=${todayDay.rainData.dailyPrecipProbability} " +
-                    "sky=[clear=${clearPct}%,grey=${cloudPct}%,rain=${rainPct}%]",
-                "VERBOSE"
-            )
-            withContext(Dispatchers.IO) {
-                if (Log.isLoggable(TAG, Log.DEBUG)) {
-                    val todaySourceObservations = loadTodaySourceObservations(
-                        database = ctx.database,
-                        today = ctx.today,
-                        lat = lat,
-                        lon = lon,
-                        displaySource = ctx.displaySource,
-                    )
-                    ctx.appLogDao.log(
-                        DailyViewHandler.LOG_TAG_TODAY_HIGH_PROVENANCE,
-                        buildTodayHighProvenanceMessage(
-                            appWidgetId = ctx.appWidgetId,
-                            today = ctx.today,
-                            displaySource = ctx.displaySource,
-                            forecastWeather = ctx.weatherByDate[ctx.today],
-                            dailyActual = todayActual,
-                            todayDay = todayDay,
-                            currentTemp = ctx.currentTemp,
-                            observedAt = ctx.observedAt,
-                            observations = todaySourceObservations,
-                        ),
-                        "DEBUG",
-                    )
-                }
-            }
-        }
+        days.find { it.isToday }?.let { todayDay -> logTodayBar(ctx, todayDay, todayActual, lat, lon) }
 
         // prepareGraphDays always returns exactly numColumns days, and numColumns is derived from
         // the widget width — identical at every nav offset. Cap defensively against the *live*
@@ -242,34 +185,7 @@ internal object DailyGraphRenderer {
             metadataByDate = displayedMetadata,
         )
 
-        val headerRenderData = if (fit.showTemp || fit.showRain || fit.showDelta || fit.showIcon) {
-            DailyForecastGraphRenderer.HeaderRenderData(
-                iconRes = iconRes,
-                currentTempText = formattedTemp.takeIf { fit.showTemp },
-                deltaText = if (deltaVisible) {
-                    val displayDelta = delta?.let { if (ctx.stateManager.useCelsius()) it / 1.8f else it }
-                    displayDelta?.let { String.format("%+.1f", it) }
-                } else null,
-                // "from yest", when the shared fit kept it (never beside a rain %).
-                deltaLabelText = headerState.deltaLabelText,
-                precipText = if (isPrecipVisible) headerState.precipText ?: "${ctx.precipProb}%" else null,
-                precipTextSizeDp = headerState.precipTextSizeDp
-                    ?: HeaderConstants.PRECIP_TEXT_BASE_SIZE_DP,
-                dateText = dateText,
-                apiSourceText = if (isIconWidth) null else apiSourceText,
-                apiTextSizeDp = apiTextSizeDp,
-                settingsIconRes = if (isIconWidth) 0 else R.drawable.ic_settings_gear,
-                showIcon = fit.showIcon,
-                showDelta = deltaVisible && fit.showDelta,
-                showPrecip = isPrecipVisible && headerPrecipPlacement.showHeaderPrecip,
-                headerScale = headerScale,
-                centerIconsWidthDp = if (fit.placement == HeaderFit.ButtonPlacement.SHOWN) {
-                    buttonsSpan?.let { (l, r) -> (r - l) / ctx.context.resources.displayMetrics.density } ?: 0f
-                } else 0f,
-                centerIconsLeftFraction = buttonsSpan?.let { it.first / measured.width } ?: 0.5f,
-                dateLeftFraction = HeaderFit.dateLeft(measured, fit)?.let { it / measured.width },
-            )
-        } else null
+        val headerRenderData = buildHeaderRenderData(ctx, headerState, headerPrecipPlacement, isIconWidth, dateText)
 
         val todayOverlayData =
             if (ctx.largeTodayOverlayEnabled) {
@@ -311,6 +227,133 @@ internal object DailyGraphRenderer {
         val renderMs = SystemClock.elapsedRealtime() - renderStartMs
         ctx.views.setImageViewBitmap(R.id.graph_view, bitmap)
 
+        bindTapTargets(ctx, headerState, dimensions, displayDays, renderResult, nightRainLabelDraws, bitmapDims, lat, lon)
+
+        return RenderMetrics(prepareMs, renderMs)
+    }
+
+    /** TODAY_BAR_DEBUG, and at DEBUG the today-high provenance of [render]'s today column. */
+    private suspend fun logTodayBar(
+        ctx: DailyViewHandler.DailyRenderContext,
+        todayDay: DailyForecastGraphRenderer.DayData,
+        todayActual: com.weatherwidget.data.model.DailyHistory?,
+        lat: Double,
+        lon: Double,
+    ) {
+        val sky = AdaptiveBarStrokes.sky(
+            noonCloudRatio = todayDay.cloudCoverRatioOverride,
+            fallbackIconName = todayDay.iconRes?.let(WeatherIconMapper::iconResToName),
+            dayRainPercent = todayDay.rainData.dailyPrecipProbability,
+        )
+        val clearPct = Math.round(sky.clear * 100)
+        val cloudPct = Math.round(sky.cloud * 100)
+        val rainPct = Math.round(sky.rain * 100)
+        ctx.appLogDao.log(
+            DailyViewHandler.LOG_TAG_TODAY_BAR_DEBUG,
+            "widget=${ctx.appWidgetId} mode=GRAPH obsHigh=${todayDay.solidLineHigh} obsLow=${todayDay.solidLineLow} " +
+                "fHigh=${todayDay.dashedLineHigh} fLow=${todayDay.dashedLineLow} " +
+                "trueHigh=${todayDay.ghostLineHigh} bStackLow=${todayDay.bottomStackLow} " +
+                "sHigh=${todayDay.snapshotHigh} sLow=${todayDay.snapshotLow} " +
+                "fallback=${todayDay.isTodayForecastFallback} " +
+                "cloudRatio=${todayDay.cloudCoverRatioOverride} rainChance=${todayDay.rainData.dailyPrecipProbability} " +
+                "sky=[clear=${clearPct}%,grey=${cloudPct}%,rain=${rainPct}%]",
+            "VERBOSE"
+        )
+        withContext(Dispatchers.IO) {
+            if (Log.isLoggable(TAG, Log.DEBUG)) {
+                val todaySourceObservations = loadTodaySourceObservations(
+                    database = ctx.database,
+                    today = ctx.today,
+                    lat = lat,
+                    lon = lon,
+                    displaySource = ctx.displaySource,
+                )
+                ctx.appLogDao.log(
+                    DailyViewHandler.LOG_TAG_TODAY_HIGH_PROVENANCE,
+                    buildTodayHighProvenanceMessage(
+                        appWidgetId = ctx.appWidgetId,
+                        today = ctx.today,
+                        displaySource = ctx.displaySource,
+                        forecastWeather = ctx.weatherByDate[ctx.today],
+                        dailyActual = todayActual,
+                        todayDay = todayDay,
+                        currentTemp = ctx.currentTemp,
+                        observedAt = ctx.observedAt,
+                        observations = todaySourceObservations,
+                    ),
+                    "DEBUG",
+                )
+            }
+        }
+    }
+
+    /** The header drawn into [render]'s bitmap; null when the fit shows none of it. */
+    private fun buildHeaderRenderData(
+        ctx: DailyViewHandler.DailyRenderContext,
+        headerState: DailyViewHandler.HeaderState,
+        headerPrecipPlacement: DailyHeaderBinder.HeaderPrecipPlacement,
+        isIconWidth: Boolean,
+        dateText: String?,
+    ): DailyForecastGraphRenderer.HeaderRenderData? {
+        val formattedTemp = headerState.formattedTemp
+        val iconRes = headerState.iconRes
+        val deltaVisible = headerState.deltaVisible
+        // Header-in-bitmap delta shows the YESTERDAY delta, same as the RemoteViews header.
+        val delta = headerState.yesterdayDelta
+        val isPrecipVisible = headerState.isPrecipVisible
+        val apiSourceText = headerState.apiSourceText
+        val apiTextSizeDp = HeaderConstants.apiTextSizeDp(ctx.numRows)
+        val fit = headerState.fit
+        val measured = headerState.measured
+        val buttonsSpan = HeaderFit.buttonsSpan(measured, fit)
+        val headerScale = headerState.headerScale
+        return if (fit.showTemp || fit.showRain || fit.showDelta || fit.showIcon) {
+            DailyForecastGraphRenderer.HeaderRenderData(
+                iconRes = iconRes,
+                currentTempText = formattedTemp.takeIf { fit.showTemp },
+                deltaText = if (deltaVisible) {
+                    val displayDelta = delta?.let { if (ctx.stateManager.useCelsius()) it / 1.8f else it }
+                    displayDelta?.let { String.format("%+.1f", it) }
+                } else null,
+                // "from yest", when the shared fit kept it (never beside a rain %).
+                deltaLabelText = headerState.deltaLabelText,
+                precipText = if (isPrecipVisible) headerState.precipText ?: "${ctx.precipProb}%" else null,
+                precipTextSizeDp = headerState.precipTextSizeDp
+                    ?: HeaderConstants.PRECIP_TEXT_BASE_SIZE_DP,
+                dateText = dateText,
+                apiSourceText = if (isIconWidth) null else apiSourceText,
+                apiTextSizeDp = apiTextSizeDp,
+                settingsIconRes = if (isIconWidth) 0 else R.drawable.ic_settings_gear,
+                showIcon = fit.showIcon,
+                showDelta = deltaVisible && fit.showDelta,
+                showPrecip = isPrecipVisible && headerPrecipPlacement.showHeaderPrecip,
+                headerScale = headerScale,
+                centerIconsWidthDp = if (fit.placement == HeaderFit.ButtonPlacement.SHOWN) {
+                    buttonsSpan?.let { (l, r) -> (r - l) / ctx.context.resources.displayMetrics.density } ?: 0f
+                } else 0f,
+                centerIconsLeftFraction = buttonsSpan?.let { it.first / measured.width } ?: 0.5f,
+                dateLeftFraction = HeaderFit.dateLeft(measured, fit)?.let { it / measured.width },
+            )
+        } else null
+    }
+
+    /**
+     * Everything [render] binds over the drawn bitmap: header slots, buttons and the day tap zones.
+     * Split out (2026-11-19; plans/261119-split-oversized-android-suspend-functions.md).
+     */
+    private suspend fun bindTapTargets(
+        ctx: DailyViewHandler.DailyRenderContext,
+        headerState: DailyViewHandler.HeaderState,
+        dimensions: WidgetDimensions,
+        displayDays: List<DailyForecastGraphRenderer.DayData>,
+        renderResult: DailyForecastGraphRenderer.DailyGraphRenderResult,
+        nightRainLabelDraws: List<DailyForecastGraphRenderer.DailyRainLabelPlacement>,
+        bitmapDims: WidgetSizeCalculator.BitmapDimensions,
+        lat: Double,
+        lon: Double,
+    ) {
+        val fit = headerState.fit
+        val measured = headerState.measured
         // The bitmap draws the header; these views only size the tap zones laid over it. INVISIBLE
         // keeps a view's width, so one the bitmap did not paint must be GONE: an empty delta slot
         // pushed the rain zone off the painted % and tapping it opened the temperature graph.
@@ -449,8 +492,6 @@ internal object DailyGraphRenderer {
             sourceId = ctx.displaySource.id,
             product = ForecastProduct.DAILY,
         )
-
-        return RenderMetrics(prepareMs, renderMs)
     }
 
     private suspend fun buildTodayOverlayData(

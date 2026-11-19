@@ -170,3 +170,32 @@ non-suspend methods), per the user's "report, then fail".
 **Pitfalls seen:** `bash` heredocs with `$` in Python; the Kotlin `Name contains illegal characters: ;`
 in backtick test names; a stale `app/build` APK after a `git checkout` round-trip (rebuild before
 measuring); do not edit `scripts/*.sh` while a gate runs (bash reads scripts as it executes).
+
+## Phase 2 results (2026-11-19)
+
+All 13 targets split, same technique; `dex-method-budget.sh` now reports 0 of 28,227 methods over and
+**fails the gate** when any is (`REPORT_ONLY=1` to measure). No exemption for non-suspend methods was
+needed: `TemperatureExtrema.compute` split cleanly.
+
+| Method | before insns/regs | after | largest new piece |
+|---|---:|---:|---|
+| `DailyViewHandler.updateWidget` | 9,848 / 247 | 5,434 / 141 | `resolveHeaderPhase` 1,520 / 85 |
+| `DailyBlendRecomputeRun.day` | 5,954 / 210 | 3,340 / 138 | `persist` 1,446 / 42 |
+| `FullSyncPipeline.onFetchSuccess` | 7,398 / 202 | 802 / 31 | `paintAll` 976 / 34 |
+| `DailyInteractionRenderer.render` | 7,700 / 200 | 1,108 / 35 | `assemble` 3,920 / 96 |
+| `TemperatureStateResolver.resolve` | 7,364 / 187 | 4,214 / 87 | `buildHeaderAndGraph` 1,848 / 81 |
+| `TemperatureGraphHoursLoader.loadGraphHours` | 8,130 / 178 | 1,980 / 63 | `logBlendDiagnostics` 2,108 / 55 |
+| `CloudCoverViewHandler.updateWidget` | 7,990 / 145 | 4,322 / 78 | `bindCloudHeader` 1,470 / 77 |
+| `DailyGraphRenderer.render` | 7,382 / 132 | 4,040 / 74 | `bindTapTargets` 1,336 / 46 |
+| `PrecipViewHandler.updateWidget` / `bindPrecipGraph` | 7,220 / 122, 6,110 / 132 | 3,782 / 70, 4,018 / 115 | `bindPrecipHeader` 1,458 / 73 |
+| `CurrentConditionsRun.run` | 8,688 / 100 | 1,014 / 39 | `runLocked` 1,674 / 62 |
+| `ForecastRepository.getWeatherData` | 9,242 / 61 | 3,394 / 55 | `planSyncUnderLock` 1,268 / 48 |
+| `WeatherWidgetWorker.handleCurrentTempOnlyWork` | 7,314 / 55 | 4,236 / 47 | `fetchCurrentTemp` 912 / 33 |
+| `TemperatureExtrema.compute` (not suspend) | 6,795 / 65 | 2,259 / 49 | `perDayActualExtrema` 3,383 / 45 |
+
+Shapes removed along the way: conditionally assigned `var`s (`TemperatureGraphHoursLoader`'s four
+`obs…` vars → `ObsRead`; the worker's five → `CurrentFetchOutcome`; its `cacheRefreshDurationMs`), and
+phase objects unpacked into locals that lived across every later suspension (`FullSyncPipeline`,
+`TemperatureStateResolver`). `CurrentConditionsRun.run`'s inlined `mutex.withLock` body is now
+`runLocked`; its non-local early `return` became a plain return under the same lock.
+`WidgetHandlerClassVerificationInstrumentedTest` loads every split class.

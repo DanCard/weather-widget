@@ -88,29 +88,8 @@ object PrecipViewHandler {
         val appLogDao = WeatherDatabase.getDatabase(context).appLogDao()
 
         // Gate bitmap rebuilds on real change for opportunistic UI-only repaints.
-        if (uiOnly) {
-            val zoom = stateManager.getZoomWindow(appWidgetId)
-            val lastRender = stateManager.getLastGraphRender(appWidgetId)
-            val bitmapDims = WidgetSizeCalculator.computeBitmapDimensions(context, dimensions.widthDp, dimensions.heightDp)
-            val windowSpanMinutes = zoom.totalSpanHours * 60
-            val gateDecision = GraphRepaintGate.shouldRebuildBitmap(
-                displayedTemp = null,
-                currentDisplayedTemp = null,
-                lastRenderMs = lastRender?.renderMs ?: 0L,
-                nowMs = SystemClock.elapsedRealtime(),
-                windowSpanMinutes = windowSpanMinutes,
-                bitmapWidthPx = bitmapDims.widthPx,
-                lastWatermarkMs = lastRender?.dataWatermarkMs,
-                currentWatermarkMs = dataWatermarkMs ?: ObservationWatermark.NONE,
-                paintOwed = paintOwed,
-            )
-            if (!gateDecision.shouldRebuild) {
-                appLogDao.log(
-                    WidgetPerfLogger.TAG_WIDGET_PAINT,
-                    "widget=$appWidgetId caller=PRECIPITATION state=skipped reason=${gateDecision.reason} thread=${Thread.currentThread().name}",
-                )
-                return
-            }
+        if (uiOnly && repaintUnchanged(context, appWidgetId, stateManager, appLogDao, dimensions, dataWatermarkMs, paintOwed)) {
+            return
         }
 
         Log.d(TAG, "updateWidget: widgetId=$appWidgetId, cols=$numColumns, rows=$numRows, hourlyCount=${hourlyForecasts.size}")
@@ -163,6 +142,117 @@ object PrecipViewHandler {
             return
         }
 
+        val header = bindPrecipHeader(
+            context, views, appWidgetId, stateManager, hourlyForecasts, currentTempHourlyForecasts, centerTime,
+            displaySource, precipProbability, lastObservedTemp, observedAt, dimensions, zoom,
+        )
+        val now = header.now
+        val lat = header.lat
+        val lon = header.lon
+        val iconRes = header.iconRes
+        val resolveMs = header.resolveMs
+
+        // Use graph mode for 2+ rows, text mode for 1 row
+        val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
+        val useGraph = rawRows >= 1.4f
+
+        val graphTimings = if (useGraph) {
+            // null: the degenerate no-hours case already pushed its view; nothing more to do.
+            bindPrecipGraph(
+                context, appWidgetManager, appWidgetId, views, stateManager, appLogDao, hourlyForecasts,
+                displaySource, now, centerTime, numColumns, zoom, hourlyOffset, dimensions, lat, lon, iconRes,
+                origin, partialPush, sourceMissingFromLoad,
+            ) ?: return
+        } else {
+            views.setViewVisibility(R.id.sim_loop_touch_zone, View.GONE)
+            views.setViewVisibility(R.id.radar_touch_zone, View.GONE)
+            views.setViewVisibility(R.id.error_pill_touch_zone, View.GONE)
+            views.setViewVisibility(R.id.text_container, View.VISIBLE)
+            views.setViewVisibility(R.id.graph_view, View.GONE)
+            views.setViewVisibility(R.id.graph_bottom_zone, View.GONE)
+            views.setViewVisibility(R.id.graph_bottom_hour_zones, View.GONE)
+            views.setViewVisibility(R.id.graph_bottom_reserved_space, View.VISIBLE)
+
+            // Text mode: show precip percentages
+            updatePrecipTextMode(views, hourlyForecasts, centerTime, numColumns, displaySource)
+            PrecipGraphTimings.NONE
+        }
+
+        if (isIconWidth) {
+            HeaderRemoteViewsBinder.hideIconWidthControls(views)
+        }
+
+        finishAndPush(
+            appWidgetManager, views, appWidgetId, stateManager, appLogDao, origin, partialPush, dataWatermarkMs,
+            handlerStartMs, startupToken, useGraph, resolveMs, graphTimings, hourlyForecasts.size,
+        )
+    }
+
+    /** UI-only repaint gate: true (logged) when nothing changed, so no bitmap rebuild is due. */
+    private suspend fun repaintUnchanged(
+        context: Context,
+        appWidgetId: Int,
+        stateManager: WidgetStateManager,
+        appLogDao: com.weatherwidget.data.local.AppLogDao,
+        dimensions: WidgetDimensions,
+        dataWatermarkMs: Long?,
+        paintOwed: Boolean,
+    ): Boolean {
+        val zoom = stateManager.getZoomWindow(appWidgetId)
+        val lastRender = stateManager.getLastGraphRender(appWidgetId)
+        val bitmapDims = WidgetSizeCalculator.computeBitmapDimensions(context, dimensions.widthDp, dimensions.heightDp)
+        val windowSpanMinutes = zoom.totalSpanHours * 60
+        val gateDecision = GraphRepaintGate.shouldRebuildBitmap(
+            displayedTemp = null,
+            currentDisplayedTemp = null,
+            lastRenderMs = lastRender?.renderMs ?: 0L,
+            nowMs = SystemClock.elapsedRealtime(),
+            windowSpanMinutes = windowSpanMinutes,
+            bitmapWidthPx = bitmapDims.widthPx,
+            lastWatermarkMs = lastRender?.dataWatermarkMs,
+            currentWatermarkMs = dataWatermarkMs ?: ObservationWatermark.NONE,
+            paintOwed = paintOwed,
+        )
+        if (!gateDecision.shouldRebuild) {
+            appLogDao.log(
+                WidgetPerfLogger.TAG_WIDGET_PAINT,
+                "widget=$appWidgetId caller=PRECIPITATION state=skipped reason=${gateDecision.reason} thread=${Thread.currentThread().name}",
+            )
+            return true
+        }
+        return false
+    }
+
+    private class PrecipHeader(
+        val now: LocalDateTime,
+        val lat: Double,
+        val lon: Double,
+        val iconRes: Int,
+        val resolveMs: Long,
+    )
+
+    /**
+     * The header of [updateWidget]: current temp, icon, rain %, buttons and shortcuts. Split out
+     * (2026-11-19; plans/261119-split-oversized-android-suspend-functions.md).
+     */
+    private suspend fun bindPrecipHeader(
+        context: Context,
+        views: RemoteViews,
+        appWidgetId: Int,
+        stateManager: WidgetStateManager,
+        hourlyForecasts: List<HourlyForecastEntity>,
+        currentTempHourlyForecasts: List<HourlyForecastEntity>,
+        centerTime: LocalDateTime,
+        displaySource: WeatherSource,
+        precipProbability: Int?,
+        lastObservedTemp: Float?,
+        observedAt: Long?,
+        dimensions: WidgetDimensions,
+        zoom: com.weatherwidget.widget.ZoomWindow,
+    ): PrecipHeader {
+        val numColumns = dimensions.cols
+        val numRows = dimensions.rows
+        val isIconWidth = dimensions.isIconWidth
         // Set weather icon
         val now = LocalDateTime.now()
         // NaN, never a hardcoded coordinate: this is derived from the rows about to be drawn, so it
@@ -274,37 +364,26 @@ object PrecipViewHandler {
         }
 
         positionCenterIcons(views, dimensions.widthDp, context.resources.displayMetrics.density, headerResult.measured, fit, headerResult.shown)
+        return PrecipHeader(now, lat, lon, iconRes, resolveMs)
+    }
 
-// Use graph mode for 2+ rows, text mode for 1 row
-        val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
-        val useGraph = rawRows >= 1.4f
-
-        val graphTimings = if (useGraph) {
-            // null: the degenerate no-hours case already pushed its view; nothing more to do.
-            bindPrecipGraph(
-                context, appWidgetManager, appWidgetId, views, stateManager, appLogDao, hourlyForecasts,
-                displaySource, now, centerTime, numColumns, zoom, hourlyOffset, dimensions, lat, lon, iconRes,
-                origin, partialPush, sourceMissingFromLoad,
-            ) ?: return
-        } else {
-            views.setViewVisibility(R.id.sim_loop_touch_zone, View.GONE)
-            views.setViewVisibility(R.id.radar_touch_zone, View.GONE)
-            views.setViewVisibility(R.id.error_pill_touch_zone, View.GONE)
-            views.setViewVisibility(R.id.text_container, View.VISIBLE)
-            views.setViewVisibility(R.id.graph_view, View.GONE)
-            views.setViewVisibility(R.id.graph_bottom_zone, View.GONE)
-            views.setViewVisibility(R.id.graph_bottom_hour_zones, View.GONE)
-            views.setViewVisibility(R.id.graph_bottom_reserved_space, View.VISIBLE)
-
-            // Text mode: show precip percentages
-            updatePrecipTextMode(views, hourlyForecasts, centerTime, numColumns, displaySource)
-            PrecipGraphTimings.NONE
-        }
-
-        if (isIconWidth) {
-            HeaderRemoteViewsBinder.hideIconWidthControls(views)
-        }
-
+    /** The push, the repaint gate's render record, and WIDGET_RENDER_PERF of [updateWidget]. */
+    private suspend fun finishAndPush(
+        appWidgetManager: AppWidgetManager,
+        views: RemoteViews,
+        appWidgetId: Int,
+        stateManager: WidgetStateManager,
+        appLogDao: com.weatherwidget.data.local.AppLogDao,
+        origin: com.weatherwidget.widget.WidgetPushDispatcher.Origin,
+        partialPush: Boolean,
+        dataWatermarkMs: Long?,
+        handlerStartMs: Long,
+        startupToken: String?,
+        useGraph: Boolean,
+        resolveMs: Long,
+        graphTimings: PrecipGraphTimings,
+        hourlyCount: Int,
+    ) {
         appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=PRECIPITATION origin=${origin.name} state=data push=${if (partialPush) "partial" else "full"} thread=${Thread.currentThread().name}")
         com.weatherwidget.widget.WidgetPushDispatcher.push(
             appWidgetManager = appWidgetManager,
@@ -340,11 +419,94 @@ object PrecipViewHandler {
                 "resolveMs" to resolveMs,
                 "buildHoursMs" to graphTimings.buildHoursMs,
                 "renderMs" to graphTimings.renderMs,
-                "hourlyCount" to hourlyForecasts.size,
+                "hourlyCount" to hourlyCount,
                 "graphHours" to graphTimings.graphHoursCount,
                 "totalMs" to totalMs,
             ),
             debugTag = TAG,
+        )
+    }
+
+    /** PRECIP_COVER_GAPS: hours in the window with no row, and the one gap-fill they may start. */
+    private suspend fun logCoverGaps(
+        context: Context,
+        appWidgetId: Int,
+        appLogDao: com.weatherwidget.data.local.AppLogDao,
+        displaySource: WeatherSource,
+        startHour: LocalDateTime,
+        endHour: LocalDateTime,
+        hourCount: Int,
+        sourceMissingFromLoad: Boolean,
+    ) {
+        val totalWindowHours = java.time.temporal.ChronoUnit.HOURS.between(startHour, endHour).toInt() + 1
+        val missingHours = (totalWindowHours - hourCount).coerceAtLeast(0)
+        if (missingHours > 0) {
+            appLogDao.log(
+                "PRECIP_COVER_GAPS",
+                "widget=$appWidgetId source=${displaySource.id} missing=$missingHours total=$totalWindowHours " +
+                    "sourceMissingFromLoad=$sourceMissingFromLoad",
+            )
+            // The one gap-fill: only a fetch that can cover a day in view, that source alone.
+            if (!sourceMissingFromLoad) {
+                com.weatherwidget.widget.WidgetDayClickCoordinator.fillHourlyGaps(context, appWidgetId, "precip_gaps")
+            }
+        }
+    }
+
+    /** Radar and sim-loop pill tap zones over the drawn graph, and where each landed (or why not). */
+    private suspend fun bindPillZones(
+        context: Context,
+        views: RemoteViews,
+        appWidgetId: Int,
+        appLogDao: com.weatherwidget.data.local.AppLogDao,
+        dimensions: WidgetDimensions,
+        bitmapDims: WidgetSizeCalculator.BitmapDimensions,
+        simLoopLocation: Pair<Double, Double>?,
+        simLoopIsOpenMeteo: Boolean,
+        simLoopOffered: Boolean,
+        radarOffered: Boolean,
+        radarPill: android.graphics.RectF?,
+        simLoopPill: android.graphics.RectF?,
+        simLoopPlotBottom: Float,
+    ) {
+        val radarZone = SimLoopTouchTarget.apply(
+            context = context,
+            views = views,
+            appWidgetId = appWidgetId,
+            pillPx = radarPill,
+            plotBottomPx = simLoopPlotBottom,
+            bitmapWidthPx = bitmapDims.widthPx,
+            bitmapHeightPx = bitmapDims.heightPx,
+            widgetWidthDp = dimensions.widthDp,
+            widgetHeightDp = dimensions.heightDp,
+            location = simLoopLocation,
+            target = com.weatherwidget.ui.RadarActivity::class.java,
+            zoneId = R.id.radar_touch_zone,
+            requestCode = WidgetRequestCodes.radar(appWidgetId),
+        )
+        val simLoopZone = SimLoopTouchTarget.apply(
+            context = context,
+            views = views,
+            appWidgetId = appWidgetId,
+            pillPx = simLoopPill,
+            plotBottomPx = simLoopPlotBottom,
+            bitmapWidthPx = bitmapDims.widthPx,
+            bitmapHeightPx = bitmapDims.heightPx,
+            widgetWidthDp = dimensions.widthDp,
+            widgetHeightDp = dimensions.heightDp,
+            location = simLoopLocation,
+            target = if (simLoopIsOpenMeteo) com.weatherwidget.ui.OpenMeteoRainLoopActivity::class.java else com.weatherwidget.ui.RainForecastActivity::class.java,
+            avoidDp = radarZone,
+        )
+        appLogDao.log(
+            "PrecipGraph",
+            "RADAR_PILL zoneDp=${radarZone?.let { "${it.left.toInt()},${it.top.toInt()},${it.right.toInt()},${it.bottom.toInt()}" }} " +
+                "reason=${when { !SimLoopTouchTarget.supported() -> "api<31"; !radarOffered -> "no_location"; radarPill == null -> "no_space"; else -> "placed" }}",
+        )
+        appLogDao.log(
+            "PrecipGraph",
+            "SIM_LOOP_PILL zoneDp=${simLoopZone?.let { "${it.left.toInt()},${it.top.toInt()},${it.right.toInt()},${it.bottom.toInt()}" }} " +
+                "reason=${when { !SimLoopTouchTarget.supported() -> "api<31"; !simLoopOffered -> "unavailable"; simLoopPill == null -> "no_space"; else -> "placed" }} map=${if (simLoopIsOpenMeteo) "open_meteo" else "weathernext"}",
         )
     }
 
@@ -409,19 +571,7 @@ object PrecipViewHandler {
         val graphHoursCount = hours.size
 
         val (startHour, endHour) = computePrecipGraphWindow(centerTime, zoom)
-        val totalWindowHours = java.time.temporal.ChronoUnit.HOURS.between(startHour, endHour).toInt() + 1
-        val missingHours = (totalWindowHours - hours.size).coerceAtLeast(0)
-        if (missingHours > 0) {
-            appLogDao.log(
-                "PRECIP_COVER_GAPS",
-                "widget=$appWidgetId source=${displaySource.id} missing=$missingHours total=$totalWindowHours " +
-                    "sourceMissingFromLoad=$sourceMissingFromLoad",
-            )
-            // The one gap-fill: only a fetch that can cover a day in view, that source alone.
-            if (!sourceMissingFromLoad) {
-                com.weatherwidget.widget.WidgetDayClickCoordinator.fillHourlyGaps(context, appWidgetId, "precip_gaps")
-            }
-        }
+        logCoverGaps(context, appWidgetId, appLogDao, displaySource, startHour, endHour, hours.size, sourceMissingFromLoad)
 
         // A view of future hours the source has no data for: say so on the graph rather than
         // keep the previous bitmap below (HourlyEmptyNoticeRenderer).
@@ -535,44 +685,9 @@ object PrecipViewHandler {
             product = ForecastProduct.HOURLY,
         )
 
-        val radarZone = SimLoopTouchTarget.apply(
-            context = context,
-            views = views,
-            appWidgetId = appWidgetId,
-            pillPx = radarPill,
-            plotBottomPx = simLoopPlotBottom,
-            bitmapWidthPx = bitmapDims.widthPx,
-            bitmapHeightPx = bitmapDims.heightPx,
-            widgetWidthDp = dimensions.widthDp,
-            widgetHeightDp = dimensions.heightDp,
-            location = simLoopLocation,
-            target = com.weatherwidget.ui.RadarActivity::class.java,
-            zoneId = R.id.radar_touch_zone,
-            requestCode = WidgetRequestCodes.radar(appWidgetId),
-        )
-        val simLoopZone = SimLoopTouchTarget.apply(
-            context = context,
-            views = views,
-            appWidgetId = appWidgetId,
-            pillPx = simLoopPill,
-            plotBottomPx = simLoopPlotBottom,
-            bitmapWidthPx = bitmapDims.widthPx,
-            bitmapHeightPx = bitmapDims.heightPx,
-            widgetWidthDp = dimensions.widthDp,
-            widgetHeightDp = dimensions.heightDp,
-            location = simLoopLocation,
-            target = if (simLoopIsOpenMeteo) com.weatherwidget.ui.OpenMeteoRainLoopActivity::class.java else com.weatherwidget.ui.RainForecastActivity::class.java,
-            avoidDp = radarZone,
-        )
-        appLogDao.log(
-            "PrecipGraph",
-            "RADAR_PILL zoneDp=${radarZone?.let { "${it.left.toInt()},${it.top.toInt()},${it.right.toInt()},${it.bottom.toInt()}" }} " +
-                "reason=${when { !SimLoopTouchTarget.supported() -> "api<31"; !radarOffered -> "no_location"; radarPill == null -> "no_space"; else -> "placed" }}",
-        )
-        appLogDao.log(
-            "PrecipGraph",
-            "SIM_LOOP_PILL zoneDp=${simLoopZone?.let { "${it.left.toInt()},${it.top.toInt()},${it.right.toInt()},${it.bottom.toInt()}" }} " +
-                "reason=${when { !SimLoopTouchTarget.supported() -> "api<31"; !simLoopOffered -> "unavailable"; simLoopPill == null -> "no_space"; else -> "placed" }} map=${if (simLoopIsOpenMeteo) "open_meteo" else "weathernext"}",
+        bindPillZones(
+            context, views, appWidgetId, appLogDao, dimensions, bitmapDims, simLoopLocation, simLoopIsOpenMeteo,
+            simLoopOffered, radarOffered, radarPill, simLoopPill, simLoopPlotBottom,
         )
         return PrecipGraphTimings(buildHoursMs, renderMs, graphHoursCount)
     }

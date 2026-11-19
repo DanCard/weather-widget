@@ -117,6 +117,62 @@ object TemperatureExtrema {
                 "reversal=$ACTUAL_TURN_REVERSAL_DEGREES",
         )
 
+        val (actualDailyHighIndices, actualDailyLowIndices) =
+            perDayActualExtrema(hours, labelTemps, actualLabelTemps, actualIndices, actualEndIndex, transitionX, useCelsius)
+
+        Log.v(TAG, "ACTUAL_EXTREMA highIdx=$actualHighIndex highTemp=${if (actualHighIndex >= 0) actualLabelTemps[actualHighIndex] else "N/A"} " +
+                "lowIdx=$actualLowIndex lowTemp=${if (actualLowIndex >= 0) actualLabelTemps[actualLowIndex] else "N/A"} " +
+                "actualIndicesRange=${actualIndices.firstOrNull()}..${actualIndices.lastOrNull()}")
+        Log.v(TAG, "ACTUAL_DAILY highIdxs=$actualDailyHighIndices highTemps=${actualDailyHighIndices.map { actualLabelTemps[it] }} " +
+                "lowIdxs=$actualDailyLowIndices lowTemps=${actualDailyLowIndices.map { actualLabelTemps[it] }}")
+
+        val forecast = forecastExtrema(hours, labelTemps, transitionX, effectiveActualEndIndex, actualEndIndex)
+        val forecastHighIndex = forecast.highIndex
+        val forecastLowIndex = forecast.lowIndex
+        val pastForecastHighIndex = forecast.pastHighIndex
+        val pastForecastLowIndex = forecast.pastLowIndex
+
+        val localExtrema = findLocalExtremaIndices(labelTemps)
+        val significantLocalExtrema = localExtrema.filter { index ->
+            val prom = bilateralExtremaProminence(index, labelTemps, localExtrema)
+            if (prom < prominenceThreshold) {
+                Log.v(TAG, "EXTREMUM_REJECTED idx=$index temp=${labelTemps[index]} prominence=$prom threshold=$prominenceThreshold")
+                false
+            } else {
+                Log.v(TAG, "SIGNIFICANT_EXTREMUM idx=$index temp=${labelTemps[index]} prominence=$prom")
+                true
+            }
+        }
+
+        val fetchIdx = fetchTime?.let { time -> hours.indexOfLast { !it.dateTime.isAfter(time) } } ?: -1
+
+        return ExtremaIndices(
+            labelTemps, actualLabelTemps,
+            dailyHighIndex, dailyLowIndex,
+            actualHighIndex, actualLowIndex,
+            actualDailyHighIndices, actualDailyLowIndices,
+            actualProminentHighIndices, actualProminentLowIndices,
+            forecastHighIndex, forecastLowIndex,
+            pastForecastHighIndex, pastForecastLowIndex,
+            actualEndIndex,
+            significantLocalExtrema, fetchIdx
+        )
+    }
+
+    /**
+     * Each calendar day's actual high and low indices (highs, lows) for [compute]. Split out
+     * (2026-11-19; plans/261119-split-oversized-android-suspend-functions.md): the method's dex had
+     * grown past the size budget the suspend-function splits set.
+     */
+    private fun perDayActualExtrema(
+        hours: List<HourData>,
+        labelTemps: List<Float>,
+        actualLabelTemps: List<Float>,
+        actualIndices: List<Int>,
+        actualEndIndex: Int,
+        transitionX: Float?,
+        useCelsius: Boolean,
+    ): Pair<List<Int>, List<Int>> {
         // Per-day actual extrema: in a multi-day view the actual region spans several days, each
         // with its own valley/peak. The single global high/low above only labels the warmest/coldest
         // day, leaving every other day's actual extreme unlabeled (the forecast curve gets per-day
@@ -267,13 +323,19 @@ object TemperatureExtrema {
             Log.v(TAG, "DEGENERATE_DAY_LOW_DROPPED idxs=${degenerateLowDrops.sorted()} " +
                 "temps=${degenerateLowDrops.sorted().map { actualLabelTemps[it] }}")
         }
+        return actualDailyHighIndices to actualDailyLowIndices
+    }
 
-        Log.v(TAG, "ACTUAL_EXTREMA highIdx=$actualHighIndex highTemp=${if (actualHighIndex >= 0) actualLabelTemps[actualHighIndex] else "N/A"} " +
-                "lowIdx=$actualLowIndex lowTemp=${if (actualLowIndex >= 0) actualLabelTemps[actualLowIndex] else "N/A"} " +
-                "actualIndicesRange=${actualIndices.firstOrNull()}..${actualIndices.lastOrNull()}")
-        Log.v(TAG, "ACTUAL_DAILY highIdxs=$actualDailyHighIndices highTemps=${actualDailyHighIndices.map { actualLabelTemps[it] }} " +
-                "lowIdxs=$actualDailyLowIndices lowTemps=${actualDailyLowIndices.map { actualLabelTemps[it] }}")
+    private data class ForecastExtrema(val highIndex: Int, val lowIndex: Int, val pastHighIndex: Int, val pastLowIndex: Int)
 
+    /** The forecast's extrema after NOW and, with a NOW boundary, the past segment's turning extrema. */
+    private fun forecastExtrema(
+        hours: List<HourData>,
+        labelTemps: List<Float>,
+        transitionX: Float?,
+        effectiveActualEndIndex: Int,
+        actualEndIndex: Int,
+    ): ForecastExtrema {
         val forecastStartIndex = if (transitionX != null) effectiveActualEndIndex else 0
         val forecastIndices = (forecastStartIndex..hours.lastIndex).filter { it in labelTemps.indices && !labelTemps[it].isNaN() }
         val forecastHighIndex = forecastIndices.maxByOrNull { labelTemps[it] } ?: -1
@@ -309,32 +371,7 @@ object TemperatureExtrema {
                 "lowIdx=$forecastLowIndex lowTemp=${labelTemps[forecastLowIndex]} " +
                 "forecastDates=$forecastDates forecastRange=$forecastStartIndex..${hours.lastIndex}")
         }
-
-        val localExtrema = findLocalExtremaIndices(labelTemps)
-        val significantLocalExtrema = localExtrema.filter { index ->
-            val prom = bilateralExtremaProminence(index, labelTemps, localExtrema)
-            if (prom < prominenceThreshold) {
-                Log.v(TAG, "EXTREMUM_REJECTED idx=$index temp=${labelTemps[index]} prominence=$prom threshold=$prominenceThreshold")
-                false
-            } else {
-                Log.v(TAG, "SIGNIFICANT_EXTREMUM idx=$index temp=${labelTemps[index]} prominence=$prom")
-                true
-            }
-        }
-
-        val fetchIdx = fetchTime?.let { time -> hours.indexOfLast { !it.dateTime.isAfter(time) } } ?: -1
-
-        return ExtremaIndices(
-            labelTemps, actualLabelTemps,
-            dailyHighIndex, dailyLowIndex,
-            actualHighIndex, actualLowIndex,
-            actualDailyHighIndices, actualDailyLowIndices,
-            actualProminentHighIndices, actualProminentLowIndices,
-            forecastHighIndex, forecastLowIndex,
-            pastForecastHighIndex, pastForecastLowIndex,
-            actualEndIndex,
-            significantLocalExtrema, fetchIdx
-        )
+        return ForecastExtrema(forecastHighIndex, forecastLowIndex, pastForecastHighIndex, pastForecastLowIndex)
     }
 
     /**

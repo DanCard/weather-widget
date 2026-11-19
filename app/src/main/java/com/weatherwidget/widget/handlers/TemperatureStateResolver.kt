@@ -158,20 +158,9 @@ internal object TemperatureStateResolver {
         // value does not down-weight fresh observations, it excludes every one of them. Mirrors the
         // current-temp resolution in TemperatureViewHandler — the two must not disagree within one
         // paint, which is exactly what shipped before 2026-08-28.
-        val dataDerivedLocation = hourlyForecasts.firstOrNull()?.let { it.locationLat to it.locationLon }
-        val configuredLocation = stateManager.getWidgetLocation(appWidgetId)
-        val blendCentre = BlendCentre.resolve(configuredLocation, dataDerivedLocation)
+        val blendCentre = resolveBlendCentre(appWidgetId, hourlyForecasts, displaySource, stateManager, effectiveAppLogDao)
         val lat = blendCentre.lat
         val lon = blendCentre.lon
-        if (BlendCentre.divergesBeyondMergeTolerance(configuredLocation, dataDerivedLocation)) {
-            effectiveAppLogDao.log(
-                "BLEND_CENTRE_DIVERGENCE",
-                "widget=$appWidgetId source=${displaySource.id} " +
-                    "configured=${formatCoords(configuredLocation)} data=${formatCoords(dataDerivedLocation)} " +
-                    "hourlyRows=${hourlyForecasts.size}",
-                "WARN",
-            )
-        }
 
         val zoom = stateManager.getZoomWindow(appWidgetId)
         val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
@@ -243,14 +232,6 @@ internal object TemperatureStateResolver {
             is TemperatureGraphHoursLoader.GraphLoadOutcome.Loaded -> graphLoadResult
         }
         val graphHours = loaded.hours
-        val obsQueryMs = loaded.obsQueryMs
-        val buildHourDataMs = loaded.buildHourDataMs
-        val dominantStation = loaded.dominantStation
-        val newestObservationMs = loaded.newestObservationMs
-        val observationRowCount = loaded.observationRowCount
-        val obsPoolDiagnostics = loaded.obsPoolDiagnostics
-        val obsWindowStartMs = loaded.obsWindowStartMs
-        val obsWindowEndMs = loaded.obsWindowEndMs
 
         logHourlyDayExtrema(graphHours, appWidgetId, displaySource, zoom, hourlyOffset, effectiveAppLogDao)
 
@@ -265,8 +246,106 @@ internal object TemperatureStateResolver {
             currentTempSmoothedForecasts = currentTempSmoothedForecasts,
         )
 
-        // 5. Header State Resolution
+        // 5–6. Header state and graph rendering
         val isNowLineVisible = graphHours.any { it.isCurrentHour }
+        val hg = buildHeaderAndGraph(
+            context, appWidgetId, stateManager, effectiveAppLogDao, displaySource, hourlyForecasts,
+            currentTempHourlyForecasts, loaded, centerTime, now, zoom, dimensions, currentTempResolution,
+            deltaFromYesterday, precipProbability, blendCentre, lastObservedTemp, observedAt, useGraph,
+            onFetchDotResolved,
+        )
+        val headerState = hg.headerState
+        val headerPrecipProbability = hg.headerPrecipProbability
+        val graphState = hg.graphState
+        val renderMs = hg.renderMs
+
+        return ResolutionResult(
+            state = TemperatureWidgetState(
+                appWidgetId = appWidgetId,
+                numRows = dimensions.rows,
+                widthDp = dimensions.widthDp,
+                header = headerState,
+                graph = graphState,
+                warning = null,
+                displaySource = displaySource,
+                zoom = zoom,
+                hourlyOffset = hourlyOffset
+            ),
+            resolveMs = resolveMs,
+            obsQueryMs = loaded.obsQueryMs,
+            buildHourDataMs = loaded.buildHourDataMs,
+            renderMs = renderMs,
+            currentTempResolution = currentTempResolution,
+            headerPrecipProbability = headerPrecipProbability,
+            lat = lat,
+            lon = lon,
+            smoothedForecasts = smoothedForecasts,
+            isNowLineVisible = isNowLineVisible,
+            deltaFromYesterday = deltaFromYesterday,
+        )
+    }
+
+    /** [resolve]'s blend centre (configured location over the data's), logging a divergence. */
+    private suspend fun resolveBlendCentre(
+        appWidgetId: Int,
+        hourlyForecasts: List<HourlyForecastEntity>,
+        displaySource: WeatherSource,
+        stateManager: WidgetStateManager,
+        effectiveAppLogDao: AppLogDao,
+    ): BlendCentre.Centre {
+        val dataDerivedLocation = hourlyForecasts.firstOrNull()?.let { it.locationLat to it.locationLon }
+        val configuredLocation = stateManager.getWidgetLocation(appWidgetId)
+        val blendCentre = BlendCentre.resolve(configuredLocation, dataDerivedLocation)
+        if (BlendCentre.divergesBeyondMergeTolerance(configuredLocation, dataDerivedLocation)) {
+            effectiveAppLogDao.log(
+                "BLEND_CENTRE_DIVERGENCE",
+                "widget=$appWidgetId source=${displaySource.id} " +
+                    "configured=${formatCoords(configuredLocation)} data=${formatCoords(dataDerivedLocation)} " +
+                    "hourlyRows=${hourlyForecasts.size}",
+                "WARN",
+            )
+        }
+        return blendCentre
+    }
+
+    private class HeaderAndGraph(
+        val headerState: TemperatureWidgetState.HeaderState,
+        val headerPrecipProbability: Int?,
+        val graphState: TemperatureWidgetState.GraphState,
+        val renderMs: Long,
+    )
+
+    /**
+     * Steps 5–6 of [resolve]: header state, then the graph bitmap. Split out (2026-11-19) so the loaded
+     * observation fields are not live across [resolve]'s other suspension points
+     * (plans/261119-split-oversized-android-suspend-functions.md).
+     */
+    private suspend fun buildHeaderAndGraph(
+        context: Context,
+        appWidgetId: Int,
+        stateManager: WidgetStateManager,
+        effectiveAppLogDao: AppLogDao,
+        displaySource: WeatherSource,
+        hourlyForecasts: List<HourlyForecastEntity>,
+        currentTempHourlyForecasts: List<HourlyForecastEntity>,
+        loaded: TemperatureGraphHoursLoader.GraphLoadOutcome.Loaded,
+        centerTime: LocalDateTime,
+        now: LocalDateTime,
+        zoom: ZoomWindow,
+        dimensions: WidgetDimensions,
+        currentTempResolution: CurrentTemperatureResolution,
+        deltaFromYesterday: Float?,
+        precipProbability: Int?,
+        blendCentre: BlendCentre.Centre,
+        lastObservedTemp: Float?,
+        observedAt: Long?,
+        useGraph: Boolean,
+        onFetchDotResolved: ((FetchDotDebug) -> Unit)?,
+    ): HeaderAndGraph {
+        val graphHours = loaded.hours
+        val lat = blendCentre.lat
+        val lon = blendCentre.lon
+        // 5. Header State Resolution
         val useCelsius = stateManager.useCelsius()
         val (headerState, headerPrecipProbability) = TemperatureHeaderStateBuilder.buildHeaderState(
             currentTempResolution = currentTempResolution,
@@ -293,8 +372,8 @@ internal object TemperatureStateResolver {
             renderGraphPhase(
                 context, appWidgetId, stateManager, effectiveAppLogDao, displaySource, hourlyForecasts, graphHours,
                 centerTime, now, zoom, dimensions, useCelsius, headerState, currentTempResolution, blendCentre, lat,
-                lon, lastObservedTemp, observedAt, dominantStation, newestObservationMs, observationRowCount,
-                obsPoolDiagnostics, obsWindowStartMs, obsWindowEndMs, onFetchDotResolved,
+                lon, lastObservedTemp, observedAt, loaded.dominantStation, loaded.newestObservationMs, loaded.observationRowCount,
+                loaded.obsPoolDiagnostics, loaded.obsWindowStartMs, loaded.obsWindowEndMs, onFetchDotResolved,
             )
         } else {
             GraphPhase.NONE
@@ -321,30 +400,7 @@ internal object TemperatureStateResolver {
             )
         }
 
-        return ResolutionResult(
-            state = TemperatureWidgetState(
-                appWidgetId = appWidgetId,
-                numRows = dimensions.rows,
-                widthDp = dimensions.widthDp,
-                header = headerState,
-                graph = graphState,
-                warning = null,
-                displaySource = displaySource,
-                zoom = zoom,
-                hourlyOffset = hourlyOffset
-            ),
-            resolveMs = resolveMs,
-            obsQueryMs = obsQueryMs,
-            buildHourDataMs = buildHourDataMs,
-            renderMs = renderMs,
-            currentTempResolution = currentTempResolution,
-            headerPrecipProbability = headerPrecipProbability,
-            lat = lat,
-            lon = lon,
-            smoothedForecasts = smoothedForecasts,
-            isNowLineVisible = isNowLineVisible,
-            deltaFromYesterday = deltaFromYesterday,
-        )
+        return HeaderAndGraph(headerState, headerPrecipProbability, graphState, renderMs)
     }
 
     /**
