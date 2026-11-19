@@ -121,3 +121,52 @@ splitting the large suspend functions as the higher-value refactor).
 - Phase 1 sizes: `FullSyncPipeline.run` 30,646/456 → largest piece `onFetchSuccess` 7,398/202 (+
   `loadAndBackfill`, `recomputeActuals`); `TemperatureStateResolver.resolve` 12,898/270 → 7,364/187 (+
   `renderGraphPhase` 4,064/133; the Loaded/Empty `when` no longer fills seven `var`s).
+
+## Phase 2 handoff (2026-11-19, for a fresh session)
+
+**State:** steps 1–2 and phase 1 are committed (`0a0153dc3`, release boot `bcef588b2`); the gate is
+green on Medium_Phone_API_36 and Pixel_Tablet_API36. Phase 2 has not started. The rename plan
+(`plans/261119-rename-screen-code-names.md`) comes after it and is approved.
+
+**Targets** (`scripts/dex-method-budget.sh`, budget 6,000 insns or 150 registers; order: suspend
+functions first, most registers first):
+
+| # | Method | insns | regs | Source |
+|---|---|---:|---:|---|
+| 1 | `DailyViewHandler.updateWidget` (left over from phase 1) | 9,848 | 247 | `app/…/widget/handlers/DailyViewHandler.kt` |
+| 2 | `DailyBlendRecomputeRun.day` (:shared) | 5,954 | 210 | `shared/…/shared/actuals/DailyBlendRecomputeRun.kt:124` |
+| 3 | `FullSyncPipeline.onFetchSuccess` (phase 1 piece) | 7,398 | 202 | `app/…/widget/FullSyncPipeline.kt` |
+| 4 | `DailyInteractionRenderer.render` | 7,700 | 200 | `app/…/widget/handlers/DailyInteractionRenderer.kt:207` |
+| 5 | `TemperatureStateResolver.resolve` (phase 1 piece) | 7,364 | 187 | `app/…/widget/handlers/TemperatureStateResolver.kt` |
+| 6 | `TemperatureGraphHoursLoader.loadGraphHours` | 8,130 | 178 | `app/…/widget/handlers/TemperatureGraphHoursLoader.kt:41` |
+| 7 | `CloudCoverViewHandler.updateWidget` (after its fix) | 7,990 | 145 | `app/…/widget/handlers/CloudCoverViewHandler.kt` |
+| 8 | `DailyGraphRenderer.render` | 7,382 | 132 | `app/…/widget/handlers/DailyGraphRenderer.kt:51` |
+| 9 | `PrecipViewHandler.bindPrecipGraph` / `.updateWidget` | 6,110 / 7,220 | 132 / 122 | `app/…/widget/handlers/PrecipViewHandler.kt` |
+| 10 | `CurrentConditionsRun.run` (:shared) | 8,688 | 100 | `shared/…/shared/observations/CurrentConditionsRun.kt:78` |
+| 11 | `ForecastRepository.getWeatherData` | 9,242 | 61 | `app/…/data/repository/ForecastRepository.kt:204` |
+| 12 | `WeatherWidgetWorker.handleCurrentTempOnlyWork` | 7,314 | 55 | `app/…/widget/WeatherWidgetWorker.kt:375` |
+| 13 | `TemperatureExtrema.compute` (:shared, **not suspend**: no spill state; last, or exempt) | 6,795 | 65 | `shared/…/shared/graph/TemperatureExtrema.kt:60` |
+
+Then make the budget fail the gate (`dex-method-budget.sh` exit 1 when over; decide the exemption for
+non-suspend methods), per the user's "report, then fail".
+
+**Technique that worked in phase 1** (no behavior change):
+1. Measure: `MAX_INSNS=0 MAX_REGS=0 scripts/dex-method-budget.sh | grep <Class>` after `assembleDebug`.
+2. Find phase boundaries at the function's top-level statements (`awk` lines indented 8 spaces).
+3. For a candidate block, list the outer names it reads, the names it declares that later code reads,
+   outer `var`s it assigns, and any `return` (early exit) — a short Python `re` scan did this.
+4. Extract to a private suspend (or plain, if pure) function taking exactly those reads and returning a
+   small class of exactly those later-read values. An early `return` becomes a nullable result and
+   `?: return` at the call (`bindPrecipGraph`). `Result.fold`/`forEach` with suspend bodies inline into
+   the caller — move their bodies out (`FullSyncPipeline.onFetchSuccess`).
+5. Replace conditionally assigned `var x = 0L` / `var … = null` locals with returned values or
+   `val loaded = when (…) { Empty -> return …; Loaded -> it }` (`TemperatureStateResolver`).
+6. `./gradlew :app:compileDebugKotlin`, re-measure, then the class's existing tests; add the class to
+   `WidgetHandlerClassVerificationInstrumentedTest`.
+7. Per batch: `./scripts/staggered-tests.sh --install && ./scripts/buildStart-desktop.sh` (runs
+   `verify_app_dex` on every emulator), then commit (user, 2026-11-19: "commit when you think it is a
+   good idea").
+
+**Pitfalls seen:** `bash` heredocs with `$` in Python; the Kotlin `Name contains illegal characters: ;`
+in backtick test names; a stale `app/build` APK after a `git checkout` round-trip (rebuild before
+measuring); do not edit `scripts/*.sh` while a gate runs (bash reads scripts as it executes).
