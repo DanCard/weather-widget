@@ -344,210 +344,12 @@ object CloudCoverViewHandler {
 
 val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
         val useGraph = rawRows >= 1.4f
-        var buildHoursMs = 0L
-        var renderMs = 0L
 
-        if (useGraph) {
-            views.setViewVisibility(R.id.text_container, View.GONE)
-            views.setViewVisibility(R.id.graph_view, View.VISIBLE)
-            views.setViewVisibility(R.id.graph_day_zones, View.GONE)
-            views.setViewVisibility(R.id.graph_interaction_container, View.VISIBLE)
-
-            val buildHoursStartMs = SystemClock.elapsedRealtime()
-            val cloudData = CloudSeriesLoader.loadCloudSeries(
-                context = context,
-                hourlyForecasts = hourlyForecasts,
-                windowHourKeys = windowHourKeys,
-                effectiveDisplaySource = effectiveDisplaySource,
-            )
-            val siteLat = cloudData.siteLat
-            val siteLon = cloudData.siteLon
-            val windowStart = cloudData.windowStart
-            val windowEnd = cloudData.windowEnd
-            val priorCloud = cloudData.priorCloud
-            val priorBands = cloudData.priorBands
-            val retroActual = cloudData.retroActual
-
-            // While-viewing watchdog: this view is literally being drawn, so the user is looking.
-            // Refreshes the viewed source's current temp/actuals when stale, and its forecast only when
-            // due by the normal cadence (ViewingRefreshPolicy). Debounced per widget/source.
-            maybeRefreshWhileViewing(
-                context = context,
-                stateManager = stateManager,
-                appWidgetId = appWidgetId,
-                displaySource = effectiveDisplaySource,
-                repository = repository,
-                hourlyForecasts = hourlyForecasts,
-                siteLat = siteLat,
-                siteLon = siteLon,
-            )
-
-            // Repair probe for the actual cloud series. The coverage decision lives in the
-            // temperature/daily views, but a widget parked in CLOUD view never renders those —
-            // and the missing curve above is THIS view's data, so it must be able to heal itself.
-            // NWS-only like the other probes; the shared decision/cooldown prevents
-            // double-fetching across views. The cooldown is checked BEFORE the 72h observation
-            // read: while it is active the evaluation could only log a cooldown SKIP, so this
-            // render skips the expensive read too instead of paying it every paint.
-            if (effectiveDisplaySource == WeatherSource.NWS && repository != null && siteLat != null && siteLon != null &&
-                !hourlyBackfillCoolingDown(stateManager, appWidgetId, effectiveDisplaySource, siteLat, siteLon)
-            ) {
-                val backfillStart = now.minusHours(
-                    com.weatherwidget.widget.WeatherWidgetWorker.DEFAULT_OBSERVATION_BACKFILL_HOURS,
-                )
-                val observations = repository.getObservationsInRange(
-                    backfillStart.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                    now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                    siteLat,
-                    siteLon,
-                    // Same consumer as the daily probe: evaluateHourlyBackfillNeed filters this
-                    // list through matchesObservationSource, so every other api was read to be
-                    // dropped one call later.
-                    ActualsReadScope.apisFor(effectiveDisplaySource),
-                )
-                maybeEnqueueHourlyObservationBackfill(
-                    context = context,
-                    database = WeatherDatabase.getDatabase(context),
-                    stateManager = stateManager,
-                    appWidgetId = appWidgetId,
-                    displaySource = effectiveDisplaySource,
-                    graphStart = backfillStart,
-                    graphEnd = now,
-                    observations = observations,
-                    repositoryPresent = true,
-                    observationsLat = siteLat,
-                    observationsLon = siteLon,
-                )
-            }
-
-            val hours = buildCloudHourDataList(
-                hourlyForecasts, centerTime, numColumns, effectiveDisplaySource, zoom,
-                priorDayCloudForecast = priorCloud,
-                retroCloudActual = retroActual.hours,
-                priorDayBandForecast = priorBands,
-                retroCloudBands = retroActual.bands,
-            )
-            buildHoursMs = SystemClock.elapsedRealtime() - buildHoursStartMs
-
-            val totalWindowHours = windowHourKeys.size
-            val missingHours = (totalWindowHours - hours.size).coerceAtLeast(0)
-
-            val zoneId = ZoneId.systemDefault()
-            val presentHourMs = hours.asSequence()
-                .map { it.dateTime.atZone(zoneId).toInstant().toEpochMilli() }
-                .toSet()
-            val missingHourTimes = (windowHourKeys - presentHourMs).asSequence()
-                .map { Instant.ofEpochMilli(it).atZone(zoneId).toLocalDateTime() }
-                .sorted()
-                .toList()
-            val missingDescription = HourLabelFormatter.missingHourRanges(missingHourTimes).takeIf { it.isNotEmpty() }
-            val missingReason = if (missingHours > 0) resolveMissingDataReason(context, appLogDao) else null
-
-            if (hours.isEmpty() && hourlyForecasts.isNotEmpty()) {
-                Log.w(TAG, "buildCloudHourDataList returned empty despite ${hourlyForecasts.size} hourly rows — " +
-                    "centerTime=$centerTime zoom=$zoom source=$effectiveDisplaySource, rendering diagnostic")
-            }
-            if (missingHours > 0) {
-                appLogDao.log(
-                    "CLOUD_COVER_GAPS",
-                    "widget=$appWidgetId source=${effectiveDisplaySource.id} " +
-                        "missing=$missingHours total=$totalWindowHours " +
-                        "ranges=${missingDescription ?: "-"} reason=${missingReason ?: "-"} " +
-                        "sourceMissingFromLoad=$sourceMissingFromLoad",
-                )
-                // The one gap-fill: only a fetch that can cover a day in view, that source alone.
-                if (!sourceMissingFromLoad) {
-                    com.weatherwidget.widget.WidgetDayClickCoordinator.fillHourlyGaps(context, appWidgetId, "cloud_gaps")
-                }
-            }
-
-            val bitmapDims = WidgetSizeCalculator.computeBitmapDimensions(context, dimensions.widthDp, dimensions.heightDp)
-
-            // The observed curve, capped at the render's now (it read a second clock here).
-            val actualSeries = CloudActualSeries.pointsUntil(
-                values = retroActual.hours,
-                startMs = windowStart,
-                endMs = windowEnd,
-                nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-            )
-            val actualsProviderId = com.weatherwidget.shared.observations.ActualsProviderResolver.providerIdFor(effectiveDisplaySource)
-            // Named only when the curve is drawn — the hourly vertices' snapped actuals could say
-            // otherwise at a window edge (desktop already keyed on the drawn points).
-            val dominantStationLabel = if (com.weatherwidget.shared.observations.ActualsProviderResolver.showsBorrowedLabel(effectiveDisplaySource, drawsActuals = actualSeries.isNotEmpty())) {
-                val provider = WeatherSource.fromId(actualsProviderId)
-                localizedActualsSourceLabel(context, provider.displayName)
-            } else {
-                null
-            }
-
-            // A view of future hours the source has no data for: one notice on the graph
-            // (HourlyEmptyNoticeRenderer) in place of the "Cloud data missing" diagnostic.
-            val emptyNotice = com.weatherwidget.widget.HourlyEmptyNoticeRenderer.message(
-                context, stateManager, appWidgetId, hourlyForecasts, effectiveDisplaySource.id,
-                com.weatherwidget.shared.util.WeatherTimeUtils.hourWindow(centerTime, zoom.backHours, zoom.forwardHours),
-                now, siteLat ?: lat, siteLon ?: lon,
-            )
-
-            val hourLabelSpacingDp = if (zoom.stage == com.weatherwidget.widget.ZoomStage.NARROW) 18f else 28f
-            val renderStartMs = SystemClock.elapsedRealtime()
-            val bitmap = CloudCoverGraphRenderer.renderGraph(
-                com.weatherwidget.widget.CloudRenderRequest(
-                    context = context,
-                    hours = hours,
-                    widthPx = bitmapDims.widthPx,
-                    heightPx = bitmapDims.heightPx,
-                    currentTime = now,
-                    bitmapScale = bitmapDims.bitmapScale,
-                    smoothIterations = zoom.smoothIterations,
-                    actualSeries = actualSeries,
-                    hourLabelSpacingDp = hourLabelSpacingDp,
-                    missingHours = if (emptyNotice != null) 0 else missingHours,
-                    totalHours = if (emptyNotice != null) 0 else totalWindowHours,
-                    numColumns = numColumns,
-                    missingDescription = missingDescription,
-                    missingReason = missingReason,
-                    job = coroutineContext[Job],
-                    showErrorWatermark = stateManager.viewWatermark(effectiveDisplaySource, ForecastProduct.HOURLY).show,
-                    errorSourceLabel = effectiveDisplaySource.displayName,
-                    errorCode = stateManager.viewWatermark(effectiveDisplaySource, ForecastProduct.HOURLY).errorCode,
-                    errorFailureTimeMs = stateManager.viewWatermark(effectiveDisplaySource, ForecastProduct.HOURLY).failureTimeMs,
-                    errorRetryAtMs = stateManager.viewWatermark(effectiveDisplaySource, ForecastProduct.HOURLY).retryAtMs,
-                    errorBannerSinceMs = stateManager.viewWatermark(effectiveDisplaySource, ForecastProduct.HOURLY).bannerSinceMs,
-                    dominantStationLabel = dominantStationLabel,
-                ),
-            )
-            emptyNotice?.let {
-                com.weatherwidget.widget.HourlyEmptyNoticeRenderer.draw(
-                    bitmap, it, context.resources.displayMetrics.density * bitmapDims.bitmapScale,
-                )
-            }
-            renderMs = SystemClock.elapsedRealtime() - renderStartMs
-
-            views.setImageViewBitmap(R.id.graph_view, bitmap)
-            views.setViewVisibility(R.id.sim_loop_touch_zone, View.GONE)
-            views.setViewVisibility(R.id.radar_touch_zone, View.GONE)
-
-            // Cloud-cover body taps always zoom; bottom zones still route by icon.
-            val hourIcons = hours.map { it.iconRes }
-            setupZoomTapZones(context, views, appWidgetId, zoom, hourlyOffset)
-            HourlyBottomZoneHelper.setup(
-                context = context,
-                views = views,
-                appWidgetId = appWidgetId,
-                hourIconResources = hourIcons,
-                currentViewMode = com.weatherwidget.widget.ViewMode.CLOUD_COVER,
-                zoom = zoom,
-                hourlyOffset = hourlyOffset,
-            )
-            ErrorPillTouchTargetHelper.setupErrorPillTouchTarget(
-                context = context,
-                views = views,
-                appWidgetId = appWidgetId,
-                showErrorWatermark = stateManager.viewWatermark(effectiveDisplaySource, ForecastProduct.HOURLY).show,
-                errorCode = stateManager.viewWatermark(effectiveDisplaySource, ForecastProduct.HOURLY).errorCode,
-                bannerSinceMs = stateManager.viewWatermark(effectiveDisplaySource, ForecastProduct.HOURLY).bannerSinceMs,
-                sourceId = effectiveDisplaySource.id,
-                product = ForecastProduct.HOURLY,
+        val graphTimings = if (useGraph) {
+            bindCloudGraph(
+                context, views, appWidgetId, stateManager, appLogDao, hourlyForecasts, windowHourKeys,
+                effectiveDisplaySource, repository, now, centerTime, numColumns, zoom, hourlyOffset,
+                dimensions, lat, lon, sourceMissingFromLoad,
             )
         } else {
             views.setViewVisibility(R.id.error_pill_touch_zone, View.GONE)
@@ -559,6 +361,7 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
             views.setViewVisibility(R.id.graph_bottom_hour_zones, View.GONE)
             views.setViewVisibility(R.id.graph_bottom_reserved_space, View.VISIBLE)
             updateCloudTextMode(views, hourlyForecasts, centerTime, numColumns, effectiveDisplaySource)
+            CloudGraphTimings.NONE
         }
 
         if (isIconWidth) {
@@ -598,14 +401,253 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                 "view" to "CLOUD_COVER",
                 "useGraph" to useGraph,
                 "resolveMs" to resolveMs,
-                "buildHoursMs" to buildHoursMs,
-                "renderMs" to renderMs,
+                "buildHoursMs" to graphTimings.buildHoursMs,
+                "renderMs" to graphTimings.renderMs,
                 "hourlyCount" to hourlyForecasts.size,
                 "source" to effectiveDisplaySource.id,
                 "totalMs" to totalMs,
             ),
             debugTag = TAG,
         )
+    }
+
+    /** Timings the graph branch reports to WIDGET_RENDER_PERF; zero when the text mode draws instead. */
+    private data class CloudGraphTimings(val buildHoursMs: Long, val renderMs: Long) {
+        companion object {
+            val NONE = CloudGraphTimings(0L, 0L)
+        }
+    }
+
+    /**
+     * The graph branch of [updateWidget]: load the cloud series, run the repair probes, render the
+     * bitmap and bind its touch zones. Split out (2026-11-19) because the single ~500-line suspend
+     * function produced dex that ART rejects (VerifyError: a `long` spill — then `var buildHoursMs`
+     * — read from a register holding a 32-bit zero on one path). Keeping the coroutine state small
+     * here keeps the code generator on its well-trodden path. Check with
+     * `adb shell cmd package compile -m verify -f com.weatherwidget` (dex2oat logs "Verification error").
+     */
+    private suspend fun bindCloudGraph(
+        context: Context,
+        views: RemoteViews,
+        appWidgetId: Int,
+        stateManager: WidgetStateManager,
+        appLogDao: com.weatherwidget.data.local.AppLogDao,
+        hourlyForecasts: List<HourlyForecastEntity>,
+        windowHourKeys: Set<Long>,
+        effectiveDisplaySource: WeatherSource,
+        repository: com.weatherwidget.data.repository.WeatherRepository?,
+        now: LocalDateTime,
+        centerTime: LocalDateTime,
+        numColumns: Int,
+        zoom: com.weatherwidget.widget.ZoomWindow,
+        hourlyOffset: Int,
+        dimensions: WidgetDimensions,
+        lat: Double,
+        lon: Double,
+        sourceMissingFromLoad: Boolean,
+    ): CloudGraphTimings {
+        views.setViewVisibility(R.id.text_container, View.GONE)
+        views.setViewVisibility(R.id.graph_view, View.VISIBLE)
+        views.setViewVisibility(R.id.graph_day_zones, View.GONE)
+        views.setViewVisibility(R.id.graph_interaction_container, View.VISIBLE)
+
+        val buildHoursStartMs = SystemClock.elapsedRealtime()
+        val cloudData = CloudSeriesLoader.loadCloudSeries(
+            context = context,
+            hourlyForecasts = hourlyForecasts,
+            windowHourKeys = windowHourKeys,
+            effectiveDisplaySource = effectiveDisplaySource,
+        )
+        val siteLat = cloudData.siteLat
+        val siteLon = cloudData.siteLon
+        val windowStart = cloudData.windowStart
+        val windowEnd = cloudData.windowEnd
+        val priorCloud = cloudData.priorCloud
+        val priorBands = cloudData.priorBands
+        val retroActual = cloudData.retroActual
+
+        // While-viewing watchdog: this view is literally being drawn, so the user is looking.
+        // Refreshes the viewed source's current temp/actuals when stale, and its forecast only when
+        // due by the normal cadence (ViewingRefreshPolicy). Debounced per widget/source.
+        maybeRefreshWhileViewing(
+            context = context,
+            stateManager = stateManager,
+            appWidgetId = appWidgetId,
+            displaySource = effectiveDisplaySource,
+            repository = repository,
+            hourlyForecasts = hourlyForecasts,
+            siteLat = siteLat,
+            siteLon = siteLon,
+        )
+
+        // Repair probe for the actual cloud series. The coverage decision lives in the
+        // temperature/daily views, but a widget parked in CLOUD view never renders those —
+        // and the missing curve above is THIS view's data, so it must be able to heal itself.
+        // NWS-only like the other probes; the shared decision/cooldown prevents
+        // double-fetching across views. The cooldown is checked BEFORE the 72h observation
+        // read: while it is active the evaluation could only log a cooldown SKIP, so this
+        // render skips the expensive read too instead of paying it every paint.
+        if (effectiveDisplaySource == WeatherSource.NWS && repository != null && siteLat != null && siteLon != null &&
+            !hourlyBackfillCoolingDown(stateManager, appWidgetId, effectiveDisplaySource, siteLat, siteLon)
+        ) {
+            val backfillStart = now.minusHours(
+                com.weatherwidget.widget.WeatherWidgetWorker.DEFAULT_OBSERVATION_BACKFILL_HOURS,
+            )
+            val observations = repository.getObservationsInRange(
+                backfillStart.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                siteLat,
+                siteLon,
+                // Same consumer as the daily probe: evaluateHourlyBackfillNeed filters this
+                // list through matchesObservationSource, so every other api was read to be
+                // dropped one call later.
+                ActualsReadScope.apisFor(effectiveDisplaySource),
+            )
+            maybeEnqueueHourlyObservationBackfill(
+                context = context,
+                database = WeatherDatabase.getDatabase(context),
+                stateManager = stateManager,
+                appWidgetId = appWidgetId,
+                displaySource = effectiveDisplaySource,
+                graphStart = backfillStart,
+                graphEnd = now,
+                observations = observations,
+                repositoryPresent = true,
+                observationsLat = siteLat,
+                observationsLon = siteLon,
+            )
+        }
+
+        val hours = buildCloudHourDataList(
+            hourlyForecasts, centerTime, numColumns, effectiveDisplaySource, zoom,
+            priorDayCloudForecast = priorCloud,
+            retroCloudActual = retroActual.hours,
+            priorDayBandForecast = priorBands,
+            retroCloudBands = retroActual.bands,
+        )
+        val buildHoursMs = SystemClock.elapsedRealtime() - buildHoursStartMs
+
+        val totalWindowHours = windowHourKeys.size
+        val missingHours = (totalWindowHours - hours.size).coerceAtLeast(0)
+
+        val zoneId = ZoneId.systemDefault()
+        val presentHourMs = hours.asSequence()
+            .map { it.dateTime.atZone(zoneId).toInstant().toEpochMilli() }
+            .toSet()
+        val missingHourTimes = (windowHourKeys - presentHourMs).asSequence()
+            .map { Instant.ofEpochMilli(it).atZone(zoneId).toLocalDateTime() }
+            .sorted()
+            .toList()
+        val missingDescription = HourLabelFormatter.missingHourRanges(missingHourTimes).takeIf { it.isNotEmpty() }
+        val missingReason = if (missingHours > 0) resolveMissingDataReason(context, appLogDao) else null
+
+        if (hours.isEmpty() && hourlyForecasts.isNotEmpty()) {
+            Log.w(TAG, "buildCloudHourDataList returned empty despite ${hourlyForecasts.size} hourly rows — " +
+                "centerTime=$centerTime zoom=$zoom source=$effectiveDisplaySource, rendering diagnostic")
+        }
+        if (missingHours > 0) {
+            appLogDao.log(
+                "CLOUD_COVER_GAPS",
+                "widget=$appWidgetId source=${effectiveDisplaySource.id} " +
+                    "missing=$missingHours total=$totalWindowHours " +
+                    "ranges=${missingDescription ?: "-"} reason=${missingReason ?: "-"} " +
+                    "sourceMissingFromLoad=$sourceMissingFromLoad",
+            )
+            // The one gap-fill: only a fetch that can cover a day in view, that source alone.
+            if (!sourceMissingFromLoad) {
+                com.weatherwidget.widget.WidgetDayClickCoordinator.fillHourlyGaps(context, appWidgetId, "cloud_gaps")
+            }
+        }
+
+        val bitmapDims = WidgetSizeCalculator.computeBitmapDimensions(context, dimensions.widthDp, dimensions.heightDp)
+
+        // The observed curve, capped at the render's now (it read a second clock here).
+        val actualSeries = CloudActualSeries.pointsUntil(
+            values = retroActual.hours,
+            startMs = windowStart,
+            endMs = windowEnd,
+            nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+        )
+        val actualsProviderId = com.weatherwidget.shared.observations.ActualsProviderResolver.providerIdFor(effectiveDisplaySource)
+        // Named only when the curve is drawn — the hourly vertices' snapped actuals could say
+        // otherwise at a window edge (desktop already keyed on the drawn points).
+        val dominantStationLabel = if (com.weatherwidget.shared.observations.ActualsProviderResolver.showsBorrowedLabel(effectiveDisplaySource, drawsActuals = actualSeries.isNotEmpty())) {
+            val provider = WeatherSource.fromId(actualsProviderId)
+            localizedActualsSourceLabel(context, provider.displayName)
+        } else {
+            null
+        }
+
+        // A view of future hours the source has no data for: one notice on the graph
+        // (HourlyEmptyNoticeRenderer) in place of the "Cloud data missing" diagnostic.
+        val emptyNotice = com.weatherwidget.widget.HourlyEmptyNoticeRenderer.message(
+            context, stateManager, appWidgetId, hourlyForecasts, effectiveDisplaySource.id,
+            com.weatherwidget.shared.util.WeatherTimeUtils.hourWindow(centerTime, zoom.backHours, zoom.forwardHours),
+            now, siteLat ?: lat, siteLon ?: lon,
+        )
+
+        val hourLabelSpacingDp = if (zoom.stage == com.weatherwidget.widget.ZoomStage.NARROW) 18f else 28f
+        val renderStartMs = SystemClock.elapsedRealtime()
+        val bitmap = CloudCoverGraphRenderer.renderGraph(
+            com.weatherwidget.widget.CloudRenderRequest(
+                context = context,
+                hours = hours,
+                widthPx = bitmapDims.widthPx,
+                heightPx = bitmapDims.heightPx,
+                currentTime = now,
+                bitmapScale = bitmapDims.bitmapScale,
+                smoothIterations = zoom.smoothIterations,
+                actualSeries = actualSeries,
+                hourLabelSpacingDp = hourLabelSpacingDp,
+                missingHours = if (emptyNotice != null) 0 else missingHours,
+                totalHours = if (emptyNotice != null) 0 else totalWindowHours,
+                numColumns = numColumns,
+                missingDescription = missingDescription,
+                missingReason = missingReason,
+                job = coroutineContext[Job],
+                showErrorWatermark = stateManager.viewWatermark(effectiveDisplaySource, ForecastProduct.HOURLY).show,
+                errorSourceLabel = effectiveDisplaySource.displayName,
+                errorCode = stateManager.viewWatermark(effectiveDisplaySource, ForecastProduct.HOURLY).errorCode,
+                errorFailureTimeMs = stateManager.viewWatermark(effectiveDisplaySource, ForecastProduct.HOURLY).failureTimeMs,
+                errorRetryAtMs = stateManager.viewWatermark(effectiveDisplaySource, ForecastProduct.HOURLY).retryAtMs,
+                errorBannerSinceMs = stateManager.viewWatermark(effectiveDisplaySource, ForecastProduct.HOURLY).bannerSinceMs,
+                dominantStationLabel = dominantStationLabel,
+            ),
+        )
+        emptyNotice?.let {
+            com.weatherwidget.widget.HourlyEmptyNoticeRenderer.draw(
+                bitmap, it, context.resources.displayMetrics.density * bitmapDims.bitmapScale,
+            )
+        }
+        val renderMs = SystemClock.elapsedRealtime() - renderStartMs
+
+        views.setImageViewBitmap(R.id.graph_view, bitmap)
+        views.setViewVisibility(R.id.sim_loop_touch_zone, View.GONE)
+        views.setViewVisibility(R.id.radar_touch_zone, View.GONE)
+
+        // Cloud-cover body taps always zoom; bottom zones still route by icon.
+        val hourIcons = hours.map { it.iconRes }
+        setupZoomTapZones(context, views, appWidgetId, zoom, hourlyOffset)
+        HourlyBottomZoneHelper.setup(
+            context = context,
+            views = views,
+            appWidgetId = appWidgetId,
+            hourIconResources = hourIcons,
+            currentViewMode = com.weatherwidget.widget.ViewMode.CLOUD_COVER,
+            zoom = zoom,
+            hourlyOffset = hourlyOffset,
+        )
+        ErrorPillTouchTargetHelper.setupErrorPillTouchTarget(
+            context = context,
+            views = views,
+            appWidgetId = appWidgetId,
+            showErrorWatermark = stateManager.viewWatermark(effectiveDisplaySource, ForecastProduct.HOURLY).show,
+            errorCode = stateManager.viewWatermark(effectiveDisplaySource, ForecastProduct.HOURLY).errorCode,
+            bannerSinceMs = stateManager.viewWatermark(effectiveDisplaySource, ForecastProduct.HOURLY).bannerSinceMs,
+            sourceId = effectiveDisplaySource.id,
+            product = ForecastProduct.HOURLY,
+        )
+        return CloudGraphTimings(buildHoursMs, renderMs)
     }
 
     /**
