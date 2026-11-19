@@ -351,12 +351,12 @@ private val SETTINGS_SAVE_SOURCES = setOf("settings", "settings-close")
  */
 internal object ConfigSaveSource {
     /** The Forecast Comparison window's own saves (bounds, sort): never the source. */
-    const val HISTORY_WINDOW = "history-window"
-    const val HISTORY_SOURCE_SWITCH = "history-source-switch"
+    const val COMPARISON_WINDOW = "history-window"
+    const val COMPARISON_SOURCE_SWITCH = "history-source-switch"
     /** The Stations window's own saves (bounds, tab, actuals picker): never the source. */
     const val OBSERVATIONS_WINDOW = "observations-window"
     const val OBSERVATIONS_SOURCE_SWITCH = "observations-source-switch"
-    val SOURCE_SWITCHES = setOf(HISTORY_SOURCE_SWITCH, OBSERVATIONS_SOURCE_SWITCH)
+    val SOURCE_SWITCHES = setOf(COMPARISON_SOURCE_SWITCH, OBSERVATIONS_SOURCE_SWITCH)
 }
 
 /**
@@ -376,8 +376,8 @@ internal class DataWindowSaves(
 
         /** Forecast Comparison; [save] is `saveConfigAndNotify(config, label)`. */
         fun forForecastComparison(save: (DesktopConfig, String) -> Unit) = DataWindowSaves(
-            window = { save(it, ConfigSaveSource.HISTORY_WINDOW) },
-            sourceSwitch = { save(it, ConfigSaveSource.HISTORY_SOURCE_SWITCH) },
+            window = { save(it, ConfigSaveSource.COMPARISON_WINDOW) },
+            sourceSwitch = { save(it, ConfigSaveSource.COMPARISON_SOURCE_SWITCH) },
         )
 
         /** Stations; [save] is `saveConfigAndNotify(config, label)`. */

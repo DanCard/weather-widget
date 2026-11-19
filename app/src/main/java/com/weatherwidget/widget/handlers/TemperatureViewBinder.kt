@@ -143,7 +143,7 @@ HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, header.isPrecipVis
         setupApiToggle(context, views, appWidgetId, state.numRows, scale = headerScale)
         setupHomeShortcut(context, views, appWidgetId, scale = buttonScale)
         setupSettingsShortcut(context, views, appWidgetId)
-        setupHistoryShortcut(context, views, appWidgetId, centerTime, hourlyForecasts, state.displaySource, scale = buttonScale)
+        setupComparisonShortcut(context, views, appWidgetId, centerTime, hourlyForecasts, state.displaySource, scale = buttonScale)
         setupWeatherStationsShortcut(context, views, appWidgetId, scale = buttonScale)
 
         setupGraphSelectorShortcut(

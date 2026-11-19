@@ -92,3 +92,19 @@ Alternative: keep the old tag string. **User decision needed.**
 
 - Approved as written, after the split plan.
 - Log tag follows the class (`TAG = "StationsActivity"`); the commit notes the changed tag.
+
+## Implementation notes (2026-11-19)
+
+- **Forecast Comparison: done.** Renamed per the table; `RefreshNoticeSurface.COMPARISON` (test tag
+  `refresh_notice_comparison`), `ConfigSaveSource.COMPARISON_*` with their `history-*` string values
+  kept; tests `ForecastComparisonSourceSyncRoboTest`, `ForecastComparisonReloadOnReturnRoboTest`
+  (`git mv`). `HistoryRefreshOutcome` no longer exists. Not renamed (outside the table, Claude's call):
+  `HeaderButton.HISTORY` in `:shared`, the button that opens this screen; `HistoryIconVisibilityRoboTest`
+  (header icons across views, not this screen).
+- **Stations: on hold, user decision needed.** The plan's premise was that users see this screen as
+  "Stations". They see three names: desktop heading "Stations", desktop window title "Weather
+  Observations & Logs", Android screen title "Current Observations" (`current_observations_title`;
+  widget button description "Current Stations"). Options put to the user: rename to `Stations*` as
+  planned; also unify the visible titles; name the code after "Current Observations"; or skip.
+  Also note `DesktopConfig.kt` compares the save source against the literal `"observations"` as well as
+  `ConfigSaveSource.OBSERVATIONS_WINDOW`.

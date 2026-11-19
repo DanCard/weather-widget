@@ -795,7 +795,7 @@ currentCondition = "Sunny"),
                 onUpdateConfig = {},
                 onOpenSettings = {},
                 onOpenObservations = {},
-                onOpenHistory = { opened = it },
+                onOpenComparison = { opened = it },
             )
         }
 

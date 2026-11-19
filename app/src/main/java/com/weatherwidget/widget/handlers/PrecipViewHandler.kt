@@ -347,7 +347,7 @@ object PrecipViewHandler {
         if (!isIconWidth) {
             setupSettingsShortcut(context, views, appWidgetId)
         }
-        setupHistoryShortcut(context, views, appWidgetId, centerTime, hourlyForecasts, displaySource, scale = buttonScale)
+        setupComparisonShortcut(context, views, appWidgetId, centerTime, hourlyForecasts, displaySource, scale = buttonScale)
         setupWeatherStationsShortcut(context, views, appWidgetId, scale = buttonScale)
 
         setupGraphSelectorShortcut(

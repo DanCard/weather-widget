@@ -58,7 +58,7 @@ class ForecastComparisonSourcesRoboTest {
 
     /**
      * Every activity opened here. A resumed one left behind keeps collecting `dataSeen.reloads()`,
-     * so a later test in the same JVM sees its reloads (HistoryReloadOnReturnRoboTest counted 4-5
+     * so a later test in the same JVM sees its reloads (ForecastComparisonReloadOnReturnRoboTest counted 4-5
      * extra `SCREEN_RELOAD` lines from a leaked tomorrow-dated screen, 2026-11-19).
      */
     private val opened = mutableListOf<org.robolectric.android.controller.ActivityController<ForecastComparisonActivity>>()

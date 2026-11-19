@@ -56,7 +56,7 @@ internal fun WidgetHeader(
     onOpenSettings: () -> Unit,
     /** Opens the Observations window for the viewed day (a past day lets its refresh refill stale Google hours). */
     onOpenObservations: (LocalDate) -> Unit,
-    onOpenHistory: (viewedDate: LocalDate) -> Unit = {},
+    onOpenComparison: (viewedDate: LocalDate) -> Unit = {},
     onUpdateLocation: () -> Unit,
     headerTime: LocalDateTime = LocalDateTime.now(),
     scale: Float = 1f,
@@ -407,7 +407,7 @@ internal fun WidgetHeader(
                     // panning back to Wednesday opens Wednesday. Daily: today while today is on
                     // screen, otherwise the viewed date.
                     HeaderButton.HISTORY -> {
-                        { onOpenHistory(if (!isHourly && todayInView) LocalDate.now() else targetHour.toLocalDate()) }
+                        { onOpenComparison(if (!isHourly && todayInView) LocalDate.now() else targetHour.toLocalDate()) }
                     }
                 }
                 fun onSecondaryClick(button: HeaderButton): (() -> Unit)? = when (button) {

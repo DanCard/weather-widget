@@ -65,8 +65,8 @@ class DesktopWindowBringToFrontIntegrationTest {
         assertTrue("Must manage obsShowRequestId", "var obsShowRequestId" in uiApp)
         assertTrue("Must increment obsShowRequestId on open observations", "obsShowRequestId++" in uiApp)
 
-        assertTrue("Must manage historyShowRequestId", "var historyShowRequestId" in uiApp)
-        assertTrue("Must increment historyShowRequestId on open history", "historyShowRequestId++" in uiApp)
+        assertTrue("Must manage comparisonShowRequestId", "var comparisonShowRequestId" in uiApp)
+        assertTrue("Must increment comparisonShowRequestId on open history", "comparisonShowRequestId++" in uiApp)
 
         assertTrue("Must manage appLogsShowRequestId", "var appLogsShowRequestId" in uiApp)
         assertTrue("Must increment appLogsShowRequestId on view app logs", "appLogsShowRequestId++" in uiApp)
@@ -107,7 +107,7 @@ class DesktopWindowBringToFrontIntegrationTest {
                     settingsShowRequestId++
                 },
                 onOpenObservations = {},
-                onOpenHistory = {},
+                onOpenComparison = {},
             )
         }
 

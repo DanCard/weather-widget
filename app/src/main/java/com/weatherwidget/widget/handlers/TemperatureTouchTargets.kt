@@ -176,7 +176,7 @@ internal fun setupApiToggle(
     }
 }
 
-internal fun setupHistoryShortcut(
+internal fun setupComparisonShortcut(
     context: Context,
     views: RemoteViews,
     appWidgetId: Int,
@@ -192,7 +192,7 @@ internal fun setupHistoryShortcut(
     val lat = hourlyForecasts.firstOrNull()?.locationLat
     val lon = hourlyForecasts.firstOrNull()?.locationLon
     if (lat == null || lon == null || !lat.isFinite() || !lon.isFinite()) return
-    setupHistoryShortcutAt(
+    setupComparisonShortcutAt(
         context = context,
         views = views,
         appWidgetId = appWidgetId,
@@ -211,7 +211,7 @@ internal fun setupHistoryShortcut(
  * The daily view has real coordinates and a target date to hand and no hourly rows to mine them
  * from, so the lat/lon derivation stays in the hourly wrapper above rather than being duplicated.
  */
-internal fun setupHistoryShortcutAt(
+internal fun setupComparisonShortcutAt(
     context: Context,
     views: RemoteViews,
     appWidgetId: Int,

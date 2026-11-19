@@ -61,9 +61,9 @@ class WidgetScreenReopenSourceIntegrationTest {
 
     @Test
     fun historyReopenedAfterSourceChangeShowsTheNewSource() {
-        val firstScreen = openAndAwait(ForecastComparisonActivity::class.java, first) { openHistory(first) }
+        val firstScreen = openAndAwait(ForecastComparisonActivity::class.java, first) { openComparison(first) }
         goHome(ForecastComparisonActivity::class.java)
-        val secondScreen = openAndAwait(ForecastComparisonActivity::class.java, second) { openHistory(second) }
+        val secondScreen = openAndAwait(ForecastComparisonActivity::class.java, second) { openComparison(second) }
         assertNotSame("history task was resurfaced instead of recreated", firstScreen, secondScreen)
     }
 
@@ -76,7 +76,7 @@ class WidgetScreenReopenSourceIntegrationTest {
     }
 
     /** The widget's history shortcut: the broadcast it sends; the real receiver builds the activity intent. */
-    private fun openHistory(source: WeatherSource) {
+    private fun openComparison(source: WeatherSource) {
         val click = Intent(context, WidgetActionReceiver::class.java).apply {
             action = WidgetActions.ACTION_DAY_CLICK
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)

@@ -91,7 +91,7 @@ class DesktopForecastComparisonReopenSourceTest {
         composeTestRule.onNodeWithText("1 snapshot", substring = true).assertExists()
 
         // Main window switches to Open-Meteo, then the user reopens the window (DesktopUiApplication
-        // bumps historyShowRequestId on every onOpenHistory).
+        // bumps comparisonShowRequestId on every onOpenComparison).
         cfg = config("OPEN_METEO")
         showRequestId++
         awaitLoaded()

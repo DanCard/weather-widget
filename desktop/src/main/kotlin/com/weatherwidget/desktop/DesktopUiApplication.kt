@@ -164,12 +164,12 @@ internal fun runDesktopUiApplication() = application {
         var settingsShowRequestId by remember { mutableStateOf(0) }
         var statsVisible by remember { mutableStateOf(false) }
         var statsShowRequestId by remember { mutableStateOf(0) }
-        var historyVisible by remember { mutableStateOf(false) }
-        var historyShowRequestId by remember { mutableStateOf(0) }
+        var comparisonVisible by remember { mutableStateOf(false) }
+        var comparisonShowRequestId by remember { mutableStateOf(0) }
         // Day the forecast-history window opens on. Seeded from the hourly graph's viewed center
         // date (Android parity: TemperatureTouchTargets passes centerTime.toLocalDate()), so
         // opening history while viewing a past day lands on THAT day, not today.
-        var historyInitialDate by remember { mutableStateOf(LocalDate.now()) }
+        var comparisonInitialDate by remember { mutableStateOf(LocalDate.now()) }
         var observationsVisible by remember { mutableStateOf(false) }
         var obsShowRequestId by remember { mutableStateOf(0) }
         var appLogsVisible by remember { mutableStateOf(false) }
@@ -548,7 +548,7 @@ internal fun runDesktopUiApplication() = application {
         }
 
         // Exit on close logic:
-        val anyWindowOpen = popupVisible || pickerVisible || settingsVisible || statsVisible || historyVisible || observationsVisible || appLogsVisible || iconGalleryVisible || simLoopVisible || radarVisible
+        val anyWindowOpen = popupVisible || pickerVisible || settingsVisible || statsVisible || comparisonVisible || observationsVisible || appLogsVisible || iconGalleryVisible || simLoopVisible || radarVisible
         LaunchedEffect(anyWindowOpen) {
             if (!anyWindowOpen) {
                 Log.i(TAG, "All windows closed. Ephemeral UI process exiting...")
@@ -918,7 +918,7 @@ internal fun runDesktopUiApplication() = application {
         }
         // Keyed on visibility too: a new UI process opens its popup with showRequestId still 0.
         LaunchedEffect(showRequestId, popupVisible) { if (popupVisible) checkViewedSource("popup_open", RefreshNoticeSurface.POPUP) }
-        LaunchedEffect(historyShowRequestId) { if (historyShowRequestId > 0) checkViewedSource("history_open", RefreshNoticeSurface.HISTORY) }
+        LaunchedEffect(comparisonShowRequestId) { if (comparisonShowRequestId > 0) checkViewedSource("history_open", RefreshNoticeSurface.COMPARISON) }
         LaunchedEffect(obsShowRequestId) { if (obsShowRequestId > 0) checkViewedSource("observations_open", RefreshNoticeSurface.OBSERVATIONS) }
 
         fun requestFullRefresh(origin: String) {
@@ -1242,13 +1242,13 @@ internal fun runDesktopUiApplication() = application {
             )
         }
 
-        if (historyVisible && currentConfig != null) {
+        if (comparisonVisible && currentConfig != null) {
             CompositionLocalProvider(LocalRefreshNotice provides refreshNotice) { ForecastComparisonWindow(
                 weatherDao = weatherDao,
                 config = currentConfig,
-                showRequestId = historyShowRequestId,
-                initialDate = historyInitialDate,
-                onClose = { historyVisible = false },
+                showRequestId = comparisonShowRequestId,
+                initialDate = comparisonInitialDate,
+                onClose = { comparisonVisible = false },
                 saves = DataWindowSaves.forForecastComparison(saveConfigAndNotify),
                 dataUpdateCount = dataUpdateCount,
                 isRefreshing = refreshInFlight,
@@ -1376,11 +1376,11 @@ internal fun runDesktopUiApplication() = application {
                     observationsVisible = true
                     obsShowRequestId++
                 },
-                onOpenHistory = { viewedDate ->
+                onOpenComparison = { viewedDate ->
                     Log.d(TAG, "OpenHistory: viewedDate=$viewedDate (hourlyOffset=${currentConfig.hourlyOffset})")
-                    historyInitialDate = viewedDate
-                    historyVisible = true
-                    historyShowRequestId++
+                    comparisonInitialDate = viewedDate
+                    comparisonVisible = true
+                    comparisonShowRequestId++
                 },
                 onOpenSimLoop = {
                     simLoopVisible = true
@@ -1525,7 +1525,7 @@ private fun DataUpdateWatcher(
 
 /** Which window's Refresh asked, for its notice. */
 internal fun refreshNoticeSurface(origin: String): RefreshNoticeSurface = when (origin) {
-    "history" -> RefreshNoticeSurface.HISTORY
+    "history" -> RefreshNoticeSurface.COMPARISON
     "observations" -> RefreshNoticeSurface.OBSERVATIONS
     else -> RefreshNoticeSurface.SETTINGS
 }

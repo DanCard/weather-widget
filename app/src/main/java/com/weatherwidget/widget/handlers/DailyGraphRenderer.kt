@@ -381,7 +381,7 @@ internal object DailyGraphRenderer {
         val observationsInView = displayDays.any { it.isToday || it.date == ctx.today.minusDays(1) }
         // Width only, never the source shown: a source tap must not resize the buttons.
         val buttonScale = HeaderWidthChecker.buttonScale(dimensions.widthDp, fit, ctx.context.resources.displayMetrics.density)
-        setupHistoryShortcutAt(
+        setupComparisonShortcutAt(
             context = ctx.context,
             views = ctx.views,
             appWidgetId = ctx.appWidgetId,

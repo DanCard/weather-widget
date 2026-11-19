@@ -77,7 +77,7 @@ internal object ForecastComparisonReload {
 }
 
 /** Everything the window needs for one (targetDate, source) view, computed off the UI thread. */
-private data class HistoryData(
+private data class ComparisonData(
     val points: List<EvolutionPoint>,
     val apiHigh: Float?,
     val apiLow: Float?,
@@ -213,7 +213,7 @@ internal fun ForecastComparisonContent(
     var graphMode by remember { mutableStateOf(GraphMode.EVOLUTION) }
     var sourceCompareSort by remember { mutableStateOf(DaySourceComparison.Sort.decode(config.sourceCompareSort)) }
     var loading by remember { mutableStateOf(true) }
-    var data by remember { mutableStateOf<HistoryData?>(null) }
+    var data by remember { mutableStateOf<ComparisonData?>(null) }
 
     // The view the current [data] belongs to. A reload for the SAME view (a dataUpdateCount bump,
     // e.g. the popup's source toggle landing its refresh) keeps the content on screen and swaps the
@@ -224,7 +224,7 @@ internal fun ForecastComparisonContent(
         val view = ForecastComparisonReload.View(targetDate, source, config.lat, config.lon)
         if (ForecastComparisonReload.showsLoading(loadedView, view)) loading = true
         data = withContext(Dispatchers.IO) {
-            loadHistory(weatherDao, config, targetDate, source, visibleSources)
+            loadComparison(weatherDao, config, targetDate, source, visibleSources)
         }
         loadedView = view
         loading = false
@@ -269,7 +269,7 @@ internal fun ForecastComparisonContent(
                 )
             }
             }
-            RefreshNoticePill(RefreshNoticeSurface.HISTORY, Modifier.align(Alignment.BottomCenter))
+            RefreshNoticePill(RefreshNoticeSurface.COMPARISON, Modifier.align(Alignment.BottomCenter))
         }
     }
     }
@@ -334,7 +334,7 @@ private fun Header(
 
 @Composable
 private fun Content(
-    d: HistoryData,
+    d: ComparisonData,
     graphMode: GraphMode,
     source: WeatherSource,
     useCelsius: Boolean,
@@ -628,13 +628,13 @@ private fun DrawScope.labelSlanted(tm: TextMeasurer, text: String, x: Float, bas
 // Data loading
 // ---------------------------------------------------------------------------------------------
 
-private suspend fun loadHistory(
+private suspend fun loadComparison(
     dao: DesktopWeatherDao,
     config: DesktopConfig,
     targetDate: LocalDate,
     source: WeatherSource,
     visibleSources: List<WeatherSource>,
-): HistoryData {
+): ComparisonData {
     val lat = config.lat
     val lon = config.lon
     val targetEpoch = targetDate.toEpochDay() * MS_IN_A_DAY
@@ -762,7 +762,7 @@ private suspend fun loadHistory(
         zone = zone,
     )
 
-    return HistoryData(
+    return ComparisonData(
         points = points,
         apiHigh = apiHigh, apiLow = apiLow,
         appHigh = locationActuals.high, appLow = locationActuals.low,

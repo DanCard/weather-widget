@@ -25,7 +25,7 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
 /** Where a refresh notice shows: the window whose button (or the popup whose source cycle) asked. */
-enum class RefreshNoticeSurface { POPUP, SETTINGS, HISTORY, OBSERVATIONS }
+enum class RefreshNoticeSurface { POPUP, SETTINGS, COMPARISON, OBSERVATIONS }
 
 /**
  * The desktop's three-second refresh toast ([RefreshNotice]; plans/261015-refresh-queued-toast-all-surfaces.md):

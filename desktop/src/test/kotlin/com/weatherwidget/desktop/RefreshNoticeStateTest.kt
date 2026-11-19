@@ -71,13 +71,13 @@ class RefreshNoticeStateTest {
     fun `rate limited notice with sourceName logs source`() {
         state.show(
             NotQueued(Reason.RATE_LIMITED, sourceName = "NWS", elapsedMinutes = 0, remainingMinutes = 10),
-            RefreshNoticeSurface.HISTORY,
+            RefreshNoticeSurface.COMPARISON,
             "history",
         )
 
         assertEquals(
             "Not doing because last refresh was 0 minutes ago, and wait another 10 minutes before asking for a refresh",
-            state.textFor(RefreshNoticeSurface.HISTORY),
+            state.textFor(RefreshNoticeSurface.COMPARISON),
         )
         assertEquals(
             listOf("origin=history none=RATE_LIMITED source=NWS elapsedMin=0 waitMin=10 shown"),
@@ -101,12 +101,12 @@ class RefreshNoticeStateTest {
 
     @Test
     fun `a notice clears at exactly four seconds`() = runTest {
-        state.show(Queued(Kind.FORECAST), RefreshNoticeSurface.HISTORY, "history")
+        state.show(Queued(Kind.FORECAST), RefreshNoticeSurface.COMPARISON, "history")
         launch { state.expire(state.current!!) }
 
         advanceTimeBy(RefreshNotice.DURATION_MS - 1)
         runCurrent()
-        assertEquals("Forecast refresh queued", state.textFor(RefreshNoticeSurface.HISTORY))
+        assertEquals("Forecast refresh queued", state.textFor(RefreshNoticeSurface.COMPARISON))
         advanceTimeBy(1)
         runCurrent()
         assertNull(state.current)
@@ -114,7 +114,7 @@ class RefreshNoticeStateTest {
 
     @Test
     fun `an older expiry never clears a newer notice`() = runTest {
-        state.show(Queued(Kind.FORECAST), RefreshNoticeSurface.HISTORY, "history")
+        state.show(Queued(Kind.FORECAST), RefreshNoticeSurface.COMPARISON, "history")
         val first = state.current!!
         nowMs += RefreshNotice.DURATION_MS
         state.show(Queued(Kind.OBSERVATIONS), RefreshNoticeSurface.OBSERVATIONS, "observations")
@@ -129,7 +129,7 @@ class RefreshNoticeStateTest {
     @Test
     fun `refresh origins map to their window`() {
         assertEquals(RefreshNoticeSurface.SETTINGS, refreshNoticeSurface("settings"))
-        assertEquals(RefreshNoticeSurface.HISTORY, refreshNoticeSurface("history"))
+        assertEquals(RefreshNoticeSurface.COMPARISON, refreshNoticeSurface("history"))
         assertEquals(RefreshNoticeSurface.OBSERVATIONS, refreshNoticeSurface("observations"))
     }
 
@@ -140,14 +140,14 @@ class RefreshNoticeStateTest {
             CompositionLocalProvider(LocalRefreshNotice provides state) {
                 Box {
                     RefreshNoticePill(RefreshNoticeSurface.SETTINGS)
-                    RefreshNoticePill(RefreshNoticeSurface.HISTORY)
+                    RefreshNoticePill(RefreshNoticeSurface.COMPARISON)
                 }
             }
         }
 
         compose.onNodeWithText("Refresh already in progress").assertIsDisplayed()
         compose.onNodeWithTag("refresh_notice_settings").assertIsDisplayed()
-        compose.onNodeWithTag("refresh_notice_history").assertDoesNotExist()
+        compose.onNodeWithTag("refresh_notice_comparison").assertDoesNotExist()
     }
 
     @Test
@@ -171,24 +171,24 @@ class RefreshNoticeStateTest {
 
     @Test
     fun `a refresh outcome replaces the queued notice inside the window and restarts it`() {
-        state.show(Queued(Kind.FORECAST), RefreshNoticeSurface.HISTORY, "history")
+        state.show(Queued(Kind.FORECAST), RefreshNoticeSurface.COMPARISON, "history")
         nowMs += 500
         state.showOutcome(
             RefreshOutcome.Refused(QuotaScope.HOURLY_FORECAST, 42L),
             "Google",
-            RefreshNoticeSurface.HISTORY,
+            RefreshNoticeSurface.COMPARISON,
             "history",
         )
 
         assertEquals(
             "Google refreshed · Hourly forecast quota used · resets T42",
-            state.textFor(RefreshNoticeSurface.HISTORY),
+            state.textFor(RefreshNoticeSurface.COMPARISON),
         )
         assertEquals("origin=history done=Refused refused=HOURLY_FORECAST until=42 shown", logged.last())
 
         // The four seconds restart at the outcome: a notice 3.9 s later is still suppressed.
         nowMs += RefreshNotice.DURATION_MS - 100
-        state.show(Queued(Kind.FORECAST), RefreshNoticeSurface.HISTORY, "history")
+        state.show(Queued(Kind.FORECAST), RefreshNoticeSurface.COMPARISON, "history")
         assertEquals(true, logged.last().endsWith("suppressed"))
     }
 }

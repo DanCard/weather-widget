@@ -39,7 +39,7 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 @Category(LongDuration::class)
-class HistoryReloadOnReturnRoboTest {
+class ForecastComparisonReloadOnReturnRoboTest {
     private lateinit var context: Context
     private lateinit var db: com.weatherwidget.data.local.WeatherDatabase
     private lateinit var appLogDao: AppLogDao
@@ -62,7 +62,7 @@ class HistoryReloadOnReturnRoboTest {
         db.close()
     }
 
-    private fun openHistory(
+    private fun openComparison(
         configure: (ForecastComparisonActivity) -> Unit = {},
     ): ActivityController<ForecastComparisonActivity> {
         val intent = Intent(context, ForecastComparisonActivity::class.java).apply {
@@ -108,7 +108,7 @@ class HistoryReloadOnReturnRoboTest {
 
     @Test
     fun `returning with stored data written meanwhile reloads once, returning with none reloads nothing`() {
-        val controller = openHistory()
+        val controller = openComparison()
         assertEquals("opening is a load, not a reload on return", 0, settledReloadLines(expected = 0))
 
         // Settings opened on top and closed again, nothing written: no reload.
@@ -134,7 +134,7 @@ class HistoryReloadOnReturnRoboTest {
 
     @Test
     fun `a write landing while the screen stays open reloads it, each write once`() {
-        openHistory()
+        openComparison()
         assertEquals(0, settledReloadLines(expected = 0))
         assertEquals(1, loadsSoFar())
 
@@ -153,7 +153,7 @@ class HistoryReloadOnReturnRoboTest {
 
     @Test
     fun `writes while paused under another screen reload nothing until the return, then once`() {
-        val controller = openHistory()
+        val controller = openComparison()
         controller.pause()
         StoredDataVersion.process.bump("test:a")
         StoredDataVersion.process.bump("test:b")
@@ -165,7 +165,7 @@ class HistoryReloadOnReturnRoboTest {
 
     @Test
     fun `a newer load cancels the slower one before it paints`() {
-        val controller = openHistory()
+        val controller = openComparison()
         assertEquals(0, settledReloadLines(expected = 0))
         val loadsBefore = loadsSoFar()
         // Set after setup(): Hilt injects in onCreate, replacing a field set before it.

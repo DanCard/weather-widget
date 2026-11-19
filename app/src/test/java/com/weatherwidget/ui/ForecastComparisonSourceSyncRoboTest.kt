@@ -35,7 +35,7 @@ import org.junit.experimental.categories.Category
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 @Category(LongDuration::class)
-class HistoryActivitySyncRoboTest {
+class ForecastComparisonSourceSyncRoboTest {
 
     private lateinit var context: Context
     private lateinit var stateManager: WidgetStateManager
