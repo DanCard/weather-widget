@@ -61,7 +61,7 @@ internal object HourlyHeaderBinder {
             precipText = precipText,
             precipTextSizeDp = precipTextSizeDp,
             dateText = null,
-            includeIcon = true,
+            includeIcon = iconRes != 0,
             baseButtons = buttons.baseButtons,
             wantHome = buttons.wantHome,
             wantMonths = buttons.wantMonths,

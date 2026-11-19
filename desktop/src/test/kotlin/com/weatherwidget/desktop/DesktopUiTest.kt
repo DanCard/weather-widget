@@ -140,28 +140,25 @@ currentCondition = "Sunny"),
     @Test
     fun testActiveRainIconClickOpensHourlyPrecipitation() {
         var updatedConfig: DesktopConfig? = null
-        // Use a site away from ~/.cache/weather-widget/radar-now.txt so live local radar cannot
-        // affect the test.
-        val testConfig = stubConfig.copy(lat = 40.7128, lon = -74.0060, label = "New York")
         val rainingObs = com.weatherwidget.data.model.ObservationReading(
-            stationId = "KNYC",
-            stationName = "New York",
+            stationId = "KPAO",
+            stationName = "Palo Alto",
             timestamp = System.currentTimeMillis() - 5 * 60_000L,
             temperature = 62f,
             condition = "Rain",
-            locationLat = testConfig.lat,
-            locationLon = testConfig.lon,
+            locationLat = stubConfig.lat,
+            locationLon = stubConfig.lon,
             stationType = com.weatherwidget.data.model.StationType.OFFICIAL,
             api = WeatherSource.NWS.id,
             isMetar = true,
-            rawMetar = "KNYC 191955Z 18008KT 5SM -RA BKN020 17/14 A2992",
+            rawMetar = "KPAO 191955Z 18008KT 5SM -RA BKN020 17/14 A2992",
         )
         val rainingForecast = stubForecast.copy(
             raw = stubForecast.raw.copy(rawObservations = listOf(rainingObs)),
         )
         composeTestRule.setContent {
             WidgetPopup(
-                config = testConfig,
+                config = stubConfig,
                 forecast = rainingForecast,
                 dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
                 onUpdateLocation = {},
@@ -179,12 +176,11 @@ currentCondition = "Sunny"),
     @Test
     fun testNonRainWeatherIconClickOpensTemperatureGraph() {
         var updatedConfig: DesktopConfig? = null
-        // Use a site away from ~/.cache/weather-widget/radar-now.txt so live local radar cannot
-        // turn the header icon into rain-now dots during the test.
-        val dryConfig = stubConfig.copy(lat = 40.7128, lon = -74.0060, label = "New York")
+        // Uses Mountain View stubConfig directly: desktop test XDG_CACHE_HOME isolation ensures
+        // live ~/.cache/weather-widget/radar-now.txt cannot turn this into rain-now dots.
         composeTestRule.setContent {
             WidgetPopup(
-                config = dryConfig,
+                config = stubConfig,
                 forecast = stubForecast,
                 dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
                 onUpdateLocation = {},
@@ -197,6 +193,109 @@ currentCondition = "Sunny"),
         composeTestRule.onNodeWithTag("header_weather_icon").performClick()
 
         assertEquals(ViewMode.TEMPERATURE, updatedConfig?.viewMode)
+    }
+
+    @Test
+    fun testPrecipHeaderClickTogglesBetweenDailyAndPrecipitation() {
+        val rainyForecast = stubForecast.copy(
+            raw = stubForecast.raw.copy(
+                hourly = listOf(
+                    HourlyForecast(
+                        dateTime = System.currentTimeMillis(),
+                        temperature = 64f,
+                        condition = "Rain",
+                        precipProbability = 75,
+                        source = WeatherSource.NWS.id,
+                    ),
+                ),
+            ),
+        )
+        var currentConfig by mutableStateOf(stubConfig.copy(viewMode = ViewMode.DAILY))
+        composeTestRule.setContent {
+            WidgetPopup(
+                config = currentConfig,
+                forecast = rainyForecast,
+                dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
+                onUpdateLocation = {},
+                onUpdateConfig = { currentConfig = it },
+                onOpenSettings = {},
+                onOpenCurrentObservations = {},
+            )
+        }
+
+        composeTestRule.onNodeWithTag("header_precip_toggle").performClick()
+        assertEquals(ViewMode.PRECIPITATION, currentConfig.viewMode)
+
+        composeTestRule.onNodeWithTag("header_precip_toggle").performClick()
+        assertEquals(ViewMode.DAILY, currentConfig.viewMode)
+    }
+
+    @Test
+    fun testDeltaClickTogglesTemperatureInsteadOfCyclingSource() {
+        val multiSourceConfig = stubConfig.copy(
+            settings = stubConfig.settings.copy(
+                visibleSources = listOf(WeatherSource.NWS.id, WeatherSource.OPEN_METEO.id),
+                weatherSource = WeatherSource.NWS.id,
+            ),
+        )
+        val deltaForecast = stubForecast.copy(
+            resolved = stubForecast.resolved.copy(deltaFromYesterday = 2.9f),
+        )
+        var updatedConfig: DesktopConfig? = null
+        composeTestRule.setContent {
+            WidgetPopup(
+                config = multiSourceConfig,
+                forecast = deltaForecast,
+                dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
+                onUpdateLocation = {},
+                onUpdateConfig = { updatedConfig = it },
+                onOpenSettings = {},
+                onOpenCurrentObservations = {},
+            )
+        }
+
+        composeTestRule.onNodeWithText("+2.9").performClick()
+
+        assertEquals(ViewMode.TEMPERATURE, updatedConfig?.viewMode)
+        assertEquals(WeatherSource.NWS.id, updatedConfig?.displaySource)
+    }
+
+    @Test
+    fun testNonRainWeatherIconInHourlyViewsReturnsToDaily() {
+        val nowHour = java.time.LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.HOURS)
+        val zone = java.time.ZoneId.systemDefault()
+        val hourlyWithSource = stubForecast.copy(
+            raw = stubForecast.raw.copy(
+                hourly = (-1L..2L).map { h ->
+                    HourlyForecast(
+                        dateTime = nowHour.plusHours(h).atZone(zone).toInstant().toEpochMilli(),
+                        temperature = 72f,
+                        condition = "Sunny",
+                        source = WeatherSource.NWS.id,
+                    )
+                },
+            ),
+        )
+        for (startMode in listOf(ViewMode.TEMPERATURE, ViewMode.PRECIPITATION, ViewMode.CLOUD_COVER)) {
+            assertEquals(ViewMode.DAILY, com.weatherwidget.shared.util.HeaderTapRouting.target(com.weatherwidget.shared.util.HeaderTapRouting.Zone.ICON, startMode, isRainingNow = false))
+            // Also click the actual Compose node for PRECIPITATION (the case Android used to diverge on).
+            if (startMode == ViewMode.PRECIPITATION) {
+                var currentConfig by mutableStateOf(stubConfig.copy(viewMode = startMode))
+                composeTestRule.setContent {
+                    WidgetPopup(
+                        config = currentConfig,
+                        forecast = hourlyWithSource,
+                        dataStatus = com.weatherwidget.data.model.DataStatus.Live(System.currentTimeMillis()),
+                        onUpdateLocation = {},
+                        onUpdateConfig = { currentConfig = it },
+                        onOpenSettings = {},
+                        onOpenCurrentObservations = {},
+                    )
+                }
+                composeTestRule.onNodeWithTag("header_weather_icon").performClick()
+                assertEquals(ViewMode.DAILY, currentConfig.viewMode)
+            }
+        }
     }
 
     @Test

@@ -266,7 +266,7 @@ class HeaderContentTest {
     }
 
     @Test
-    fun rainNowFlagAndTapTargetRouteToHourlyPrecipitation() {
+    fun rainNowFlagAndSharedHeaderTapRouting() {
         val now = LocalDateTime.of(2026, 11, 19, 12, 0)
         val hourly = listOf(row(now, precip = 40, source = "NWS"))
 
@@ -276,9 +276,21 @@ class HeaderContentTest {
         val wet = build(View.DAILY, hourly, now, rainNow = com.weatherwidget.shared.observations.RainNow.Level.RAINING)
         assertEquals(true, wet.isRainingNow)
 
-        assertEquals(View.PRECIPITATION, HeaderContent.rainNowTapTarget(View.DAILY))
-        assertEquals(View.PRECIPITATION, HeaderContent.rainNowTapTarget(View.TEMPERATURE))
-        assertEquals(View.PRECIPITATION, HeaderContent.rainNowTapTarget(View.CLOUD_COVER))
-        assertEquals(View.DAILY, HeaderContent.rainNowTapTarget(View.PRECIPITATION))
+        for (mode in com.weatherwidget.widget.ViewMode.entries) {
+            val expectedTemp = if (mode == com.weatherwidget.widget.ViewMode.DAILY) {
+                com.weatherwidget.widget.ViewMode.TEMPERATURE
+            } else {
+                com.weatherwidget.widget.ViewMode.DAILY
+            }
+            val expectedPrecip = if (mode == com.weatherwidget.widget.ViewMode.PRECIPITATION) {
+                com.weatherwidget.widget.ViewMode.DAILY
+            } else {
+                com.weatherwidget.widget.ViewMode.PRECIPITATION
+            }
+            assertEquals("temp from $mode", expectedTemp, HeaderTapRouting.target(HeaderTapRouting.Zone.TEMP_AND_DELTA, mode))
+            assertEquals("precip from $mode", expectedPrecip, HeaderTapRouting.target(HeaderTapRouting.Zone.PRECIP, mode))
+            assertEquals("dry icon from $mode", expectedTemp, HeaderTapRouting.target(HeaderTapRouting.Zone.ICON, mode, isRainingNow = false))
+            assertEquals("wet icon from $mode", expectedPrecip, HeaderTapRouting.target(HeaderTapRouting.Zone.ICON, mode, isRainingNow = true))
+        }
     }
 }

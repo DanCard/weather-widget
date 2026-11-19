@@ -155,6 +155,17 @@ class CurrentTempTouchRoutingRoboTest {
     }
 
     @Test
+    fun `dry weather icon in precipitation and cloud cover headers toggles back to daily view`() = runBlocking {
+        val precipIntent = clickView(renderPrecipitationWidget(wideGraphOptions()), R.id.weather_icon_touch_zone)
+        assertNotNull("Expected precip weather icon zone to send a broadcast", precipIntent)
+        assertEquals(WidgetActions.ACTION_TOGGLE_VIEW, precipIntent!!.action)
+
+        val cloudIntent = clickView(renderCloudCoverWidget(wideGraphOptions()), R.id.weather_icon_touch_zone)
+        assertNotNull("Expected cloud cover weather icon zone to send a broadcast", cloudIntent)
+        assertEquals(WidgetActions.ACTION_TOGGLE_VIEW, cloudIntent!!.action)
+    }
+
+    @Test
     fun `cloud cover current temp touch zone toggles to daily view`() = runBlocking {
         val views = renderCloudCoverWidget()
 
@@ -376,12 +387,12 @@ class CurrentTempTouchRoutingRoboTest {
         return appWidgetManager.second.captured
     }
 
-    private suspend fun renderPrecipitationWidget(): RemoteViews {
+    private suspend fun renderPrecipitationWidget(options: Bundle = graphOptions()): RemoteViews {
         val stateManager = WidgetStateManager(context)
         stateManager.setViewMode(appWidgetId, ViewMode.PRECIPITATION)
         stateManager.setCurrentDisplaySource(appWidgetId, WeatherSource.NWS)
 
-        val appWidgetManager = mockWidgetManager(graphOptions())
+        val appWidgetManager = mockWidgetManager(options)
         val now = fixtureNow()
         PrecipViewHandler.updateWidget(
             context = context,
@@ -394,12 +405,12 @@ class CurrentTempTouchRoutingRoboTest {
         return appWidgetManager.second.captured
     }
 
-    private suspend fun renderCloudCoverWidget(): RemoteViews {
+    private suspend fun renderCloudCoverWidget(options: Bundle = graphOptions()): RemoteViews {
         val stateManager = WidgetStateManager(context)
         stateManager.setViewMode(appWidgetId, ViewMode.CLOUD_COVER)
         stateManager.setCurrentDisplaySource(appWidgetId, WeatherSource.NWS)
 
-        val appWidgetManager = mockWidgetManager(graphOptions())
+        val appWidgetManager = mockWidgetManager(options)
         val now = fixtureNow()
         CloudCoverViewHandler.updateWidget(
             context = context,

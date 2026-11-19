@@ -36,6 +36,7 @@ import com.weatherwidget.shared.util.HeaderButton
 import com.weatherwidget.shared.util.HeaderButtons
 import com.weatherwidget.shared.util.HeaderButtonZone
 import com.weatherwidget.shared.util.HeaderFit
+import com.weatherwidget.shared.util.HeaderTapRouting
 import com.weatherwidget.shared.util.Log
 import com.weatherwidget.shared.util.PreferredSourceHome
 import java.time.Instant
@@ -263,17 +264,13 @@ internal fun WidgetHeader(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // No icon when an hourly view's source has no row for this hour (HeaderContent).
-                    // Active rain-now dots open hourly rain chance; other weather icons keep the
-                    // normal temp/daily toggle.
+                    // Tap routing for icon, temp/delta, and rain % is shared with Android via HeaderTapRouting.
                     content.iconName?.takeIf { fit.showIcon }?.let { iconName ->
-                        val iconTargetMode = if (content.isRainingNow) {
-                            when (HeaderContent.rainNowTapTarget(desktopHeaderView(config.viewMode))) {
-                                HeaderContent.View.PRECIPITATION -> ViewMode.PRECIPITATION
-                                else -> ViewMode.DAILY
-                            }
-                        } else {
-                            if (isHourly) ViewMode.DAILY else ViewMode.TEMPERATURE
-                        }
+                        val iconTargetMode = HeaderTapRouting.target(
+                            HeaderTapRouting.Zone.ICON,
+                            config.viewMode,
+                            isRainingNow = content.isRainingNow,
+                        )
                         androidx.compose.foundation.Image(
                             painter = WeatherIcon.painterForIconName(iconName),
                             contentDescription = null,
@@ -284,44 +281,51 @@ internal fun WidgetHeader(
                                 .testTag("header_weather_icon")
                         )
                     }
-                    if (fit.showTemp) {
-                        Text(
-                            text = content.tempText ?: "—",
-                            style = tempStyle,
+                    if (fit.showTemp || (content.deltaText != null && fit.showDelta)) {
+                        val tempTargetMode = HeaderTapRouting.target(
+                            HeaderTapRouting.Zone.TEMP_AND_DELTA,
+                            config.viewMode,
+                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
-                                .clickable {
-                                    val targetMode = if (isHourly) ViewMode.DAILY else ViewMode.TEMPERATURE
-                                    onUpdateConfig(config.copy(viewMode = targetMode))
-                                }
+                                .clickable { onUpdateConfig(config.copy(viewMode = tempTargetMode)) }
                                 .testTag("current_temp_toggle")
-                        )
-                    }
-                    content.deltaText?.takeIf { fit.showDelta }?.let { deltaText ->
-                        Spacer(Modifier.width(DELTA_MARGIN_DP.dp))
-                        Text(
-                            text = deltaText,
-                            style = deltaStyle,
-                            color = Color(0xFFFF6B35),
-                            modifier = Modifier.align(Alignment.CenterVertically).offset(y = 2.dp)
-                        )
-                        if (fit.showCaption) {
-                            Spacer(Modifier.width(CAPTION_MARGIN_DP.dp))
-                            // Caption clarifying the delta's meaning; smaller/dimmer than the delta
-                            // itself. Single-line: two stacked half-words explain nothing, and the fit
-                            // only shows it where it has room to render in full.
-                            Text(
-                                text = DELTA_CAPTION,
-                                style = captionStyle,
-                                color = Color(0xFFFF6B35).copy(alpha = 0.7f),
-                                maxLines = 1,
-                                softWrap = false,
-                                modifier = Modifier.align(Alignment.CenterVertically).offset(y = 2.dp)
-                            )
+                        ) {
+                            if (fit.showTemp) {
+                                Text(text = content.tempText ?: "—", style = tempStyle)
+                            }
+                            content.deltaText?.takeIf { fit.showDelta }?.let { deltaText ->
+                                Spacer(Modifier.width(DELTA_MARGIN_DP.dp))
+                                Text(
+                                    text = deltaText,
+                                    style = deltaStyle,
+                                    color = Color(0xFFFF6B35),
+                                    modifier = Modifier.align(Alignment.CenterVertically).offset(y = 2.dp)
+                                )
+                                if (fit.showCaption) {
+                                    Spacer(Modifier.width(CAPTION_MARGIN_DP.dp))
+                                    // Caption clarifying the delta's meaning; smaller/dimmer than the delta
+                                    // itself. Single-line: two stacked half-words explain nothing, and the fit
+                                    // only shows it where it has room to render in full.
+                                    Text(
+                                        text = DELTA_CAPTION,
+                                        style = captionStyle,
+                                        color = Color(0xFFFF6B35).copy(alpha = 0.7f),
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        modifier = Modifier.align(Alignment.CenterVertically).offset(y = 2.dp)
+                                    )
+                                }
+                            }
                         }
                     }
                     val precipText = content.precipText
                     if (precipText != null && content.precipFontScale != null && fit.showRain) {
-                        Spacer(Modifier.width(PRECIP_MARGIN_DP.dp))
+                        val precipTargetMode = HeaderTapRouting.target(
+                            HeaderTapRouting.Zone.PRECIP,
+                            config.viewMode,
+                        )
                         Text(
                             text = precipText,
                             style = precipStyle,
@@ -331,9 +335,9 @@ internal fun WidgetHeader(
                             modifier = Modifier
                                 .align(Alignment.CenterVertically)
                                 .offset(y = 2.dp)
-                                .clickable {
-                                    onUpdateConfig(config.copy(viewMode = ViewMode.PRECIPITATION))
-                                }
+                                .clickable { onUpdateConfig(config.copy(viewMode = precipTargetMode)) }
+                                .padding(start = PRECIP_MARGIN_DP.dp)
+                                .testTag("header_precip_toggle")
                         )
                     }
                 }

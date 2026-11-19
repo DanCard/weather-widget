@@ -102,7 +102,10 @@ internal class WidgetPresentationStateStore(
 
     fun toggleViewMode(widgetId: Int): ViewMode {
         val current = viewMode(widgetId)
-        val newMode = if (current == ViewMode.DAILY) ViewMode.TEMPERATURE else ViewMode.DAILY
+        val newMode = com.weatherwidget.shared.util.HeaderTapRouting.target(
+            com.weatherwidget.shared.util.HeaderTapRouting.Zone.TEMP_AND_DELTA,
+            current,
+        )
         val editor = prefs.edit().putString(viewModeKey(widgetId), newMode.name)
         when {
             newMode == ViewMode.TEMPERATURE && current == ViewMode.DAILY ->
@@ -116,7 +119,10 @@ internal class WidgetPresentationStateStore(
 
     fun togglePrecipitationMode(widgetId: Int): ViewMode {
         val current = viewMode(widgetId)
-        val newMode = if (current == ViewMode.PRECIPITATION) ViewMode.DAILY else ViewMode.PRECIPITATION
+        val newMode = com.weatherwidget.shared.util.HeaderTapRouting.target(
+            com.weatherwidget.shared.util.HeaderTapRouting.Zone.PRECIP,
+            current,
+        )
         val editor = prefs.edit().putString(viewModeKey(widgetId), newMode.name)
         when {
             newMode == ViewMode.PRECIPITATION && current == ViewMode.DAILY ->

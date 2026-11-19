@@ -290,6 +290,8 @@ tasks.withType<Test>().configureEach {
         "-XX:-UsePerfData",
     )
     systemProperty("user.timezone", "America/Los_Angeles")
+    // Isolate desktop tests from the host user's live ~/.cache/weather-widget/radar-now.txt.
+    environment("XDG_CACHE_HOME", layout.buildDirectory.dir("tmp/test-xdg-cache").get().asFile.absolutePath)
 }
 
 desktopTestCategoryBuckets.forEach { (bucketName, categoryClassName) ->

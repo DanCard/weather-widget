@@ -66,21 +66,20 @@ internal object HeaderTapTargetHelper {
     }
 
     /**
-     * Binds the header weather icon and its touch zone. While rain is actively falling
-     * ([isRainingNow] = true, blue rain-now dots), tapping opens the hourly rain chance graph
-     * (`ACTION_TOGGLE_PRECIP`); otherwise it uses [defaultPendingIntent] or the standard view toggle.
+     * Binds the header weather icon and its touch zone via [com.weatherwidget.shared.util.HeaderTapRouting]:
+     * while rain is actively falling ([isRainingNow] = true, blue rain-now dots), tapping routes to
+     * `ACTION_TOGGLE_PRECIP`; otherwise it routes to `ACTION_TOGGLE_VIEW`.
      */
     fun bindWeatherIconHeader(
         context: Context,
         views: RemoteViews,
         appWidgetId: Int,
         isRainingNow: Boolean,
-        defaultPendingIntent: PendingIntent? = null,
     ) {
         val pendingIntent = if (isRainingNow) {
             precipTogglePendingIntent(context, appWidgetId)
         } else {
-            defaultPendingIntent ?: viewTogglePendingIntent(context, appWidgetId)
+            viewTogglePendingIntent(context, appWidgetId)
         }
         views.setOnClickPendingIntent(R.id.weather_icon, pendingIntent)
         views.setOnClickPendingIntent(R.id.weather_icon_touch_zone, pendingIntent)

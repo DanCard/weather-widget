@@ -202,13 +202,6 @@ object HeaderContent {
         RainNow.Level.HEAVY -> WeatherConditionResolver.IC_RAIN_NOW_HEAVY
     }
 
-    /**
-     * View opened when tapping the active rain-now icon in the header: hourly rain chance
-     * ([View.PRECIPITATION]), or back to [View.DAILY] if already there (matching the rain-% tap).
-     */
-    fun rainNowTapTarget(current: View): View =
-        if (current == View.PRECIPITATION) View.DAILY else View.PRECIPITATION
-
     /** Shown in the daily and temperature headers only; the precip and cloud views have no delta. */
     fun deltaText(view: View, currentTemp: Float?, deltaFromYesterday: Float?, useCelsius: Boolean): String? {
         if (view == View.PRECIPITATION || view == View.CLOUD_COVER) return null

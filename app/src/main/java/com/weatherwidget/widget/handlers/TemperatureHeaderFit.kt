@@ -64,7 +64,7 @@ internal object TemperatureHeaderFit {
             precipText = if (header.isPrecipVisible) header.precipProbability else null,
             precipTextSizeDp = header.precipTextSizeDp,
             dateText = null,
-            includeIcon = true,
+            includeIcon = header.iconRes != 0,
             baseButtons = headerButtons.baseButtons,
             wantHome = headerButtons.wantHome,
             wantMonths = headerButtons.wantMonths,
