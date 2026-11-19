@@ -148,7 +148,7 @@ class PositionDailyIconsRoboTest : RobolectricTest() {
         val (measured, fit) = measureDaily(widthDp = widthDp, wantHome = false)
 
         val dailyViews = RemoteViews(context.packageName, R.layout.widget_weather)
-        positionDailyIcons(dailyViews, measured, fit, listOf(HeaderButton.OBSERVATIONS, HeaderButton.HISTORY), widthDp, density)
+        positionDailyIcons(dailyViews, measured, fit, listOf(HeaderButton.OBSERVATIONS, HeaderButton.COMPARISON), widthDp, density)
         val dailyRoot = inflateAndLayout(dailyViews, widthDp = widthDp)
 
         val hourlyViews = RemoteViews(context.packageName, R.layout.widget_weather)
@@ -158,7 +158,7 @@ class PositionDailyIconsRoboTest : RobolectricTest() {
             density,
             measured,
             fit,
-            listOf(HeaderButton.HOME, HeaderButton.OBSERVATIONS, HeaderButton.GRAPH_SELECTOR, HeaderButton.HISTORY),
+            listOf(HeaderButton.HOME, HeaderButton.OBSERVATIONS, HeaderButton.GRAPH_SELECTOR, HeaderButton.COMPARISON),
         )
         val hourlyRoot = inflateAndLayout(hourlyViews, widthDp = widthDp)
 

@@ -13,7 +13,7 @@ package com.weatherwidget.shared.util
  *
  * **Button placement (right-of-center):** Action buttons are right-anchored directly to the left of
  * the right cluster (`buttonsRight = width - rightCluster - gap`) and grow leftward into the open
- * corridor. Because [HeaderButtons.ORDER] puts `HOME` first (leftmost) and `HISTORY` last
+ * corridor. Because [HeaderButtons.ORDER] puts `HOME` first (leftmost) and `COMPARISON` last
  * (rightmost), adding/removing `HOME` or switching daily ↔ hourly leaves the rightmost buttons
  * pinned. When the corridor is narrower than the preferred button width, buttons narrow evenly down
  * to [Measured.minButtonWidth]. The weather icon may narrow them; the date and "from yest" never do.

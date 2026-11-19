@@ -1,7 +1,7 @@
 package com.weatherwidget.shared.util
 
 import com.weatherwidget.shared.util.HeaderButton.GRAPH_SELECTOR
-import com.weatherwidget.shared.util.HeaderButton.HISTORY
+import com.weatherwidget.shared.util.HeaderButton.COMPARISON
 import com.weatherwidget.shared.util.HeaderButton.HOME
 import com.weatherwidget.shared.util.HeaderButton.MONTHS
 import com.weatherwidget.shared.util.HeaderButton.OBSERVATIONS
@@ -46,36 +46,36 @@ class HeaderButtonsTest {
     @Test
     fun `home is first and history last`() {
         assertEquals(HOME, HeaderButtons.ORDER.first())
-        assertEquals(HISTORY, HeaderButtons.ORDER.last())
+        assertEquals(COMPARISON, HeaderButtons.ORDER.last())
     }
 
     @Test
     fun `daily shows home, observations, months, history in that order`() {
         val all = HeaderButtons.daily(observationsInView = true, home = true, months = true)
-        assertEquals(listOf(HOME, OBSERVATIONS, MONTHS, HISTORY), layout(all).keys.toList())
+        assertEquals(listOf(HOME, OBSERVATIONS, MONTHS, COMPARISON), layout(all).keys.toList())
         val noObs = HeaderButtons.daily(observationsInView = false, home = true, months = false)
-        assertEquals(listOf(HOME, HISTORY), layout(noObs).keys.toList())
+        assertEquals(listOf(HOME, COMPARISON), layout(noObs).keys.toList())
     }
 
     @Test
     fun `home appearing on a source switch does not move observations or anything after it`() {
         val atHome = layout(HeaderButtons.daily(observationsInView = true, home = false, months = true))
         val away = layout(HeaderButtons.daily(observationsInView = true, home = true, months = true))
-        assertEquals(listOf(OBSERVATIONS, MONTHS, HISTORY), atHome.keys.toList())
+        assertEquals(listOf(OBSERVATIONS, MONTHS, COMPARISON), atHome.keys.toList())
         for (b in atHome.keys) assertEquals("$b", atHome.getValue(b), away.getValue(b), 0.01f)
     }
 
     @Test
     fun `hourly shows home, observations, graph selector, history, observations only with today on screen`() {
-        assertEquals(listOf(HOME, OBSERVATIONS, GRAPH_SELECTOR, HISTORY), layout(HeaderButtons.hourly(true)).keys.toList())
-        assertEquals(listOf(HOME, GRAPH_SELECTOR, HISTORY), layout(HeaderButtons.hourly(false)).keys.toList())
+        assertEquals(listOf(HOME, OBSERVATIONS, GRAPH_SELECTOR, COMPARISON), layout(HeaderButtons.hourly(true)).keys.toList())
+        assertEquals(listOf(HOME, GRAPH_SELECTOR, COMPARISON), layout(HeaderButtons.hourly(false)).keys.toList())
     }
 
     @Test
     fun `with four buttons each, home, observations and history sit at the same x on daily and hourly`() {
         val daily = layout(HeaderButtons.daily(observationsInView = true, home = true, months = true))
         val hourly = layout(HeaderButtons.hourly(true))
-        for (b in listOf(HOME, OBSERVATIONS, HISTORY)) assertEquals("$b", daily.getValue(b), hourly.getValue(b), 0.01f)
+        for (b in listOf(HOME, OBSERVATIONS, COMPARISON)) assertEquals("$b", daily.getValue(b), hourly.getValue(b), 0.01f)
     }
 
     @Test
@@ -83,7 +83,7 @@ class HeaderButtonsTest {
         val want = HeaderButtons.daily(observationsInView = true, home = true, months = true)
         // Room for the two base buttons but not home or months.
         val plan = HeaderFit.Plan(buttons = 2, placement = HeaderFit.ButtonPlacement.SHOWN)
-        assertEquals(listOf(OBSERVATIONS, HISTORY), HeaderButtons.shown(want, plan))
+        assertEquals(listOf(OBSERVATIONS, COMPARISON), HeaderButtons.shown(want, plan))
         assertEquals(emptyList<HeaderButton>(), HeaderButtons.shown(want, HeaderFit.Plan()))
         // A header too narrow for any button.
         assertEquals(emptyMap<HeaderButton, Float>(), layout(want, width = 150f))

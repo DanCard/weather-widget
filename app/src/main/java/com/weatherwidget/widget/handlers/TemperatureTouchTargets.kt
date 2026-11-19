@@ -469,7 +469,7 @@ internal enum class HeaderButtonViews(
     OBSERVATIONS(HeaderButton.OBSERVATIONS, R.id.weather_stations_icon, R.id.weather_stations_touch_zone),
     GRAPH_SELECTOR(HeaderButton.GRAPH_SELECTOR, R.id.graph_selector_icon, R.id.graph_selector_touch_zone),
     MONTHS(HeaderButton.MONTHS, R.id.months_view_icon, R.id.months_view_touch_zone),
-    HISTORY(HeaderButton.HISTORY, R.id.history_icon, R.id.forecast_comparison_activity_touch_zone),
+    COMPARISON(HeaderButton.COMPARISON, R.id.history_icon, R.id.forecast_comparison_activity_touch_zone),
     ;
 }
 

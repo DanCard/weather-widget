@@ -126,3 +126,9 @@ logs; "Stations" names one; Android already titles it so in all locales). User: 
   `current_observations_title` (already translated).
 - Kept: config keys `obsWindow*`/`obsSelectedTab`, the `observations-*` save-source values, the
   `"observations"` refresh-origin and log strings, `SourceViewTrigger.OBSERVATIONS`, the Observations tab.
+
+## Follow-up (user, 2026-11-19): "rename it"
+
+- `HeaderButton.HISTORY` → `COMPARISON` (`:shared`), with Android's `HeaderButtonViews.HISTORY` →
+  `COMPARISON`; KDoc says "comparison". The enum is never persisted or logged by name. Still last in
+  declaration order, so the display order is unchanged.

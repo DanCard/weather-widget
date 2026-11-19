@@ -5,7 +5,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 
 /** A centred header button. Declaration order is the display order, left to right ([HeaderButtons.ORDER]). */
-enum class HeaderButton { HOME, OBSERVATIONS, GRAPH_SELECTOR, MONTHS, HISTORY }
+enum class HeaderButton { HOME, OBSERVATIONS, GRAPH_SELECTOR, MONTHS, COMPARISON }
 
 /**
  * Which header buttons show, and in what order — one rule for the daily and hourly headers on both
@@ -14,13 +14,13 @@ enum class HeaderButton { HOME, OBSERVATIONS, GRAPH_SELECTOR, MONTHS, HISTORY }
  * The row ends on [HeaderFit]'s fixed line and grows leftwards, so only its leftmost button can come
  * and go without moving the rest. Home goes there: it is the one a source switch adds or removes,
  * and the first dropped on a narrow header. Observations is second, so with four buttons home and
- * observations sit at the same x on both views; history is last on both, so switching daily ↔
+ * observations sit at the same x on both views; comparison is last on both, so switching daily ↔
  * hourly changes only the third icon (months ↔ graph selector).
  *
  * Daily: home (when [PreferredSourceHome] has an action and it fits) · observations (today or
- * yesterday on screen) · months (when wanted and it fits) · history.
+ * yesterday on screen) · months (when wanted and it fits) · comparison (Forecast Comparison).
  * Hourly: home (back to the daily view, always) · observations (today on screen) · graph selector ·
- * history.
+ * comparison.
  *
  * Each platform measures widths and draws; [want] feeds [HeaderFit.Measured], [shown] says what to draw.
  */
@@ -57,7 +57,7 @@ object HeaderButtons {
                 HeaderButton.OBSERVATIONS -> want.observations
                 HeaderButton.GRAPH_SELECTOR -> want.hourly
                 HeaderButton.MONTHS -> !want.hourly && plan.monthsShown
-                HeaderButton.HISTORY -> true
+                HeaderButton.COMPARISON -> true
             }
         }
     }

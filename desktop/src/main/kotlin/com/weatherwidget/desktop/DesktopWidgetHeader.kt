@@ -354,7 +354,7 @@ internal fun WidgetHeader(
                     tint = Color.White.copy(alpha = 0.7f)
                 )
             }
-            // Action buttons in HeaderButtons.ORDER (home first, history last), right-anchored
+            // Action buttons in HeaderButtons.ORDER (home first, comparison last), right-anchored
             // before the right cluster.
             buttonsSpan?.let { (slotLeft, _) ->
                 val zoneDp = fit.buttonZone.takeIf { it > 0f } ?: measured.buttonWidth
@@ -406,7 +406,7 @@ internal fun WidgetHeader(
                     // Hourly: the viewed window's centre date (Android: centerTime.toLocalDate()), so
                     // panning back to Wednesday opens Wednesday. Daily: today while today is on
                     // screen, otherwise the viewed date.
-                    HeaderButton.HISTORY -> {
+                    HeaderButton.COMPARISON -> {
                         { onOpenComparison(if (!isHourly && todayInView) LocalDate.now() else targetHour.toLocalDate()) }
                     }
                 }
@@ -495,7 +495,7 @@ internal fun headerButtonTag(button: HeaderButton, isHourly: Boolean): String = 
     HeaderButton.OBSERVATIONS -> if (isHourly) "open_observations_header" else "open_observations_header_daily"
     HeaderButton.GRAPH_SELECTOR -> "graph_selector"
     HeaderButton.MONTHS -> "open_months_view_daily"
-    HeaderButton.HISTORY -> if (isHourly) "open_forecast_comparison" else "open_forecast_comparison_daily"
+    HeaderButton.COMPARISON -> if (isHourly) "open_forecast_comparison" else "open_forecast_comparison_daily"
 }
 
 /** One header button's icon, drawn centred in its zone (the zone is the click target). */
@@ -543,7 +543,7 @@ private fun HeaderButtonGlyph(
             tint = Color.White.copy(alpha = 0.6f),
             modifier = iconModifier,
         )
-        HeaderButton.HISTORY -> Icon(
+        HeaderButton.COMPARISON -> Icon(
             painter = painterResource("drawable/ic_forecast_comparison_line.xml"),
             contentDescription = "Forecast comparison",
             tint = Color.White.copy(alpha = 0.6f),
