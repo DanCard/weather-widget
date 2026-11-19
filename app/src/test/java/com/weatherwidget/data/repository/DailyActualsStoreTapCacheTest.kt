@@ -2,6 +2,9 @@ package com.weatherwidget.data.repository
 
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.weatherwidget.data.local.DailyHistoryEntity
+import com.weatherwidget.data.local.ForecastEntity
+import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.StationType
@@ -9,9 +12,13 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.util.StoredDataVersion
 import com.weatherwidget.test.RobolectricTest
 import com.weatherwidget.test.category.LongDuration
+import com.weatherwidget.widget.handlers.DailyInteractionRenderer
+import com.weatherwidget.widget.handlers.DailyLoadWindowResolver
+import com.weatherwidget.widget.handlers.WidgetInteractionCache
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -19,6 +26,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.experimental.categories.Category
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.ZoneId
 
 /**
@@ -141,5 +149,151 @@ class DailyActualsStoreTapCacheTest : RobolectricTest() {
         assertNull(DailyActualsStore.getCachedLive(db.observationDao(), lat, lon, listOf(WeatherSource.NWS.id), 1.0))
         val refreshed = store.getDailyActualsWithLiveToday(lat, lon, emptyList(), listOf(WeatherSource.NWS.id))
         assertEquals(71f, refreshed[WeatherSource.NWS.id]!![today]!!.computedHighTemp!!, 0.1f)
+    }
+
+    @Test
+    fun `DailyInteractionRenderer loadData for navigate populates all preloaded fields and scopes to displaySource`() = runTest {
+        WidgetInteractionCache.clear()
+        val todayKey = today.toEpochDay() * 86_400_000L
+        val now = LocalDateTime.of(today.year, today.month, today.dayOfMonth, 14, 0)
+        val nowMs = now.atZone(zone).toInstant().toEpochMilli()
+
+        // Seed two sources (NWS + SILURIAN) in Room: forecasts, hourly, observations, and stored daily_history.
+        db.forecastDao().insertAll(
+            listOf(
+                ForecastEntity(
+                    targetDate = todayKey,
+                    dateOfPrediction = nowMs,
+                    highTemp = 62f,
+                    lowTemp = 48f,
+                    condition = "Clear",
+                    locationLat = lat,
+                    locationLon = lon,
+                    source = WeatherSource.NWS.id,
+                    lastConfirmedAt = nowMs,
+                ),
+                ForecastEntity(
+                    targetDate = todayKey,
+                    dateOfPrediction = nowMs,
+                    highTemp = 61f,
+                    lowTemp = 49f,
+                    condition = "Cloudy",
+                    locationLat = lat,
+                    locationLon = lon,
+                    source = WeatherSource.SILURIAN.id,
+                    lastConfirmedAt = nowMs,
+                ),
+            ),
+        )
+        db.hourlyForecastDao().insertAll(
+            listOf(
+                HourlyForecastEntity(
+                    dateTime = nowMs,
+                    temperature = 58f,
+                    condition = "Cloudy",
+                    locationLat = lat,
+                    locationLon = lon,
+                    source = WeatherSource.SILURIAN.id,
+                    fetchedAt = nowMs,
+                ),
+            ),
+        )
+        val yesterdayKey = today.minusDays(1).toEpochDay() * 86_400_000L
+        db.dailyHistoryDao().insertAll(
+            listOf(
+                DailyHistoryEntity(
+                    date = yesterdayKey,
+                    locationLat = lat,
+                    locationLon = lon,
+                    source = WeatherSource.NWS.id,
+                    computedHighTemp = 60f,
+                    computedLowTemp = 50f,
+                    condition = "Clear",
+                    updatedAt = nowMs,
+                ),
+                DailyHistoryEntity(
+                    date = yesterdayKey,
+                    locationLat = lat,
+                    locationLon = lon,
+                    source = WeatherSource.SILURIAN.id,
+                    computedHighTemp = 59f,
+                    computedLowTemp = 51f,
+                    condition = "Cloudy",
+                    updatedAt = nowMs,
+                ),
+                DailyHistoryEntity(
+                    date = todayKey,
+                    locationLat = lat,
+                    locationLon = lon,
+                    source = WeatherSource.NWS.id,
+                    computedHighTemp = 60f,
+                    computedLowTemp = 50f,
+                    condition = "Clear",
+                    updatedAt = nowMs,
+                ),
+                DailyHistoryEntity(
+                    date = todayKey,
+                    locationLat = lat,
+                    locationLon = lon,
+                    source = WeatherSource.SILURIAN.id,
+                    computedHighTemp = 59f,
+                    computedLowTemp = 51f,
+                    condition = "Cloudy",
+                    updatedAt = nowMs,
+                ),
+            ),
+        )
+        db.observationDao().insertAll(
+            listOf(
+                ObservationEntity(
+                    stationId = "KNUQ",
+                    stationName = "Moffett",
+                    timestamp = nowMs - 10 * 60_000L,
+                    temperature = 58f,
+                    condition = "Cloudy",
+                    locationLat = lat,
+                    locationLon = lon,
+                    distanceKm = 3.0f,
+                    stationType = StationType.OFFICIAL,
+                    fetchedAt = nowMs,
+                    api = WeatherSource.NWS.id,
+                ),
+            ),
+        )
+
+        val timeBounds = DailyInteractionRenderer.timeBounds(now, zone)
+        val range = DailyInteractionRenderer.rangeFor(today, DailyLoadWindowResolver.resolve(context))
+        val gapFiller = ClimateGapFiller(db.climateNormalDao())
+
+        val startNs = System.nanoTime()
+        val data = DailyInteractionRenderer.loadData(
+            context = context,
+            database = db,
+            lat = lat,
+            lon = lon,
+            today = today,
+            range = range,
+            timeBounds = timeBounds,
+            repository = null,
+            gapFiller = gapFiller,
+            displaySourceId = WeatherSource.SILURIAN.id,
+            preferStoredToday = true,
+        )
+        val loadMs = (System.nanoTime() - startNs) / 1_000_000L
+        println("DailyInteractionRenderer.loadData(navigate) elapsed=${loadMs}ms actualsKeys=${data.dailyActuals.keys}")
+
+        // All three preloaded fields must be populated so render() does not re-query Room.
+        assertNotNull("forecastSnapshots should be preloaded for render()", data.forecastSnapshots)
+        assertNotNull("hourlyForecasts should be preloaded for render()", data.hourlyForecasts)
+        assertNotNull("currentTemps should be preloaded for render()", data.currentTemps)
+        // Scoped only to SILURIAN (never blending other widgets' NWS).
+        assertTrue("expected SILURIAN actuals", WeatherSource.SILURIAN.id in data.dailyActuals.keys)
+        assertFalse("must not include unrelated NWS actuals", WeatherSource.NWS.id in data.dailyActuals.keys)
+        // preferStoredToday=true must not have triggered a live blend into DailyActualsStore's live cache.
+        assertNull(
+            "preferStoredToday should use stored row instead of running a live blend",
+            DailyActualsStore.getCachedLive(db.observationDao(), lat, lon, listOf(WeatherSource.SILURIAN.id), 1.0),
+        )
+        WidgetInteractionCache.clear()
     }
 }

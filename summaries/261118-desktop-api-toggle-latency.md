@@ -128,3 +128,21 @@
 ### Verification
 - `./scripts/staggered-tests.sh --install`: **7,203 unit tests passed**, **128 emulator tests passed**, installed on 3 devices.
 - Live Pixel 7 Pro (`2A191FDH300PPW`) `SOURCE_SWITCH_E2E`: median dropped from **923 ms → 580 ms** (~1.6× faster), worst-case `NWS → SILURIAN` dropped from **1,887 ms → 963–1,070 ms** (~1.9× faster), and `HOME` (`→ NWS`) dropped from **1,249 ms → 352 ms** (3.5× faster).
+
+## Round 5 follow-up — Android daily left/right chevron navigation latency
+
+### Additional user prompts
+29. "Emulator: clicking the left chevron button sometimes is very slow: daily forecast view"
+30. "yes" (apply fix and test/install)
+31. "Should there be an integration test related to this?"
+32. "What do you think about adding a performance test?"
+33. "commit"
+
+### Root cause & changes (`:app`)
+- In [DailyInteractionRenderer.kt](../app/src/main/java/com/weatherwidget/widget/handlers/DailyInteractionRenderer.kt) (`navigate()`), `loadData(...)` was called without `timeBounds`, `gapFiller`, `repository`, `displaySourceId`, or `preferStoredToday`. As a result, every chevron tap left `forecastSnapshots`, `hourlyForecasts`, and `currentTemps` null in `WidgetInteractionCache` (forcing `render()` to re-query Room for 120–390 ms) and, whenever `LEFT` widened `historyDays`, ran a full live `getDailyActualsWithLiveToday` across all widgets' sources (~600 ms before `render()` even started, totaling ~1.4 s on `emulator-5554`).
+- Updated `DailyInteractionRenderer.navigate(...)` to pass `timeBounds`, `gapFiller`, `repository`, `displaySourceId = displaySource.id`, and `preferStoredToday = true`.
+- Added real-Room structural integration test in [DailyActualsStoreTapCacheTest.kt](../app/src/test/java/com/weatherwidget/data/repository/DailyActualsStoreTapCacheTest.kt) verifying all preloaded fields are populated, `dailyActuals` is scoped only to `displaySourceId`, and `preferStoredToday = true` avoids triggering a live blend (`elapsed=20ms`).
+
+### Verification
+- `./scripts/staggered-tests.sh --install`: **7,157 unit tests passed**, **128 emulator tests passed**, installed on 3 devices.
+- `./gradlew :app:testLongDebugUnitTest --tests "*DailyActualsStoreTapCacheTest*"`: all 3 real-Room integration tests passed.

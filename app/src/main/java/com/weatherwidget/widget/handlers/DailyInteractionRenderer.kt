@@ -94,9 +94,22 @@ internal object DailyInteractionRenderer {
         val timeBounds = timeBounds(request.now, zoneId)
         val today = timeBounds.today
         val range = rangeFor(today, DailyLoadWindowResolver.resolve(context))
-        val cachedData = loadData(context, database, location.lat, location.lon, today, range)
+        val gapFiller = ClimateGapFiller(database.climateNormalDao())
+        val cachedData = loadData(
+            context = context,
+            database = database,
+            lat = location.lat,
+            lon = location.lon,
+            today = today,
+            range = range,
+            timeBounds = timeBounds,
+            repository = request.repository,
+            gapFiller = gapFiller,
+            displaySourceId = displaySource.id,
+            preferStoredToday = true,
+        )
         val weatherList =
-            ClimateGapFiller(database.climateNormalDao()).appendGaps(
+            gapFiller.appendGaps(
                 cachedData.weatherListRaw,
                 location.lat,
                 location.lon,
