@@ -208,6 +208,9 @@ internal object DailyInteractionRenderer {
         val forecastDao = database.forecastDao()
         val hourlyDao = database.hourlyForecastDao()
         val gapFiller = ClimateGapFiller(database.climateNormalDao())
+        val stateManager = WidgetStateManager(context)
+        val displaySource = stateManager.getCurrentDisplaySource(request.appWidgetId)
+        val preferStoredToday = request.actionTag == "TOGGLE_API" || request.actionTag == "HOME"
         val loaded = preloaded ?: loadData(
             context = context,
             database = database,
@@ -218,6 +221,8 @@ internal object DailyInteractionRenderer {
             timeBounds = timeBounds,
             repository = request.repository,
             gapFiller = gapFiller,
+            displaySourceId = displaySource.id,
+            preferStoredToday = preferStoredToday,
         )
         val dailyDataMs = SystemClock.elapsedRealtime() - stageStartMs
         stageStartMs = SystemClock.elapsedRealtime()
@@ -289,8 +294,6 @@ internal object DailyInteractionRenderer {
         )
         val observationsMs = SystemClock.elapsedRealtime() - stageStartMs
         stageStartMs = SystemClock.elapsedRealtime()
-        val stateManager = WidgetStateManager(context)
-        val displaySource = stateManager.getCurrentDisplaySource(request.appWidgetId)
         val currentTempInputHourly =
             GraphDataLoader.loadCurrentTempInputHourlyForecasts(
                 hourlyDao,
@@ -390,9 +393,17 @@ internal object DailyInteractionRenderer {
         timeBounds: TimeBounds? = null,
         repository: WeatherRepository? = null,
         gapFiller: ClimateGapFiller? = null,
+        displaySourceId: String? = null,
+        preferStoredToday: Boolean = false,
     ): DailyRenderData {
-        // Read once: the key and the load below must agree even if a toggle lands between them.
-        val sources = hourlySourceIds(context)
+        // Scope single-widget taps to the tapped widget's display source instead of blending all
+        // installed widgets' sources (performance/261118-android-api-toggle-tail-latency.md).
+        val sources = if (displaySourceId != null) {
+            listOf(displaySourceId, com.weatherwidget.data.model.WeatherSource.GENERIC_GAP.id).distinct()
+        } else {
+            hourlySourceIds(context)
+        }
+        val actualsSources = if (displaySourceId != null) listOf(displaySourceId) else sources
         val key =
             WidgetInteractionCache.Key.of(
                 lat,
@@ -458,12 +469,30 @@ internal object DailyInteractionRenderer {
                 // The worker's own read (DailyActualsStore → :shared DailyActualsAssembler): the
                 // Android-only DailyActualsLoader this replaced had no today's fog, so every tap
                 // repainted Today without it (Fold 4, 2026-11-11).
-                // plans/261111-tap-render-today-fog-shared-actuals.md
-                val actualsHourly = hourlyForecasts ?: actualsHourlyFallback(database, lat, lon, sources)
-                val dailyActuals =
-                    repository?.getDailyActualsWithLiveToday(lat, lon, actualsHourly, sources)
+                // On TOGGLE_API / HOME taps, serve live actuals from RAM if cached, else use the
+                // fast stored today row (DailyActualsStore.getDailyActualsStored, ~20 ms) instead
+                // of blocking the tap for 400-1,341 ms on a live blend.
+                // performance/261118-android-api-toggle-tail-latency.md
+                val dailyActuals = if (preferStoredToday) {
+                    val weight = WidgetStateManager(context).getPersonalStationWeight()
+                    com.weatherwidget.data.repository.DailyActualsStore.getCachedLive(
+                        observationDao = database.observationDao(),
+                        latitude = lat,
+                        longitude = lon,
+                        activeSourceList = actualsSources,
+                        personalStationWeight = weight,
+                        todayEpochDay = today.toEpochDay(),
+                    ) ?: (
+                        repository?.getDailyActualsStored(lat, lon, actualsSources)
+                            ?: com.weatherwidget.data.repository.DailyActualsStore.forDatabase(context, database)
+                                .getDailyActualsStored(lat, lon, actualsSources)
+                        )
+                } else {
+                    val actualsHourly = hourlyForecasts ?: actualsHourlyFallback(database, lat, lon, sources)
+                    repository?.getDailyActualsWithLiveToday(lat, lon, actualsHourly, actualsSources)
                         ?: com.weatherwidget.data.repository.DailyActualsStore.forDatabase(context, database)
-                            .getDailyActualsWithLiveToday(lat, lon, actualsHourly, sources)
+                            .getDailyActualsWithLiveToday(lat, lon, actualsHourly, actualsSources)
+                }
 
                 val currentTemps = if (timeBounds != null) {
                     repository?.getMainObservationsWithComputedNwsBlend(

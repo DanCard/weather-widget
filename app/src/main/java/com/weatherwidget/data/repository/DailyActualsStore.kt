@@ -10,6 +10,7 @@ import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.toDailyHistory
 import com.weatherwidget.data.local.toHourlyForecast
 import com.weatherwidget.data.local.toReading
+import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.actuals.ActualsAggregator
 import com.weatherwidget.shared.actuals.DailyActualsAssembler
@@ -51,14 +52,37 @@ class DailyActualsStore @Inject constructor(
         /** Past days to read; the widget's 30, the months screen the whole record. */
         lookbackDays: Long = DEFAULT_LOOKBACK_DAYS,
     ): DailyActualsBySource {
-        val sources = activeSourceList.map(WeatherSource::fromId)
+        val sources = activeSourceList.map(WeatherSource::fromId).distinct()
         if (sources.isEmpty()) return emptyMap()
         val zone = ZoneId.systemDefault()
         val today = LocalDate.now()
+        val weight = personalStationWeightProvider.currentWeight()
+        val nowElapsedMs = android.os.SystemClock.elapsedRealtime()
+
+        // Serve any already-cached sources from the versioned in-memory cache (invalidated on any
+        // StoredDataVersion bump or after LIVE_CACHE_TTL_MS), and only read + assemble the missing
+        // ones (performance/261118-android-api-toggle-tail-latency.md).
+        val daoId = System.identityHashCode(observationDao)
+        val cachedBySource = LinkedHashMap<String, Map<LocalDate, DailyHistory>>()
+        val missingSources = mutableListOf<WeatherSource>()
+        for (source in sources) {
+            val key = sourceCacheKey(daoId, source, latitude, longitude, today.toEpochDay(), lookbackDays, weight)
+            val hit = liveSourceCache.get(key, nowElapsedMs)
+            if (hit != null) {
+                cachedBySource[source.id] = hit
+            } else {
+                missingSources += source
+            }
+        }
+        if (missingSources.isEmpty()) {
+            return cachedBySource
+        }
+
         val startDate = today.minusDays(lookbackDays).toEpochDay() * WidgetConstants.MS_IN_A_DAY
         val endDate = today.minusDays(1).toEpochDay() * WidgetConstants.MS_IN_A_DAY
         val todayStartMs = today.atStartOfDay(zone).toInstant().toEpochMilli()
         val tomorrowMs = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        val providerApis = observationApisFor(missingSources)
 
         // Composition is shared with desktop (DailyActualsAssembler); this only reads and logs.
         val readStartMs = android.os.SystemClock.elapsedRealtime()
@@ -66,20 +90,22 @@ class DailyActualsStore @Inject constructor(
             .map { it.toDailyHistory() }
         val yesterdayDonors = dailyHistoryDao.getMeasuredExtremesForDateAnySite(endDate)
             .map { it.toDailyHistory() }
-        val observations = observationDao
-            .getObservationsInRange(
-                todayStartMs - ActualsAggregator.DAILY_BLEND_CONTEXT_MS,
-                tomorrowMs,
-                latitude,
-                longitude,
-                // Unscoped: this pass indexes actuals for every configured source at once, which
-                // is precisely the case the DAO's note says must NOT be narrowed.
-                apis = null,
-            )
-            .map { it.toReading() }
+        val observations = if (providerApis.isEmpty()) {
+            emptyList()
+        } else {
+            observationDao
+                .getObservationsInRange(
+                    todayStartMs - ActualsAggregator.DAILY_BLEND_CONTEXT_MS,
+                    tomorrowMs,
+                    latitude,
+                    longitude,
+                    apis = providerApis,
+                )
+                .map { it.toReading() }
+        }
         val assembleStartMs = android.os.SystemClock.elapsedRealtime()
         val result = DailyActualsAssembler.assemble(
-            activeSources = sources,
+            activeSources = missingSources,
             pastRows = pastRows,
             yesterdayDonors = yesterdayDonors,
             observations = observations,
@@ -89,9 +115,20 @@ class DailyActualsStore @Inject constructor(
             today = today,
             zone = zone,
             nowMs = System.currentTimeMillis(),
-            personalStationWeight = personalStationWeightProvider.currentWeight(),
+            personalStationWeight = weight,
         )
         val assembleDoneMs = android.os.SystemClock.elapsedRealtime()
+
+        // Cache each assembled source individually so subsequent taps to other sources do not
+        // evict or re-blend already-computed sources.
+        for (source in missingSources) {
+            val rowsForSource = result.bySource[source.id].orEmpty()
+            val key = sourceCacheKey(daoId, source, latitude, longitude, today.toEpochDay(), lookbackDays, weight)
+            liveSourceCache.put(key, rowsForSource, assembleDoneMs)
+            if (rowsForSource.isNotEmpty()) {
+                cachedBySource[source.id] = rowsForSource
+            }
+        }
 
         result.bySource.forEach { (source, byDate) ->
             byDate.values.filter { it.isActualsBorrowed }.forEach {
@@ -123,7 +160,7 @@ class DailyActualsStore @Inject constructor(
             Log.d(TAG, "$tag $message")
             appLogDao.log(tag, message, level)
         }
-        return result.bySource
+        return cachedBySource
     }
 
     /**
@@ -226,6 +263,85 @@ class DailyActualsStore @Inject constructor(
     companion object {
         /** The widget's daily view: navigation reaches 30 days back. */
         const val DEFAULT_LOOKBACK_DAYS = 30L
+        const val LIVE_CACHE_TTL_MS = 5 * 60_000L
+        private const val COORD_QUANTIZE = 1_000.0
+
+        private data class SourceCacheKey(
+            val daoId: Int,
+            val sourceId: String,
+            val latQ: Long,
+            val lonQ: Long,
+            val todayEpochDay: Long,
+            val lookbackDays: Long,
+            val personalStationWeight: Double,
+            val actualsProviderId: String,
+        )
+
+        private val liveSourceCache = com.weatherwidget.shared.util.VersionedTtlCache<SourceCacheKey, Map<LocalDate, DailyHistory>>(
+            LIVE_CACHE_TTL_MS,
+        )
+
+        private fun sourceCacheKey(
+            daoId: Int,
+            source: WeatherSource,
+            latitude: Double,
+            longitude: Double,
+            todayEpochDay: Long,
+            lookbackDays: Long,
+            personalStationWeight: Double,
+        ): SourceCacheKey = SourceCacheKey(
+            daoId = daoId,
+            sourceId = source.id,
+            latQ = Math.round(latitude * COORD_QUANTIZE),
+            lonQ = Math.round(longitude * COORD_QUANTIZE),
+            todayEpochDay = todayEpochDay,
+            lookbackDays = lookbackDays,
+            personalStationWeight = personalStationWeight,
+            actualsProviderId = com.weatherwidget.shared.observations.ActualsProviderResolver.providerIdFor(source),
+        )
+
+        /** Observation `api` tags needed to assemble [sources] (including supplemental METAR for NWS). */
+        internal fun observationApisFor(sources: List<WeatherSource>): List<String> =
+            sources
+                .filter { com.weatherwidget.shared.observations.ActualsProviderResolver.hasTemperatureActuals(it) }
+                .flatMap { source ->
+                    val providerId = com.weatherwidget.shared.observations.ActualsProviderResolver.providerIdFor(source)
+                    buildList {
+                        add(source.id)
+                        add(providerId)
+                        if (providerId == WeatherSource.NWS.id) {
+                            add(WeatherSource.METAR.id)
+                        }
+                    }
+                }
+                .distinct()
+
+        /** Returns cached live daily actuals only when every requested source is currently in RAM. */
+        fun getCachedLive(
+            observationDao: ObservationDao,
+            latitude: Double,
+            longitude: Double,
+            activeSourceList: List<String>,
+            personalStationWeight: Double,
+            todayEpochDay: Long = LocalDate.now().toEpochDay(),
+            lookbackDays: Long = DEFAULT_LOOKBACK_DAYS,
+            nowElapsedMs: Long = android.os.SystemClock.elapsedRealtime(),
+        ): DailyActualsBySource? {
+            val sources = activeSourceList.map(WeatherSource::fromId).distinct()
+            if (sources.isEmpty()) return emptyMap()
+            val daoId = System.identityHashCode(observationDao)
+            val out = LinkedHashMap<String, Map<LocalDate, DailyHistory>>()
+            for (source in sources) {
+                val key = sourceCacheKey(daoId, source, latitude, longitude, todayEpochDay, lookbackDays, personalStationWeight)
+                val hit = liveSourceCache.get(key, nowElapsedMs) ?: return null
+                if (hit.isNotEmpty()) out[source.id] = hit
+            }
+            return out
+        }
+
+        fun clearCache() {
+            liveSourceCache.clear()
+        }
 
         /**
          * A read-side store over [database], for callers without a repository (the widget's tap

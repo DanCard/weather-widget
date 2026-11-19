@@ -102,3 +102,29 @@
 ### Outcome
 - **Kept #6** ([DesktopWidgetHeader.kt](../desktop/src/main/kotlin/com/weatherwidget/desktop/DesktopWidgetHeader.kt)): switched the header bar and API label to cycle sources immediately on `PointerEventType.Press` (primary = forward, secondary = backward, ignoring presses already consumed by other header buttons) with a subtle press highlight (`alpha` 0.6 → 1.0), shaving ~60–100 ms of mouse-release dwell time from perceived toggle latency.
 - **Reverted #5** (two-step night-label draw in `DailyForecastGraph.kt`): because night labels now take only ~7 ms total, Frame 2 landed ~16 ms later with no visible progressive effect while forcing a redundant second Canvas draw.
+
+## Round 4 follow-up — Android Pixel 7 Pro tap tail latency
+
+**Plan:** [performance/261118-android-api-toggle-tail-latency.md](../performance/261118-android-api-toggle-tail-latency.md)
+
+### Additional user prompts
+21. "Should we try to update android for api toggle or do you think it is good enough?"
+22. "Seems slower on pixel than fold-4"
+23. "Can you look again at logs? Again one touch seemed extra slow. Can we optimize for the extra slow ones?"
+24. "This was in reference to pixel-7"
+25. "yes" (write plan in `performance/`)
+26. "proceed"
+27. "done"
+28. "commit"
+
+### Root cause & changes (`:app`)
+- On Pixel 7 Pro (`2A191FDH300PPW`), `DailyInteractionRenderer` passed all widgets' sources (`[NWS, SILURIAN]`) into `DailyActualsStore.getDailyActualsWithLiveToday` (which had no in-memory cache and read all observations with `apis = null`), spending **1,341 ms** of a **1,887 ms** `NWS → SILURIAN` tap (and 400–510 ms on every other tap).
+- [DailyInteractionRenderer.kt](../app/src/main/java/com/weatherwidget/widget/handlers/DailyInteractionRenderer.kt): scoped single-widget taps to the tapped widget's display source, and on `TOGGLE_API` / `HOME` served RAM-cached live actuals if present or fell back to `getDailyActualsStored` (~20 ms).
+- [DailyActualsStore.kt](../app/src/main/java/com/weatherwidget/data/repository/DailyActualsStore.kt): added per-source `VersionedTtlCache` (keyed by DAO identity, source, quantized site, day, lookback, weight, and actuals provider; auto-invalidated on `StoredDataVersion` bumps) and scoped `getObservationsInRange` to `observationApisFor(missingSources)` (including supplemental `METAR` for `NWS`).
+- [HeaderWidthChecker.kt](../app/src/main/java/com/weatherwidget/widget/handlers/HeaderWidthChecker.kt): added `VersionedTtlCache` for source-independent `lineInputs` (auto-invalidated on `StoredDataVersion` bumps).
+- [WidgetActionReceiver.kt](../app/src/main/java/com/weatherwidget/widget/WidgetActionReceiver.kt) & [WidgetRenderer.kt](../app/src/main/java/com/weatherwidget/widget/WidgetRenderer.kt): cleared `DailyActualsStore` and `HeaderWidthChecker` caches alongside `WidgetInteractionCache.clear()`.
+- Added real-Room integration test [DailyActualsStoreTapCacheTest.kt](../app/src/test/java/com/weatherwidget/data/repository/DailyActualsStoreTapCacheTest.kt).
+
+### Verification
+- `./scripts/staggered-tests.sh --install`: **7,203 unit tests passed**, **128 emulator tests passed**, installed on 3 devices.
+- Live Pixel 7 Pro (`2A191FDH300PPW`) `SOURCE_SWITCH_E2E`: median dropped from **923 ms → 580 ms** (~1.6× faster), worst-case `NWS → SILURIAN` dropped from **1,887 ms → 963–1,070 ms** (~1.9× faster), and `HOME` (`→ NWS`) dropped from **1,249 ms → 352 ms** (3.5× faster).

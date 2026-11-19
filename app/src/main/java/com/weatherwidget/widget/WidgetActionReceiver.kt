@@ -36,6 +36,8 @@ class WidgetActionReceiver : BaseWidgetActionReceiver() {
             val userInitiated = !uiOnly && !isPassive
             if (userInitiated) {
                 com.weatherwidget.widget.handlers.WidgetInteractionCache.clear()
+                com.weatherwidget.data.repository.DailyActualsStore.clearCache()
+                com.weatherwidget.widget.handlers.HeaderWidthChecker.clearLineInputsCache()
             }
 
             if (userInitiated) WidgetTimedRepaintGate.gate.interactionStarted()

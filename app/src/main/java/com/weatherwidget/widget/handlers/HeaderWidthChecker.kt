@@ -201,6 +201,27 @@ object HeaderWidthChecker {
      * [measureHeader]'s shared line reserves. Reads its own rows — every visible source over the
      * header's 6 h rain window — because the render paths load only the displayed sources'.
      */
+    private data class LineInputsCacheKey(
+        val dbId: Int,
+        val view: HeaderContent.View,
+        val latQ: Long,
+        val lonQ: Long,
+        val widthDp: Int,
+        val nowHourEpoch: Long,
+        val centerHourEpoch: Long,
+        val sourceIds: List<String>,
+    )
+
+    private const val LINE_INPUTS_CACHE_TTL_MS = 5 * 60_000L
+    private const val COORD_QUANTIZE = 1_000.0
+    private val lineInputsCache = com.weatherwidget.shared.util.VersionedTtlCache<LineInputsCacheKey, HeaderLine.Inputs>(
+        LINE_INPUTS_CACHE_TTL_MS,
+    )
+
+    internal fun clearLineInputsCache() {
+        lineInputsCache.clear()
+    }
+
     @Suppress("LongParameterList")
     suspend fun lineInputs(
         context: Context,
@@ -214,26 +235,40 @@ object HeaderWidthChecker {
     ): HeaderLine.Inputs {
         val sourceIds = SourceCoverage.effectiveSources(stateManager.getVisibleSourcesOrder().map { it.id }, lat, lon)
         val zone = java.time.ZoneId.systemDefault()
-        val precipWindow = HeaderContent.precipReserveWindowMs(now, centerTime, zone)
+        val nowMs = now.atZone(zone).toInstant().toEpochMilli()
+        val centerMs = centerTime.atZone(zone).toInstant().toEpochMilli()
         val database = com.weatherwidget.data.local.WeatherDatabase.getDatabase(context)
-        val rows = GraphDataLoader.loadSettledHourlyForecasts(
-            database.hourlyForecastDao(),
-            database.hourlyForecastHistoryDao(),
-            lat,
-            lon,
-            precipWindow.first,
-            precipWindow.last,
-            sourceIds + com.weatherwidget.data.model.WeatherSource.GENERIC_GAP.id,
-            now.atZone(zone).toInstant().toEpochMilli(),
-        )
-        return HeaderContent.lineInputs(
+        val key = LineInputsCacheKey(
+            dbId = System.identityHashCode(database),
             view = view,
-            hourly = rows.map { it.toHourlyForecast() },
-            sourceIds = sourceIds,
-            now = now,
-            centerTime = centerTime,
+            latQ = Math.round(lat * COORD_QUANTIZE),
+            lonQ = Math.round(lon * COORD_QUANTIZE),
             widthDp = widthDp,
+            nowHourEpoch = nowMs / 3_600_000L,
+            centerHourEpoch = centerMs / 3_600_000L,
+            sourceIds = sourceIds,
         )
+        return lineInputsCache.getOrLoad(key, { android.os.SystemClock.elapsedRealtime() }) {
+            val precipWindow = HeaderContent.precipReserveWindowMs(now, centerTime, zone)
+            val rows = GraphDataLoader.loadSettledHourlyForecasts(
+                database.hourlyForecastDao(),
+                database.hourlyForecastHistoryDao(),
+                lat,
+                lon,
+                precipWindow.first,
+                precipWindow.last,
+                sourceIds + com.weatherwidget.data.model.WeatherSource.GENERIC_GAP.id,
+                nowMs,
+            )
+            HeaderContent.lineInputs(
+                view = view,
+                hourly = rows.map { it.toHourlyForecast() },
+                sourceIds = sourceIds,
+                now = now,
+                centerTime = centerTime,
+                widthDp = widthDp,
+            )
+        }
     }
 
     /** The daily header's date, reserved by every header's line so it matches across views. */
