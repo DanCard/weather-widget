@@ -167,7 +167,7 @@ internal fun WidgetHeader(
     val nominalDateWidthDp = remember(dateText, dateStyle, headerTextMeasurer, density) {
         with(density) { headerTextMeasurer.measure(dateText, dateStyle).size.width.toDp().value }
     }
-    val sourceGearGapDp = 6f * scale
+    val sourceGearGapDp = 12f * scale
     val gearWidthDp = 14f * scale
     val headerMeasured = remember(content, scale, isHourly, buttonsWant, dateText, headerTextMeasurer, density, headerWidthDp, sourceWidthDp, nominalDateWidthDp) {
         fun widthDp(text: String, style: androidx.compose.ui.text.TextStyle) =

@@ -22,9 +22,9 @@ object HeaderWidthChecker {
 
     /**
      * Exact width of `top_right_header_container` minus the `api_source` text width, in dp:
-     * `settings_touch_zone` (29dp) - container `marginEnd` (2dp) + `api_touch_zone` padding (10 + 7dp) = 44dp.
+     * `settings_touch_zone` (34dp) - container `marginEnd` (2dp) + `api_touch_zone` padding (10 + 10dp) = 52dp.
      */
-    internal const val RIGHT_CLUSTER_FIXED_DP = 44f
+    internal const val RIGHT_CLUSTER_FIXED_DP = 52f
 
     /**
      * A header action button's preferred zone width, daily and hourly alike: the icon plus the

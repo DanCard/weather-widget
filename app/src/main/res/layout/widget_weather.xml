@@ -1525,10 +1525,10 @@
     <!-- Top-right header container for API and Settings.
          Declared after navigation zones for touch priority.
          Geometry matches DailyForecastHeaderRenderer (gear right at width-2dp, width 18dp ->
-         [width-20dp, width-2dp]; API label right at width-34dp; midpoint at width-27dp):
-         container marginEnd=-2dp puts its right edge at width+2dp, settings_touch_zone is 29dp
-         wide ([width-27dp, width+2dp]) with the gear 4dp from its right edge ([width-20dp, width-2dp]),
-         and api_touch_zone sits immediately left with paddingEnd=7dp so its text ends at width-34dp. -->
+         [width-20dp, width-2dp]; API label right at width-42dp; 22dp gap at 1.0x, ~16dp at 1.35x):
+         container marginEnd=-2dp puts its right edge at width+2dp, settings_touch_zone is 34dp
+         wide ([width-32dp, width+2dp]) with the gear 4dp from its right edge ([width-20dp, width-2dp]),
+         and api_touch_zone sits immediately left with paddingEnd=10dp so its text ends at width-42dp. -->
     <LinearLayout
         android:id="@+id/top_right_header_container"
         android:layout_width="wrap_content"
@@ -1546,7 +1546,7 @@
             android:clickable="true"
             android:focusable="true"
             android:paddingStart="10dp"
-            android:paddingEnd="7dp">
+            android:paddingEnd="10dp">
             <TextView
                 android:id="@+id/api_source"
                 android:layout_width="wrap_content"
@@ -1560,7 +1560,7 @@
 
         <FrameLayout
             android:id="@+id/settings_touch_zone"
-            android:layout_width="29dp"
+            android:layout_width="34dp"
             android:layout_height="50dp"
             android:clickable="true"
             android:focusable="true">

@@ -23,7 +23,7 @@ object HeaderConstants {
     // Extra right margin applied only when the API label is a single source (no " - ")
     // — keeps long dual-source labels at the tight 32dp while giving "Meteo" / "NWS"
     // breathing room from the gear.
-    const val API_SINGLE_SOURCE_EXTRA_MARGIN_DP = 12f
+    const val API_SINGLE_SOURCE_EXTRA_MARGIN_DP = 20f
     const val API_SOURCE_CONTAINER_PADDING_DP = 14f
     const val DATE_TEXT_SIZE_DP = 20f
     /**
