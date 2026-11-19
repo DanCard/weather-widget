@@ -113,6 +113,11 @@ class WeatherObservationsActivity : AppCompatActivity() {
     @Inject
     lateinit var appLogDao: com.weatherwidget.data.local.AppLogDao
 
+    /** Outlives this screen: a source switch finishes (persist, paint, count) after a quick back. */
+    @Inject
+    @com.weatherwidget.di.ApplicationIoScope
+    lateinit var applicationIoScope: kotlinx.coroutines.CoroutineScope
+
     @Inject
     lateinit var observationDao: ObservationDao
 
@@ -578,21 +583,14 @@ class WeatherObservationsActivity : AppCompatActivity() {
         val currentIndex = visibleSources.indexOf(currentSource)
         val nextIndex = (currentIndex + 1) % visibleSources.size
         currentSource = visibleSources[nextIndex]
-        val switchedTo = currentSource
-        lifecycleScope.launch(ioDispatcher) {
-            com.weatherwidget.widget.SourceViewRecorder.record(
-                applicationContext,
-                switchedTo,
-                com.weatherwidget.widget.ViewMode.DAILY,
-                com.weatherwidget.shared.sourceview.SourceViewTrigger.OBSERVATIONS,
-            )
-        }
+        // The widget's source follows: the API button's switch (persist, paint, count, stale refresh),
+        // which also paints the widget, so nothing is owed on exit for it.
+        // plans/261119-sync-data-screen-sources-with-main.md
+        DataScreenSourceSwitch.launch(
+            applicationContext, applicationIoScope, appWidgetId, weatherRepository,
+            com.weatherwidget.widget.handlers.WidgetIntentActionHandler.SwitchKind.OBSERVATIONS, currentSource,
+        )
 
-        if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
-            widgetStateManager.setCurrentDisplaySource(appWidgetId, currentSource)
-            widgetContentChanged = true
-        }
-        
         updateApiButton()
         loadObservations()
         loadFetchLogs()

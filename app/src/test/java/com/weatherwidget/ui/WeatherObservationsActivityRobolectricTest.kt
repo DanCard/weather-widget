@@ -166,14 +166,25 @@ class WeatherObservationsActivityRobolectricTest {
 
     /** The Observations screen's source button counts as viewing that source (source_view_days). */
     @Test
-    fun `source button records an OBSERVATIONS switch`() {
+    fun `source button switches the widget source, counted as OBSERVATIONS`() {
         val scenario = launchActivity()
         scenario.onActivity { activity ->
             activity.findViewById<TextView>(R.id.api_source_button).performClick()
         }
-        shadowOf(Looper.getMainLooper()).idle()
+        // The switch runs through the shared runner on the application scope
+        // (plans/261119-sync-data-screen-sources-with-main.md): wait for its count to land.
+        fun e2eDone() = runBlocking { database.appLogDao().getLogsByTag("SOURCE_SWITCH_E2E", 20) }
+            .filter { it.message.contains("trigger=OBSERVATIONS") && it.message.contains("phase=done") }
+        val end = System.currentTimeMillis() + 10_000
+        while ((runBlocking { database.sourceViewDao().getSince(0L) }.isEmpty() || e2eDone().isEmpty()) &&
+            System.currentTimeMillis() < end
+        ) {
+            shadowOf(Looper.getMainLooper()).idle()
+            Thread.sleep(20)
+        }
 
         val rows = runBlocking { database.sourceViewDao().getSince(0L) }
+        println("WeatherObservationsActivity source switch rows=$rows")
         assertEquals(1, rows.size)
         val row = rows.single()
         assertEquals(WeatherSource.OPEN_METEO.id, row.sourceId)
@@ -181,6 +192,9 @@ class WeatherObservationsActivityRobolectricTest {
         assertEquals("HOURLY", row.viewKind)
         assertFalse(row.wasPrimary)
         assertEquals(1, row.switches)
+        // It is the API button's switch: the widget shows the new source, logged end to end.
+        assertEquals(WeatherSource.OPEN_METEO, WidgetStateManager(context).getCurrentDisplaySource(widgetId))
+        assertTrue("SOURCE_SWITCH_E2E trigger=OBSERVATIONS phase=done", e2eDone().isNotEmpty())
         scenario.close()
     }
 

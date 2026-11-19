@@ -19,6 +19,12 @@ enum class SourceViewTrigger {
 
     /** The source cycle in the Observations screen. */
     OBSERVATIONS,
+
+    /**
+     * The source cycle in the Forecast Comparison screen. It switches the displayed source like the
+     * API button (plans/261119-sync-data-screen-sources-with-main.md).
+     */
+    COMPARISON,
 }
 
 /** The view a source was switched to, stored by [name] in `source_view_days.viewKind`. */

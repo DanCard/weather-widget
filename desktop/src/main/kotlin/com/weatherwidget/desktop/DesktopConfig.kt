@@ -277,8 +277,8 @@ internal fun resolveDesktopConfigSave(
             // Not the location picker: a location never rewrites the user's selected source. One
             // that cannot serve the new site is replaced at read time ([displaySource]) and comes
             // back when the location does.
-            allowWeatherSourceChange = source == "popup",
-            allowActualsProvidersChange = source == "observations-window" || source == "observations",
+            allowWeatherSourceChange = source == "popup" || source in ConfigSaveSource.SOURCE_SWITCHES,
+            allowActualsProvidersChange = source == ConfigSaveSource.OBSERVATIONS_WINDOW || source == "observations",
         )
     } else {
         draft
@@ -341,6 +341,52 @@ internal fun resnapNarrowZoomAfterSpanChange(prev: DesktopConfig, next: DesktopC
 }
 
 private val SETTINGS_SAVE_SOURCES = setOf("settings", "settings-close")
+
+/**
+ * Save labels for a data window's source-pill switch (plans/261119-sync-data-screen-sources-with-main.md).
+ * They are the only saves from those windows that may change `weatherSource`: the windows' other
+ * saves (bounds, sort, actuals picker) carry a config snapshot that can lag the persisted one, and
+ * must never put an old source back. Until 2026-11-19 the pills saved under the window labels, so
+ * [mergeNonSettingsSave] dropped the switch ("merged-away-stale-settings weatherSource").
+ */
+internal object ConfigSaveSource {
+    /** The Forecast Comparison window's own saves (bounds, sort): never the source. */
+    const val HISTORY_WINDOW = "history-window"
+    const val HISTORY_SOURCE_SWITCH = "history-source-switch"
+    /** The Stations window's own saves (bounds, tab, actuals picker): never the source. */
+    const val OBSERVATIONS_WINDOW = "observations-window"
+    const val OBSERVATIONS_SOURCE_SWITCH = "observations-source-switch"
+    val SOURCE_SWITCHES = setOf(HISTORY_SOURCE_SWITCH, OBSERVATIONS_SOURCE_SWITCH)
+}
+
+/**
+ * A data window's two save channels, each already labelled for [resolveDesktopConfigSave]: [window]
+ * for the window's own fields, [sourceSwitch] for its source pill. Built once by [forForecastComparison] /
+ * [forStations] for both the app and the tests, and handed down whole, so no layer between
+ * `DesktopUiApplication` and the pill can pair a callback with the wrong label (2026-11-19: the pill
+ * was wired to the window's label and every switch was merged away).
+ */
+internal class DataWindowSaves(
+    val window: (DesktopConfig) -> Unit,
+    val sourceSwitch: (DesktopConfig) -> Unit,
+) {
+    companion object {
+        /** Saves nothing: previews and tests that do not save. */
+        val NONE = DataWindowSaves({}, {})
+
+        /** Forecast Comparison; [save] is `saveConfigAndNotify(config, label)`. */
+        fun forForecastComparison(save: (DesktopConfig, String) -> Unit) = DataWindowSaves(
+            window = { save(it, ConfigSaveSource.HISTORY_WINDOW) },
+            sourceSwitch = { save(it, ConfigSaveSource.HISTORY_SOURCE_SWITCH) },
+        )
+
+        /** Stations; [save] is `saveConfigAndNotify(config, label)`. */
+        fun forStations(save: (DesktopConfig, String) -> Unit) = DataWindowSaves(
+            window = { save(it, ConfigSaveSource.OBSERVATIONS_WINDOW) },
+            sourceSwitch = { save(it, ConfigSaveSource.OBSERVATIONS_SOURCE_SWITCH) },
+        )
+    }
+}
 
 /** Enabled sources usable at this config's location ([SourceCoverage]); fetches, displays and cycles read this. */
 val DesktopConfig.effectiveSources: List<String>

@@ -43,6 +43,7 @@ import com.weatherwidget.desktop.theme.WeatherTypography
 import com.weatherwidget.shared.graph.AxisScale
 import com.weatherwidget.shared.graph.DaySourceComparison
 import com.weatherwidget.shared.graph.ForecastEvolutionCutoff
+import com.weatherwidget.shared.sourceview.SourceViewTrigger
 import java.time.ZoneId
 import java.time.LocalDateTime
 import com.weatherwidget.shared.graph.ForecastEvolutionGeometry
@@ -107,7 +108,8 @@ internal fun ForecastComparisonWindow(
     showRequestId: Int = 0,
     initialDate: LocalDate = LocalDate.now(),
     onClose: () -> Unit,
-    onConfigUpdate: (DesktopConfig) -> Unit = {},
+    /** [DataWindowSaves.forForecastComparison]: the window's bounds and sort, and the source pill's switch. */
+    saves: DataWindowSaves = DataWindowSaves.NONE,
     /** Bumped when stored data changes (a refresh landed); the window reloads on it. */
     dataUpdateCount: Int = 0,
     isRefreshing: Boolean = false,
@@ -130,7 +132,7 @@ internal fun ForecastComparisonWindow(
         val position = state.position
         val size = state.size
         if (position is WindowPosition.Absolute) {
-            onConfigUpdate(
+            saves.window(
                 config.copy(
                     historyWindowX = position.x.value,
                     historyWindowY = position.y.value,
@@ -169,7 +171,7 @@ internal fun ForecastComparisonWindow(
             isRefreshing = isRefreshing,
             onRefreshSource = onRefreshSource,
             onOpenSettings = onOpenSettings,
-            onSourceCompareSort = { sort -> onConfigUpdate(config.copy(sourceCompareSort = sort.encode())) },
+            saves = saves,
         )
     }
 }
@@ -190,8 +192,12 @@ internal fun ForecastComparisonContent(
     isRefreshing: Boolean = false,
     onRefreshSource: (WeatherSource) -> Unit = {},
     onOpenSettings: () -> Unit = {},
-    /** Persists a header-tap sort (the window writes it to [DesktopConfig.sourceCompareSort]). */
-    onSourceCompareSort: (DaySourceComparison.Sort) -> Unit = {},
+    /**
+     * [DataWindowSaves.forForecastComparison]: a header-tap sort goes to [DataWindowSaves.window]
+     * ([DesktopConfig.sourceCompareSort]); the source pill to [DataWindowSaves.sourceSwitch], the one
+     * save of this window that may change the main view's source.
+     */
+    saves: DataWindowSaves = DataWindowSaves.NONE,
 ) {
     val visibleSources = remember(config.effectiveSources) {
         config.effectiveSources.map { WeatherSource.fromId(it) }.ifEmpty { listOf(WeatherSource.NWS) }
@@ -199,12 +205,11 @@ internal fun ForecastComparisonContent(
     // Keyed on showRequestId: each fresh open re-seeds the viewed date (e.g. the hourly
     // graph's center day), while prev/next navigation within one showing is untouched.
     var targetDate by remember(showRequestId) { mutableStateOf(initialDate) }
-    var source by remember {
-        mutableStateOf(
-            WeatherSource.fromId(config.displaySource).takeIf { it in visibleSources }
-                ?: visibleSources.first(),
-        )
-    }
+    // No copy of the source: this window shows the main view's, so a switch in either place shows
+    // in both (a stored copy went stale while the window stayed composed, 2026-11-19).
+    // plans/261119-sync-data-screen-sources-with-main.md
+    val source = WeatherSource.fromId(config.displaySource).takeIf { it in visibleSources }
+        ?: visibleSources.first()
     var graphMode by remember { mutableStateOf(GraphMode.EVOLUTION) }
     var sourceCompareSort by remember { mutableStateOf(DaySourceComparison.Sort.decode(config.sourceCompareSort)) }
     var loading by remember { mutableStateOf(true) }
@@ -237,7 +242,9 @@ internal fun ForecastComparisonContent(
                 onBack = onClose,
                 onPrev = { targetDate = targetDate.minusDays(1) },
                 onNext = { targetDate = targetDate.plusDays(1) },
-                onCycleSource = { forward -> source = visibleSources.cycleFrom(source, forward) },
+                onCycleSource = { forward ->
+                    cycleDisplaySource(config, forward, SourceViewTrigger.COMPARISON, saves.sourceSwitch)
+                },
                 isRefreshing = isRefreshing,
                 onRefresh = { onRefreshSource(source) },
                 onOpenSettings = onOpenSettings,
@@ -257,7 +264,7 @@ internal fun ForecastComparisonContent(
                         val next = sourceCompareSort.tapped(column)
                         sourceCompareSort = next
                         DaySourceComparison.logSortTap(targetDate, next, DaySourceComparison.sort(d.sourceComparison, next))
-                        onSourceCompareSort(next)
+                        saves.window(config.copy(sourceCompareSort = next.encode()))
                     },
                 )
             }

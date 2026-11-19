@@ -36,11 +36,16 @@ Examples include:
 - `WeatherApiHistoryRun` and `GoogleHistoryRun`: provider-specific history workflows.
 - `SourceFetchTable`: what each source's forecast fetch requests, and (`runFollowUps`) which of the
   history runners above ride that fetch, a failed one included.
-- `SourceSwitchRunner`: a user's switch of the displayed source (API button, daily home button).
-  Persist then paint is the whole critical path; the view tally, the staleness check / refresh request
-  and the `app_logs` row follow, and `SOURCE_SWITCH_E2E` times each phase. Hosts: Android
-  `WidgetIntentActionHandler` (toggle and home reset; the deferred phase joins the receiver's job),
-  desktop `DesktopSourceSwitch` (refresh is the daemon's `source_change` check).
+- `SourceSwitchRunner`: a user's switch of the displayed source (API button, daily home button, and
+  the Forecast Comparison and Stations screens' source pills). Persist then paint is the whole
+  critical path; the view tally, the staleness check / refresh request and the `app_logs` row follow,
+  and `SOURCE_SWITCH_E2E` times each phase. Hosts: Android `WidgetIntentActionHandler` (toggle and
+  home reset, the deferred phase joining the receiver's job; screen pills via `switchFromScreen` on
+  the application scope), desktop `DesktopSourceSwitch` (refresh is the daemon's `source_change`
+  check). The data screens hold no source of their own: they show the main view's, so a switch in
+  either place shows in both. Pill switches count as `COMPARISON` / `OBSERVATIONS` and, like the API
+  button, as a choice away from the primary (`SourceViewProbability`).
+  plans/261119-sync-data-screen-sources-with-main.md
 - `DaySourceComparison`: the Forecast Comparison screen's "All sources for <day>" table. Each visible
   source's newest forecast for the day at the nearest site, run through `DailyColumnBuilder` with that
   source as the display source (so the high, rain %, peak hour and noon cloud match the widget's daily

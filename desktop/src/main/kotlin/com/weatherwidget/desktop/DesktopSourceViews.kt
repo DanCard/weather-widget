@@ -96,24 +96,27 @@ internal fun switchDisplaySource(config: DesktopConfig, sourceId: String, onUpda
 }
 
 /**
- * The API button: show the next (or previous, when [forward] is false) usable source, and count
- * the switch. The one copy — the header and popup used to carry three, and a copy that skipped
- * [DesktopSourceViews.record] would silently undercount. No-op with one usable source. Switched
- * through [DesktopSourceSwitch].
+ * The API button, and the data screens' source pills: show the next (or previous, when [forward] is
+ * false) usable source, and count the switch as [trigger]. The one copy — the header and popup used
+ * to carry three, and a copy that skipped [DesktopSourceViews.record] would silently undercount.
+ * Forecast Comparison ([SourceViewTrigger.COMPARISON]) and Stations ([SourceViewTrigger.OBSERVATIONS])
+ * switch the main view's source the same way (plans/261119-sync-data-screen-sources-with-main.md).
+ * No-op with one usable source. Switched through [DesktopSourceSwitch].
  */
 internal fun cycleDisplaySource(
     config: DesktopConfig,
     forward: Boolean = true,
+    trigger: SourceViewTrigger = SourceViewTrigger.TOGGLE,
     onUpdateConfig: (DesktopConfig) -> Unit,
 ) {
     val visibleSources = config.effectiveSources
     if (visibleSources.size <= 1) return
     val next = visibleSources.cycleFrom(config.displaySource, forward)
-    DesktopSourceSwitch.switchTo(config, next, SourceViewTrigger.TOGGLE, onUpdateConfig)
+    DesktopSourceSwitch.switchTo(config, next, trigger, onUpdateConfig)
 }
 
 internal fun cycleDisplaySource(config: DesktopConfig, onUpdateConfig: (DesktopConfig) -> Unit) =
-    cycleDisplaySource(config, forward = true, onUpdateConfig)
+    cycleDisplaySource(config, forward = true, onUpdateConfig = onUpdateConfig)
 
 /**
  * The source after (or before, when [forward] is false) [current], wrapping at both ends: left-click

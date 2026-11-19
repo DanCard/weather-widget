@@ -218,7 +218,8 @@ internal fun ObservationsWindow(
     isRefreshing: Boolean = false,
     onRefreshData: () -> Unit = {},
     onClose: () -> Unit,
-    onConfigUpdate: (DesktopConfig) -> Unit,
+    /** [DataWindowSaves.forStations]: the window's bounds, tab and actuals picker, and the source pill's switch. */
+    saves: DataWindowSaves,
 ) {
     val state = rememberSanitizedWindowState(
         savedX = config.obsWindowX,
@@ -235,7 +236,7 @@ internal fun ObservationsWindow(
         val position = state.position
         val size = state.size
         if (position is WindowPosition.Absolute) {
-            onConfigUpdate(
+            saves.window(
                 config.copy(
                     obsWindowX = position.x.value,
                     obsWindowY = position.y.value,
@@ -272,7 +273,7 @@ internal fun ObservationsWindow(
             isRefreshing = isRefreshing,
             onRefreshData = onRefreshData,
             onClose = onClose,
-            onConfigUpdate = onConfigUpdate,
+            saves = saves,
         )
     }
 }
@@ -291,9 +292,16 @@ internal fun ObservationsContent(
     isRefreshing: Boolean = false,
     onRefreshData: () -> Unit = {},
     onClose: () -> Unit,
-    onConfigUpdate: (DesktopConfig) -> Unit,
+    /**
+     * [DataWindowSaves.forStations]: tab and actuals-picker saves go to [DataWindowSaves.window]; the
+     * source pill to [DataWindowSaves.sourceSwitch], the one save of this window that may change the
+     * main view's source.
+     */
+    saves: DataWindowSaves,
 ) {
-    var currentSource by remember { mutableStateOf(WeatherSource.valueOf(config.displaySource)) }
+    // The main view's source, never a copy: a switch here or in the main window shows in both.
+    // plans/261119-sync-data-screen-sources-with-main.md
+    val currentSource = WeatherSource.valueOf(config.displaySource)
     var observations by remember { mutableStateOf<List<ObservationReading>>(emptyList()) }
     // StationsList's subtitle, as Android's: nearby stations, latest reading, or how old the rows are.
     var stationsSubtitle by remember { mutableStateOf<String?>(null) }
@@ -303,7 +311,7 @@ internal fun ObservationsContent(
     val selectTab: (Int) -> Unit = { tab ->
         selectedTab = tab
         if (config.obsSelectedTab != tab) {
-            onConfigUpdate(config.copy(obsSelectedTab = tab))
+            saves.window(config.copy(obsSelectedTab = tab))
         }
     }
     var logFilter by remember { mutableStateOf(LogFilter.FETCHES) }
@@ -388,13 +396,13 @@ internal fun ObservationsContent(
                     // Source Cycler
                     val visibleSources = config.effectiveSources.map { WeatherSource.valueOf(it) }
                     if (visibleSources.isNotEmpty()) {
+                        // Switches the main view's source, counted as OBSERVATIONS (the runner records it).
                         val cycleSource = { forward: Boolean ->
-                            currentSource = visibleSources.cycleFrom(currentSource, forward)
-                            DesktopSourceViews.record(
-                                currentSource.id,
-                                config.effectiveSources,
-                                config.viewMode,
+                            cycleDisplaySource(
+                                config,
+                                forward,
                                 com.weatherwidget.shared.sourceview.SourceViewTrigger.OBSERVATIONS,
+                                saves.sourceSwitch,
                             )
                         }
                         SourceCycleButton(
@@ -514,7 +522,7 @@ internal fun ObservationsContent(
                                             chosen.takeIf { it != defaultProvider },
                                         )
                                         DesktopActualsPreference.update(updatedSettings)
-                                        onConfigUpdate(config.copy(settings = updatedSettings))
+                                        saves.window(config.copy(settings = updatedSettings))
                                         loadData()
                                         val neededApi = ActualsProviderResolver.providerIdFor(currentSource)
                                         val hasData = observations.any { it.api == neededApi }

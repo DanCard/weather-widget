@@ -62,6 +62,9 @@ class SourceViewProbabilityTest {
         assertEquals(0.0, toggle(row(1, trigger = SourceViewTrigger.HOME, wasPrimary = true)).weightedEvents, 0.0)
         assertEquals(0.0, toggle(row(1, source = "NWS", wasPrimary = true)).weightedEvents, 0.0)
         assertTrue(toggle(row(1, trigger = SourceViewTrigger.OBSERVATIONS)).weightedEvents > 0)
+        // The Forecast Comparison pill switches the displayed source too (2026-11-19).
+        assertTrue(toggle(row(1, trigger = SourceViewTrigger.COMPARISON)).weightedEvents > 0)
+        assertEquals(0.0, toggle(row(1, trigger = SourceViewTrigger.COMPARISON, wasPrimary = true)).weightedEvents, 0.0)
         assertEquals(0.0, toggle(row(1, switches = 0)).weightedEvents, 0.0)
     }
 

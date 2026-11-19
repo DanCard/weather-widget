@@ -1,5 +1,8 @@
 package com.weatherwidget.desktop
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -11,6 +14,8 @@ import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.test.category.LongDuration
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -25,6 +30,9 @@ import java.nio.file.Path
  * source, right-click the previous one, both wrapping. [DesktopUiTest] covers [SourceCycleButton] with
  * hand-wired handlers; this guards each window passing its right-click handler (missing on History
  * of Forecasts and Stations when the header first got right-click, 2026-10-29).
+ *
+ * Since 2026-11-19 the pill switches the main source (DesktopDataScreenSourceSyncTest), so the
+ * content saves through the app's real merge policy under the app's labels.
  */
 @Category(LongDuration::class)
 class DesktopSourceCycleIntegrationTest {
@@ -47,18 +55,24 @@ class DesktopSourceCycleIntegrationTest {
         tempDir = Files.createTempDirectory("desktop-source-cycle")
         dao = DesktopWeatherDao(DesktopWeatherDatabase(tempDir.resolve("weather.db")).apply { initialize() })
         DesktopSourceViews.install(dao, executor = { it.run() })
+        DesktopSourceSwitch.install(dao, CoroutineScope(Dispatchers.Unconfined))
     }
 
     @After
     fun teardown() {
+        DesktopSourceSwitch.install(null)
         DesktopSourceViews.install(null)
         tempDir.toFile().deleteRecursively()
     }
 
     @Test
     fun `history of forecasts source pill - left click next, right click previous`() {
+        var cfg by mutableStateOf(config)
         composeTestRule.setContent {
-            ForecastComparisonContent(weatherDao = dao, config = config, onClose = {})
+            ForecastComparisonContent(
+                weatherDao = dao, config = cfg, onClose = {},
+                saves = DataWindowSaves.forForecastComparison { draft, label -> cfg = resolveDesktopConfigSave(cfg, draft, label).config },
+            )
         }
 
         assertCyclesBothWays()
@@ -66,8 +80,12 @@ class DesktopSourceCycleIntegrationTest {
 
     @Test
     fun `stations source pill - left click next, right click previous, each switch counted`() {
+        var cfg by mutableStateOf(config)
         composeTestRule.setContent {
-            ObservationsContent(weatherDao = dao, config = config, onClose = {}, onConfigUpdate = {})
+            ObservationsContent(
+                weatherDao = dao, config = cfg, onClose = {},
+                saves = DataWindowSaves.forStations { draft, label -> cfg = resolveDesktopConfigSave(cfg, draft, label).config },
+            )
         }
 
         assertCyclesBothWays()

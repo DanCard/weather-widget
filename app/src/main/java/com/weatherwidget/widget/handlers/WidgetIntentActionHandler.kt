@@ -256,7 +256,13 @@ internal object WidgetIntentActionHandler {
         }
     }
 
-    /** What differs between the API button and the home button's source reset. */
+    /**
+     * What differs between the API button, the home button's source reset, and the data screens'
+     * source pills. A pill IS the API button seen from another screen: same reasons, stale-refresh
+     * reason (so [com.weatherwidget.widget.SyncDoneNotice] owes the same banner) and action tag (so
+     * the daily paint prefers stored today the same way); only the counted trigger and the notice's
+     * logged origin differ. plans/261119-sync-data-screen-sources-with-main.md
+     */
     internal enum class SwitchKind(
         val trigger: SourceViewTrigger,
         val reason: String,
@@ -267,6 +273,29 @@ internal object WidgetIntentActionHandler {
     ) {
         TOGGLE(SourceViewTrigger.TOGGLE, "toggle_api", "toggle_api_stale", "TOGGLE_API", "widget_toggle_api", true),
         RESET(SourceViewTrigger.HOME, "reset_source", "reset_source_stale", "RESET_SOURCE", "widget_reset_source", false),
+        COMPARISON(SourceViewTrigger.COMPARISON, "toggle_api", "toggle_api_stale", "TOGGLE_API", "comparison_source", true),
+        OBSERVATIONS(SourceViewTrigger.OBSERVATIONS, "toggle_api", "toggle_api_stale", "TOGGLE_API", "observations_source", true),
+    }
+
+    /**
+     * A data screen's source pill (Forecast Comparison, Stations): show [target] on the widget the
+     * way the API button would — persisted, painted, counted as [kind]'s trigger, a stale source
+     * refreshed alone. Desktop's windows switch through `DesktopSourceSwitch` the same way.
+     */
+    suspend fun switchFromScreen(
+        context: Context,
+        appWidgetId: Int,
+        repository: WeatherRepository?,
+        kind: SwitchKind,
+        target: WeatherSource,
+    ) {
+        require(kind == SwitchKind.COMPARISON || kind == SwitchKind.OBSERVATIONS) { "not a screen switch: $kind" }
+        val startMs = SystemClock.elapsedRealtime()
+        val stateManager = WidgetStateManager(context)
+        switchSource(context, appWidgetId, repository, startMs, kind) {
+            stateManager.setCurrentDisplaySource(appWidgetId, target)
+            target
+        }
     }
 
     /**

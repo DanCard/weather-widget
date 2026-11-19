@@ -88,6 +88,11 @@ class ForecastComparisonActivity : AppCompatActivity() {
     @Inject
     lateinit var appLogDao: AppLogDao
 
+    /** Outlives this screen: a source switch finishes (persist, paint, count) after a quick back. */
+    @Inject
+    @com.weatherwidget.di.ApplicationIoScope
+    lateinit var applicationIoScope: kotlinx.coroutines.CoroutineScope
+
     /** A refresh is running; further taps are logged and ignored rather than swallowed unseen. */
     private var refreshInFlight = false
 
@@ -1168,20 +1173,14 @@ class ForecastComparisonActivity : AppCompatActivity() {
 
         cachedRequestedSource = nextSource
         updateApiSourceButton()
-        
-        // Sync back to widget state if appWidgetId is available
+
+        // The widget's source follows: the API button's switch (persist, paint, count, stale refresh),
+        // through the shared runner like desktop's window. plans/261119-sync-data-screen-sources-with-main.md
         val appWidgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
-        if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
-            widgetStateManager.setCurrentDisplaySource(appWidgetId, nextSource)
-            
-            // Trigger UI update to reflect the new source
-            val updateIntent = Intent(this, WidgetActionReceiver::class.java).apply {
-                action = com.weatherwidget.widget.WidgetActions.ACTION_REFRESH
-                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                putExtra(com.weatherwidget.widget.WidgetActions.EXTRA_UI_ONLY, true)
-            }
-            sendBroadcast(updateIntent)
-        }
+        DataScreenSourceSwitch.launch(
+            applicationContext, applicationIoScope, appWidgetId, weatherRepository,
+            com.weatherwidget.widget.handlers.WidgetIntentActionHandler.SwitchKind.COMPARISON, nextSource,
+        )
 
         loadData(
             targetDate = targetDate,

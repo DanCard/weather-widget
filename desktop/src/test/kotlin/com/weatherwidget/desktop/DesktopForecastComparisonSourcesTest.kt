@@ -124,7 +124,8 @@ class DesktopForecastComparisonSourcesTest {
         composeTestRule.setContent {
             ForecastComparisonContent(
                 weatherDao = DesktopWeatherDao(db), config = config, initialDate = tomorrow, onClose = {},
-                onSourceCompareSort = { saved += it.encode() },
+                // The sort is the window's own save (never the source): read it off that channel.
+                saves = DataWindowSaves(window = { saved += it.sourceCompareSort.orEmpty() }, sourceSwitch = {}),
             )
         }
         composeTestRule.waitUntil(timeoutMillis = 10_000) {

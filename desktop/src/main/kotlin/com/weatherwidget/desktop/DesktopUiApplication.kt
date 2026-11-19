@@ -1249,7 +1249,7 @@ internal fun runDesktopUiApplication() = application {
                 showRequestId = historyShowRequestId,
                 initialDate = historyInitialDate,
                 onClose = { historyVisible = false },
-                onConfigUpdate = { newConfig -> saveConfigAndNotify(newConfig, "observations") },
+                saves = DataWindowSaves.forForecastComparison(saveConfigAndNotify),
                 dataUpdateCount = dataUpdateCount,
                 isRefreshing = refreshInFlight,
                 onRefreshSource = { source -> requestSourceRefresh(source, "history") },
@@ -1271,9 +1271,7 @@ internal fun runDesktopUiApplication() = application {
                 isRefreshing = refreshInFlight,
                 onRefreshData = { requestObservationsRefresh() },
                 onClose = { observationsVisible = false },
-                onConfigUpdate = { newConfig ->
-                    saveConfigAndNotify(newConfig, "observations-window")
-                }
+                saves = DataWindowSaves.forStations(saveConfigAndNotify),
             ) }
         }
 

@@ -77,6 +77,7 @@ class SourceFetchGateTest {
     fun `home and observations switches count as views, zero-switch rows and future rows don't`() {
         assertTrue(fetchedWith(row(3, trigger = SourceViewTrigger.HOME)))
         assertTrue(fetchedWith(row(3, trigger = SourceViewTrigger.OBSERVATIONS)))
+        assertTrue(fetchedWith(row(3, trigger = SourceViewTrigger.COMPARISON)))
         assertFalse(fetchedWith(row(3, switches = 0)))
         assertFalse(fetchedWith(row(-1)))
     }

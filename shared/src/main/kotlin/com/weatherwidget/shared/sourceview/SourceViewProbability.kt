@@ -31,6 +31,13 @@ object SourceViewProbability {
     const val PRIOR_BETA = 1.0
     const val LOOKBACK_DAYS = com.weatherwidget.data.local.RetentionPolicy.SOURCE_VIEW_DAYS
 
+    /** Triggers that pick a source by choice (not the home button's return to the primary). */
+    private val TOGGLE_TRIGGERS = setOf(
+        SourceViewTrigger.TOGGLE.name,
+        SourceViewTrigger.OBSERVATIONS.name,
+        SourceViewTrigger.COMPARISON.name,
+    )
+
     data class Estimate(
         /** Posterior mean. */
         val probability: Double,
@@ -45,13 +52,14 @@ object SourceViewProbability {
     )
 
     /**
-     * Q1: the chance the user switches to a non-primary source today, by the API button or the
-     * Observations screen. The home button only returns to the primary, so it is not a toggle.
+     * Q1: the chance the user switches to a non-primary source today, by the API button or a data
+     * screen's source pill (Observations, Forecast Comparison). The home button only returns to the
+     * primary, so it is not a toggle.
      */
     fun toggleToday(rows: List<SourceViewDayRow>, trackingSince: LocalDate?, today: LocalDate): Estimate {
         val eventDays = rows.filter {
             it.switches > 0 && !it.wasPrimary &&
-                (it.trigger == SourceViewTrigger.TOGGLE.name || it.trigger == SourceViewTrigger.OBSERVATIONS.name)
+                it.trigger in TOGGLE_TRIGGERS
         }.mapTo(HashSet()) { it.date }
         return estimate(eventDays, trackingSince, today)
     }
