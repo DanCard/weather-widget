@@ -444,6 +444,11 @@ if [ "$INSTALL_MODE" = true ] && [ "$UNIT_STATUS" -eq 0 ] && [ "$EMULATOR_STATUS
     fi
 fi
 
+# Report-only: methods over the dex size budget (plans/261119-split-oversized-android-suspend-functions.md).
+if [ -x "$PROJECT_DIR/scripts/dex-method-budget.sh" ]; then
+    "$PROJECT_DIR/scripts/dex-method-budget.sh" 2>&1 | to_summary || true
+fi
+
 TOTAL_DURATION=$(( $(date +%s) - TOTAL_START ))
 phase "Done: unit=$UNIT_STATUS emulator=$EMULATOR_STATUS install=$INSTALL_STATUS total=${TOTAL_DURATION}s (summary: $SUMMARY_LOG_FILE)"
 

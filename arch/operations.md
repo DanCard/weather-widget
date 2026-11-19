@@ -205,6 +205,31 @@ If launcher resize handles bounce back on an emulator, move the widget away from
 row/edge and retry. Verify whether `onAppWidgetOptionsChanged` fired before treating it as a renderer
 bug.
 
+### ART VerifyError
+
+`java.lang.VerifyError: Verifier rejected class …` means ART refused the class's dex; the app process
+crashes the first time anything loads that class. To check any APK or AAB without installing it
+(the emulator's installed app and widgets are untouched, so a release build can be checked beside the
+debug one):
+
+```bash
+scripts/verify-apk-dex.sh app/build/outputs/apk/debug/app-debug.apk        # first running emulator
+scripts/verify-apk-dex.sh -s emulator-5556 app/build/outputs/bundle/release/app-release.aab
+# exit 0 clean, 1 rejected (methods printed), 2 setup error
+```
+
+For the app already installed on a device: `adb -s <serial> shell cmd package compile -m verify -f
+com.weatherwidget`, then `logcat -d | grep "Verification error" | grep com.weatherwidget` (empty = clean).
+
+On 2026-11-19 `CloudCoverViewHandler.updateWidget` (a ~500-line suspend function) was rejected in
+every build from `b786b019e` until the fix in `11815ea3a`, on Generic_Foldable_API36 and
+Medium_Phone_API_36 alike; a one-line addition had tipped the code generator. The gate runs this check
+on every emulator run ([testing strategy](testing-strategy.md)); `scripts/dex-method-budget.sh` lists
+the largest methods.
+
+Quote the device-side command as one string (`adb shell "date +'%m-%d %H:%M:%S.000'"`): unquoted, adb
+re-splits it, `date` fails, and `logcat -T ""` shows only its last line, so the grep finds nothing.
+
 ## Enable or disable a forecast source without code changes
 
 Do not change `WeatherSource`, source ordering, or defaults for a user's runtime preference.
@@ -299,6 +324,11 @@ FASTLANE="$HOME/.local/share/gem/ruby/3.3.0/bin/fastlane"
 $FASTLANE beta
 $FASTLANE run upload_to_play_store track:beta track_promote_to:production version_code:<VERSION> changes_not_sent_for_review:false
 ```
+
+The `build` lane (run by `internal`, `beta` and `production`) ART-verifies the release AAB with
+`scripts/verify-apk-dex.sh` and fails on any rejected method, so **an emulator must be running** for a
+release. The R8 release dex differs from debug, so it is checked on its own
+([ART VerifyError](#art-verifyerror)).
 
 Desktop APT publication is documented in [APT_REPO.md](../docs/APT_REPO.md). Release signing,
 provider-key validation, and Play service-account setup remain in the build/Fastlane configuration;

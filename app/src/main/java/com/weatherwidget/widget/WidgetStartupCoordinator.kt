@@ -105,117 +105,17 @@ internal class WidgetStartupCoordinator(
                 "thread=${Thread.currentThread().name} sources=$activeSources",
         )
 
-        var staleCheckMs = 0L
-        var queryResult: StartupQueryResult? = null
-        var livePass: LiveActualsPass? = null
-        try {
+        // One result, not three vars assigned inside the try (the conditionally assigned `long`
+        // shape whose dex ART rejected in CloudCoverViewHandler; plans/261119-split-oversized-android-suspend-functions.md).
+        val paint = try {
             if (latestWeather == null) {
-                // No data *and* no location is a settled state, not a wait. The sync we would enqueue
-                // has nothing to fetch and returns without painting, so "Loading..." would stick until
-                // the user happened to open the app — the same stranded-placeholder failure this
-                // coordinator guards against elsewhere. Say what is actually wrong instead.
-                //
-                // Note this skips only the placeholder and the immediate sync: schedulePeriodicSync
-                // below must still run, because the periodic full sync is what carries the device
-                // sampling that eventually rescues this widget.
-                val hasLocation =
-                    ActiveLocationResolver.resolve(context, stateManager, forecastDao) != null
-                if (hasLocation) {
-                    validWidgetIds.forEach { appWidgetId ->
-                        WidgetRenderer.updateWidgetLoading(
-                            context,
-                            appWidgetManager,
-                            appWidgetId,
-                            origin = WidgetPushDispatcher.Origin.PROVIDER_ON_UPDATE,
-                        )
-                    }
-                    WidgetWorkScheduler.enqueueRedundantImmediateSync(
-                        context,
-                        reason = "on_update_no_data",
-                    )
-                } else {
-                    appLogDao.log(
-                        "NO_LOCATION",
-                        "reason=on_update_no_data widgets=${validWidgetIds.size} action=render_error_skip_fetch",
-                        "INFO",
-                    )
-                    validWidgetIds.forEach { appWidgetId ->
-                        WidgetRenderer.updateWidgetNoLocation(
-                            context,
-                            appWidgetManager,
-                            appWidgetId,
-                            origin = WidgetPushDispatcher.Origin.PROVIDER_ON_UPDATE,
-                        )
-                    }
-                }
+                paintWithoutData(context, appWidgetManager, validWidgetIds, stateManager, forecastDao, appLogDao)
+                StartupPaint.NONE
             } else {
-                // One startup cache paint per widget: PackageReplacedReceiver may already have
-                // painted these seconds ago (see StartupPaintClaims). Painting them again costs a
-                // second cold full render and shows nothing new; a repeat of this same trigger
-                // (a host re-add, e.g. a Fold unfold) still paints. The staleness check and the
-                // periodic schedule below are this path's own job and still run.
-                val unpaintedIds = claimStartupPaints(validWidgetIds, claimVia, appLogDao)
-                if (unpaintedIds.isNotEmpty()) {
-                    // Background syncs wait for this paint, not just for the cooldown clock: started
-                    // beside it they kept a boot's paint unfinished until the process was frozen
-                    // (StartupCooldown). Settled in `finally` so a failed or cancelled paint lets go.
-                    val cooldown = startupCooldown()
-                    cooldown.onStartupPaintPending(elapsedRealtime())
-                    try {
-                        queryResult =
-                            loadStartupData(
-                                database = database,
-                                forecastDao = forecastDao,
-                                hourlyDao = hourlyDao,
-                                latestWeather = latestWeather,
-                                activeSourceList = activeSources.toList(),
-                                needsDailyData = needsDailyData,
-                                gapFiller = gapFiller,
-                                loadWindow = DailyLoadWindowResolver.resolve(context),
-                            )
-                        // A widget's paint can be superseded by a newer one: WidgetUpdateTracker cancels a
-                        // tracked UI_PAINT job when another paint of that widget starts (a worker's
-                        // UI-only paint, Pixel 2026-11-18 07:40:03), and the batch rethrows it although
-                        // this coroutine was never cancelled. That aborted the live pass and left the
-                        // provisional paint up.
-                        continueIfSuperseded(
-                            onSuperseded = { e ->
-                                appLogDao.log(
-                                    "HOURLY_PAINT_TRACE",
-                                    "phase=startup_SUPERSEDED widgets=${unpaintedIds.joinToString(",")} msg=${e.message}",
-                                    "INFO",
-                                )
-                            },
-                        ) {
-                            renderStartupWidgets(
-                                context = context,
-                                appWidgetManager = appWidgetManager,
-                                appWidgetIds = unpaintedIds,
-                                result = queryResult,
-                                startupToken = startupToken,
-                                appLogDao = appLogDao,
-                            )
-                        }
-                        // Still inside the pending paint: background syncs wait for the live pass
-                        // too, so the blend does not contend with them (StartupCooldown).
-                        if (needsDailyData) {
-                            livePass = refreshLiveActuals(
-                                context = context,
-                                appWidgetManager = appWidgetManager,
-                                appWidgetIds = unpaintedIds,
-                                result = queryResult,
-                                latestWeather = latestWeather,
-                                activeSourceList = activeSources.toList(),
-                                stateManager = stateManager,
-                                startupToken = startupToken,
-                                appLogDao = appLogDao,
-                            )
-                        }
-                    } finally {
-                        cooldown.onStartupPaintSettled()
-                    }
-                }
-                staleCheckMs = checkStalenessAndFetch(context)
+                paintFromCache(
+                    context, appWidgetManager, validWidgetIds, claimVia, appLogDao, database, forecastDao,
+                    hourlyDao, latestWeather, activeSources, needsDailyData, gapFiller, stateManager, startupToken,
+                )
             }
         } catch (e: CancellationException) {
             appLogDao.log(
@@ -262,22 +162,166 @@ internal class WidgetStartupCoordinator(
                     "widgets" to validWidgetIds.size,
                     "dbOpenMs" to dbOpenMs,
                     "latestWeatherMs" to latestWeatherMs,
-                    "forecastMs" to (queryResult?.forecastQueryMs ?: 0L),
-                    "forecastGapFillMs" to (queryResult?.forecastGapFillMs ?: 0L),
-                    "snapshotsMs" to (queryResult?.snapshotQueryMs ?: 0L),
-                    "snapshotGapFillMs" to (queryResult?.snapshotGapFillMs ?: 0L),
-                    "hourlyMs" to (queryResult?.hourlyQueryMs ?: 0L),
-                    "currentTempMs" to (queryResult?.currentTempQueryMs ?: 0L),
-                    "extremesMs" to (queryResult?.extremesQueryMs ?: 0L),
-                    "liveExtremesMs" to (livePass?.durationMs ?: 0L),
-                    "liveRepainted" to (livePass?.repainted?.joinToString(",") ?: ""),
-                    "liveChanged" to (livePass?.changedSources?.sorted()?.joinToString(",") ?: ""),
-                    "staleCheckMs" to staleCheckMs,
+                    "forecastMs" to (paint.queryResult?.forecastQueryMs ?: 0L),
+                    "forecastGapFillMs" to (paint.queryResult?.forecastGapFillMs ?: 0L),
+                    "snapshotsMs" to (paint.queryResult?.snapshotQueryMs ?: 0L),
+                    "snapshotGapFillMs" to (paint.queryResult?.snapshotGapFillMs ?: 0L),
+                    "hourlyMs" to (paint.queryResult?.hourlyQueryMs ?: 0L),
+                    "currentTempMs" to (paint.queryResult?.currentTempQueryMs ?: 0L),
+                    "extremesMs" to (paint.queryResult?.extremesQueryMs ?: 0L),
+                    "liveExtremesMs" to (paint.livePass?.durationMs ?: 0L),
+                    "liveRepainted" to (paint.livePass?.repainted?.joinToString(",") ?: ""),
+                    "liveChanged" to (paint.livePass?.changedSources?.sorted()?.joinToString(",") ?: ""),
+                    "staleCheckMs" to paint.staleCheckMs,
                     "totalMs" to totalMs,
                     "dbEvent" to latestDbLifecycle?.tag,
                 ),
             debugTag = TAG,
         )
+    }
+
+    /** What the startup paint reports to the perf log: the cache query, the live actuals pass, the stale check. */
+    private class StartupPaint(val queryResult: StartupQueryResult?, val livePass: LiveActualsPass?, val staleCheckMs: Long) {
+        companion object {
+            val NONE = StartupPaint(null, null, 0L)
+        }
+    }
+
+    /** No cached weather: show Loading and sync, or say there is no location. */
+    private suspend fun paintWithoutData(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        validWidgetIds: IntArray,
+        stateManager: WidgetStateManager,
+        forecastDao: ForecastDao,
+        appLogDao: AppLogDao,
+    ) {
+        // No data *and* no location is a settled state, not a wait. The sync we would enqueue
+        // has nothing to fetch and returns without painting, so "Loading..." would stick until
+        // the user happened to open the app — the same stranded-placeholder failure this
+        // coordinator guards against elsewhere. Say what is actually wrong instead.
+        //
+        // Note this skips only the placeholder and the immediate sync: schedulePeriodicSync
+        // below must still run, because the periodic full sync is what carries the device
+        // sampling that eventually rescues this widget.
+        val hasLocation =
+            ActiveLocationResolver.resolve(context, stateManager, forecastDao) != null
+        if (hasLocation) {
+            validWidgetIds.forEach { appWidgetId ->
+                WidgetRenderer.updateWidgetLoading(
+                    context,
+                    appWidgetManager,
+                    appWidgetId,
+                    origin = WidgetPushDispatcher.Origin.PROVIDER_ON_UPDATE,
+                )
+            }
+            WidgetWorkScheduler.enqueueRedundantImmediateSync(
+                context,
+                reason = "on_update_no_data",
+            )
+        } else {
+            appLogDao.log(
+                "NO_LOCATION",
+                "reason=on_update_no_data widgets=${validWidgetIds.size} action=render_error_skip_fetch",
+                "INFO",
+            )
+            validWidgetIds.forEach { appWidgetId ->
+                WidgetRenderer.updateWidgetNoLocation(
+                    context,
+                    appWidgetManager,
+                    appWidgetId,
+                    origin = WidgetPushDispatcher.Origin.PROVIDER_ON_UPDATE,
+                )
+            }
+        }
+    }
+
+    /** Cached weather: paint each unclaimed widget from it, run the live actuals pass, then the stale check. */
+    private suspend fun paintFromCache(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        validWidgetIds: IntArray,
+        claimVia: String,
+        appLogDao: AppLogDao,
+        database: WeatherDatabase,
+        forecastDao: ForecastDao,
+        hourlyDao: HourlyForecastDao,
+        latestWeather: ForecastEntity,
+        activeSources: Set<String>,
+        needsDailyData: Boolean,
+        gapFiller: ClimateGapFiller,
+        stateManager: WidgetStateManager,
+        startupToken: String,
+    ): StartupPaint {
+        var queryResult: StartupQueryResult? = null
+        var livePass: LiveActualsPass? = null
+        // One startup cache paint per widget: PackageReplacedReceiver may already have
+        // painted these seconds ago (see StartupPaintClaims). Painting them again costs a
+        // second cold full render and shows nothing new; a repeat of this same trigger
+        // (a host re-add, e.g. a Fold unfold) still paints. The staleness check and the
+        // periodic schedule below are this path's own job and still run.
+        val unpaintedIds = claimStartupPaints(validWidgetIds, claimVia, appLogDao)
+        if (unpaintedIds.isNotEmpty()) {
+            // Background syncs wait for this paint, not just for the cooldown clock: started
+            // beside it they kept a boot's paint unfinished until the process was frozen
+            // (StartupCooldown). Settled in `finally` so a failed or cancelled paint lets go.
+            val cooldown = startupCooldown()
+            cooldown.onStartupPaintPending(elapsedRealtime())
+            try {
+                queryResult =
+                    loadStartupData(
+                        database = database,
+                        forecastDao = forecastDao,
+                        hourlyDao = hourlyDao,
+                        latestWeather = latestWeather,
+                        activeSourceList = activeSources.toList(),
+                        needsDailyData = needsDailyData,
+                        gapFiller = gapFiller,
+                        loadWindow = DailyLoadWindowResolver.resolve(context),
+                    )
+                // A widget's paint can be superseded by a newer one: WidgetUpdateTracker cancels a
+                // tracked UI_PAINT job when another paint of that widget starts (a worker's
+                // UI-only paint, Pixel 2026-11-18 07:40:03), and the batch rethrows it although
+                // this coroutine was never cancelled. That aborted the live pass and left the
+                // provisional paint up.
+                continueIfSuperseded(
+                    onSuperseded = { e ->
+                        appLogDao.log(
+                            "HOURLY_PAINT_TRACE",
+                            "phase=startup_SUPERSEDED widgets=${unpaintedIds.joinToString(",")} msg=${e.message}",
+                            "INFO",
+                        )
+                    },
+                ) {
+                    renderStartupWidgets(
+                        context = context,
+                        appWidgetManager = appWidgetManager,
+                        appWidgetIds = unpaintedIds,
+                        result = queryResult,
+                        startupToken = startupToken,
+                        appLogDao = appLogDao,
+                    )
+                }
+                // Still inside the pending paint: background syncs wait for the live pass
+                // too, so the blend does not contend with them (StartupCooldown).
+                if (needsDailyData) {
+                    livePass = refreshLiveActuals(
+                        context = context,
+                        appWidgetManager = appWidgetManager,
+                        appWidgetIds = unpaintedIds,
+                        result = queryResult,
+                        latestWeather = latestWeather,
+                        activeSourceList = activeSources.toList(),
+                        stateManager = stateManager,
+                        startupToken = startupToken,
+                        appLogDao = appLogDao,
+                    )
+                }
+            } finally {
+                cooldown.onStartupPaintSettled()
+            }
+        }
+        return StartupPaint(queryResult, livePass, checkStalenessAndFetch(context))
     }
 
     private suspend fun loadStartupData(

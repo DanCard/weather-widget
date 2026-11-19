@@ -183,6 +183,177 @@ object DailyViewHandler : WidgetViewHandler {
         return stateManager.getViewMode(appWidgetId) == ViewMode.DAILY
     }
 
+    /** The header phase of [updateWidget]: what the render context and the rest of the paint read. */
+    private data class HeaderPhase(
+        val weatherByDate: Map<LocalDate, ForecastEntity>,
+        val sunInfo: SunInfo,
+        val headerObservations: List<ObservationEntity>?,
+        val resolution: DailyHeaderResolver.HeaderResolution,
+    )
+
+    /**
+     * Resolves and binds the daily header (current temp, rain %, API toggle) and loads what the
+     * today-column overlay shares with it. Split out of [updateWidget] (2026-11-19): the ~370-line
+     * suspend function is the shape whose dex ART rejected in CloudCoverViewHandler
+     * (plans/261119-split-oversized-android-suspend-functions.md).
+     */
+    private suspend fun resolveHeaderPhase(
+        context: Context,
+        views: RemoteViews,
+        appWidgetId: Int,
+        stateManager: WidgetStateManager,
+        displaySource: WeatherSource,
+        now: LocalDateTime,
+        today: LocalDate,
+        lat: Double,
+        lon: Double,
+        weatherList: List<ForecastEntity>,
+        hourlyForecasts: List<HourlyForecastEntity>,
+        observationData: ObservationData,
+        lastObservedTemp: Float?,
+        observedAt: Long?,
+        dimensions: WidgetDimensions,
+        numColumns: Int,
+        numRows: Int,
+        useGraph: Boolean,
+        dateOffset: Int,
+        skipYesterday: Boolean,
+        isIconWidth: Boolean,
+        repository: WeatherRepository?,
+    ): HeaderPhase {
+        val weatherByDate = buildWeatherByDate(weatherList, displaySource, today)
+
+        val sunInfo = SunPositionUtils.getSunInfoOrUnknown(now, lat, lon)
+
+        // The today-column overlay's observations (ctx.headerObservations).
+        val nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        // Scoped through ActualsReadScope, NOT with a local set: the today-column overlay narrows
+        // this same load and compares its re-derived `observedAt` to CurrentTempResolver's for exact
+        // equality, so the two reads must admit identical rows or the dominant-station rows vanish.
+        val headerObservations = repository?.getObservationsInRange(
+            nowMs - DailyGraphRenderer.OVERLAY_OBSERVATION_LOOKBACK_MS,
+            nowMs,
+            lat,
+            lon,
+            ActualsReadScope.apisFor(displaySource),
+        )
+        // Taken with the observation that anchors it (`:shared` CurrentTempRun.observe).
+        val deltaFromYesterday = observationData.deltaFromYesterday
+
+        val headerResolution = DailyHeaderResolver.resolveAndBind(
+            context = context,
+            views = views,
+            displaySource = displaySource,
+            now = now,
+            lat = lat,
+            lon = lon,
+            weatherByDate = weatherByDate,
+            hourlyForecasts = hourlyForecasts,
+            currentTempHourlyForecasts = observationData.currentTempHourlyForecasts,
+            lastObservedTemp = lastObservedTemp,
+            observedAt = observedAt,
+            dimensions = dimensions,
+            stateManager = stateManager,
+            appWidgetId = appWidgetId,
+            numColumns = numColumns,
+            numRows = numRows,
+            useGraph = useGraph,
+            sunInfo = sunInfo,
+            deltaFromYesterday = deltaFromYesterday,
+            dateOffset = dateOffset,
+            skipYesterday = skipYesterday,
+            rainNow = com.weatherwidget.widget.AndroidRainNow.level(context, lat, lon, displaySource, where = "daily", nowMs = nowMs),
+        )
+
+        val currentTemp = headerResolution.state.currentTemp
+        val formattedTemp = headerResolution.state.formattedTemp
+        val iconRes = headerResolution.state.iconRes
+        val precipProb = headerResolution.state.precipProb
+        val isPrecipVisible = headerResolution.state.isPrecipVisible
+        val delta = headerResolution.state.appliedDelta
+        val yesterdayDelta = headerResolution.state.yesterdayDelta
+        val deltaVisible = headerResolution.state.deltaVisible
+        val apiSourceText = headerResolution.state.apiSourceText
+        val headerScale = headerResolution.state.headerScale
+        val resolveMs = headerResolution.state.resolveMs
+
+        // Setup API source toggle click handler (skipped at 1 icon wide — target is hidden)
+        if (!isIconWidth) {
+            setupApiToggle(context, views, appWidgetId, numRows, includeTextMode = true, scale = headerScale)
+        }
+
+        Log.d(
+            TAG,
+            DailyHeaderBinder.buildHeaderStateLog(
+                widgetId = appWidgetId,
+                viewMode = ViewMode.DAILY,
+                displaySource = displaySource,
+                configuredLocation = stateManager.getWidgetLocation(appWidgetId),
+                dataLat = lat,
+                dataLon = lon,
+                dimensions = dimensions,
+                currentTemp = currentTemp,
+                estimatedTemp = headerResolution.state.estimatedTemp,
+                observedTemp = headerResolution.state.observedTemp,
+                appliedDelta = delta,
+                headerDelta = yesterdayDelta,
+                deltaVisible = deltaVisible,
+                deltaHiddenReason = DailyHeaderBinder.dailyDeltaHiddenReason(currentTemp, yesterdayDelta),
+                precipVisible = isPrecipVisible,
+                precipProbability = precipProb,
+                isNowLineVisible = null,
+                offset = dateOffset,
+                zoom = null,
+                resolveMs = resolveMs,
+            ),
+        )
+
+        return HeaderPhase(weatherByDate, sunInfo, headerObservations, headerResolution)
+    }
+
+    /** Text mode (too short for the graph): the day list, plus the missing-data refreshes it owes. */
+    private suspend fun bindTextMode(
+        ctx: DailyRenderContext,
+        context: Context,
+        appLogDao: com.weatherwidget.data.local.AppLogDao,
+        stateManager: WidgetStateManager,
+        appWidgetId: Int,
+        displaySource: WeatherSource,
+        dailyActuals: Map<LocalDate, DailyHistory>,
+        weatherData: WeatherData,
+        today: LocalDate,
+    ) {
+        val visibleDaysInfo = DailyTextRenderer.render(ctx)
+        val textTodayWeather = ctx.weatherByDate[today]
+        val textTodayHasSnapshot = ctx.forecastSnapshots[today]
+            ?.any { it.source == ctx.displaySource.id && it.highTemp != null && it.lowTemp != null }
+            ?: false
+        val textRefreshDecisions = computeMissingDataRefreshes(
+            today = today,
+            displaySource = displaySource,
+            dailyActuals = dailyActuals,
+            actualsProvisional = weatherData.actualsProvisional,
+            visibleDates = visibleDaysInfo.map { it.date }.toSet(),
+            todayHasSnapshot = textTodayHasSnapshot,
+            todayHasForecast = textTodayWeather != null && textTodayWeather.highTemp != null && textTodayWeather.lowTemp != null,
+        )
+        for (decision in textRefreshDecisions) {
+            requestMissingDataRefresh(
+                context = context,
+                appLogDao = appLogDao,
+                stateManager = stateManager,
+                appWidgetId = appWidgetId,
+                displaySource = displaySource,
+                refreshType = decision.refreshType,
+                cooldownMs = decision.cooldownMs,
+                logTag = decision.logTag,
+                forceRefresh = decision.forceRefresh,
+                reason = decision.reason,
+                message = "widget=$appWidgetId source=${displaySource.id} ${decision.refreshType} refresh, enqueueing worker",
+            )
+        }
+    }
+
     override suspend fun updateWidget(
         context: Context,
         appWidgetManager: AppWidgetManager,
@@ -342,99 +513,22 @@ object DailyViewHandler : WidgetViewHandler {
             return
         }
 
-        val weatherByDate = buildWeatherByDate(weatherList, displaySource, today)
-
-        val sunInfo = SunPositionUtils.getSunInfoOrUnknown(now, lat, lon)
-
-        // The today-column overlay's observations (ctx.headerObservations).
-        val nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        // Scoped through ActualsReadScope, NOT with a local set: the today-column overlay narrows
-        // this same load and compares its re-derived `observedAt` to CurrentTempResolver's for exact
-        // equality, so the two reads must admit identical rows or the dominant-station rows vanish.
-        val headerObservations = repository?.getObservationsInRange(
-            nowMs - DailyGraphRenderer.OVERLAY_OBSERVATION_LOOKBACK_MS,
-            nowMs,
-            lat,
-            lon,
-            ActualsReadScope.apisFor(displaySource),
+        val header = resolveHeaderPhase(
+            context, views, appWidgetId, stateManager, displaySource, now, today, lat, lon, weatherList,
+            hourlyForecasts, observationData, lastObservedTemp, observedAt, dimensions, numColumns, numRows,
+            useGraph, dateOffset, skipYesterday, isIconWidth, repository,
         )
-        // Taken with the observation that anchors it (`:shared` CurrentTempRun.observe).
-        val deltaFromYesterday = observationData.deltaFromYesterday
-
-        val headerResolution = DailyHeaderResolver.resolveAndBind(
-            context = context,
-            views = views,
-            displaySource = displaySource,
-            now = now,
-            lat = lat,
-            lon = lon,
-            weatherByDate = weatherByDate,
-            hourlyForecasts = hourlyForecasts,
-            currentTempHourlyForecasts = observationData.currentTempHourlyForecasts,
-            lastObservedTemp = lastObservedTemp,
-            observedAt = observedAt,
-            dimensions = dimensions,
-            stateManager = stateManager,
-            appWidgetId = appWidgetId,
-            numColumns = numColumns,
-            numRows = numRows,
-            useGraph = useGraph,
-            sunInfo = sunInfo,
-            deltaFromYesterday = deltaFromYesterday,
-            dateOffset = dateOffset,
-            skipYesterday = skipYesterday,
-            rainNow = com.weatherwidget.widget.AndroidRainNow.level(context, lat, lon, displaySource, where = "daily", nowMs = nowMs),
-        )
-
+        val weatherByDate = header.weatherByDate
+        val sunInfo = header.sunInfo
+        val headerObservations = header.headerObservations
+        val headerResolution = header.resolution
         val currentTemp = headerResolution.state.currentTemp
-        val formattedTemp = headerResolution.state.formattedTemp
-        val iconRes = headerResolution.state.iconRes
         val precipProb = headerResolution.state.precipProb
-        val isPrecipVisible = headerResolution.state.isPrecipVisible
-        val delta = headerResolution.state.appliedDelta
-        val yesterdayDelta = headerResolution.state.yesterdayDelta
-        val deltaVisible = headerResolution.state.deltaVisible
-        val apiSourceText = headerResolution.state.apiSourceText
-        val headerScale = headerResolution.state.headerScale
         val resolveMs = headerResolution.state.resolveMs
-
-        // Setup API source toggle click handler (skipped at 1 icon wide — target is hidden)
-        if (!isIconWidth) {
-            setupApiToggle(context, views, appWidgetId, numRows, includeTextMode = true, scale = headerScale)
-        }
-
-        Log.d(
-            TAG,
-            DailyHeaderBinder.buildHeaderStateLog(
-                widgetId = appWidgetId,
-                viewMode = ViewMode.DAILY,
-                displaySource = displaySource,
-                configuredLocation = stateManager.getWidgetLocation(appWidgetId),
-                dataLat = lat,
-                dataLon = lon,
-                dimensions = dimensions,
-                currentTemp = currentTemp,
-                estimatedTemp = headerResolution.state.estimatedTemp,
-                observedTemp = headerResolution.state.observedTemp,
-                appliedDelta = delta,
-                headerDelta = yesterdayDelta,
-                deltaVisible = deltaVisible,
-                deltaHiddenReason = DailyHeaderBinder.dailyDeltaHiddenReason(currentTemp, yesterdayDelta),
-                precipVisible = isPrecipVisible,
-                precipProbability = precipProb,
-                isNowLineVisible = null,
-                offset = dateOffset,
-                zoom = null,
-                resolveMs = resolveMs,
-            ),
-        )
 
         val availableDates = buildAvailableNavigationDates(weatherList, dailyActuals, displaySource)
         Log.d(TAG, "updateWidget: widgetId=$appWidgetId, widthDp=${dimensions.widthDp}, heightDp=${dimensions.heightDp}, cols=$numColumns, rows=$numRows, offset=$dateOffset, minDate=${availableDates.minOrNull()}, maxDate=${availableDates.maxOrNull()}")
         setupNavigationButtons(context, views, appWidgetId, stateManager, availableDates, displayNumColumns, skipYesterday, today, useGraph, dateOffset)
-
-        var prepareMs = 0L
-        var renderMs = 0L
 
         val ctx = DailyRenderContext(
             context = context,
@@ -472,7 +566,7 @@ object DailyViewHandler : WidgetViewHandler {
             headerObservations = headerObservations,
         )
 
-        if (useGraph) {
+        val (prepareMs, renderMs) = if (useGraph) {
             val metrics = DailyGraphRenderer.render(
                 ctx = ctx,
                 headerState = headerResolution.state,
@@ -483,38 +577,10 @@ object DailyViewHandler : WidgetViewHandler {
                 lat = lat,
                 lon = lon,
             )
-            prepareMs = metrics.prepareMs
-            renderMs = metrics.renderMs
+            metrics.prepareMs to metrics.renderMs
         } else {
-            val visibleDaysInfo = DailyTextRenderer.render(ctx)
-            val textTodayWeather = ctx.weatherByDate[today]
-            val textTodayHasSnapshot = ctx.forecastSnapshots[today]
-                ?.any { it.source == ctx.displaySource.id && it.highTemp != null && it.lowTemp != null }
-                ?: false
-            val textRefreshDecisions = computeMissingDataRefreshes(
-                today = today,
-                displaySource = displaySource,
-                dailyActuals = dailyActuals,
-                actualsProvisional = weatherData.actualsProvisional,
-                visibleDates = visibleDaysInfo.map { it.date }.toSet(),
-                todayHasSnapshot = textTodayHasSnapshot,
-                todayHasForecast = textTodayWeather != null && textTodayWeather.highTemp != null && textTodayWeather.lowTemp != null,
-            )
-            for (decision in textRefreshDecisions) {
-                requestMissingDataRefresh(
-                    context = context,
-                    appLogDao = appLogDao,
-                    stateManager = stateManager,
-                    appWidgetId = appWidgetId,
-                    displaySource = displaySource,
-                    refreshType = decision.refreshType,
-                    cooldownMs = decision.cooldownMs,
-                    logTag = decision.logTag,
-                    forceRefresh = decision.forceRefresh,
-                    reason = decision.reason,
-                    message = "widget=$appWidgetId source=${displaySource.id} ${decision.refreshType} refresh, enqueueing worker",
-                )
-            }
+            bindTextMode(ctx, context, appLogDao, stateManager, appWidgetId, displaySource, dailyActuals, weatherData, today)
+            0L to 0L
         }
 
         if (isIconWidth) {

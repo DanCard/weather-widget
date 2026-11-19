@@ -144,251 +144,7 @@ internal class FullSyncPipeline(
 
             return result.fold(
                 onSuccess = { weatherList ->
-                    val afterWeatherMs = SystemClock.elapsedRealtime()
-                    Log.d(TAG, "doWork: Got ${weatherList.size} weather entries")
-                    logStage("weather_fetched count=${weatherList.size}")
-
-                    val forecastSnapshots = dataBundleLoader.fetchForecastSnapshots(location.first, location.second)
-                    // Snapshotted here, re-read at paint time below: the gap between the two spans
-                    // the fetch/backfill/actuals stages (seconds), and a source toggle inside it
-                    // makes the loaded rows unusable for the toggled widget.
-                    val hourlySourceIdsAtLoad = hourlyForecastLoader.hourlySourceIds()
-                    val hourlyForecasts = hourlyForecastLoader.load(
-                        lat = location.first,
-                        lon = location.second,
-                        sources = hourlySourceIdsAtLoad,
-                        caller = "full_sync",
-                    )
-                    val afterHourlyMs = SystemClock.elapsedRealtime()
-                    logStage("hourly_fetched count=${hourlyForecasts.size}")
-
-                    // NWS station history is wanted by NWS itself AND by any source whose actuals
-                    // come from NWS (Google Weather with the NWS provider got none before). The gate
-                    // is the shared NwsGapFillRun.dailyForSources, the same one desktop runs.
-                    val sourcesServed = input.targetSourceId?.let { listOf(WeatherSource.fromId(it)) }
-                        ?: (widgetStateManager.getVisibleSourcesOrder() +
-                            weatherList.map { WeatherSource.fromId(it.source) })
-                    if (!input.uiOnlyRefresh) {
-                        weatherRepository.backfillNwsObservationsIfNeeded(
-                            location.first, location.second, sourcesServed, reason = "full_sync",
-                        )
-                    }
-                    val afterNwsBackfillMs = SystemClock.elapsedRealtime()
-                    // Gated on `!uiOnlyRefresh` for the same reason the NWS backfill above is: a
-                    // UI-only refresh exists precisely to repaint from cache WITHOUT touching the
-                    // network. Measured 2026-08-23 — ungated, a `uiOnly=true` run issued a live
-                    // METAR request, which is exactly the battery cost that flag exists to avoid.
-                    //
-                    // Placed before the actuals recompute below, not after: rows landing later
-                    // would sit unused until the next cycle. Accepts BOTH tiers because the full
-                    // sync is the battery-aware main fetch AND the path every user-initiated
-                    // refresh and source toggle takes (both log `SYNC_START force=true`), making it
-                    // the only place METAR reliably gets a turn.
-                    var metarDoneMs = afterNwsBackfillMs
-                    if (!input.uiOnlyRefresh) {
-                        metarRefresher.refreshIfDue(
-                            setOf(com.weatherwidget.shared.util.MetarFetchPolicy.Tier.PRIMARY, com.weatherwidget.shared.util.MetarFetchPolicy.Tier.NON_PRIMARY),
-                            location.first,
-                            location.second,
-                            reason = "full_sync",
-                            // Deep pull: daily extremes need the whole day, not the last two hours.
-                            hours = MetarObservationRefresher.DEEP_HOURS,
-                        )
-                        metarDoneMs = SystemClock.elapsedRealtime()
-                        synopticRefresher.refreshIfDue(
-                            setOf(com.weatherwidget.shared.util.SynopticFetchPolicy.Tier.PRIMARY, com.weatherwidget.shared.util.SynopticFetchPolicy.Tier.NON_PRIMARY),
-                            location.first,
-                            location.second,
-                            reason = "full_sync",
-                            // A backoff earned at the previous site must not blank the new one's
-                            // actuals for 30 min after the user moved it.
-                            userLocationChange = input.locationChangePlace != null,
-                        )
-                    }
-
-                    val afterBackfillMs = SystemClock.elapsedRealtime()
-                    logStage("backfill_done")
-
-                    val todayStartMs = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-                    val currentTemps = weatherRepository.getMainObservationsWithComputedNwsBlend(
-                        location.first, location.second, todayStartMs,
-                    )
-                    val afterCurrentTempsMs = SystemClock.elapsedRealtime()
-
-                    appLogDao.log(
-                        "SYNC_SUCCESS",
-                        "Weather=${weatherList.size}, Snapshots=${forecastSnapshots.size}, Hourly=${hourlyForecasts.size}",
-                        "INFO",
-                    )
-
-                    logStage("actuals_recompute_start recompute=${!input.uiOnlyRefresh}")
-                    val actualsSourceList = hourlyForecastLoader.currentDisplaySourceIds()
-
-                    // `hourlyForecasts` was scoped to `hourlySourceIdsAtLoad`, read BEFORE the fetch.
-                    // A source toggle during the fetch (seconds) leaves that list with ZERO rows for
-                    // the newly displayed source, so both the actuals recompute and the repaint below
-                    // would work from data that cannot contain it: the widget paints an empty graph
-                    // ("no cloud data") and the gap detector then burns a redundant forced sync.
-                    // Re-read once — a single scoped query — so everything downstream sees the
-                    // sources actually on screen. Cross-check HOURLY_SOURCE_MISS in WidgetRenderer.
-                    val missingAtPaint = HourlyForecastLoader.sourcesMissingFromLoad(
-                        loadedSourceIds = hourlySourceIdsAtLoad,
-                        displaySourceIdsAtPaint = actualsSourceList,
-                    )
-                    val renderHourlyForecasts = if (missingAtPaint.isEmpty()) {
-                        hourlyForecasts
-                    } else {
-                        val reloaded = hourlyForecastLoader.load(
-                            lat = location.first,
-                            lon = location.second,
-                            sources = hourlyForecastLoader.hourlySourceIds(),
-                            caller = "full_sync_source_reload",
-                        )
-                        appLogDao.log(
-                            "HOURLY_SOURCE_SNAPSHOT_STALE",
-                            "loaded=${hourlySourceIdsAtLoad.joinToString("|")} " +
-                                "atPaint=${actualsSourceList.joinToString("|")} " +
-                                "missing=${missingAtPaint.joinToString("|")} " +
-                                "staleRows=${hourlyForecasts.size} reloadedRows=${reloaded.size}",
-                            "WARN",
-                        )
-                        reloaded
-                    }
-                    // Scope the final list was actually loaded under, so the paint-time guard in
-                    // WidgetPaintCoordinator can detect a toggle that lands AFTER this re-read.
-                    val renderHourlySourceIds =
-                        if (missingAtPaint.isEmpty()) hourlySourceIdsAtLoad
-                        else hourlyForecastLoader.hourlySourceIds()
-
-                    val dailyActuals = dataBundleLoader.fetchDailyActuals(
-                        lat = location.first,
-                        lon = location.second,
-                        hourlyForecasts = renderHourlyForecasts,
-                        activeSourceList = actualsSourceList,
-                        recompute = !input.uiOnlyRefresh,
-                    )
-                    val afterRecomputeMs = SystemClock.elapsedRealtime()
-
-                    if (!input.uiOnlyRefresh) {
-                        weatherRepository.dailyHistoryAfterFetch(location.first, location.second)
-                        weatherRepository.repairFrozenRainChanceIfNeeded(location.first, location.second)
-                        weatherRepository.dailyHistoryUpkeepIfDue(
-                            location.first,
-                            location.second,
-                            isCharging = BatterySnapshotProvider.snapshot(context).isCharging,
-                        )
-                    }
-                    val afterRepairsMs = SystemClock.elapsedRealtime()
-
-                    // One-shot dominant-station temperature watch. Costs a single boolean read when
-                    // the user has not armed it, and must never fail a sync — it is an optional
-                    // notification, not part of producing the widget.
-                    try {
-                        com.weatherwidget.notify.DominantTempChangeNotifier.check(
-                            context = context,
-                            repository = weatherRepository,
-                            stateManager = widgetStateManager,
-                            appLogDao = appLogDao,
-                            lat = location.first,
-                            lon = location.second,
-                            origin = "full_sync",
-                        )
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        appLogDao.logException("DOMINANT_TEMP_WATCH", "check failed (full_sync)", e)
-                    }
-                    val afterActualsMs = SystemClock.elapsedRealtime()
-
-                    appLogDao.log(
-                        "WIDGET_LIFECYCLE",
-                        "phase=worker_paint_start uiOnly=${input.uiOnlyRefresh} thread=${Thread.currentThread().name}",
-                    )
-                    val jobType = if (input.uiOnlyRefresh) WidgetUpdateTracker.JobType.UI_PAINT else WidgetUpdateTracker.JobType.BACKGROUND_SYNC
-                    val workerOrigin = if (input.uiOnlyRefresh) WidgetPushDispatcher.Origin.UI_ONLY else WidgetPushDispatcher.Origin.WORKER_FETCH
-                    // Before the paint, so the new site's render binds the banner GONE itself.
-                    if (bannerPlace != null && weatherList.isNotEmpty()) {
-                        painter.finishLocationChangeBanner(bannerPlace, succeeded = true, reason = "sync_success")
-                    }
-                    painter.updateAllWidgets(
-                        weatherList = weatherList,
-                        forecastSnapshots = forecastSnapshots,
-                        hourlyForecasts = renderHourlyForecasts,
-                        currentTemps = currentTemps,
-                        dailyActuals = dailyActuals,
-                        jobType = jobType,
-                        uiOnly = input.uiOnlyRefresh,
-                        origin = workerOrigin,
-                        loadedActualsSourceIds = actualsSourceList,
-                        loadedHourlySourceIds = renderHourlySourceIds,
-                        hourlyLat = location.first,
-                        hourlyLon = location.second,
-                        // This escape hatch fires when a widget's source changed during the paint —
-                        // the same race, one stage later — so it must read the reloaded rows too.
-                        reloadActuals = { sourceIds, hourly ->
-                            dataBundleLoader.reloadDailyActuals(
-                                lat = location.first,
-                                lon = location.second,
-                                hourlyForecasts = hourly,
-                                sourceIds = sourceIds,
-                            )
-                        },
-                    )
-                    val afterUpdateMs = SystemClock.elapsedRealtime()
-                    appLogDao.log(
-                        "WIDGET_LIFECYCLE",
-                        "phase=worker_paint_done uiOnly=${input.uiOnlyRefresh} elapsedMs=${afterUpdateMs - afterActualsMs}",
-                    )
-                    // "Success" with no rows is a failure from the interstitial's point of view: every
-                    // source declined and the repository fell back to an (empty) cache. Nothing above
-                    // cleared the wait, so give the user the tap-to-refresh way out.
-                    if (weatherList.isEmpty()) {
-                        painter.renderPendingLocationFetchFailure("sync_success_empty")
-                        bannerPlace?.let { painter.finishLocationChangeBanner(it, succeeded = false, reason = "sync_success_empty") }
-                    }
-
-                    val totalMs = afterUpdateMs - startMs
-                    if (totalMs > 500) {
-                        appLogDao.log(
-                            "SYNC_PERF",
-                            "uiOnly=${input.uiOnlyRefresh} total=${totalMs}ms " +
-                                "weather=${afterWeatherMs - startMs}ms " +
-                                "hourly=${afterHourlyMs - afterWeatherMs}ms " +
-                                "backfill=${afterBackfillMs - afterHourlyMs}ms " +
-                                "[nwsObs=${afterNwsBackfillMs - afterHourlyMs}ms " +
-                                "metar=${metarDoneMs - afterNwsBackfillMs}ms " +
-                                "synoptic=${afterBackfillMs - metarDoneMs}ms] " +
-                                "actuals=${afterActualsMs - afterBackfillMs}ms " +
-                                "[currentTemps=${afterCurrentTempsMs - afterBackfillMs}ms " +
-                                "recompute=${afterRecomputeMs - afterCurrentTempsMs}ms " +
-                                "repairs=${afterRepairsMs - afterRecomputeMs}ms " +
-                                "notifier=${afterActualsMs - afterRepairsMs}ms] " +
-                                "widgets=${afterUpdateMs - afterActualsMs}ms",
-                        )
-                    }
-
-                    if (!input.uiOnlyRefresh) {
-                        UIUpdateScheduler(context).scheduleNextUpdate()
-                        // Re-pin the periodic full-sync cadence to the battery state observed at the
-                        // end of this run. ACTION_BATTERY_CHANGED cannot be manifest-registered
-                        // (sticky broadcast), so without this the periodic interval stays pinned to
-                        // the value captured at startup / the last power transition and never
-                        // self-corrects as the battery level drifts (see code-review M3).
-                        WidgetWorkScheduler.schedulePeriodicSync(context)
-                        PreUnplugFetchScheduler.runner(context).let {
-                            it.arm(trigger = "sync")
-                            it.dailyPatternLog()
-                        }
-                        // The next due-time sync, from the plan this sync just moved
-                        // (shared ForecastSchedule; the periodic work is only a backstop).
-                        DueWakePlanner.plan(context, weatherRepository, widgetStateManager, appLogDao, onlyIfMissing = false)
-                        UsageHoursTracker.dailyLogLines(context).forEach { (tag, line) -> appLogDao.log(tag, line, "INFO") }
-                    } else {
-                        WidgetLoopScheduler.manageCurrentTempLoopAfterRun(context, appLogDao, device)
-                    }
-
-                    SyncDoneNotice.announce(context, widgetStateManager, input, syncOk = true)
-                    ListenableWorker.Result.success()
+                    onFetchSuccess(weatherList, input, device, location, activeSourceList, bannerPlace, startMs)
                 },
                 onFailure = { e ->
                     appLogDao.log("SYNC_FAILURE", "Repository failed: ${e.message}", "ERROR")
@@ -410,6 +166,334 @@ internal class FullSyncPipeline(
             }
             return ListenableWorker.Result.retry()
         }
+    }
+
+    /**
+     * The fetch-succeeded half of [run]: backfill, actuals, repaint, schedule. Split out (2026-11-19)
+     * because `Result.fold` inlines its lambdas, which made [run] the largest method in the APK
+     * (30,646 dex instructions, 456 registers; plans/261119-split-oversized-android-suspend-functions.md).
+     */
+    private suspend fun onFetchSuccess(
+        weatherList: List<com.weatherwidget.data.local.ForecastEntity>,
+        input: WorkInput,
+        device: DeviceContext,
+        location: Pair<Double, Double>,
+        activeSourceList: List<String>,
+        bannerPlace: String?,
+        startMs: Long,
+    ): ListenableWorker.Result {
+        val load = loadAndBackfill(weatherList, input, location)
+        val afterWeatherMs = load.afterWeatherMs
+        val forecastSnapshots = load.forecastSnapshots
+        val hourlySourceIdsAtLoad = load.hourlySourceIdsAtLoad
+        val hourlyForecasts = load.hourlyForecasts
+        val afterHourlyMs = load.afterHourlyMs
+        val afterNwsBackfillMs = load.afterNwsBackfillMs
+        val metarDoneMs = load.metarDoneMs
+        val afterBackfillMs = load.afterBackfillMs
+        val actuals = recomputeActuals(weatherList, input, location, activeSourceList, load)
+        val currentTemps = actuals.currentTemps
+        val afterCurrentTempsMs = actuals.afterCurrentTempsMs
+        val actualsSourceList = actuals.actualsSourceList
+        val renderHourlyForecasts = actuals.renderHourlyForecasts
+        val renderHourlySourceIds = actuals.renderHourlySourceIds
+        val dailyActuals = actuals.dailyActuals
+        val afterRecomputeMs = actuals.afterRecomputeMs
+        val afterRepairsMs = actuals.afterRepairsMs
+        val afterActualsMs = actuals.afterActualsMs
+
+        appLogDao.log(
+            "WIDGET_LIFECYCLE",
+            "phase=worker_paint_start uiOnly=${input.uiOnlyRefresh} thread=${Thread.currentThread().name}",
+        )
+        val jobType = if (input.uiOnlyRefresh) WidgetUpdateTracker.JobType.UI_PAINT else WidgetUpdateTracker.JobType.BACKGROUND_SYNC
+        val workerOrigin = if (input.uiOnlyRefresh) WidgetPushDispatcher.Origin.UI_ONLY else WidgetPushDispatcher.Origin.WORKER_FETCH
+        // Before the paint, so the new site's render binds the banner GONE itself.
+        if (bannerPlace != null && weatherList.isNotEmpty()) {
+            painter.finishLocationChangeBanner(bannerPlace, succeeded = true, reason = "sync_success")
+        }
+        painter.updateAllWidgets(
+            weatherList = weatherList,
+            forecastSnapshots = forecastSnapshots,
+            hourlyForecasts = renderHourlyForecasts,
+            currentTemps = currentTemps,
+            dailyActuals = dailyActuals,
+            jobType = jobType,
+            uiOnly = input.uiOnlyRefresh,
+            origin = workerOrigin,
+            loadedActualsSourceIds = actualsSourceList,
+            loadedHourlySourceIds = renderHourlySourceIds,
+            hourlyLat = location.first,
+            hourlyLon = location.second,
+            // This escape hatch fires when a widget's source changed during the paint —
+            // the same race, one stage later — so it must read the reloaded rows too.
+            reloadActuals = { sourceIds, hourly ->
+                dataBundleLoader.reloadDailyActuals(
+                    lat = location.first,
+                    lon = location.second,
+                    hourlyForecasts = hourly,
+                    sourceIds = sourceIds,
+                )
+            },
+        )
+        val afterUpdateMs = SystemClock.elapsedRealtime()
+        appLogDao.log(
+            "WIDGET_LIFECYCLE",
+            "phase=worker_paint_done uiOnly=${input.uiOnlyRefresh} elapsedMs=${afterUpdateMs - afterActualsMs}",
+        )
+        // "Success" with no rows is a failure from the interstitial's point of view: every
+        // source declined and the repository fell back to an (empty) cache. Nothing above
+        // cleared the wait, so give the user the tap-to-refresh way out.
+        if (weatherList.isEmpty()) {
+            painter.renderPendingLocationFetchFailure("sync_success_empty")
+            bannerPlace?.let { painter.finishLocationChangeBanner(it, succeeded = false, reason = "sync_success_empty") }
+        }
+
+        val totalMs = afterUpdateMs - startMs
+        if (totalMs > 500) {
+            appLogDao.log(
+                "SYNC_PERF",
+                "uiOnly=${input.uiOnlyRefresh} total=${totalMs}ms " +
+                    "weather=${afterWeatherMs - startMs}ms " +
+                    "hourly=${afterHourlyMs - afterWeatherMs}ms " +
+                    "backfill=${afterBackfillMs - afterHourlyMs}ms " +
+                    "[nwsObs=${afterNwsBackfillMs - afterHourlyMs}ms " +
+                    "metar=${metarDoneMs - afterNwsBackfillMs}ms " +
+                    "synoptic=${afterBackfillMs - metarDoneMs}ms] " +
+                    "actuals=${afterActualsMs - afterBackfillMs}ms " +
+                    "[currentTemps=${afterCurrentTempsMs - afterBackfillMs}ms " +
+                    "recompute=${afterRecomputeMs - afterCurrentTempsMs}ms " +
+                    "repairs=${afterRepairsMs - afterRecomputeMs}ms " +
+                    "notifier=${afterActualsMs - afterRepairsMs}ms] " +
+                    "widgets=${afterUpdateMs - afterActualsMs}ms",
+            )
+        }
+
+        if (!input.uiOnlyRefresh) {
+            UIUpdateScheduler(context).scheduleNextUpdate()
+            // Re-pin the periodic full-sync cadence to the battery state observed at the
+            // end of this run. ACTION_BATTERY_CHANGED cannot be manifest-registered
+            // (sticky broadcast), so without this the periodic interval stays pinned to
+            // the value captured at startup / the last power transition and never
+            // self-corrects as the battery level drifts (see code-review M3).
+            WidgetWorkScheduler.schedulePeriodicSync(context)
+            PreUnplugFetchScheduler.runner(context).let {
+                it.arm(trigger = "sync")
+                it.dailyPatternLog()
+            }
+            // The next due-time sync, from the plan this sync just moved
+            // (shared ForecastSchedule; the periodic work is only a backstop).
+            DueWakePlanner.plan(context, weatherRepository, widgetStateManager, appLogDao, onlyIfMissing = false)
+            UsageHoursTracker.dailyLogLines(context).forEach { (tag, line) -> appLogDao.log(tag, line, "INFO") }
+        } else {
+            WidgetLoopScheduler.manageCurrentTempLoopAfterRun(context, appLogDao, device)
+        }
+
+        SyncDoneNotice.announce(context, widgetStateManager, input, syncOk = true)
+        return ListenableWorker.Result.success()
+    }
+
+    /** What [loadAndBackfill] hands to the rest of [onFetchSuccess]; the timestamps feed SYNC_PERF. */
+    private class LoadPhase(
+        val afterWeatherMs: Long,
+        val forecastSnapshots: Map<LocalDate, List<com.weatherwidget.data.local.ForecastEntity>>,
+        val hourlySourceIdsAtLoad: List<String>,
+        val hourlyForecasts: List<com.weatherwidget.data.local.HourlyForecastEntity>,
+        val afterHourlyMs: Long,
+        val afterNwsBackfillMs: Long,
+        val metarDoneMs: Long,
+        val afterBackfillMs: Long,
+    )
+
+    /** Snapshots, hourly rows and the observation backfills of [onFetchSuccess]. */
+    private suspend fun loadAndBackfill(
+        weatherList: List<com.weatherwidget.data.local.ForecastEntity>,
+        input: WorkInput,
+        location: Pair<Double, Double>,
+    ): LoadPhase {
+        val afterWeatherMs = SystemClock.elapsedRealtime()
+        Log.d(TAG, "doWork: Got ${weatherList.size} weather entries")
+        logStage("weather_fetched count=${weatherList.size}")
+
+        val forecastSnapshots = dataBundleLoader.fetchForecastSnapshots(location.first, location.second)
+        // Snapshotted here, re-read at paint time below: the gap between the two spans
+        // the fetch/backfill/actuals stages (seconds), and a source toggle inside it
+        // makes the loaded rows unusable for the toggled widget.
+        val hourlySourceIdsAtLoad = hourlyForecastLoader.hourlySourceIds()
+        val hourlyForecasts = hourlyForecastLoader.load(
+            lat = location.first,
+            lon = location.second,
+            sources = hourlySourceIdsAtLoad,
+            caller = "full_sync",
+        )
+        val afterHourlyMs = SystemClock.elapsedRealtime()
+        logStage("hourly_fetched count=${hourlyForecasts.size}")
+
+        // NWS station history is wanted by NWS itself AND by any source whose actuals
+        // come from NWS (Google Weather with the NWS provider got none before). The gate
+        // is the shared NwsGapFillRun.dailyForSources, the same one desktop runs.
+        val sourcesServed = input.targetSourceId?.let { listOf(WeatherSource.fromId(it)) }
+            ?: (widgetStateManager.getVisibleSourcesOrder() +
+                weatherList.map { WeatherSource.fromId(it.source) })
+        if (!input.uiOnlyRefresh) {
+            weatherRepository.backfillNwsObservationsIfNeeded(
+                location.first, location.second, sourcesServed, reason = "full_sync",
+            )
+        }
+        val afterNwsBackfillMs = SystemClock.elapsedRealtime()
+        // Gated on `!uiOnlyRefresh` for the same reason the NWS backfill above is: a
+        // UI-only refresh exists precisely to repaint from cache WITHOUT touching the
+        // network. Measured 2026-08-23 — ungated, a `uiOnly=true` run issued a live
+        // METAR request, which is exactly the battery cost that flag exists to avoid.
+        //
+        // Placed before the actuals recompute below, not after: rows landing later
+        // would sit unused until the next cycle. Accepts BOTH tiers because the full
+        // sync is the battery-aware main fetch AND the path every user-initiated
+        // refresh and source toggle takes (both log `SYNC_START force=true`), making it
+        // the only place METAR reliably gets a turn.
+        var metarDoneMs = afterNwsBackfillMs
+        if (!input.uiOnlyRefresh) {
+            metarRefresher.refreshIfDue(
+                setOf(com.weatherwidget.shared.util.MetarFetchPolicy.Tier.PRIMARY, com.weatherwidget.shared.util.MetarFetchPolicy.Tier.NON_PRIMARY),
+                location.first,
+                location.second,
+                reason = "full_sync",
+                // Deep pull: daily extremes need the whole day, not the last two hours.
+                hours = MetarObservationRefresher.DEEP_HOURS,
+            )
+            metarDoneMs = SystemClock.elapsedRealtime()
+            synopticRefresher.refreshIfDue(
+                setOf(com.weatherwidget.shared.util.SynopticFetchPolicy.Tier.PRIMARY, com.weatherwidget.shared.util.SynopticFetchPolicy.Tier.NON_PRIMARY),
+                location.first,
+                location.second,
+                reason = "full_sync",
+                // A backoff earned at the previous site must not blank the new one's
+                // actuals for 30 min after the user moved it.
+                userLocationChange = input.locationChangePlace != null,
+            )
+        }
+
+        val afterBackfillMs = SystemClock.elapsedRealtime()
+        logStage("backfill_done")
+
+        return LoadPhase(afterWeatherMs, forecastSnapshots, hourlySourceIdsAtLoad, hourlyForecasts, afterHourlyMs, afterNwsBackfillMs, metarDoneMs, afterBackfillMs)
+    }
+
+    /** What [recomputeActuals] hands to the paint; the timestamps feed SYNC_PERF. */
+    private class ActualsPhase(
+        val currentTemps: List<com.weatherwidget.data.local.ObservationEntity>,
+        val afterCurrentTempsMs: Long,
+        val actualsSourceList: List<String>,
+        val renderHourlyForecasts: List<com.weatherwidget.data.local.HourlyForecastEntity>,
+        val renderHourlySourceIds: List<String>,
+        val dailyActuals: DailyActualsBySource,
+        val afterRecomputeMs: Long,
+        val afterRepairsMs: Long,
+        val afterActualsMs: Long,
+    )
+
+    /** Current temps, the paint-time hourly re-read and the daily actuals recompute of [onFetchSuccess]. */
+    private suspend fun recomputeActuals(
+        weatherList: List<com.weatherwidget.data.local.ForecastEntity>,
+        input: WorkInput,
+        location: Pair<Double, Double>,
+        activeSourceList: List<String>,
+        load: LoadPhase,
+    ): ActualsPhase {
+        val forecastSnapshots = load.forecastSnapshots
+        val hourlyForecasts = load.hourlyForecasts
+        val hourlySourceIdsAtLoad = load.hourlySourceIdsAtLoad
+        val todayStartMs = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val currentTemps = weatherRepository.getMainObservationsWithComputedNwsBlend(
+            location.first, location.second, todayStartMs,
+        )
+        val afterCurrentTempsMs = SystemClock.elapsedRealtime()
+
+        appLogDao.log(
+            "SYNC_SUCCESS",
+            "Weather=${weatherList.size}, Snapshots=${forecastSnapshots.size}, Hourly=${hourlyForecasts.size}",
+            "INFO",
+        )
+
+        logStage("actuals_recompute_start recompute=${!input.uiOnlyRefresh}")
+        val actualsSourceList = hourlyForecastLoader.currentDisplaySourceIds()
+
+        // `hourlyForecasts` was scoped to `hourlySourceIdsAtLoad`, read BEFORE the fetch.
+        // A source toggle during the fetch (seconds) leaves that list with ZERO rows for
+        // the newly displayed source, so both the actuals recompute and the repaint below
+        // would work from data that cannot contain it: the widget paints an empty graph
+        // ("no cloud data") and the gap detector then burns a redundant forced sync.
+        // Re-read once — a single scoped query — so everything downstream sees the
+        // sources actually on screen. Cross-check HOURLY_SOURCE_MISS in WidgetRenderer.
+        val missingAtPaint = HourlyForecastLoader.sourcesMissingFromLoad(
+            loadedSourceIds = hourlySourceIdsAtLoad,
+            displaySourceIdsAtPaint = actualsSourceList,
+        )
+        val renderHourlyForecasts = if (missingAtPaint.isEmpty()) {
+            hourlyForecasts
+        } else {
+            val reloaded = hourlyForecastLoader.load(
+                lat = location.first,
+                lon = location.second,
+                sources = hourlyForecastLoader.hourlySourceIds(),
+                caller = "full_sync_source_reload",
+            )
+            appLogDao.log(
+                "HOURLY_SOURCE_SNAPSHOT_STALE",
+                "loaded=${hourlySourceIdsAtLoad.joinToString("|")} " +
+                    "atPaint=${actualsSourceList.joinToString("|")} " +
+                    "missing=${missingAtPaint.joinToString("|")} " +
+                    "staleRows=${hourlyForecasts.size} reloadedRows=${reloaded.size}",
+                "WARN",
+            )
+            reloaded
+        }
+        // Scope the final list was actually loaded under, so the paint-time guard in
+        // WidgetPaintCoordinator can detect a toggle that lands AFTER this re-read.
+        val renderHourlySourceIds =
+            if (missingAtPaint.isEmpty()) hourlySourceIdsAtLoad
+            else hourlyForecastLoader.hourlySourceIds()
+
+        val dailyActuals = dataBundleLoader.fetchDailyActuals(
+            lat = location.first,
+            lon = location.second,
+            hourlyForecasts = renderHourlyForecasts,
+            activeSourceList = actualsSourceList,
+            recompute = !input.uiOnlyRefresh,
+        )
+        val afterRecomputeMs = SystemClock.elapsedRealtime()
+
+        if (!input.uiOnlyRefresh) {
+            weatherRepository.dailyHistoryAfterFetch(location.first, location.second)
+            weatherRepository.repairFrozenRainChanceIfNeeded(location.first, location.second)
+            weatherRepository.dailyHistoryUpkeepIfDue(
+                location.first,
+                location.second,
+                isCharging = BatterySnapshotProvider.snapshot(context).isCharging,
+            )
+        }
+        val afterRepairsMs = SystemClock.elapsedRealtime()
+
+        // One-shot dominant-station temperature watch. Costs a single boolean read when
+        // the user has not armed it, and must never fail a sync — it is an optional
+        // notification, not part of producing the widget.
+        try {
+            com.weatherwidget.notify.DominantTempChangeNotifier.check(
+                context = context,
+                repository = weatherRepository,
+                stateManager = widgetStateManager,
+                appLogDao = appLogDao,
+                lat = location.first,
+                lon = location.second,
+                origin = "full_sync",
+            )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            appLogDao.logException("DOMINANT_TEMP_WATCH", "check failed (full_sync)", e)
+        }
+        val afterActualsMs = SystemClock.elapsedRealtime()
+        return ActualsPhase(currentTemps, afterCurrentTempsMs, actualsSourceList, renderHourlyForecasts, renderHourlySourceIds, dailyActuals, afterRecomputeMs, afterRepairsMs, afterActualsMs)
     }
 
     private suspend fun logStage(stage: String) {

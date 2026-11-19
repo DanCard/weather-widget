@@ -44,6 +44,22 @@ debug_log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$DEBUG_LOG"
 }
 
+# ART-verifies the app APK about to be tested (scripts/verify-apk-dex.sh: dex2oat --compiler-filter=verify
+# on a pushed copy, nothing installed); prints each rejected method and returns 1 if any. A class is
+# verified only when first loaded, so a VerifyError crashed only the runs that happened to load it
+# (CloudCoverViewHandler.updateWidget, 2026-11-19). The same script checks release bundles (Fastfile).
+# plans/261119-split-oversized-android-suspend-functions.md
+verify_app_dex() {
+    local serial="$1"
+    local out rc
+    out=$(ADB_BIN="$ADB_BIN" "$SCRIPT_DIR/verify-apk-dex.sh" -s "$serial" "$APP_APK" 2>&1)
+    rc=$?
+    debug_log "dex verify on $serial: rc=$rc $(printf '%s' "$out" | head -1)"
+    [ "$rc" -eq 0 ] && return 0
+    echo "$out"
+    return 1
+}
+
 recover_widget_ui() {
     local serial="$1"
     local recovery_output
@@ -647,6 +663,16 @@ if [ -z "${EMULATOR_TESTS_TARGET_SERIAL:-}" ] && [ "$EMULATOR_NAME_EXPLICIT" = f
             if [ $? -ne 0 ] || echo "$install_out" | grep -qi "error\|failure\|failed"; then
                 echo "FAILED — test APK install error on $serial: $install_out" > "$emu_log"
                 echo "FAILED — test APK install error on $serial: $install_out"
+                return 1
+            fi
+
+            local verify_out
+            if ! verify_out=$(verify_app_dex "$serial"); then
+                { echo "FAILED — dex verification on $serial"; echo "$verify_out"; } > "$emu_log"
+                echo "FAILED — Total: 0  Passed: 0  Failed: 0  Duration: 0s"
+                echo "Failure details:"
+                echo "$verify_out"
+                echo "Log file: $emu_log"
                 return 1
             fi
 

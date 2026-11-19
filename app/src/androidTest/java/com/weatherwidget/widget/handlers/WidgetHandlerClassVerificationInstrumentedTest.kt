@@ -25,6 +25,9 @@ class WidgetHandlerClassVerificationInstrumentedTest {
         "com.weatherwidget.widget.handlers.WidgetViewHandler",
         "com.weatherwidget.widget.WidgetRenderer",
         "com.weatherwidget.widget.WidgetStartupCoordinator",
+        // Split 2026-11-19 (plans/261119-split-oversized-android-suspend-functions.md).
+        "com.weatherwidget.widget.FullSyncPipeline",
+        "com.weatherwidget.widget.handlers.TemperatureStateResolver",
     )
 
     @Test

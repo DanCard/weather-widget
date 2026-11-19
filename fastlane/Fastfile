@@ -9,9 +9,13 @@
 default_platform(:android)
 
 platform :android do
-  desc "Build a signed release AAB (requires RELEASE_STORE_* signing props / release.keystore)"
+  desc "Build a signed release AAB and ART-verify it on an emulator (requires RELEASE_STORE_* signing props / release.keystore, and a running emulator)"
   lane :build do
     gradle(task: "bundle", build_type: "Release", project_dir: ".")
+    # A class ART rejects crashes the app on first load (VerifyError, 2026-11-19); the R8 release dex
+    # differs from debug, so it is checked itself. Fails the lane (and every upload lane) on rejection.
+    # Nothing is installed: the emulator's debug app and widgets are untouched.
+    sh("../scripts/verify-apk-dex.sh", "../app/build/outputs/bundle/release/app-release.aab")
   end
 
   desc "Validate service-account auth and metadata without uploading anything"

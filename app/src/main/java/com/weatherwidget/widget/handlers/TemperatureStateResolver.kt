@@ -223,16 +223,10 @@ internal object TemperatureStateResolver {
             sourceMissingFromLoad = sourceMissingFromLoad,
         )
 
-        val graphHours: List<HourData>
-        val obsQueryMs: Long
-        val buildHourDataMs: Long
-        var dominantStation: DominantBlend? = null
-        var newestObservationMs: Long? = null
-        var observationRowCount = 0
-        var obsPoolDiagnostics: ObservationPoolDiagnostics.Summary? = null
-        var obsWindowStartMs = 0L
-        var obsWindowEndMs = 0L
-        when (graphLoadResult) {
+        // A `when` whose Empty branch returns, so every value below is a plain val: the conditionally
+        // assigned `var …Ms = 0L` locals this replaced are the shape whose dex ART rejected in
+        // CloudCoverViewHandler (plans/261119-split-oversized-android-suspend-functions.md).
+        val loaded = when (graphLoadResult) {
             is TemperatureGraphHoursLoader.GraphLoadOutcome.Empty -> {
                 // HOURLY_PAINT_TRACE: an empty hour list yields a blank graph state. The widget still
                 // paints (so this should NOT leave the "Loading..." placeholder), but it explains a
@@ -246,18 +240,17 @@ internal object TemperatureStateResolver {
                 )
                 return buildFallbackResult(appWidgetId, displaySource, zoom, hourlyOffset, lat, lon, smoothedForecasts = smoothedForecasts)
             }
-            is TemperatureGraphHoursLoader.GraphLoadOutcome.Loaded -> {
-                graphHours = graphLoadResult.hours
-                obsQueryMs = graphLoadResult.obsQueryMs
-                buildHourDataMs = graphLoadResult.buildHourDataMs
-                dominantStation = graphLoadResult.dominantStation
-                newestObservationMs = graphLoadResult.newestObservationMs
-                observationRowCount = graphLoadResult.observationRowCount
-                obsPoolDiagnostics = graphLoadResult.obsPoolDiagnostics
-                obsWindowStartMs = graphLoadResult.obsWindowStartMs
-                obsWindowEndMs = graphLoadResult.obsWindowEndMs
-            }
+            is TemperatureGraphHoursLoader.GraphLoadOutcome.Loaded -> graphLoadResult
         }
+        val graphHours = loaded.hours
+        val obsQueryMs = loaded.obsQueryMs
+        val buildHourDataMs = loaded.buildHourDataMs
+        val dominantStation = loaded.dominantStation
+        val newestObservationMs = loaded.newestObservationMs
+        val observationRowCount = loaded.observationRowCount
+        val obsPoolDiagnostics = loaded.obsPoolDiagnostics
+        val obsWindowStartMs = loaded.obsWindowStartMs
+        val obsWindowEndMs = loaded.obsWindowEndMs
 
         logHourlyDayExtrema(graphHours, appWidgetId, displaySource, zoom, hourlyOffset, effectiveAppLogDao)
 
@@ -296,179 +289,18 @@ internal object TemperatureStateResolver {
         )
 
         // 6. Graph Rendering
-        var renderMs = 0L
-        var bitmap: android.graphics.Bitmap? = null
-        if (useGraph) {
-            val bitmapDims = WidgetSizeCalculator.computeBitmapDimensions(context, dimensions.widthDp, dimensions.heightDp)
-            // The RemoteViews header row covers the bitmap's top strip; the context annotations
-            // (dominant station, actuals source) keep below it
-            // (plans/261106-actuals-source-label-clears-header.md).
-            val headerBandBottomPx = TemperatureHeaderFit.headerBandBottomPx(
-                context = context,
-                resolved = TemperatureHeaderFit.resolve(
-                    context = context,
-                    header = headerState,
-                    widthDp = dimensions.widthDp,
-                    numRows = dimensions.rows,
-                    zoom = zoom,
-                    centerTime = centerTime,
-                    today = now.toLocalDate(),
-                ),
-                header = headerState,
-                bitmapScale = bitmapDims.bitmapScale,
+        val graph = if (useGraph) {
+            renderGraphPhase(
+                context, appWidgetId, stateManager, effectiveAppLogDao, displaySource, hourlyForecasts, graphHours,
+                centerTime, now, zoom, dimensions, useCelsius, headerState, currentTempResolution, blendCentre, lat,
+                lon, lastObservedTemp, observedAt, dominantStation, newestObservationMs, observationRowCount,
+                obsPoolDiagnostics, obsWindowStartMs, obsWindowEndMs, onFetchDotResolved,
             )
-
-            val dominantContribution = dominantStation?.contribution
-            val dominantStationLabel =
-                DominantStationLabel.formatLabelText(
-                    contribution = dominantContribution,
-                    useCelsius = useCelsius,
-                )
-            val dominantTextReason =
-                when {
-                    dominantContribution == null -> "no_contribution"
-                    dominantContribution.isSynthetic -> "synthetic"
-                    dominantStationLabel == null -> "format_null"
-                    else -> "text_ok"
-                }
-            // Mirrors the desktop DominantStationDiag. Upstream gate only: the placement-side
-            // span_too_wide/no_empty_band/drawn gate lives in TemperatureGraphAnnotationRenderer.
-            Log.v(
-                TAG,
-                "DominantStationDiag: source=${displaySource.id} reason=$dominantTextReason " +
-                    "contribution=${dominantContribution?.let { "${it.stationId} raw=${it.rawTemp} synthetic=${it.isSynthetic}" } ?: "null"} " +
-                    "text=${dominantStationLabel?.fullText ?: "null"}",
-            )
-            // Persisted counterpart of the line above. The VERBOSE one is logcat-only (see the
-            // AppLogDao level gate), so a report of "the label showed a stale temperature an hour
-            // ago" had no evidence left to check. What makes this answerable is the pairing of
-            // readingAgeMin (how old the NAMED station's raw reading is) with newestObsAgeMin (how
-            // old the freshest row the render actually loaded is): both large means the fetch
-            // pipeline stalled, readingAge large while newestObsAge is small means the blend named
-            // a lagging station while fresher data was on hand.
-            //
-            // Those two fields could not tell either case apart from a THIRD: the read was centred on
-            // a coordinate the device had left, so both ages were large while fresh rows sat in the
-            // database, unreachable behind the merge box (2026-08-28). locSource/obsCentre name it.
-            val nowEpochMs = com.weatherwidget.shared.util.WeatherTimeUtils.liveEpochMs(now)
-            fun ageMin(ms: Long?): String =
-                ms?.let { ((nowEpochMs - it).coerceAtLeast(0L) / 60_000L).toString() } ?: "na"
-            effectiveAppLogDao.log(
-                "DOMINANT_STATION",
-                "widget=$appWidgetId source=${displaySource.id} reason=$dominantTextReason " +
-                    "station=${dominantContribution?.stationId ?: "null"} " +
-                    "rawTemp=${dominantContribution?.rawTemp} " +
-                    "weightShare=${dominantContribution?.weightShare} " +
-                    "readingAgeMin=${ageMin(dominantContribution?.lastReadingMs)} " +
-                    "newestObsAgeMin=${ageMin(newestObservationMs)} obsRows=$observationRowCount " +
-                    "locSource=${blendCentre.source.name.lowercase(Locale.US)} " +
-                    "obsCentre=${formatCoords(lat to lon)} " +
-                    "text=${dominantStationLabel?.fullText ?: "null"}",
-                "DEBUG",
-            )
-
-            // OBS_POOL_DIAG: the companion line that makes DOMINANT_STATION's readingAgeMin
-            // actionable. `readingAgeMin` large says the label is old; it does not say WHY, and the
-            // three candidate causes need different fixes:
-            //
-            //   verdict=merge_dropped_fresher  the coarse box held newer rows than the merge kept —
-            //                                  a device-site fragment outside MERGE_TOLERANCE_DEG.
-            //                                  fresherSites names it, with coordinates ready to
-            //                                  paste into a `locationLat=` query.
-            //   verdict=box_had_nothing_newer  the read returned everything in the box. The location
-            //                                  plumbing is exonerated; the fetch (or `win`, the query
-            //                                  window) is the subject.
-            //
-            // Deliberately conditional (see ObservationPoolDiagnostics.shouldLog): this runs on every
-            // temperature render, so an unconditional line would add thousands of app_logs rows a day
-            // to say "the pool is fresh", which is the normal state and the one nobody queries back.
-            obsPoolDiagnostics?.let { diag ->
-                if (ObservationPoolDiagnostics.shouldLog(diag, nowEpochMs)) {
-                    effectiveAppLogDao.log(
-                        "OBS_POOL_DIAG",
-                        "widget=$appWidgetId source=${displaySource.id} " +
-                            ObservationPoolDiagnostics.format(
-                                summary = diag,
-                                nowMs = nowEpochMs,
-                                startTs = obsWindowStartMs,
-                                endTs = obsWindowEndMs,
-                                lat = lat,
-                                lon = lon,
-                            ),
-                        "DEBUG",
-                    )
-                }
-            }
-
-            // "Actual temperature data from X" — for sources using an alternative provider
-            // (e.g. Silurian borrowing METAR, or Open-Meteo configured to METAR/NWS/Synoptic).
-            // Only shown when the visible window actually contains observed data; future-only
-            // views (no actuals in graphHours) suppress the annotation.
-            val actualsProviderId = ActualsProviderResolver.providerIdFor(displaySource)
-            val actualsSourceLabel = if (ActualsProviderResolver.showsBorrowedLabel(displaySource, drawsActuals = graphHours.any { it.isActual })) {
-                val provider = WeatherSource.fromId(actualsProviderId)
-                temperatureActualsSourceLabel(context, provider.displayName)
-            } else {
-                null
-            }
-            Log.v(
-                TAG,
-                "ActualsSourceDiag: source=${displaySource.id} provider=$actualsProviderId " +
-                    "text=${actualsSourceLabel?.fullText ?: "null"}",
-            )
-
-            val renderStartMs = System.currentTimeMillis()
-            bitmap = renderOrNull(
-                onFailure = { e ->
-                    Log.e(TAG, "renderGraph failed", e)
-                    // Log.e never reaches app_logs, so a bug report of a blank body carried no
-                    // trace of the throw. The binder keeps the previous bitmap on screen for this.
-                    effectiveAppLogDao.logException(
-                        "HOURLY_RENDER_EXCEPTION",
-                        "widget=$appWidgetId source=${displaySource.id} hours=${graphHours.size} " +
-                            "size=${bitmapDims.widthPx}x${bitmapDims.heightPx}",
-                        e,
-                    )
-                },
-            ) {
-                TemperatureGraphRenderer.renderGraph(
-                    context = context,
-                    hours = graphHours,
-                    widthPx = bitmapDims.widthPx,
-                    heightPx = bitmapDims.heightPx,
-                    currentTime = now,
-                    bitmapScale = bitmapDims.bitmapScale,
-                    appliedDelta = currentTempResolution.appliedDelta,
-                    observedAt = observedAt,
-                    lastObservedTemp = lastObservedTemp,
-                    numColumns = dimensions.cols,
-                    job = coroutineContext[Job],
-                    onFetchDotResolved = onFetchDotResolved,
-                    showErrorWatermark = stateManager.viewWatermark(displaySource, ForecastProduct.HOURLY).show,
-                    errorSourceLabel = displaySource.displayName,
-                    errorCode = stateManager.viewWatermark(displaySource, ForecastProduct.HOURLY).errorCode,
-                    errorFailureTimeMs = stateManager.viewWatermark(displaySource, ForecastProduct.HOURLY).failureTimeMs,
-                    errorRetryAtMs = stateManager.viewWatermark(displaySource, ForecastProduct.HOURLY).retryAtMs,
-                    errorBannerSinceMs = stateManager.viewWatermark(displaySource, ForecastProduct.HOURLY).bannerSinceMs,
-                    useCelsius = useCelsius,
-                    dominantStationLabel = dominantStationLabel,
-                    actualsSourceLabel = actualsSourceLabel,
-                    headerBandBottomPx = headerBandBottomPx,
-                )
-            }
-            bitmap?.let { drawn ->
-                com.weatherwidget.widget.HourlyEmptyNoticeRenderer.message(
-                    context, stateManager, appWidgetId, hourlyForecasts, displaySource.id,
-                    com.weatherwidget.shared.util.WeatherTimeUtils.hourWindow(centerTime, zoom.backHours, zoom.forwardHours),
-                    now, lat, lon,
-                )?.let { notice ->
-                    com.weatherwidget.widget.HourlyEmptyNoticeRenderer.draw(
-                        drawn, notice, context.resources.displayMetrics.density * bitmapDims.bitmapScale,
-                    )
-                }
-            }
-            renderMs = System.currentTimeMillis() - renderStartMs
+        } else {
+            GraphPhase.NONE
         }
+        val renderMs = graph.renderMs
+        val bitmap = graph.bitmap
 
         val graphState = TemperatureWidgetState.GraphState(
             useGraph = useGraph,
@@ -548,6 +380,221 @@ internal object TemperatureStateResolver {
     }
 
     /** Phase 4 of [resolve]: resolve the current display temperature (quick or full path). */
+
+    /** The graph phase's result: the rendered bitmap (null when it failed) and how long it took. */
+    private class GraphPhase(val bitmap: android.graphics.Bitmap?, val renderMs: Long) {
+        companion object {
+            val NONE = GraphPhase(null, 0L)
+        }
+    }
+
+    /**
+     * The graph branch of [resolve]: render the temperature graph and bind its touch zones. Split out
+     * (2026-11-19) from the ~390-line suspend function, the shape whose dex ART rejected in
+     * CloudCoverViewHandler (plans/261119-split-oversized-android-suspend-functions.md).
+     */
+    private suspend fun renderGraphPhase(
+        context: Context,
+        appWidgetId: Int,
+        stateManager: WidgetStateManager,
+        effectiveAppLogDao: AppLogDao,
+        displaySource: WeatherSource,
+        hourlyForecasts: List<HourlyForecastEntity>,
+        graphHours: List<HourData>,
+        centerTime: LocalDateTime,
+        now: LocalDateTime,
+        zoom: ZoomWindow,
+        dimensions: WidgetDimensions,
+        useCelsius: Boolean,
+        headerState: TemperatureWidgetState.HeaderState,
+        currentTempResolution: CurrentTemperatureResolution,
+        blendCentre: BlendCentre.Centre,
+        lat: Double,
+        lon: Double,
+        lastObservedTemp: Float?,
+        observedAt: Long?,
+        dominantStation: DominantBlend?,
+        newestObservationMs: Long?,
+        observationRowCount: Int,
+        obsPoolDiagnostics: ObservationPoolDiagnostics.Summary?,
+        obsWindowStartMs: Long,
+        obsWindowEndMs: Long,
+        onFetchDotResolved: ((FetchDotDebug) -> Unit)?,
+    ): GraphPhase {
+        var renderMs = 0L
+        var bitmap: android.graphics.Bitmap? = null
+        val bitmapDims = WidgetSizeCalculator.computeBitmapDimensions(context, dimensions.widthDp, dimensions.heightDp)
+        // The RemoteViews header row covers the bitmap's top strip; the context annotations
+        // (dominant station, actuals source) keep below it
+        // (plans/261106-actuals-source-label-clears-header.md).
+        val headerBandBottomPx = TemperatureHeaderFit.headerBandBottomPx(
+            context = context,
+            resolved = TemperatureHeaderFit.resolve(
+                context = context,
+                header = headerState,
+                widthDp = dimensions.widthDp,
+                numRows = dimensions.rows,
+                zoom = zoom,
+                centerTime = centerTime,
+                today = now.toLocalDate(),
+            ),
+            header = headerState,
+            bitmapScale = bitmapDims.bitmapScale,
+        )
+
+        val dominantContribution = dominantStation?.contribution
+        val dominantStationLabel =
+            DominantStationLabel.formatLabelText(
+                contribution = dominantContribution,
+                useCelsius = useCelsius,
+            )
+        val dominantTextReason =
+            when {
+                dominantContribution == null -> "no_contribution"
+                dominantContribution.isSynthetic -> "synthetic"
+                dominantStationLabel == null -> "format_null"
+                else -> "text_ok"
+            }
+        // Mirrors the desktop DominantStationDiag. Upstream gate only: the placement-side
+        // span_too_wide/no_empty_band/drawn gate lives in TemperatureGraphAnnotationRenderer.
+        Log.v(
+            TAG,
+            "DominantStationDiag: source=${displaySource.id} reason=$dominantTextReason " +
+                "contribution=${dominantContribution?.let { "${it.stationId} raw=${it.rawTemp} synthetic=${it.isSynthetic}" } ?: "null"} " +
+                "text=${dominantStationLabel?.fullText ?: "null"}",
+        )
+        // Persisted counterpart of the line above. The VERBOSE one is logcat-only (see the
+        // AppLogDao level gate), so a report of "the label showed a stale temperature an hour
+        // ago" had no evidence left to check. What makes this answerable is the pairing of
+        // readingAgeMin (how old the NAMED station's raw reading is) with newestObsAgeMin (how
+        // old the freshest row the render actually loaded is): both large means the fetch
+        // pipeline stalled, readingAge large while newestObsAge is small means the blend named
+        // a lagging station while fresher data was on hand.
+        //
+        // Those two fields could not tell either case apart from a THIRD: the read was centred on
+        // a coordinate the device had left, so both ages were large while fresh rows sat in the
+        // database, unreachable behind the merge box (2026-08-28). locSource/obsCentre name it.
+        val nowEpochMs = com.weatherwidget.shared.util.WeatherTimeUtils.liveEpochMs(now)
+        fun ageMin(ms: Long?): String =
+            ms?.let { ((nowEpochMs - it).coerceAtLeast(0L) / 60_000L).toString() } ?: "na"
+        effectiveAppLogDao.log(
+            "DOMINANT_STATION",
+            "widget=$appWidgetId source=${displaySource.id} reason=$dominantTextReason " +
+                "station=${dominantContribution?.stationId ?: "null"} " +
+                "rawTemp=${dominantContribution?.rawTemp} " +
+                "weightShare=${dominantContribution?.weightShare} " +
+                "readingAgeMin=${ageMin(dominantContribution?.lastReadingMs)} " +
+                "newestObsAgeMin=${ageMin(newestObservationMs)} obsRows=$observationRowCount " +
+                "locSource=${blendCentre.source.name.lowercase(Locale.US)} " +
+                "obsCentre=${formatCoords(lat to lon)} " +
+                "text=${dominantStationLabel?.fullText ?: "null"}",
+            "DEBUG",
+        )
+
+        // OBS_POOL_DIAG: the companion line that makes DOMINANT_STATION's readingAgeMin
+        // actionable. `readingAgeMin` large says the label is old; it does not say WHY, and the
+        // three candidate causes need different fixes:
+        //
+        //   verdict=merge_dropped_fresher  the coarse box held newer rows than the merge kept —
+        //                                  a device-site fragment outside MERGE_TOLERANCE_DEG.
+        //                                  fresherSites names it, with coordinates ready to
+        //                                  paste into a `locationLat=` query.
+        //   verdict=box_had_nothing_newer  the read returned everything in the box. The location
+        //                                  plumbing is exonerated; the fetch (or `win`, the query
+        //                                  window) is the subject.
+        //
+        // Deliberately conditional (see ObservationPoolDiagnostics.shouldLog): this runs on every
+        // temperature render, so an unconditional line would add thousands of app_logs rows a day
+        // to say "the pool is fresh", which is the normal state and the one nobody queries back.
+        obsPoolDiagnostics?.let { diag ->
+            if (ObservationPoolDiagnostics.shouldLog(diag, nowEpochMs)) {
+                effectiveAppLogDao.log(
+                    "OBS_POOL_DIAG",
+                    "widget=$appWidgetId source=${displaySource.id} " +
+                        ObservationPoolDiagnostics.format(
+                            summary = diag,
+                            nowMs = nowEpochMs,
+                            startTs = obsWindowStartMs,
+                            endTs = obsWindowEndMs,
+                            lat = lat,
+                            lon = lon,
+                        ),
+                    "DEBUG",
+                )
+            }
+        }
+
+        // "Actual temperature data from X" — for sources using an alternative provider
+        // (e.g. Silurian borrowing METAR, or Open-Meteo configured to METAR/NWS/Synoptic).
+        // Only shown when the visible window actually contains observed data; future-only
+        // views (no actuals in graphHours) suppress the annotation.
+        val actualsProviderId = ActualsProviderResolver.providerIdFor(displaySource)
+        val actualsSourceLabel = if (ActualsProviderResolver.showsBorrowedLabel(displaySource, drawsActuals = graphHours.any { it.isActual })) {
+            val provider = WeatherSource.fromId(actualsProviderId)
+            temperatureActualsSourceLabel(context, provider.displayName)
+        } else {
+            null
+        }
+        Log.v(
+            TAG,
+            "ActualsSourceDiag: source=${displaySource.id} provider=$actualsProviderId " +
+                "text=${actualsSourceLabel?.fullText ?: "null"}",
+        )
+
+        val renderStartMs = System.currentTimeMillis()
+        bitmap = renderOrNull(
+            onFailure = { e ->
+                Log.e(TAG, "renderGraph failed", e)
+                // Log.e never reaches app_logs, so a bug report of a blank body carried no
+                // trace of the throw. The binder keeps the previous bitmap on screen for this.
+                effectiveAppLogDao.logException(
+                    "HOURLY_RENDER_EXCEPTION",
+                    "widget=$appWidgetId source=${displaySource.id} hours=${graphHours.size} " +
+                        "size=${bitmapDims.widthPx}x${bitmapDims.heightPx}",
+                    e,
+                )
+            },
+        ) {
+            TemperatureGraphRenderer.renderGraph(
+                context = context,
+                hours = graphHours,
+                widthPx = bitmapDims.widthPx,
+                heightPx = bitmapDims.heightPx,
+                currentTime = now,
+                bitmapScale = bitmapDims.bitmapScale,
+                appliedDelta = currentTempResolution.appliedDelta,
+                observedAt = observedAt,
+                lastObservedTemp = lastObservedTemp,
+                numColumns = dimensions.cols,
+                job = coroutineContext[Job],
+                onFetchDotResolved = onFetchDotResolved,
+                showErrorWatermark = stateManager.viewWatermark(displaySource, ForecastProduct.HOURLY).show,
+                errorSourceLabel = displaySource.displayName,
+                errorCode = stateManager.viewWatermark(displaySource, ForecastProduct.HOURLY).errorCode,
+                errorFailureTimeMs = stateManager.viewWatermark(displaySource, ForecastProduct.HOURLY).failureTimeMs,
+                errorRetryAtMs = stateManager.viewWatermark(displaySource, ForecastProduct.HOURLY).retryAtMs,
+                errorBannerSinceMs = stateManager.viewWatermark(displaySource, ForecastProduct.HOURLY).bannerSinceMs,
+                useCelsius = useCelsius,
+                dominantStationLabel = dominantStationLabel,
+                actualsSourceLabel = actualsSourceLabel,
+                headerBandBottomPx = headerBandBottomPx,
+            )
+        }
+        bitmap?.let { drawn ->
+            com.weatherwidget.widget.HourlyEmptyNoticeRenderer.message(
+                context, stateManager, appWidgetId, hourlyForecasts, displaySource.id,
+                com.weatherwidget.shared.util.WeatherTimeUtils.hourWindow(centerTime, zoom.backHours, zoom.forwardHours),
+                now, lat, lon,
+            )?.let { notice ->
+                com.weatherwidget.widget.HourlyEmptyNoticeRenderer.draw(
+                    drawn, notice, context.resources.displayMetrics.density * bitmapDims.bitmapScale,
+                )
+            }
+        }
+        renderMs = System.currentTimeMillis() - renderStartMs
+        return GraphPhase(bitmap, renderMs)
+    }
+
     private suspend fun resolveCurrentTempPhase(
         now: LocalDateTime,
         displaySource: WeatherSource,
