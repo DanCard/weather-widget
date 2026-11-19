@@ -236,11 +236,10 @@ to_summary() {
     tee >(sed -u 's/\x1b\[[0-9;]*m//g' >> "$SUMMARY_LOG_FILE")
 }
 
-resolve_adb() {
-    local adb_bin="${ADB:-$HOME/.Android/Sdk/platform-tools/adb}"
-    [ -x "$adb_bin" ] || adb_bin="$(command -v adb || true)"
-    echo "$adb_bin"
-}
+# resolve_adb, running_emulator, next_boot_avd, pick_boot_avd, ensure_emulator: shared with
+# verify-apk-dex.sh (a release check boots an emulator the same way).
+# shellcheck source=lib/emulator-boot.sh
+source "$PROJECT_DIR/scripts/lib/emulator-boot.sh"
 
 EMULATOR_CACHED=false
 if [ "$RUN_MODE" = "cached" ] && "$EMULATOR_SCRIPT" --check-cache "${EMULATOR_ARGS[@]}" >/dev/null 2>&1; then
@@ -287,44 +286,14 @@ on_interrupt() {
 }
 trap on_interrupt INT TERM
 
-# No emulator running: boot the default one now, beside the unit tests, so it is up by the time
-# the emulator phase starts. emulator-tests.sh would boot it anyway, but only once that phase began.
-#
-# Which one rotates, so all form factors get exercised: the AVD after the one booted last, skipping
-# any not installed. Remembered in BOOT_AVD_STATE; losing it just starts over at the first.
-# Medium_Phone_API_28 and _30 are compatibility targets, started by hand when needed rather than
-# booted here (arch/testing-strategy.md).
-BOOT_AVDS=(Generic_Foldable_API36 Medium_Phone_API_36 Pixel_Tablet_API36)
-BOOT_AVD_STATE="$PROJECT_DIR/logs/.last-booted-avd"
-next_boot_avd() {
-    local adb_bin="$1" installed last i n candidate
-    installed=$("$(dirname "$(dirname "$adb_bin")")/emulator/emulator" -list-avds 2>/dev/null)
-    last=$(cat "$BOOT_AVD_STATE" 2>/dev/null)
-    n=${#BOOT_AVDS[@]}
-    local start=0
-    for i in "${!BOOT_AVDS[@]}"; do
-        [ "${BOOT_AVDS[$i]}" = "$last" ] && start=$(( (i + 1) % n ))
-    done
-    for i in $(seq 0 $((n - 1))); do
-        candidate="${BOOT_AVDS[$(( (start + i) % n ))]}"
-        if grep -qx "$candidate" <<<"$installed"; then
-            echo "$candidate"
-            return 0
-        fi
-    done
-    return 1
-}
-
+# No emulator running: boot the next rotating AVD now (lib/emulator-boot.sh), beside the unit tests,
+# so it is up by the time the emulator phase starts. emulator-tests.sh would boot it anyway, but only
+# once that phase began.
 BOOT_PID=""
 boot_adb=$(resolve_adb)
 if [ "$EMULATOR_CACHED" = false ] && [ -n "$boot_adb" ] && ! "$boot_adb" devices 2>/dev/null | grep -qE '^emulator-[0-9]+'$'\t''device$'; then
-    BOOT_ARGS=(--boot-only)
-    if boot_avd=$(next_boot_avd "$boot_adb"); then
-        BOOT_ARGS+=(-e "$boot_avd")
-        # Recorded at the pick, not after the boot: an AVD that fails to boot is not retried forever.
-        mkdir -p "$(dirname "$BOOT_AVD_STATE")" && echo "$boot_avd" > "$BOOT_AVD_STATE"
-    fi
-    phase "No emulator running — booting ${boot_avd:-the default} (log: $EMULATOR_BOOT_LOG)"
+    pick_boot_avd "$boot_adb"
+    phase "No emulator running — booting ${BOOT_AVD:-the default} (log: $EMULATOR_BOOT_LOG)"
     "$EMULATOR_SCRIPT" "${BOOT_ARGS[@]}" > "$EMULATOR_BOOT_LOG" 2>&1 &
     BOOT_PID=$!
 fi

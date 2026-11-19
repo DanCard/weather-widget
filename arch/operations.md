@@ -213,7 +213,7 @@ crashes the first time anything loads that class. To check any APK or AAB withou
 debug one):
 
 ```bash
-scripts/verify-apk-dex.sh app/build/outputs/apk/debug/app-debug.apk        # first running emulator
+scripts/verify-apk-dex.sh app/build/outputs/apk/debug/app-debug.apk        # first running emulator (boots one if none; --no-boot to fail instead)
 scripts/verify-apk-dex.sh -s emulator-5556 app/build/outputs/bundle/release/app-release.aab
 # exit 0 clean, 1 rejected (methods printed), 2 setup error
 ```
@@ -326,9 +326,11 @@ $FASTLANE run upload_to_play_store track:beta track_promote_to:production versio
 ```
 
 The `build` lane (run by `internal`, `beta` and `production`) ART-verifies the release AAB with
-`scripts/verify-apk-dex.sh` and fails on any rejected method, so **an emulator must be running** for a
-release. The R8 release dex differs from debug, so it is checked on its own
-([ART VerifyError](#art-verifyerror)).
+`scripts/verify-apk-dex.sh` and fails on any rejected method. With no emulator running it boots the
+next one in the rotation `staggered-tests.sh` uses (`scripts/lib/emulator-boot.sh`; boot log in
+`logs/verify-apk-dex-boot-*.log`) and leaves it running. Exit 1 ("ART rejected methods") is a real
+crash bug — do not upload; exit 2 is setup (boot failed, dex2oat failed). The R8 release dex differs
+from debug, so it is checked on its own ([ART VerifyError](#art-verifyerror)).
 
 Desktop APT publication is documented in [APT_REPO.md](../docs/APT_REPO.md). Release signing,
 provider-key validation, and Play service-account setup remain in the build/Fastlane configuration;

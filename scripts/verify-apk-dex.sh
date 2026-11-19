@@ -9,14 +9,28 @@
 # build is R8-optimized, so its dex differs from debug and needs its own check.
 # plans/261119-split-oversized-android-suspend-functions.md
 #
-# Usage: scripts/verify-apk-dex.sh [-s <emulator-serial>] <app.apk | app.aab>
-# Exit: 0 clean, 1 rejected methods, 2 setup error (no emulator, bad input, dex2oat failed).
+# With no emulator running it boots the next one in the shared rotation (lib/emulator-boot.sh, as
+# staggered-tests.sh does) and waits for it; --no-boot fails instead.
+#
+# Usage: scripts/verify-apk-dex.sh [-s <emulator-serial>] [--no-boot] <app.apk | app.aab>
+# Exit: 0 clean, 1 rejected methods, 2 setup error (no emulator / boot failed, bad input, dex2oat failed).
 set -uo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/emulator-boot.sh
+source "$SCRIPT_DIR/lib/emulator-boot.sh"
+
 SERIAL=""
-if [ "${1:-}" = "-s" ]; then SERIAL="${2:-}"; shift 2; fi
+BOOT=true
+while [ $# -gt 1 ]; do
+    case "$1" in
+        -s) SERIAL="${2:-}"; shift 2 ;;
+        --no-boot) BOOT=false; shift ;;
+        *) break ;;
+    esac
+done
 INPUT="${1:-}"
-ADB="${ADB_BIN:-adb}"
+ADB="${ADB_BIN:-$(resolve_adb)}"
 
 if [ -z "$INPUT" ] || [ ! -f "$INPUT" ]; then
     echo "verify-apk-dex: usage: $0 [-s serial] <app.apk|app.aab> (got '${INPUT}')" >&2
@@ -24,10 +38,15 @@ if [ -z "$INPUT" ] || [ ! -f "$INPUT" ]; then
 fi
 if [ -z "$SERIAL" ]; then
     # Emulators only: this never targets a phone unless named with -s.
-    SERIAL=$("$ADB" devices | awk '$1 ~ /^emulator-/ && $2 == "device" { print $1; exit }')
+    SERIAL=$(running_emulator "$ADB")
+    if [ -z "$SERIAL" ] && [ "$BOOT" = true ]; then
+        BOOT_LOG="$(cd "$SCRIPT_DIR/.." && pwd)/logs/verify-apk-dex-boot-$(date +%Y%m%d-%H%M%S).log"
+        mkdir -p "$(dirname "$BOOT_LOG")"
+        SERIAL=$(ensure_emulator "$ADB" "$BOOT_LOG") || SERIAL=""
+    fi
 fi
 if [ -z "$SERIAL" ]; then
-    echo "verify-apk-dex: no running emulator (start one, or pass -s <serial>)" >&2
+    echo "verify-apk-dex: no running emulator$([ "$BOOT" = true ] && echo ', and booting one failed') (or pass -s <serial>)" >&2
     exit 2
 fi
 
