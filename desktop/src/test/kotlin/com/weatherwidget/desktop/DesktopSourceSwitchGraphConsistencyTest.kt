@@ -148,7 +148,7 @@ class DesktopSourceSwitchGraphConsistencyTest {
                     onUpdateLocation = {},
                     onUpdateConfig = {},
                     onOpenSettings = {},
-                    onOpenObservations = {},
+                    onOpenCurrentObservations = {},
                 )
             }
         }
@@ -179,7 +179,7 @@ class DesktopSourceSwitchGraphConsistencyTest {
                     onUpdateLocation = {},
                     onUpdateConfig = {},
                     onOpenSettings = {},
-                    onOpenObservations = {},
+                    onOpenCurrentObservations = {},
                     onHourlyAudit = { tag, message -> if (tag == "HOURLY_PAN_CHECK") panChecks += message },
                 )
             }

@@ -191,7 +191,7 @@ data class DesktopConfig(
      *
      * [withSettingsFrom] keeps the draft's settings wholesale, which is right while the Settings
      * window is the only settings writer. It is not: the popup header toggles `weatherSource` and the
-     * observations window edits `actualsProviders` — the same fields [mergeNonSettingsSave] admits
+     * Current Observations window edits `actualsProviders` — the same fields [mergeNonSettingsSave] admits
      * from those writers. (Until 2026-09-29 the location picker also rewrote `visibleSources` and
      * `weatherSource`; `visibleSources` stays in the three-way set so a draft seeded before an
      * external edit cannot rewind it.) A draft that never touched
@@ -235,7 +235,7 @@ data class DesktopConfig(
  * [allowWeatherSourceChange] re-admits the one settings field other writers legitimately change:
  * the popup header toggles the active source, and the location picker chooses a per-region default
  * (NWS for the US, Open-Meteo elsewhere).
- * [allowActualsProvidersChange] allows the observations window to change per-source actuals choices.
+ * [allowActualsProvidersChange] allows the Current Observations window to change per-source actuals choices.
  */
 internal fun mergeNonSettingsSave(
     persisted: DesktopConfig,
@@ -278,7 +278,7 @@ internal fun resolveDesktopConfigSave(
             // that cannot serve the new site is replaced at read time ([displaySource]) and comes
             // back when the location does.
             allowWeatherSourceChange = source == "popup" || source in ConfigSaveSource.SOURCE_SWITCHES,
-            allowActualsProvidersChange = source == ConfigSaveSource.OBSERVATIONS_WINDOW || source == "observations",
+            allowActualsProvidersChange = source == ConfigSaveSource.CURRENT_OBSERVATIONS_WINDOW || source == "observations",
         )
     } else {
         draft
@@ -353,10 +353,10 @@ internal object ConfigSaveSource {
     /** The Forecast Comparison window's own saves (bounds, sort): never the source. */
     const val COMPARISON_WINDOW = "history-window"
     const val COMPARISON_SOURCE_SWITCH = "history-source-switch"
-    /** The Stations window's own saves (bounds, tab, actuals picker): never the source. */
-    const val OBSERVATIONS_WINDOW = "observations-window"
-    const val OBSERVATIONS_SOURCE_SWITCH = "observations-source-switch"
-    val SOURCE_SWITCHES = setOf(COMPARISON_SOURCE_SWITCH, OBSERVATIONS_SOURCE_SWITCH)
+    /** The Current Observations window's own saves (bounds, tab, actuals picker): never the source. */
+    const val CURRENT_OBSERVATIONS_WINDOW = "observations-window"
+    const val CURRENT_OBSERVATIONS_SOURCE_SWITCH = "observations-source-switch"
+    val SOURCE_SWITCHES = setOf(COMPARISON_SOURCE_SWITCH, CURRENT_OBSERVATIONS_SOURCE_SWITCH)
 }
 
 /**
@@ -382,8 +382,8 @@ internal class DataWindowSaves(
 
         /** Stations; [save] is `saveConfigAndNotify(config, label)`. */
         fun forStations(save: (DesktopConfig, String) -> Unit) = DataWindowSaves(
-            window = { save(it, ConfigSaveSource.OBSERVATIONS_WINDOW) },
-            sourceSwitch = { save(it, ConfigSaveSource.OBSERVATIONS_SOURCE_SWITCH) },
+            window = { save(it, ConfigSaveSource.CURRENT_OBSERVATIONS_WINDOW) },
+            sourceSwitch = { save(it, ConfigSaveSource.CURRENT_OBSERVATIONS_SOURCE_SWITCH) },
         )
     }
 }

@@ -19,7 +19,7 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.ui.ForecastComparisonActivity
 import com.weatherwidget.ui.SettingsActivity
-import com.weatherwidget.ui.WeatherObservationsActivity
+import com.weatherwidget.ui.CurrentObservationsActivity
 import com.weatherwidget.widget.HourlyTouchZoneMapper
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WidgetActionReceiver
@@ -378,14 +378,14 @@ internal fun setupMonthsViewShortcut(
     views.setOnClickPendingIntent(R.id.months_view_touch_zone, pendingIntent)
 }
 
-internal fun setupWeatherStationsShortcut(
+internal fun setupCurrentObservationsShortcut(
     context: Context,
     views: RemoteViews,
     appWidgetId: Int,
     setVisibility: Boolean = false,
     scale: Float = 1.0f,
 ) {
-    val obsIntent = Intent(context, WeatherObservationsActivity::class.java).apply {
+    val obsIntent = Intent(context, CurrentObservationsActivity::class.java).apply {
         putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
     }

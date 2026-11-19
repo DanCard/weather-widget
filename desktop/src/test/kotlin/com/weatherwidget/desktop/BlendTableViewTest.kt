@@ -60,7 +60,7 @@ class BlendTableViewTest {
 
     @Test
     fun `at the user's 690dp window no cell is clipped and the type header stays on one line`() {
-        // 2026-11-06 screenshot: the Stations window was 690 px at density 1.
+        // 2026-11-06 screenshot: the Current Observations window was 690 px at density 1.
         compose.setContent {
             MaterialTheme(typography = WeatherTypography) {
                 Box(Modifier.width(690.dp)) { BlendTableView(listOf(table)) }

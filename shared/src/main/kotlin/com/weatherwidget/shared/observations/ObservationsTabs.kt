@@ -1,7 +1,7 @@
 package com.weatherwidget.shared.observations
 
 /**
- * The Observations screen's tabs, both platforms. The ids are persisted (Android pref
+ * The Current Observations screen's tabs, both platforms. The ids are persisted (Android pref
  * `last_selected_obs_tab`, desktop `obsSelectedTab`), so they never change.
  */
 object ObservationsTabs {

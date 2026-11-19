@@ -105,7 +105,7 @@ class HeaderRainChanceNoWrapTest {
                             onUpdateLocation = {},
                             onUpdateConfig = {},
                             onOpenSettings = {},
-                            onOpenObservations = {},
+                            onOpenCurrentObservations = {},
                         )
                     }
                 }

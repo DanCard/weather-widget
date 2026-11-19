@@ -88,7 +88,7 @@ class DesktopHeaderFitTest {
                             resolvedDeltaFromYesterday = 2.2f,
                             onUpdateConfig = {},
                             onOpenSettings = {},
-                            onOpenObservations = {},
+                            onOpenCurrentObservations = {},
                             onUpdateLocation = {},
                         )
                     }
@@ -161,7 +161,7 @@ class DesktopHeaderFitTest {
                     resolvedDeltaFromYesterday = 2.2f,
                     onUpdateConfig = {},
                     onOpenSettings = {},
-                    onOpenObservations = {},
+                    onOpenCurrentObservations = {},
                     onUpdateLocation = {},
                     headerTime = headerTime,
                     scale = scale,
@@ -212,7 +212,7 @@ class DesktopHeaderFitTest {
                             resolvedDeltaFromYesterday = 2.2f,
                             onUpdateConfig = {},
                             onOpenSettings = {},
-                            onOpenObservations = {},
+                            onOpenCurrentObservations = {},
                             onUpdateLocation = {},
                             todayInView = todayInView,
                             observationsInView = true,

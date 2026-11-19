@@ -291,7 +291,6 @@
     <string name="widget_fetching_location">%1$s-এর আবহাওয়া আনা হচ্ছে…</string>
     <string name="widget_tap_to_refresh">রিফ্রেশ করতে ট্যাপ করুন</string>
     <string name="widget_no_location">কোনো অবস্থান নেই — সেট করতে ট্যাপ করুন</string>
-    <string name="current_stations_desc">বর্তমান স্টেশন</string>
 
     <!-- ConfigActivity toasts -->
     <string name="location_label_toast">অবস্থান: %1$s</string>

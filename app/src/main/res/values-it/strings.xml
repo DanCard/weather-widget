@@ -291,7 +291,6 @@
     <string name="widget_fetching_location">Recupero del meteo per %1$s…</string>
     <string name="widget_tap_to_refresh">Tocca per aggiornare</string>
     <string name="widget_no_location">Nessuna posizione — tocca per impostare</string>
-    <string name="current_stations_desc">Stazioni attuali</string>
 
     <!-- ConfigActivity toasts -->
     <string name="location_label_toast">Posizione: %1$s</string>

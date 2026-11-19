@@ -291,7 +291,6 @@
     <string name="widget_fetching_location">%1$s 날씨 가져오는 중…</string>
     <string name="widget_tap_to_refresh">탭하여 새로고침</string>
     <string name="widget_no_location">위치 없음 — 탭하여 설정</string>
-    <string name="current_stations_desc">현재 관측소</string>
 
     <!-- ConfigActivity toasts -->
     <string name="location_label_toast">위치: %1$s</string>

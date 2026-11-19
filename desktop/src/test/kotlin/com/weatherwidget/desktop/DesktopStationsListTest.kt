@@ -14,7 +14,7 @@ import org.junit.experimental.categories.Category
 import java.nio.file.Files
 
 /**
- * The Observations window's stations list over the real desktop DB ([DesktopStationsListHost] +
+ * The Current Observations window's stations list over the real desktop DB ([DesktopStationsListHost] +
  * :shared [StationsList]). Desktop used to read every row since the cutoff, anywhere: after a move it
  * listed the previous place's stations beside this one's, and with nothing in 24 h it showed an empty
  * list where Android shows the newest stored rows with their age.

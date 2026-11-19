@@ -147,7 +147,7 @@ class SourceViewTallyTest {
     }
 
     @Test
-    fun `every graph view and the observations screen are hourly`() {
+    fun `every graph view and the Current Observations screen are hourly`() {
         val now = ms(LocalDateTime.of(2026, 10, 10, 9, 0))
         ViewMode.entries.filter { it.isGraphMode }.forEach {
             assertEquals(it.name, SourceViewKind.HOURLY, SourceViewTally.switchOf("X", "Y", it, SourceViewTrigger.TOGGLE, now, zone).viewKind)

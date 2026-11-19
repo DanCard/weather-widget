@@ -76,7 +76,7 @@ currentCondition = "Sunny"),
                 onUpdateLocation = {},
                 onUpdateConfig = {},
                 onOpenSettings = {},
-                onOpenObservations = {},
+                onOpenCurrentObservations = {},
             )
         }
 
@@ -101,7 +101,7 @@ currentCondition = "Sunny"),
                 onUpdateLocation = {},
                 onUpdateConfig = {},
                 onOpenSettings = {},
-                onOpenObservations = {},
+                onOpenCurrentObservations = {},
             )
         }
 
@@ -127,7 +127,7 @@ currentCondition = "Sunny"),
                 onUpdateLocation = {},
                 onUpdateConfig = { updatedConfig = it },
                 onOpenSettings = {},
-                onOpenObservations = {},
+                onOpenCurrentObservations = {},
             )
         }
 
@@ -147,7 +147,7 @@ currentCondition = "Sunny"),
                 onUpdateLocation = {},
                 onUpdateConfig = {},
                 onOpenSettings = {},
-                onOpenObservations = {},
+                onOpenCurrentObservations = {},
             )
         }
         composeTestRule.onNodeWithText("72.0°").assertExists()
@@ -175,7 +175,7 @@ currentCondition = "Sunny"),
                 onUpdateLocation = {},
                 onUpdateConfig = { updates += it },
                 onOpenSettings = {},
-                onOpenObservations = {},
+                onOpenCurrentObservations = {},
             )
         }
 
@@ -206,7 +206,7 @@ currentCondition = "Sunny"),
                 onUpdateLocation = {},
                 onUpdateConfig = { config = it },
                 onOpenSettings = {},
-                onOpenObservations = {},
+                onOpenCurrentObservations = {},
             )
         }
 
@@ -271,7 +271,7 @@ currentCondition = "Sunny"),
                 onUpdateLocation = {},
                 onUpdateConfig = { config = it },
                 onOpenSettings = {},
-                onOpenObservations = {},
+                onOpenCurrentObservations = {},
             )
         }
 
@@ -315,7 +315,7 @@ currentCondition = "Sunny"),
                 onUpdateLocation = {},
                 onUpdateConfig = { config = it },
                 onOpenSettings = {},
-                onOpenObservations = {},
+                onOpenCurrentObservations = {},
             )
         }
 
@@ -344,7 +344,7 @@ currentCondition = "Sunny"),
                 onUpdateLocation = {},
                 onUpdateConfig = {},
                 onOpenSettings = {},
-                onOpenObservations = {},
+                onOpenCurrentObservations = {},
             )
         }
 
@@ -398,7 +398,7 @@ currentCondition = "Sunny"),
                 onUpdateLocation = {},
                 onUpdateConfig = { updatedConfig = it },
                 onOpenSettings = {},
-                onOpenObservations = {},
+                onOpenCurrentObservations = {},
             )
         }
 
@@ -430,7 +430,7 @@ currentCondition = "Sunny"),
                 onUpdateLocation = {},
                 onUpdateConfig = { updatedConfig = it },
                 onOpenSettings = {},
-                onOpenObservations = {},
+                onOpenCurrentObservations = {},
             )
         }
 
@@ -457,7 +457,7 @@ currentCondition = "Sunny"),
                 onUpdateLocation = {},
                 onUpdateConfig = {},
                 onOpenSettings = {},
-                onOpenObservations = {},
+                onOpenCurrentObservations = {},
             )
         }
 
@@ -484,7 +484,7 @@ currentCondition = "Sunny"),
                 onUpdateLocation = {},
                 onUpdateConfig = {},
                 onOpenSettings = {},
-                onOpenObservations = {},
+                onOpenCurrentObservations = {},
             )
         }
 
@@ -512,7 +512,7 @@ currentCondition = "Sunny"),
                 onUpdateLocation = {},
                 onUpdateConfig = {},
                 onOpenSettings = {},
-                onOpenObservations = {},
+                onOpenCurrentObservations = {},
             )
         }
 
@@ -538,7 +538,7 @@ currentCondition = "Sunny"),
                 onUpdateLocation = {},
                 onUpdateConfig = {},
                 onOpenSettings = {},
-                onOpenObservations = {},
+                onOpenCurrentObservations = {},
             )
         }
 
@@ -563,7 +563,7 @@ currentCondition = "Sunny"),
                 onUpdateLocation = {},
                 onUpdateConfig = {},
                 onOpenSettings = {},
-                onOpenObservations = {},
+                onOpenCurrentObservations = {},
             )
         }
 
@@ -583,7 +583,7 @@ currentCondition = "Sunny"),
                 onUpdateLocation = {},
                 onUpdateConfig = { updatedConfig = it },
                 onOpenSettings = {},
-                onOpenObservations = {},
+                onOpenCurrentObservations = {},
             )
         }
 
@@ -608,7 +608,7 @@ currentCondition = "Sunny"),
                 onUpdateLocation = {},
                 onUpdateConfig = {},
                 onOpenSettings = {},
-                onOpenObservations = {},
+                onOpenCurrentObservations = {},
             )
         }
 
@@ -775,7 +775,7 @@ currentCondition = "Sunny"),
                 onUpdateLocation = {},
                 onUpdateConfig = {},
                 onOpenSettings = {},
-                onOpenObservations = { opened = true },
+                onOpenCurrentObservations = { opened = true },
             )
         }
 
@@ -794,7 +794,7 @@ currentCondition = "Sunny"),
                 onUpdateLocation = {},
                 onUpdateConfig = {},
                 onOpenSettings = {},
-                onOpenObservations = {},
+                onOpenCurrentObservations = {},
                 onOpenComparison = { opened = it },
             )
         }
@@ -813,7 +813,7 @@ currentCondition = "Sunny"),
                 onUpdateLocation = {},
                 onUpdateConfig = {},
                 onOpenSettings = {},
-                onOpenObservations = {},
+                onOpenCurrentObservations = {},
             )
         }
         composeTestRule.onNodeWithTag("open_months_view_daily").assertDoesNotExist()
@@ -835,7 +835,7 @@ currentCondition = "Sunny"),
                 onUpdateLocation = {},
                 onUpdateConfig = { config = it },
                 onOpenSettings = {},
-                onOpenObservations = {},
+                onOpenCurrentObservations = {},
             )
         }
 
@@ -859,7 +859,7 @@ currentCondition = "Sunny"),
                 onUpdateLocation = {},
                 onUpdateConfig = {},
                 onOpenSettings = {},
-                onOpenObservations = { opened = true },
+                onOpenCurrentObservations = { opened = true },
             )
         }
 
@@ -879,7 +879,7 @@ currentCondition = "Sunny"),
                 onUpdateLocation = {},
                 onUpdateConfig = {},
                 onOpenSettings = {},
-                onOpenObservations = {},
+                onOpenCurrentObservations = {},
             )
         }
 
@@ -899,7 +899,7 @@ currentCondition = "Sunny"),
                 onUpdateLocation = {},
                 onUpdateConfig = { viewMode = it.viewMode },
                 onOpenSettings = {},
-                onOpenObservations = {},
+                onOpenCurrentObservations = {},
             )
         }
 
@@ -917,7 +917,7 @@ currentCondition = "Sunny"),
                 onUpdateLocation = {},
                 onUpdateConfig = { viewMode = it.viewMode },
                 onOpenSettings = {},
-                onOpenObservations = {},
+                onOpenCurrentObservations = {},
             )
         }
         composeTestRule.onNodeWithTag("graph_selector").performMouseInput { rightClick() }
@@ -933,7 +933,7 @@ currentCondition = "Sunny"),
                 onUpdateLocation = {},
                 onUpdateConfig = { viewMode = it.viewMode },
                 onOpenSettings = {},
-                onOpenObservations = {},
+                onOpenCurrentObservations = {},
             )
         }
         composeTestRule.onNodeWithTag("graph_selector").performClick()
@@ -949,7 +949,7 @@ currentCondition = "Sunny"),
                 onUpdateLocation = {},
                 onUpdateConfig = { viewMode = it.viewMode },
                 onOpenSettings = {},
-                onOpenObservations = {},
+                onOpenCurrentObservations = {},
             )
         }
         composeTestRule.onNodeWithTag("graph_selector").performMouseInput { rightClick() }
@@ -965,7 +965,7 @@ currentCondition = "Sunny"),
                 onUpdateLocation = {},
                 onUpdateConfig = { viewMode = it.viewMode },
                 onOpenSettings = {},
-                onOpenObservations = {},
+                onOpenCurrentObservations = {},
             )
         }
         composeTestRule.onNodeWithTag("graph_selector").performClick()
@@ -981,7 +981,7 @@ currentCondition = "Sunny"),
                 onUpdateLocation = {},
                 onUpdateConfig = { viewMode = it.viewMode },
                 onOpenSettings = {},
-                onOpenObservations = {},
+                onOpenCurrentObservations = {},
             )
         }
         composeTestRule.onNodeWithTag("graph_selector").performMouseInput { rightClick() }
@@ -1078,8 +1078,8 @@ currentCondition = "Sunny"),
     }
 
     /**
-     * Regression for the Stations window cancellation bug: progress is owned by Main alongside the
-     * application scope, not by ObservationsWindow's disposable composition scope.
+     * Regression for the Current Observations window cancellation bug: progress is owned by Main alongside the
+     * application scope, not by CurrentObservationsWindow's disposable composition scope.
      */
     @Test
     fun testObservationsRefreshingStateIsDrivenByCaller() {
@@ -1284,7 +1284,7 @@ currentCondition = "Sunny"),
                 onUpdateLocation = {},
                 onUpdateConfig = {},
                 onOpenSettings = { settingsOpened++ },
-                onOpenObservations = {},
+                onOpenCurrentObservations = {},
                 currentTempFetchError = "GOOGLE WEATHER UPDATES FAILING\n401 Unauthorized",
                 currentTempFetchPill = DesktopFailurePill("Google Weather", "HTTP_401", System.currentTimeMillis() - 60_000L),
                 currentTempFetchDetails = details,

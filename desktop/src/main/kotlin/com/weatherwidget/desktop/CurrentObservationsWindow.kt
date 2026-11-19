@@ -64,7 +64,7 @@ import com.weatherwidget.shared.observations.StationsList
 import com.weatherwidget.shared.util.Log
 import java.time.format.DateTimeFormatter
 
-/** Shared palette for the Observations & Logs window (pure-black "OLED" look). */
+/** Shared palette for the Current Observations window (pure-black "OLED" look). */
 /** Parses a `#RRGGBB` / `#AARRGGBB` string (the `:shared` style constants) into a Compose [Color]. */
 internal fun parseHexColor(hex: String): Color {
     val clean = hex.removePrefix("#")
@@ -207,10 +207,10 @@ internal class DesktopStationsListHost(
     }
 }
 
-private const val TAG = "ObservationsWindow"
+private const val TAG = "CurrentObservationsWindow"
 
 @Composable
-internal fun ObservationsWindow(
+internal fun CurrentObservationsWindow(
     weatherDao: DesktopWeatherDao,
     config: DesktopConfig,
     showRequestId: Int = 0,
@@ -250,7 +250,7 @@ internal fun ObservationsWindow(
     Window(
         onCloseRequest = onClose,
         state = state,
-        title = "Weather Observations & Logs",
+        title = "Current Observations",
         onKeyEvent = { keyEvent ->
             if (keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.Escape) {
                 onClose()
@@ -265,7 +265,7 @@ internal fun ObservationsWindow(
             windowState = state,
             showRequestId = showRequestId,
         )
-        ObservationsContent(
+        CurrentObservationsContent(
             weatherDao = weatherDao,
             config = config,
             showRequestId = showRequestId,
@@ -279,12 +279,12 @@ internal fun ObservationsWindow(
 }
 
 /**
- * Everything inside the Observations & Logs window, apart from the window itself, as
+ * Everything inside the Current Observations window, apart from the window itself, as
  * [SettingsWindow] is to `SettingsWindowHost`: tests render it in the test's own window, where
  * clicks land reliably (into a real [Window] they are dropped at random).
  */
 @Composable
-internal fun ObservationsContent(
+internal fun CurrentObservationsContent(
     weatherDao: DesktopWeatherDao,
     config: DesktopConfig,
     showRequestId: Int = 0,
@@ -387,7 +387,7 @@ internal fun ObservationsContent(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        "Stations",
+                        "Current Observations",
                         fontSize = 24.sp,
                         style = MaterialTheme.typography.titleLarge,
                         modifier = Modifier.weight(1f).padding(start = 8.dp)
@@ -538,7 +538,7 @@ internal fun ObservationsContent(
                     }
                 }
             }
-            RefreshNoticePill(RefreshNoticeSurface.OBSERVATIONS, Modifier.align(Alignment.BottomCenter))
+            RefreshNoticePill(RefreshNoticeSurface.CURRENT_OBSERVATIONS, Modifier.align(Alignment.BottomCenter))
             }
         }
     }
@@ -585,7 +585,7 @@ internal fun DataCard(modifier: Modifier = Modifier, content: @Composable Column
 /**
  * Caller-owned Stations refresh control.
  *
- * The network operation must not be launched from [ObservationsWindow]'s composition scope: closing
+ * The network operation must not be launched from [CurrentObservationsWindow]'s composition scope: closing
  * that window disposes the scope and cancels the fetch. Keeping this control callback-only makes the
  * ownership boundary explicit and lets [Main] run the work in its application-level UI scope.
  */
@@ -613,7 +613,7 @@ internal fun ObservationRefreshButton(
 /**
  * Names the feed supplying this source's actuals, and lets the user change it.
  *
- * Mirrors the Android row in `WeatherObservationsActivity`. Tier is shown inline rather than as a
+ * Mirrors the Android row in `CurrentObservationsActivity`. Tier is shown inline rather than as a
  * section header: presenting Tomorrow.io's six-hour analysis window as equivalent to a thermometer
  * is the one thing this picker must not do. Rows that cannot serve here stay in place, disabled
  * with the reason, so the list does not reshuffle as the user travels.

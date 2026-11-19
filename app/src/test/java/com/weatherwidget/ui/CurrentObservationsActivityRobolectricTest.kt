@@ -42,7 +42,7 @@ import org.junit.experimental.categories.Category
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 @Category(LongDuration::class)
-class WeatherObservationsActivityRobolectricTest {
+class CurrentObservationsActivityRobolectricTest {
     private lateinit var context: Context
     private lateinit var database: WeatherDatabase
     private lateinit var stateManager: WidgetStateManager
@@ -82,7 +82,7 @@ class WeatherObservationsActivityRobolectricTest {
         // Pin the premise: debug builds default to Google Weather as primary (2026-10-06), and this
         // test is about NWS mode.
         WidgetStateManager(context).setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN))
-        WeatherObservationsActivity.autoRefreshDebounceMs = 0L
+        CurrentObservationsActivity.autoRefreshDebounceMs = 0L
 
         val widgetPrefs = SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME)
         widgetPrefs.edit()
@@ -158,13 +158,13 @@ class WeatherObservationsActivityRobolectricTest {
         WeatherDatabase.resetInstanceForTesting()
         WeatherDatabase.setIsTesting(false)
         WidgetStateManager.setPrefsNameOverrideForTesting(null)
-        WeatherObservationsActivity.autoRefreshDebounceMs = 500L
+        CurrentObservationsActivity.autoRefreshDebounceMs = 500L
         clearTestPrefs("weather_widget_prefs")
         clearTestPrefs("widget_state_prefs")
         clearTestPrefs("weather_prefs")
     }
 
-    /** The Observations screen's source button counts as viewing that source (source_view_days). */
+    /** The Current Observations screen's source button counts as viewing that source (source_view_days). */
     @Test
     fun `source button switches the widget source, counted as OBSERVATIONS`() {
         val scenario = launchActivity()
@@ -184,7 +184,7 @@ class WeatherObservationsActivityRobolectricTest {
         }
 
         val rows = runBlocking { database.sourceViewDao().getSince(0L) }
-        println("WeatherObservationsActivity source switch rows=$rows")
+        println("CurrentObservationsActivity source switch rows=$rows")
         assertEquals(1, rows.size)
         val row = rows.single()
         assertEquals(WeatherSource.OPEN_METEO.id, row.sourceId)
@@ -662,8 +662,8 @@ class WeatherObservationsActivityRobolectricTest {
     fun `activityStarts_withDefaultSource_whenNoWidgetIdProvided`() {
         stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.WEATHER_API))
 
-        val intent = Intent(context, WeatherObservationsActivity::class.java)
-        val scenario = ActivityScenario.launch<WeatherObservationsActivity>(intent)
+        val intent = Intent(context, CurrentObservationsActivity::class.java)
+        val scenario = ActivityScenario.launch<CurrentObservationsActivity>(intent)
         scenario.onActivity { it.ioDispatcher = testDispatcher }
         // Force a re-load now that we have the synchronous dispatcher
         scenario.onActivity { 
@@ -698,7 +698,7 @@ class WeatherObservationsActivityRobolectricTest {
     fun `observations activity does not share a task with the welcome MainActivity`() {
         val pm = context.packageManager
         val obsInfo = pm.getActivityInfo(
-            ComponentName(context, WeatherObservationsActivity::class.java), 0)
+            ComponentName(context, CurrentObservationsActivity::class.java), 0)
         val mainInfo = pm.getActivityInfo(
             ComponentName(context, MainActivity::class.java), 0)
         assertNotEquals(
@@ -845,7 +845,7 @@ class WeatherObservationsActivityRobolectricTest {
 
         assertEquals(
             "The passive resample must run under the observations_screen trigger",
-            listOf(WeatherObservationsActivity.TRIGGER_SOURCE),
+            listOf(CurrentObservationsActivity.TRIGGER_SOURCE),
             resampleTriggers,
         )
         assertEquals("The repair must fetch once, under the widget's location", 1, refreshedLocations.size)
@@ -862,7 +862,7 @@ class WeatherObservationsActivityRobolectricTest {
         val prefs = SharedPreferencesUtil.getPrefs(context, "weather_widget_prefs")
         assertTrue(
             "The trigger must record its timestamp for the debounce window",
-            prefs.getLong(WeatherObservationsActivity.KEY_LAST_STALE_AUTO_REFRESH_MS, 0L) > 0L,
+            prefs.getLong(CurrentObservationsActivity.KEY_LAST_STALE_AUTO_REFRESH_MS, 0L) > 0L,
         )
     }
 
@@ -912,10 +912,10 @@ class WeatherObservationsActivityRobolectricTest {
             1,
             refreshedLocations.size,
         )
-        assertEquals(1, resampleTriggers.count { it == WeatherObservationsActivity.TRIGGER_SOURCE })
+        assertEquals(1, resampleTriggers.count { it == CurrentObservationsActivity.TRIGGER_SOURCE })
     }
 
-    private fun adapterOf(activity: WeatherObservationsActivity) =
+    private fun adapterOf(activity: CurrentObservationsActivity) =
         activity.findViewById<RecyclerView>(R.id.observations_list).adapter
             as ObservationAdapter
 
@@ -936,12 +936,12 @@ class WeatherObservationsActivityRobolectricTest {
     ): ObservationEntity = observation(stationId, stationName, timestamp, temperature, 0f)
         .copy(locationLat = locationLat, locationLon = locationLon)
 
-    private fun launchActivity(): ActivityScenario<WeatherObservationsActivity> {
+    private fun launchActivity(): ActivityScenario<CurrentObservationsActivity> {
         val intent =
-            Intent(context, WeatherObservationsActivity::class.java).apply {
+            Intent(context, CurrentObservationsActivity::class.java).apply {
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
             }
-        val scenario = ActivityScenario.launch<WeatherObservationsActivity>(intent)
+        val scenario = ActivityScenario.launch<CurrentObservationsActivity>(intent)
         scenario.onActivity {
             it.ioDispatcher = testDispatcher
             // The injected runner runs on the app's real IO scope, so the repair's fetch landed on a

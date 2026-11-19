@@ -6,7 +6,7 @@ import com.weatherwidget.data.model.WeatherSource
 
 /**
  * Maps an observation-screen station to its public web history page, or null when no such page is
- * known. Shared by the Android ([WeatherObservationsActivity]) and desktop ([ObservationsWindow])
+ * known. Shared by the Android ([CurrentObservationsActivity]) and desktop ([CurrentObservationsWindow])
  * observation screens so both link identically.
  *
  * Only NWS stations have a public per-station page: the NWS Western Region "time series" tool, which

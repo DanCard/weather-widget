@@ -291,7 +291,6 @@
     <string name="widget_fetching_location">Получение погоды для %1$s…</string>
     <string name="widget_tap_to_refresh">Нажмите для обновления</string>
     <string name="widget_no_location">Нет местоположения — нажмите, чтобы задать</string>
-    <string name="current_stations_desc">Текущие станции</string>
 
     <!-- ConfigActivity toasts -->
     <string name="location_label_toast">Местоположение: %1$s</string>

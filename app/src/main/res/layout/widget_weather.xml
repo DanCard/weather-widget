@@ -1799,7 +1799,7 @@
                 android:layout_marginTop="-10dp"
                 android:paddingTop="-4dp"
                 android:src="@drawable/ic_thermometer"
-                android:contentDescription="@string/current_stations_desc"
+                android:contentDescription="@string/current_observations_title"
                 android:tint="#AAFFFFFF" />
         </FrameLayout>
 

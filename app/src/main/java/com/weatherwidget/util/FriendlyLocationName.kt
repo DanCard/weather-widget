@@ -9,7 +9,7 @@ import java.util.Locale
  * Resolves a human-readable name ("Mountain View, California") for coordinates anywhere the UI
  * would otherwise show bare lat/lon. Local sources first — no network on the common path:
  *
- * 1. User-set aliases from the observations screen (`alias_*` in `weather_widget_prefs`).
+ * 1. User-set aliases from the Current Observations screen (`alias_*` in `weather_widget_prefs`).
  * 2. Previously reverse-geocoded names cached here (`geo_name_*` in `weather_prefs`).
  * 3. Labels already stored with `historical_pois` entries (search and GPS handoff both save real names).
  *
@@ -22,7 +22,7 @@ object FriendlyLocationName {
 
     /** Local-only lookup; safe on hot paths (prefs reads, no network). Null when unknown. */
     fun cached(context: Context, lat: Double, lon: Double): String? {
-        // Deliberately default-locale: must match the key WeatherObservationsActivity writes.
+        // Deliberately default-locale: must match the key CurrentObservationsActivity writes.
         val aliasKey = String.format("alias_%.3f_%.3f", lat, lon)
         SharedPreferencesUtil.getPrefs(context, ALIAS_PREFS).getString(aliasKey, null)
             ?.takeIf { it.isNotBlank() }

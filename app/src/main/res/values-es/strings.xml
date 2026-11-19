@@ -286,7 +286,6 @@
     <string name="widget_fetching_location">Obteniendo el tiempo para %1$s…</string>
     <string name="widget_tap_to_refresh">Toca para actualizar</string>
     <string name="widget_no_location">Sin ubicación: toca para configurar</string>
-    <string name="current_stations_desc">Estaciones actuales</string>
 
     <string name="location_label_toast">Ubicación: %1$s</string>
     <string name="saving_coordinates_offline">Guardando coordenadas (búsqueda de nombre sin conexión)</string>

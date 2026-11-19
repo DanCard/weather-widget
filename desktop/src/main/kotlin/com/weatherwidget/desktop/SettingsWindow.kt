@@ -69,7 +69,7 @@ internal fun SettingsWindow(
     onUpdateLocation: () -> Unit = {},
     // Android's Settings has no Observations entry — the widget's current-temperature tap opens
     // that screen, and the desktop header's thermometer icon is the same door — so there is no
-    // onOpenObservations here. The icon gallery, by contrast, IS a Settings destination on Android
+    // onOpenCurrentObservations here. The icon gallery, by contrast, IS a Settings destination on Android
     // (a button to IconGalleryActivity), mirrored here as a button to its own window.
     onOpenIconGallery: () -> Unit = {},
     // Data Usage → "Usage stats…": API calls per source in its own window (Android: UsageStatsActivity).

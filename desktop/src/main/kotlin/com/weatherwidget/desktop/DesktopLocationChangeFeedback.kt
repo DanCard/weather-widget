@@ -9,7 +9,7 @@ import java.time.LocalDate
  *
  * A config save from the location picker to a *different* site returns the place name the popup
  * should announce ("Getting weather for {place}…") while the new site's first fetch is in flight.
- * Every other writer — Settings, the popup's own zoom/offset persistence, observations window —
+ * Every other writer — Settings, the popup's own zoom/offset persistence, Current Observations window —
  * returns null: they never move the site, and a jittered re-save of the same site is not a move.
  */
 internal object DesktopLocationChangeFeedback {

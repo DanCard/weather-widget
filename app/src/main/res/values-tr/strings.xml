@@ -291,7 +291,6 @@
     <string name="widget_fetching_location">%1$s için hava durumu alınıyor…</string>
     <string name="widget_tap_to_refresh">Yenilemek için dokunun</string>
     <string name="widget_no_location">Konum yok — ayarlamak için dokunun</string>
-    <string name="current_stations_desc">Mevcut istasyonlar</string>
 
     <!-- ConfigActivity toasts -->
     <string name="location_label_toast">Konum: %1$s</string>

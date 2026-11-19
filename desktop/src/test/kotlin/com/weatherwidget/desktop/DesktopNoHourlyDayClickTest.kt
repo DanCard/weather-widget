@@ -102,7 +102,7 @@ class DesktopNoHourlyDayClickTest {
                     onUpdateLocation = {},
                     onUpdateConfig = { shownConfig = it },
                     onOpenSettings = {},
-                    onOpenObservations = {},
+                    onOpenCurrentObservations = {},
                     onNeedHourlyRefresh = { date, onComplete ->
                         fetchedDate = date
                         completeFetch = onComplete

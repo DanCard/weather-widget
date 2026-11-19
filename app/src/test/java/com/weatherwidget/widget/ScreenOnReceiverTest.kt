@@ -163,7 +163,7 @@ class ScreenOnReceiverTest {
      * The fix from `plans/260902-repaint-on-screen-on-when-a-paint-is-owed.md`. A fetch landing
      * while the screen is off sets the debt and paints nothing; without this branch the stale
      * bitmap survived until the next `ui_update_alarm` — 68 s measured on a Samsung fold, with the
-     * Observations screen showing the newer reading the whole time.
+     * Current Observations screen showing the newer reading the whole time.
      */
     @Test
     fun `onReceive with SCREEN_ON and a paint owed sends a cache-only refresh broadcast`() {

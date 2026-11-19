@@ -108,3 +108,21 @@ Alternative: keep the old tag string. **User decision needed.**
   planned; also unify the visible titles; name the code after "Current Observations"; or skip.
   Also note `DesktopConfig.kt` compares the save source against the literal `"observations"` as well as
   `ConfigSaveSource.OBSERVATIONS_WINDOW`.
+
+## Decision (user, 2026-11-19): "Current Observations", rename all
+
+Claude recommended "Current Observations" (the screen's three tabs are Blend, Observations and Fetch
+logs; "Stations" names one; Android already titles it so in all locales). User: "rename all".
+
+- Code: `WeatherObservationsActivity` → `CurrentObservationsActivity` (manifest, log tag),
+  `WeatherObservationsSupport` → `CurrentObservationsSupport`, `ObservationsWindow` →
+  `CurrentObservationsWindow`, `ObservationsContent` → `CurrentObservationsContent`,
+  `onOpenObservations` → `onOpenCurrentObservations`, `observationsVisible` →
+  `currentObservationsVisible`, `obsShowRequestId` → `currentObservationsShowRequestId`,
+  `setupWeatherStationsShortcut` → `setupCurrentObservationsShortcut`,
+  `RefreshNoticeSurface.OBSERVATIONS` → `CURRENT_OBSERVATIONS`, `ConfigSaveSource.OBSERVATIONS_*` →
+  `CURRENT_OBSERVATIONS_*`; tests named after the old classes follow.
+- Visible: desktop window title and heading "Current Observations"; the widget button description uses
+  `current_observations_title` (already translated).
+- Kept: config keys `obsWindow*`/`obsSelectedTab`, the `observations-*` save-source values, the
+  `"observations"` refresh-origin and log strings, `SourceViewTrigger.OBSERVATIONS`, the Observations tab.

@@ -11,7 +11,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.R
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.ui.WeatherObservationsActivity
+import com.weatherwidget.ui.CurrentObservationsActivity
 import com.weatherwidget.widget.WidgetStateManager
 import io.mockk.every
 import io.mockk.mockk
@@ -33,7 +33,7 @@ import org.junit.experimental.categories.Category
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 @Category(LongDuration::class)
-class WeatherObservationsShortcutTest {
+class CurrentObservationsShortcutTest {
     private lateinit var context: Context
     private lateinit var app: Application
     private val appWidgetId = 315
@@ -46,7 +46,7 @@ class WeatherObservationsShortcutTest {
     }
 
     @Test
-    fun `TemperatureViewHandler thermometer icon starts WeatherObservationsActivity directly`() = runBlocking {
+    fun `TemperatureViewHandler thermometer icon starts CurrentObservationsActivity directly`() = runBlocking {
         val views = renderTemperatureWidget()
         val applied = applyViews(views)
         
@@ -59,7 +59,7 @@ class WeatherObservationsShortcutTest {
         val nextStartedActivity = shadowOf(app).nextStartedActivity
         assertNotNull("Clicking thermometer icon should start an activity", nextStartedActivity)
         assertEquals(
-            WeatherObservationsActivity::class.java.name,
+            CurrentObservationsActivity::class.java.name,
             nextStartedActivity.component?.className
         )
         assertEquals(

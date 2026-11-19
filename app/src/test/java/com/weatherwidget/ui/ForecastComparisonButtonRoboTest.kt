@@ -157,7 +157,7 @@ class ForecastComparisonButtonRoboTest {
         )
     }
 
-    // Samsung regression (same family as WeatherObservationsActivity/SettingsActivity): the widget
+    // Samsung regression (same family as CurrentObservationsActivity/SettingsActivity): the widget
     // launches this activity with FLAG_ACTIVITY_NEW_TASK (WeatherWidgetProvider.navigateToHistory).
     // If it shared MainActivity's (default) task affinity, One UI Home would foreground the
     // MainActivity-rooted task and back/finish here would reveal the "Welcome to Weather Widget"

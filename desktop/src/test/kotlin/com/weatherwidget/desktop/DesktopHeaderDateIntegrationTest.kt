@@ -91,7 +91,7 @@ class DesktopHeaderDateIntegrationTest {
                     onUpdateLocation = {},
                     onUpdateConfig = {},
                     onOpenSettings = {},
-                    onOpenObservations = {},
+                    onOpenCurrentObservations = {},
                     onOpenComparison = {},
                 )
             }
@@ -175,7 +175,7 @@ class DesktopHeaderDateIntegrationTest {
                     onUpdateLocation = {},
                     onUpdateConfig = {},
                     onOpenSettings = {},
-                    onOpenObservations = {},
+                    onOpenCurrentObservations = {},
                     onOpenComparison = {},
                 )
             }
@@ -202,7 +202,7 @@ class DesktopHeaderDateIntegrationTest {
                     onUpdateLocation = {},
                     onUpdateConfig = {},
                     onOpenSettings = {},
-                    onOpenObservations = {},
+                    onOpenCurrentObservations = {},
                     onOpenComparison = {},
                 )
             }

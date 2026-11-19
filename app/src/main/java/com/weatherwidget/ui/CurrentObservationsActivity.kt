@@ -71,8 +71,8 @@ import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class WeatherObservationsActivity : AppCompatActivity() {
-    private val TAG = "WeatherObservations"
+class CurrentObservationsActivity : AppCompatActivity() {
+    private val TAG = "CurrentObservationsActivity"
 
     /**
      * Dispatcher used for background operations.
@@ -154,7 +154,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_weather_observations)
+        setContentView(R.layout.activity_current_observations)
 
         recyclerView = findViewById(R.id.observations_list)
         recyclerView.layoutManager = LinearLayoutManager(this)
@@ -229,9 +229,9 @@ class WeatherObservationsActivity : AppCompatActivity() {
         val origin = "observations_open"
         lifecycleScope.launch {
             val (lat, lon) = withContext(ioDispatcher) { resolveLocation() } ?: return@launch
-            com.weatherwidget.widget.ViewingForecastRefresher.onScreenOpen(this@WeatherObservationsActivity, source, lat, lon, origin) {
+            com.weatherwidget.widget.ViewingForecastRefresher.onScreenOpen(this@CurrentObservationsActivity, source, lat, lon, origin) {
                 com.weatherwidget.widget.RefreshToast.show(
-                    this@WeatherObservationsActivity,
+                    this@CurrentObservationsActivity,
                     origin,
                     com.weatherwidget.shared.util.RefreshNotice.Queued(com.weatherwidget.shared.util.RefreshNotice.Kind.FORECAST, source.shortDisplayName),
                 )
@@ -250,10 +250,10 @@ class WeatherObservationsActivity : AppCompatActivity() {
                 if (ok) widgetContentChanged = true
                 val outcome = com.weatherwidget.widget.SyncDoneNotice.outcome(widgetStateManager, source, ok, startedAtMs)
                 com.weatherwidget.widget.RefreshToast.showOutcome(
-                    this@WeatherObservationsActivity,
+                    this@CurrentObservationsActivity,
                     origin,
                     outcome,
-                    ForecastComparisonActivity.refreshOutcomeText(this@WeatherObservationsActivity, outcome, source.shortDisplayName),
+                    ForecastComparisonActivity.refreshOutcomeText(this@CurrentObservationsActivity, outcome, source.shortDisplayName),
                 )
             }
         }
@@ -424,7 +424,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
 
             if (location == null) {
                 com.weatherwidget.widget.RefreshToast.show(
-                    this@WeatherObservationsActivity,
+                    this@CurrentObservationsActivity,
                     "observations_refresh",
                     com.weatherwidget.shared.util.RefreshNotice.NotQueued(com.weatherwidget.shared.util.RefreshNotice.Reason.NO_LOCATION),
                 )
@@ -434,7 +434,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
             val source = currentSource
             val obsKey = "${source.id}:observations"
             val nowMs = System.currentTimeMillis()
-            val lastRefresh = FetchMetadata.getLastUserRefreshTime(this@WeatherObservationsActivity, obsKey)
+            val lastRefresh = FetchMetadata.getLastUserRefreshTime(this@CurrentObservationsActivity, obsKey)
             when (val decision = UserRefreshThrottle.check(lastRefresh, nowMs, lastFetchMs = null)) {
                 is UserRefreshThrottle.Decision.Throttled -> {
                     val notice = com.weatherwidget.shared.util.RefreshNotice.NotQueued(
@@ -443,17 +443,17 @@ class WeatherObservationsActivity : AppCompatActivity() {
                         elapsedMinutes = decision.elapsedMinutes,
                         remainingMinutes = decision.remainingMinutes,
                     )
-                    com.weatherwidget.widget.RefreshToast.show(this@WeatherObservationsActivity, "observations_refresh", notice)
+                    com.weatherwidget.widget.RefreshToast.show(this@CurrentObservationsActivity, "observations_refresh", notice)
                     return@launch
                 }
                 is UserRefreshThrottle.Decision.Allowed -> {
-                    FetchMetadata.setLastUserRefreshTime(this@WeatherObservationsActivity, nowMs, obsKey)
+                    FetchMetadata.setLastUserRefreshTime(this@CurrentObservationsActivity, nowMs, obsKey)
                 }
             }
 
             findViewById<View>(R.id.refresh_button).isEnabled = false
             findViewById<View>(R.id.refresh_button).alpha = 0.5f
-            com.weatherwidget.widget.RefreshToast.show(this@WeatherObservationsActivity, "observations_refresh", com.weatherwidget.shared.util.RefreshNotice.Queued(com.weatherwidget.shared.util.RefreshNotice.Kind.OBSERVATIONS, source.shortDisplayName))
+            com.weatherwidget.widget.RefreshToast.show(this@CurrentObservationsActivity, "observations_refresh", com.weatherwidget.shared.util.RefreshNotice.Queued(com.weatherwidget.shared.util.RefreshNotice.Kind.OBSERVATIONS, source.shortDisplayName))
             
             // In the app scope, not lifecycleScope: closing this screen mid-fetch cancelled the
             // fetch and stored nothing (Fold 4, 2026-10-13). Leaving now cancels only the waiting.
@@ -505,7 +505,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
             findViewById<View>(R.id.refresh_button).isEnabled = true
             findViewById<View>(R.id.refresh_button).alpha = 1.0f
             
-            android.widget.Toast.makeText(this@WeatherObservationsActivity, getString(R.string.obs_refreshed_source, currentSource.shortDisplayName), android.widget.Toast.LENGTH_SHORT).show()
+            android.widget.Toast.makeText(this@CurrentObservationsActivity, getString(R.string.obs_refreshed_source, currentSource.shortDisplayName), android.widget.Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -562,7 +562,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
                 )
                 // A forced full sync of the displayed source: it re-reads that source's actuals.
                 lifecycleScope.launch {
-                    com.weatherwidget.widget.RefreshToast.show(this@WeatherObservationsActivity, "actuals_provider", com.weatherwidget.shared.util.RefreshNotice.Queued(com.weatherwidget.shared.util.RefreshNotice.Kind.FORECAST))
+                    com.weatherwidget.widget.RefreshToast.show(this@CurrentObservationsActivity, "actuals_provider", com.weatherwidget.shared.util.RefreshNotice.Queued(com.weatherwidget.shared.util.RefreshNotice.Kind.FORECAST))
                 }
                 widgetContentChanged = true
                 dialog.dismiss()
@@ -608,7 +608,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
         val appContext = applicationContext
         val widgetId = appWidgetId
         return {
-            if (WeatherObservationsSupport.shouldRefreshWidgetOnExit(widgetId, widgetContentChanged = true)) {
+            if (CurrentObservationsSupport.shouldRefreshWidgetOnExit(widgetId, widgetContentChanged = true)) {
                 appContext.sendBroadcast(
                     Intent(appContext, com.weatherwidget.widget.WidgetActionReceiver::class.java).apply {
                         action = com.weatherwidget.widget.WidgetActions.ACTION_REFRESH
@@ -624,7 +624,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
         super.onDestroy()
         // A simple inspection does not invalidate the widget. Repaint only the originating widget
         // after this activity actually changed its source or fetched fresh observations.
-        if (WeatherObservationsSupport.shouldRefreshWidgetOnExit(appWidgetId, widgetContentChanged)) {
+        if (CurrentObservationsSupport.shouldRefreshWidgetOnExit(appWidgetId, widgetContentChanged)) {
             val refreshIntent = Intent(this, com.weatherwidget.widget.WidgetActionReceiver::class.java).apply {
                 action = com.weatherwidget.widget.WidgetActions.ACTION_REFRESH
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
@@ -788,7 +788,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
         loadObservationsJob = lifecycleScope.launch(ioDispatcher) {
             try {
                 // The rule — site scope, recent else newest stored, latest per station, the main-reading
-                // fallback, the subtitle — is :shared StationsList (desktop's Observations window too).
+                // fallback, the subtitle — is :shared StationsList (desktop's Current Observations window too).
                 val location = resolveLocation()
                 val source = currentSource
                 val host = RoomStationsListHost(observationDao, location)
@@ -825,11 +825,11 @@ class WeatherObservationsActivity : AppCompatActivity() {
         loadFetchLogsJob = lifecycleScope.launch(ioDispatcher) {
             try {
                 val filteredLogs = appLogDao.getCurrentObservationFetchLogs(200)
-                    .filter { WeatherObservationsSupport.matchesFetchLog(it, currentSource) }
+                    .filter { CurrentObservationsSupport.matchesFetchLog(it, currentSource) }
 
                 val logText = filteredLogs.joinToString("\n") { log ->
                     val time = DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault()).format(Instant.ofEpochMilli(log.timestamp))
-                    "[$time] ${WeatherObservationsSupport.formatFetchLog(log, currentSource)}"
+                    "[$time] ${CurrentObservationsSupport.formatFetchLog(log, currentSource)}"
                 }
                 withContext(Dispatchers.Main) {
                     findViewById<TextView>(R.id.fetch_logs).text =

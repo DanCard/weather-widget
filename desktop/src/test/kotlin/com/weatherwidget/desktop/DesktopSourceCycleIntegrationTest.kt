@@ -82,7 +82,7 @@ class DesktopSourceCycleIntegrationTest {
     fun `stations source pill - left click next, right click previous, each switch counted`() {
         var cfg by mutableStateOf(config)
         composeTestRule.setContent {
-            ObservationsContent(
+            CurrentObservationsContent(
                 weatherDao = dao, config = cfg, onClose = {},
                 saves = DataWindowSaves.forStations { draft, label -> cfg = resolveDesktopConfigSave(cfg, draft, label).config },
             )

@@ -277,7 +277,7 @@ internal fun ForecastComparisonContent(
 
 /**
  * `[←] [‹] date [›] … [source] [⟳] [⚙]` — the Android header's order (`activity_forecast_comparison.xml`),
- * with its rules from [ForecastComparisonHeader]; styled like the Observations window. ← closes the
+ * with its rules from [ForecastComparisonHeader]; styled like the Current Observations window. ← closes the
  * window, as Android's back finishes the screen.
  */
 @Composable

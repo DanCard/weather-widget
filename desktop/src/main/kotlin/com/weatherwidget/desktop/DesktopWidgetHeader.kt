@@ -54,8 +54,8 @@ internal fun WidgetHeader(
     resolvedDeltaFromYesterday: Float? = null,
     onUpdateConfig: (DesktopConfig) -> Unit,
     onOpenSettings: () -> Unit,
-    /** Opens the Observations window for the viewed day (a past day lets its refresh refill stale Google hours). */
-    onOpenObservations: (LocalDate) -> Unit,
+    /** Opens the Current Observations window for the viewed day (a past day lets its refresh refill stale Google hours). */
+    onOpenCurrentObservations: (LocalDate) -> Unit,
     onOpenComparison: (viewedDate: LocalDate) -> Unit = {},
     onUpdateLocation: () -> Unit,
     headerTime: LocalDateTime = LocalDateTime.now(),
@@ -387,7 +387,7 @@ internal fun WidgetHeader(
                     // The date only scopes the window's Refresh (a previous day's Google history
                     // refill), as for history below.
                     HeaderButton.OBSERVATIONS -> {
-                        { onOpenObservations(if (!isHourly && todayInView) LocalDate.now() else targetHour.toLocalDate()) }
+                        { onOpenCurrentObservations(if (!isHourly && todayInView) LocalDate.now() else targetHour.toLocalDate()) }
                     }
                     HeaderButton.GRAPH_SELECTOR -> {
                         { onUpdateConfig(config.copy(viewMode = GraphSelector.next(config.viewMode))) }

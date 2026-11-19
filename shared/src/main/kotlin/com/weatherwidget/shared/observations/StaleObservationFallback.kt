@@ -2,7 +2,7 @@ package com.weatherwidget.shared.observations
 
 /**
  * Decides what the stations list shows when the recent window is empty, shared by the Android
- * Current Observations screen and the desktop Observations window.
+ * Current Observations screen and the desktop Current Observations window.
  *
  * The screen's normal query is bounded to [RECENT_WINDOW_MS]. When that returns nothing for the
  * displayed source, a blank list plus "No recent observations found" is the least useful of the

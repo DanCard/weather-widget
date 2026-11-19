@@ -113,7 +113,7 @@ class DesktopForecastDeltaViewsIntegrationTest {
                 onUpdateLocation = {},
                 onUpdateConfig = {},
                 onOpenSettings = {},
-                onOpenObservations = {},
+                onOpenCurrentObservations = {},
                 nowOverrideMs = incident.nowMs,
                 onForecastDeltaPlaced = { graphLabel = it },
             )

@@ -31,7 +31,7 @@ class DesktopWindowBringToFrontIntegrationTest {
     @Test
     fun `all desktop window composables wire showRequestId and use BringToFrontOnShow`() {
         val windowHosts = sourceRoot.resolve("DesktopWindowHosts.kt").readText()
-        val observations = sourceRoot.resolve("ObservationsWindow.kt").readText()
+        val observations = sourceRoot.resolve("CurrentObservationsWindow.kt").readText()
         val history = sourceRoot.resolve("ForecastComparisonWindow.kt").readText()
         val logs = sourceRoot.resolve("AppLogsWindow.kt").readText()
         val stats = sourceRoot.resolve("StatisticsWindow.kt").readText()
@@ -41,7 +41,7 @@ class DesktopWindowBringToFrontIntegrationTest {
             "SettingsWindowHost in DesktopWindowHosts" to (windowHosts.contains("fun SettingsWindowHost") && windowHosts.contains("showRequestId: Int")),
             "LocationPickerWindowHost in DesktopWindowHosts" to (windowHosts.contains("fun LocationPickerWindowHost") && windowHosts.contains("showRequestId: Int")),
             "IconGalleryWindowHost in DesktopWindowHosts" to (windowHosts.contains("fun IconGalleryWindowHost") && windowHosts.contains("showRequestId: Int")),
-            "ObservationsWindow" to (observations.contains("BringToFrontOnShow") && observations.contains("showRequestId")),
+            "CurrentObservationsWindow" to (observations.contains("BringToFrontOnShow") && observations.contains("showRequestId")),
             "ForecastComparisonWindow" to (history.contains("BringToFrontOnShow") && history.contains("showRequestId")),
             "AppLogsWindow" to (logs.contains("BringToFrontOnShow") && logs.contains("showRequestId")),
             "StatisticsWindow" to (stats.contains("BringToFrontOnShow") && stats.contains("showRequestId")),
@@ -62,8 +62,8 @@ class DesktopWindowBringToFrontIntegrationTest {
         assertTrue("Must manage pickerShowRequestId", "var pickerShowRequestId" in uiApp)
         assertTrue("Must increment pickerShowRequestId on update location", "pickerShowRequestId++" in uiApp)
 
-        assertTrue("Must manage obsShowRequestId", "var obsShowRequestId" in uiApp)
-        assertTrue("Must increment obsShowRequestId on open observations", "obsShowRequestId++" in uiApp)
+        assertTrue("Must manage currentObservationsShowRequestId", "var currentObservationsShowRequestId" in uiApp)
+        assertTrue("Must increment currentObservationsShowRequestId on open observations", "currentObservationsShowRequestId++" in uiApp)
 
         assertTrue("Must manage comparisonShowRequestId", "var comparisonShowRequestId" in uiApp)
         assertTrue("Must increment comparisonShowRequestId on open history", "comparisonShowRequestId++" in uiApp)
@@ -106,7 +106,7 @@ class DesktopWindowBringToFrontIntegrationTest {
                     settingsVisible = true
                     settingsShowRequestId++
                 },
-                onOpenObservations = {},
+                onOpenCurrentObservations = {},
                 onOpenComparison = {},
             )
         }

@@ -20,7 +20,7 @@ import com.weatherwidget.shared.observations.ObservationSourceMatcher
  * `fetchedAt` looks like the obvious "when did the DB last change" marker and is the wrong one.
  * It carries **attempt** semantics: `INSERT OR REPLACE` refreshes it whenever any storable
  * observation comes back — *even a byte-identical repeat of one already stored* — and
- * `touchLatestFetchedAt` bumps it on a definitively empty attempt so the Observations screen can
+ * `touchLatestFetchedAt` bumps it on a definitively empty attempt so the Current Observations screen can
  * tell a broken station (Reported old / Fetched fresh) from a broken pipeline (both old). Keying
  * the gate on it would advance the watermark on essentially every fetch cycle regardless of whether
  * anything drawn changed, which is blind periodic repainting wearing a new name.

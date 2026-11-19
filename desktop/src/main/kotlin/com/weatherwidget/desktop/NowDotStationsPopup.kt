@@ -41,7 +41,7 @@ import kotlin.math.sqrt
  * `observed_dot_is_forecast_extrapolated` finding). This overlay answers "what are the nearby
  * thermometers reading right now" without leaving the graph.
  *
- * **Nothing is derived here.** The cards are the Stations window's Observations tab — its default
+ * **Nothing is derived here.** The cards are the Current Observations window's Observations tab — its default
  * view — rendered by the same [ObservationCard] over the same [visibleStationRows] selection, so the
  * two surfaces list the same stations with the same values by construction. (The overlay used to
  * show the Blend tab's weight table; that answers "how was the blend weighted", which is the tab's
@@ -180,7 +180,7 @@ object NowDotPopupPositioner {
      * The widest the overlay may be and still fit beside the dot on its roomier side, capped at
      * [preferred]. Near the centre of a default-zoom graph the dot leaves under half the width on
      * either side; a card list wider than that has nowhere to go, so the cards narrow (station names
-     * ellipsize, as they do in a narrow Stations window) rather than the overlay covering the dot.
+     * ellipsize, as they do in a narrow Current Observations window) rather than the overlay covering the dot.
      */
     fun fitWidth(anchor: IntRect, containerWidth: Int, preferred: Int): Int {
         val gap = GAP_PX.roundToInt()
@@ -260,7 +260,7 @@ fun NowDotStationsPopup(
                         compact = true,
                     )
                 }
-                // Rows beyond the cap are not footnoted; the Stations window lists them.
+                // Rows beyond the cap are not footnoted; the Current Observations window lists them.
             }
         },
     ) { measurables, constraints ->

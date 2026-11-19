@@ -291,7 +291,6 @@
     <string name="widget_fetching_location">Mengambil cuaca untuk %1$s…</string>
     <string name="widget_tap_to_refresh">Ketuk untuk menyegarkan</string>
     <string name="widget_no_location">Tidak ada lokasi — ketuk untuk mengatur</string>
-    <string name="current_stations_desc">Stasiun saat ini</string>
 
     <!-- ConfigActivity toasts -->
     <string name="location_label_toast">Lokasi: %1$s</string>

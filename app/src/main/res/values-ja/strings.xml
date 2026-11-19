@@ -291,7 +291,6 @@
     <string name="widget_fetching_location">%1$s の天気を取得中…</string>
     <string name="widget_tap_to_refresh">タップして更新</string>
     <string name="widget_no_location">位置情報なし — タップして設定</string>
-    <string name="current_stations_desc">現在の観測所</string>
 
     <!-- ConfigActivity toasts -->
     <string name="location_label_toast">位置：%1$s</string>

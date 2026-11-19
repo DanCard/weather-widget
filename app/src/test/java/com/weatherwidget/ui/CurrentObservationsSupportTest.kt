@@ -12,23 +12,23 @@ import org.junit.experimental.categories.Category
 
 
 @Category(ShortDuration::class)
-class WeatherObservationsSupportTest {
+class CurrentObservationsSupportTest {
     @Test
     fun `widget exit refresh requires a valid widget and changed content`() {
         assertTrue(
-            WeatherObservationsSupport.shouldRefreshWidgetOnExit(
+            CurrentObservationsSupport.shouldRefreshWidgetOnExit(
                 appWidgetId = 345,
                 widgetContentChanged = true,
             ),
         )
         assertFalse(
-            WeatherObservationsSupport.shouldRefreshWidgetOnExit(
+            CurrentObservationsSupport.shouldRefreshWidgetOnExit(
                 appWidgetId = 345,
                 widgetContentChanged = false,
             ),
         )
         assertFalse(
-            WeatherObservationsSupport.shouldRefreshWidgetOnExit(
+            CurrentObservationsSupport.shouldRefreshWidgetOnExit(
                 appWidgetId = android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID,
                 widgetContentChanged = true,
             ),
@@ -38,19 +38,19 @@ class WeatherObservationsSupportTest {
     @Test
     fun `matchesObservationSource excludes silurian rows from NWS`() {
         assertFalse(
-            WeatherObservationsSupport.matchesObservationSource(
+            CurrentObservationsSupport.matchesObservationSource(
                 stationId = "SILURIAN_MAIN",
                 source = WeatherSource.NWS,
             ),
         )
         assertFalse(
-            WeatherObservationsSupport.matchesObservationSource(
+            CurrentObservationsSupport.matchesObservationSource(
                 stationId = "TOMORROW_IO_MAIN",
                 source = WeatherSource.NWS,
             ),
         )
         assertTrue(
-            WeatherObservationsSupport.matchesObservationSource(
+            CurrentObservationsSupport.matchesObservationSource(
                 stationId = "AW020",
                 source = WeatherSource.NWS,
             ),
@@ -60,7 +60,7 @@ class WeatherObservationsSupportTest {
     @Test
     fun `matchesObservationSource excludes NWS_BLEND from NWS`() {
         assertFalse(
-            WeatherObservationsSupport.matchesObservationSource(
+            CurrentObservationsSupport.matchesObservationSource(
                 stationId = "NWS_BLEND",
                 source = WeatherSource.NWS,
             ),
@@ -71,7 +71,7 @@ class WeatherObservationsSupportTest {
     fun `matchesObservationSource excludes NWS history backfill from NWS`() {
         // The NWS->Open-Meteo fallback mints "NWS_MAIN" backfill rows; they are not station obs.
         assertFalse(
-            WeatherObservationsSupport.matchesObservationSource(
+            CurrentObservationsSupport.matchesObservationSource(
                 stationId = "NWS_MAIN",
                 source = WeatherSource.NWS,
             ),
@@ -81,13 +81,13 @@ class WeatherObservationsSupportTest {
     @Test
     fun `matchesObservationSource accepts actual providers and rejects forecast-only providers`() {
         assertFalse(
-            WeatherObservationsSupport.matchesObservationSource(
+            CurrentObservationsSupport.matchesObservationSource(
                 stationId = "SILURIAN_2",
                 source = WeatherSource.SILURIAN,
             ),
         )
         assertTrue(
-            WeatherObservationsSupport.matchesObservationSource(
+            CurrentObservationsSupport.matchesObservationSource(
                 stationId = "WEATHER_API_MAIN",
                 source = WeatherSource.WEATHER_API,
             ),
@@ -105,55 +105,55 @@ class WeatherObservationsSupportTest {
         val hourlyRequestLog = AppLogEntity(tag = "OBS_HOURLY_BACKFILL_REQ", message = "widget=4 source=NWS reason=missing_actuals")
 
         assertTrue(
-            WeatherObservationsSupport.matchesFetchLog(
+            CurrentObservationsSupport.matchesFetchLog(
                 log = startLog,
                 source = WeatherSource.NWS,
             ),
         )
         assertTrue(
-            WeatherObservationsSupport.matchesFetchLog(
+            CurrentObservationsSupport.matchesFetchLog(
                 log = doneLog,
                 source = WeatherSource.NWS,
             ),
         )
         assertFalse(
-            WeatherObservationsSupport.matchesFetchLog(
+            CurrentObservationsSupport.matchesFetchLog(
                 log = errorLog,
                 source = WeatherSource.NWS,
             ),
         )
         assertTrue(
-            WeatherObservationsSupport.matchesFetchLog(
+            CurrentObservationsSupport.matchesFetchLog(
                 log = errorLog,
                 source = WeatherSource.SILURIAN,
             ),
         )
         assertTrue(
-            WeatherObservationsSupport.matchesFetchLog(
+            CurrentObservationsSupport.matchesFetchLog(
                 log = enqueuedLog,
                 source = WeatherSource.NWS,
             ),
         )
         assertTrue(
-            WeatherObservationsSupport.matchesFetchLog(
+            CurrentObservationsSupport.matchesFetchLog(
                 log = sourceResultLog,
                 source = WeatherSource.NWS,
             ),
         )
         assertFalse(
-            WeatherObservationsSupport.matchesFetchLog(
+            CurrentObservationsSupport.matchesFetchLog(
                 log = sourceResultLog,
                 source = WeatherSource.SILURIAN,
             ),
         )
         assertTrue(
-            WeatherObservationsSupport.matchesFetchLog(
+            CurrentObservationsSupport.matchesFetchLog(
                 log = insertLog,
                 source = WeatherSource.NWS,
             ),
         )
         assertTrue(
-            WeatherObservationsSupport.matchesFetchLog(
+            CurrentObservationsSupport.matchesFetchLog(
                 log = hourlyRequestLog,
                 source = WeatherSource.NWS,
             ),
@@ -166,7 +166,7 @@ class WeatherObservationsSupportTest {
 
         assertEquals(
             "error error=network",
-            WeatherObservationsSupport.formatFetchLog(errorLog, WeatherSource.NWS),
+            CurrentObservationsSupport.formatFetchLog(errorLog, WeatherSource.NWS),
         )
     }
 }

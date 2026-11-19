@@ -87,16 +87,16 @@ class RefreshNoticeStateTest {
 
     @Test
     fun `a second notice within four seconds is suppressed and logged`() {
-        state.show(Queued(Kind.OBSERVATIONS), RefreshNoticeSurface.OBSERVATIONS, "observations")
+        state.show(Queued(Kind.OBSERVATIONS), RefreshNoticeSurface.CURRENT_OBSERVATIONS, "observations")
         nowMs += 500L
-        state.show(NotQueued(Reason.IN_PROGRESS), RefreshNoticeSurface.OBSERVATIONS, "observations")
+        state.show(NotQueued(Reason.IN_PROGRESS), RefreshNoticeSurface.CURRENT_OBSERVATIONS, "observations")
 
-        assertEquals("Observations refresh queued", state.textFor(RefreshNoticeSurface.OBSERVATIONS))
+        assertEquals("Observations refresh queued", state.textFor(RefreshNoticeSurface.CURRENT_OBSERVATIONS))
         assertEquals("origin=observations none=IN_PROGRESS suppressed", logged.last())
 
         nowMs += RefreshNotice.DURATION_MS
-        state.show(NotQueued(Reason.IN_PROGRESS), RefreshNoticeSurface.OBSERVATIONS, "observations")
-        assertEquals("Refresh already in progress", state.textFor(RefreshNoticeSurface.OBSERVATIONS))
+        state.show(NotQueued(Reason.IN_PROGRESS), RefreshNoticeSurface.CURRENT_OBSERVATIONS, "observations")
+        assertEquals("Refresh already in progress", state.textFor(RefreshNoticeSurface.CURRENT_OBSERVATIONS))
     }
 
     @Test
@@ -117,20 +117,20 @@ class RefreshNoticeStateTest {
         state.show(Queued(Kind.FORECAST), RefreshNoticeSurface.COMPARISON, "history")
         val first = state.current!!
         nowMs += RefreshNotice.DURATION_MS
-        state.show(Queued(Kind.OBSERVATIONS), RefreshNoticeSurface.OBSERVATIONS, "observations")
+        state.show(Queued(Kind.OBSERVATIONS), RefreshNoticeSurface.CURRENT_OBSERVATIONS, "observations")
 
         launch { state.expire(first) }
         advanceTimeBy(RefreshNotice.DURATION_MS + 1)
         runCurrent()
 
-        assertEquals("Observations refresh queued", state.textFor(RefreshNoticeSurface.OBSERVATIONS))
+        assertEquals("Observations refresh queued", state.textFor(RefreshNoticeSurface.CURRENT_OBSERVATIONS))
     }
 
     @Test
     fun `refresh origins map to their window`() {
         assertEquals(RefreshNoticeSurface.SETTINGS, refreshNoticeSurface("settings"))
         assertEquals(RefreshNoticeSurface.COMPARISON, refreshNoticeSurface("history"))
-        assertEquals(RefreshNoticeSurface.OBSERVATIONS, refreshNoticeSurface("observations"))
+        assertEquals(RefreshNoticeSurface.CURRENT_OBSERVATIONS, refreshNoticeSurface("observations"))
     }
 
     @Test

@@ -93,7 +93,7 @@ class DesktopHeaderSourceLabelFirstTest {
                     onUpdateLocation = {},
                     onUpdateConfig = {},
                     onOpenSettings = {},
-                    onOpenObservations = {},
+                    onOpenCurrentObservations = {},
                 )
             }
         }

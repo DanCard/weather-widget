@@ -85,7 +85,7 @@
             android:label="@string/months_view_title" />
 
         <activity
-            android:name=".ui.WeatherObservationsActivity"
+            android:name=".ui.CurrentObservationsActivity"
             android:exported="false"
             android:taskAffinity=""
             android:label="Current Observations" />

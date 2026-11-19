@@ -51,7 +51,7 @@ import com.weatherwidget.shared.actuals.BlendTableRow
  * "observed". This table makes exactly that visible: compare the `raw` column against
  * `value fed to blend`.
  *
- * Columns are sized to their content, like Android's `TableLayout` (WeatherObservationsActivity):
+ * Columns are sized to their content, like Android's `TableLayout` (CurrentObservationsActivity):
  * each is as wide as its widest cell or its header on at most two lines, and the width left over is
  * shared out as equal gaps between the columns. Fixed weights left a wide hole after the one-letter
  * type, clipped "45m" in the age column, and wrapped the "type" header at the 500dp default

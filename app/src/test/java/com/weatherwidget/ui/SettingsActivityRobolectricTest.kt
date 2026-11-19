@@ -58,7 +58,7 @@ class SettingsActivityRobolectricTest {
     // MainActivity's (default) task affinity, One UI Home would foreground the MainActivity-rooted task
     // and back/finish here would reveal the "Welcome to Weather Widget" screen instead of the home
     // screen. A distinct task affinity keeps it in its own task. Same fix as
-    // WeatherObservationsActivityRobolectricTest's analogous test.
+    // CurrentObservationsActivityRobolectricTest's analogous test.
     @Test
     fun `settings activity does not share a task with the welcome MainActivity`() {
         val pm = context.packageManager

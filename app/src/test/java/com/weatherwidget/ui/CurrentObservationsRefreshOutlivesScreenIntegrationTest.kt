@@ -42,7 +42,7 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 @Category(LongDuration::class)
-class WeatherObservationsRefreshOutlivesScreenIntegrationTest {
+class CurrentObservationsRefreshOutlivesScreenIntegrationTest {
     private lateinit var context: Context
     private lateinit var database: WeatherDatabase
     private val widgetId = 4302
@@ -129,10 +129,10 @@ class WeatherObservationsRefreshOutlivesScreenIntegrationTest {
 
     private fun launchWithFetch(
         fetch: suspend (Double, Double, WeatherSource) -> Unit,
-    ): ActivityScenario<WeatherObservationsActivity> {
-        val intent = Intent(context, WeatherObservationsActivity::class.java)
+    ): ActivityScenario<CurrentObservationsActivity> {
+        val intent = Intent(context, CurrentObservationsActivity::class.java)
             .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
-        return ActivityScenario.launch<WeatherObservationsActivity>(intent).also { scenario ->
+        return ActivityScenario.launch<CurrentObservationsActivity>(intent).also { scenario ->
             scenario.onActivity { activity ->
                 activity.ioDispatcher = kotlinx.coroutines.test.UnconfinedTestDispatcher()
                 activity.forceRefreshDisplayedSource = { _, _ -> } // keep the stale repair off the network
@@ -141,7 +141,7 @@ class WeatherObservationsRefreshOutlivesScreenIntegrationTest {
         }
     }
 
-    private fun ActivityScenario<WeatherObservationsActivity>.buttonEnabled(): Boolean {
+    private fun ActivityScenario<CurrentObservationsActivity>.buttonEnabled(): Boolean {
         var enabled = false
         onActivity { enabled = it.findViewById<View>(R.id.refresh_button).isEnabled }
         return enabled

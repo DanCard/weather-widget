@@ -9,7 +9,7 @@ import org.junit.Test
 import org.junit.experimental.categories.Category
 
 /**
- * The observations screen showed "No recent observations found for Open-Meteo" with 4,993 NWS rows
+ * The Current Observations screen showed "No recent observations found for Open-Meteo" with 4,993 NWS rows
  * and 233 METAR rows sitting in the table, directly beneath an "Actuals source" picker naming the
  * feed it was refusing to show. Two independent causes, one test each below.
  */

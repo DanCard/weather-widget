@@ -391,7 +391,7 @@ internal object DailyGraphRenderer {
             displaySource = ctx.displaySource,
             scale = buttonScale,
         )
-        setupWeatherStationsShortcut(ctx.context, ctx.views, ctx.appWidgetId, scale = buttonScale)
+        setupCurrentObservationsShortcut(ctx.context, ctx.views, ctx.appWidgetId, scale = buttonScale)
         // Bound only when shown: leaving the home PendingIntent behind on a header that no longer
         // offers it would arm a no-op tap target under a hidden zone.
         headerState.homeAction?.let { action ->

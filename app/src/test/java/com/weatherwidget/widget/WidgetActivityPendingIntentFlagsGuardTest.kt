@@ -13,7 +13,7 @@ import com.weatherwidget.widget.handlers.ErrorPillTouchTargetHelper
 import com.weatherwidget.widget.handlers.SimLoopTouchTarget
 import com.weatherwidget.widget.handlers.setupMonthsViewShortcut
 import com.weatherwidget.widget.handlers.setupSettingsShortcut
-import com.weatherwidget.widget.handlers.setupWeatherStationsShortcut
+import com.weatherwidget.widget.handlers.setupCurrentObservationsShortcut
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -88,7 +88,7 @@ class WidgetActivityPendingIntentFlagsGuardTest {
     private fun capturedIntents(): Map<String, PendingIntent> = mapOf(
         "setLocation" to WidgetRenderer.setLocationIntent(app, widgetId),
         "settings" to captured { setupSettingsShortcut(app, it, widgetId) },
-        "weatherStations" to captured { setupWeatherStationsShortcut(app, it, widgetId) },
+        "weatherStations" to captured { setupCurrentObservationsShortcut(app, it, widgetId) },
         "errorPill" to captured {
             ErrorPillTouchTargetHelper.setupErrorPillTouchTarget(app, it, widgetId, showErrorWatermark = true, sourceId = WeatherSource.NWS.id)
         },

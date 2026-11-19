@@ -207,7 +207,7 @@ class ScreenOnReceiver : BroadcastReceiver() {
      * Measured before this branch existed (Samsung fold, 2026-09-02): fetch stored KNUQ's 16:35
      * reading at 16:43:49, `WIDGET_PAINT_SKIP reason=screen_off` six seconds later, screen on at
      * 16:48:33, and the widget kept drawing the 16:15 reading until the `ui_update_alarm` paint at
-     * 16:49:41 — **68 seconds of divergence against the Observations screen, which queries the DB on
+     * 16:49:41 — **68 seconds of divergence against the Current Observations screen, which queries the DB on
      * open and was correct throughout.** The signal and the flag were both present the whole time
      * and never met. See `plans/260902-repaint-on-screen-on-when-a-paint-is-owed.md`.
      *

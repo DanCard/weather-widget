@@ -313,7 +313,6 @@
     <string name="widget_fetching_location">Getting weather for %1$s…</string>
     <string name="widget_tap_to_refresh">Tap to refresh</string>
     <string name="widget_no_location">No location — tap to set</string>
-    <string name="current_stations_desc">Current Stations</string>
 
     <!-- ConfigActivity toasts -->
     <string name="location_label_toast">Location: %1$s</string>

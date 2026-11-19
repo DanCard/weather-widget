@@ -171,7 +171,7 @@ todayOverlayDominantTemp = true))
         val draft = config().copy(settings = config().settings.copy(actualsProviders = mapOf("SILURIAN" to "SYNOPTIC")))
 
         assertEquals(
-            "the observations window may change actuals providers",
+            "the Current Observations window may change actuals providers",
             mapOf("SILURIAN" to "SYNOPTIC"),
             mergeNonSettingsSave(persisted, draft, allowWeatherSourceChange = false, allowActualsProvidersChange = true).settings.actualsProviders,
         )

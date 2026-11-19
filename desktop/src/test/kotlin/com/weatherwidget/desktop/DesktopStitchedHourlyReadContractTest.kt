@@ -12,7 +12,7 @@ import java.nio.file.Path
 
 /**
  * Desktop SQLite half of [StitchedHourlyReadContract], through `DesktopWeatherDao.getHourlyWithHistory`
- * (the repository's and Observations window's read). The Room half is
+ * (the repository's and Current Observations window's read). The Room half is
  * `RoomStitchedHourlyReadContractTest` (`:app`).
  */
 @Category(ShortDuration::class)

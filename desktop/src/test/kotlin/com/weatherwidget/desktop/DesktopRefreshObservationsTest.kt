@@ -137,7 +137,7 @@ class DesktopRefreshObservationsTest {
         assertEquals(1, outcome.snapshot.raw.rawObservations.size)
     }
 
-    /** The Observations window's Refresh (plans/261014-observations-refresh-fetches-observations-only.md). */
+    /** The Current Observations window's Refresh (plans/261014-observations-refresh-fetches-observations-only.md). */
     @Test
     fun `observations refresh stores observations and never fetches the forecast`() = runTest {
         val now = (System.currentTimeMillis() / 3600_000L) * 3600_000L

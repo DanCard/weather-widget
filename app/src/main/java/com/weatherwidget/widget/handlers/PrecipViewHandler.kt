@@ -348,7 +348,7 @@ object PrecipViewHandler {
             setupSettingsShortcut(context, views, appWidgetId)
         }
         setupComparisonShortcut(context, views, appWidgetId, centerTime, hourlyForecasts, displaySource, scale = buttonScale)
-        setupWeatherStationsShortcut(context, views, appWidgetId, scale = buttonScale)
+        setupCurrentObservationsShortcut(context, views, appWidgetId, scale = buttonScale)
 
         setupGraphSelectorShortcut(
             context = context,

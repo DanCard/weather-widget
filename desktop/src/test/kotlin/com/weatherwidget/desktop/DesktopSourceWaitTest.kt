@@ -97,7 +97,7 @@ class DesktopSourceWaitTest {
                     onUpdateLocation = {},
                     onUpdateConfig = {},
                     onOpenSettings = {},
-                    onOpenObservations = {},
+                    onOpenCurrentObservations = {},
                 )
             }
         }

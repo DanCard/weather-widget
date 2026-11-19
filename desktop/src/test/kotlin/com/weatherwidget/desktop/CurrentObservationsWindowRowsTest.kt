@@ -10,13 +10,13 @@ import org.junit.Test
 import org.junit.experimental.categories.Category
 
 /**
- * Covers [visibleStationRows], the transform behind the Observations window's station list.
+ * Covers [visibleStationRows], the transform behind the Current Observations window's station list.
  *
  * This was extracted from inside the `@Composable` precisely because it had no seam: the window
  * loaded once and never reloaded, and nothing could assert on what it displayed.
  */
 @Category(ShortDuration::class)
-class ObservationsWindowRowsTest {
+class CurrentObservationsWindowRowsTest {
 
     private fun obs(
         stationId: String,

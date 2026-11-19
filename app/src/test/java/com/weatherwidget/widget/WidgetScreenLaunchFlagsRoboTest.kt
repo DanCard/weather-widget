@@ -15,9 +15,9 @@ import com.weatherwidget.testutil.TestDatabase
 import com.weatherwidget.ui.ForecastComparisonActivity
 import com.weatherwidget.ui.MonthsViewActivity
 import com.weatherwidget.ui.SourceErrorDetailsActivity
-import com.weatherwidget.ui.WeatherObservationsActivity
+import com.weatherwidget.ui.CurrentObservationsActivity
 import com.weatherwidget.widget.handlers.setupMonthsViewShortcut
-import com.weatherwidget.widget.handlers.setupWeatherStationsShortcut
+import com.weatherwidget.widget.handlers.setupCurrentObservationsShortcut
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -83,10 +83,10 @@ class WidgetScreenLaunchFlagsRoboTest {
     @Test
     fun `observations shortcut replaces an existing observations task`() {
         val views = RemoteViews(app.packageName, R.layout.widget_weather)
-        setupWeatherStationsShortcut(app, views, widgetId)
+        setupCurrentObservationsShortcut(app, views, widgetId)
         views.apply(app, FrameLayout(app)).findViewById<android.view.View>(R.id.weather_stations_icon).performClick()
 
-        assertClearsTask(startedActivity(WeatherObservationsActivity::class.java))
+        assertClearsTask(startedActivity(CurrentObservationsActivity::class.java))
     }
 
     @Test

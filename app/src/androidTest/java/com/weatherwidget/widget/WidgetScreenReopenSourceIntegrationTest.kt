@@ -18,8 +18,8 @@ import androidx.test.runner.lifecycle.Stage
 import com.weatherwidget.R
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.ui.ForecastComparisonActivity
-import com.weatherwidget.ui.WeatherObservationsActivity
-import com.weatherwidget.widget.handlers.setupWeatherStationsShortcut
+import com.weatherwidget.ui.CurrentObservationsActivity
+import com.weatherwidget.widget.handlers.setupCurrentObservationsShortcut
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotSame
@@ -69,9 +69,9 @@ class WidgetScreenReopenSourceIntegrationTest {
 
     @Test
     fun observationsReopenedAfterSourceChangeShowsTheNewSource() {
-        val firstScreen = openAndAwait(WeatherObservationsActivity::class.java, first) { openObservations(first) }
-        goHome(WeatherObservationsActivity::class.java)
-        val secondScreen = openAndAwait(WeatherObservationsActivity::class.java, second) { openObservations(second) }
+        val firstScreen = openAndAwait(CurrentObservationsActivity::class.java, first) { openObservations(first) }
+        goHome(CurrentObservationsActivity::class.java)
+        val secondScreen = openAndAwait(CurrentObservationsActivity::class.java, second) { openObservations(second) }
         assertNotSame("observations task was resurfaced instead of recreated", firstScreen, secondScreen)
     }
 
@@ -99,7 +99,7 @@ class WidgetScreenReopenSourceIntegrationTest {
                 super.setOnClickPendingIntent(viewId, pendingIntent)
             }
         }
-        setupWeatherStationsShortcut(context, views, widgetId)
+        setupCurrentObservationsShortcut(context, views, widgetId)
         val pending = checkNotNull(views.pending) { "thermometer shortcut bound no PendingIntent" }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             val options = ActivityOptions.makeBasic()

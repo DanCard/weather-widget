@@ -341,7 +341,7 @@ label = "Test",
                 onUpdateLocation = {},
                 onUpdateConfig = {},
                 onOpenSettings = {},
-                onOpenObservations = {},
+                onOpenCurrentObservations = {},
             )
         }
 

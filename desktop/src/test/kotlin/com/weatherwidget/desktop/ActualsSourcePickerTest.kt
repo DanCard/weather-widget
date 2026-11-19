@@ -17,8 +17,8 @@ import org.junit.Test
 import org.junit.experimental.categories.Category
 
 /**
- * The Observations window's actuals picker greys feeds that cannot serve here instead of offering
- * a choice that leaves the actuals line blank. Android's half: `WeatherObservationsActivityRobolectricTest`.
+ * The Current Observations window's actuals picker greys feeds that cannot serve here instead of offering
+ * a choice that leaves the actuals line blank. Android's half: `CurrentObservationsActivityRobolectricTest`.
  * See `plans/261021-actuals-source-picker-marks-unusable-feeds.md`.
  */
 @Category(LongDuration::class)
@@ -36,7 +36,7 @@ class ActualsSourcePickerTest {
         ActualsProviderResolver.resetPreferenceSource()
     }
 
-    /** The same call `ObservationsWindow` makes, with this build's baked keys. */
+    /** The same call `CurrentObservationsWindow` makes, with this build's baked keys. */
     private fun options(location: Pair<Double, Double>, userKeys: Map<String, String>) =
         ActualsProviderResolver.candidateOptions(
             defaultProvider = ActualsProviderResolver.defaultProviderFor(WeatherSource.GOOGLE_WEATHER, location),

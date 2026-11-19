@@ -6,8 +6,8 @@ import com.weatherwidget.shared.actuals.TomorrowIoActuals
 
 /**
  * Decides whether an observation row's [stationId] should be shown in the stations list for a given
- * display [WeatherSource]. Shared by the Android observations screen
- * (`WeatherObservationsActivity.WeatherObservationsSupport`) and the desktop `ObservationsWindow` so
+ * display [WeatherSource]. Shared by the Android Current Observations screen
+ * (`CurrentObservationsActivity.CurrentObservationsSupport`) and the desktop `CurrentObservationsWindow` so
  * the two cannot drift.
  *
  * Two kinds of rows are synthetic (not real station observations) and must never masquerade as a
@@ -55,8 +55,8 @@ object ObservationSourceMatcher {
         ).associateWith { "${it.id}_" }
 
     /**
-     * Station-ID-based classifier used by the stations list (Android WeatherObservationsSupport and
-     * desktop ObservationsWindow). It must key on [stationId] rather than the stored `api` column
+     * Station-ID-based classifier used by the stations list (Android CurrentObservationsSupport and
+     * desktop CurrentObservationsWindow). It must key on [stationId] rather than the stored `api` column
      * because it also has to reject synthetic rows (NWS_BLEND, `<SOURCE>_MAIN`) and non-NWS prefixes
      * within the NWS pool.
      *
@@ -86,7 +86,7 @@ object ObservationSourceMatcher {
      * [matchesObservationSource]. A forecast-only source has `supportsTemperatureActuals == false`,
      * so the station-ID rule rejects every row and the list comes back empty — correct while such a
      * source had no actuals at all, and wrong the moment it started **borrowing** one. The Android
-     * observations screen puts an "Actuals source" picker directly above this list; filtering by the
+     * Current Observations screen puts an "Actuals source" picker directly above this list; filtering by the
      * display source alone left that picker sitting on top of "No recent observations found".
      *
      * So: a borrowing source lists its borrowed provider's stations ([matchesActualSource]), and a

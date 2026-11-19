@@ -3,8 +3,8 @@ package com.weatherwidget.shared.observations
 import com.weatherwidget.data.model.WeatherSource
 
 /**
- * The actuals-source picker's text, both platforms (Android `WeatherObservationsActivity`, desktop
- * `ObservationsWindow`), so the rows and the "what is read" value cannot drift apart.
+ * The actuals-source picker's text, both platforms (Android `CurrentObservationsActivity`, desktop
+ * `CurrentObservationsWindow`), so the rows and the "what is read" value cannot drift apart.
  */
 object ActualsPickerLabels {
 

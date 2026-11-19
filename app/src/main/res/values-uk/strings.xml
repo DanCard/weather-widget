@@ -286,7 +286,6 @@
     <string name="widget_fetching_location">Отримання погоди для %1$s…</string>
     <string name="widget_tap_to_refresh">Торкніться, щоб оновити</string>
     <string name="widget_no_location">Немає місцезнаходження — торкніться, щоб задати</string>
-    <string name="current_stations_desc">Поточні станції</string>
 
     <string name="location_label_toast">Місце: %1$s</string>
     <string name="saving_coordinates_offline">Збереження координат (пошук назви офлайн)</string>

@@ -17,7 +17,7 @@ enum class SourceViewTrigger {
     /** The daily view's home button, back to the preferred source. */
     HOME,
 
-    /** The source cycle in the Observations screen. */
+    /** The source cycle in the Current Observations screen. */
     OBSERVATIONS,
 
     /**
@@ -31,7 +31,7 @@ enum class SourceViewTrigger {
 enum class SourceViewKind {
     DAILY,
 
-    /** Every graph view (temperature, precipitation, cloud) and the Observations screen. */
+    /** Every graph view (temperature, precipitation, cloud) and the Current Observations screen. */
     HOURLY,
     ;
 
@@ -89,7 +89,7 @@ object SourceViewTally {
     /**
      * The row a switch to [toSourceId] increments. [primarySourceId] is the preferred (first usable)
      * source at that moment; it is frozen into the row so a later reorder can't change what the day meant.
-     * The Observations screen is always [SourceViewKind.HOURLY], whatever the widget's view.
+     * The Current Observations screen is always [SourceViewKind.HOURLY], whatever the widget's view.
      */
     fun switchOf(
         toSourceId: String,

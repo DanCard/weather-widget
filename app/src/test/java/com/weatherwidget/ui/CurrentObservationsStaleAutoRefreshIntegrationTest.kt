@@ -28,7 +28,7 @@ import org.robolectric.annotation.Config
 
 /**
  * Integration test for Phase C of plans/260821-observations-stale-site-autorefresh.md: the full
- * stale-display repair chain across real components — Hilt-injected [WeatherObservationsActivity]
+ * stale-display repair chain across real components — Hilt-injected [CurrentObservationsActivity]
  * + in-memory Room + `weather_widget_prefs` + the **real** [com.weatherwidget.widget.GpsResampler]
  * (passive-fix boundary; Robolectric resolves it to its no-fix/no-permission outcome, proving the
  * chain survives it) — with only the network call stubbed.
@@ -40,7 +40,7 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 @Category(LongDuration::class)
-class WeatherObservationsStaleAutoRefreshIntegrationTest {
+class CurrentObservationsStaleAutoRefreshIntegrationTest {
     private lateinit var context: Context
     private lateinit var database: WeatherDatabase
 
@@ -61,7 +61,7 @@ class WeatherObservationsStaleAutoRefreshIntegrationTest {
         // Pin the premise: debug builds default to Google Weather as primary (2026-10-06), and this
         // test is about NWS mode.
         WidgetStateManager(context).setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN))
-        WeatherObservationsActivity.autoRefreshDebounceMs = 0L
+        CurrentObservationsActivity.autoRefreshDebounceMs = 0L
 
         now = System.currentTimeMillis()
 
@@ -76,7 +76,7 @@ class WeatherObservationsStaleAutoRefreshIntegrationTest {
     fun tearDown() {
         WeatherDatabase.resetInstanceForTesting()
         WeatherDatabase.setIsTesting(false)
-        WeatherObservationsActivity.autoRefreshDebounceMs = 500L
+        CurrentObservationsActivity.autoRefreshDebounceMs = 500L
         clearPrefs("weather_widget_prefs")
         clearPrefs("widget_state_prefs")
     }
@@ -118,7 +118,7 @@ class WeatherObservationsStaleAutoRefreshIntegrationTest {
             // 4. The debounce window is armed for subsequent loads.
             val prefs = SharedPreferencesUtil.getPrefs(context, "weather_widget_prefs")
             assertTrue(
-                prefs.getLong(WeatherObservationsActivity.KEY_LAST_STALE_AUTO_REFRESH_MS, 0L) > 0L,
+                prefs.getLong(CurrentObservationsActivity.KEY_LAST_STALE_AUTO_REFRESH_MS, 0L) > 0L,
             )
         }
 
@@ -176,13 +176,13 @@ class WeatherObservationsStaleAutoRefreshIntegrationTest {
 
     /** Launches the real Hilt-injected activity; only [configure] may stub seams. */
     private fun launch(
-        configure: (WeatherObservationsActivity) -> Unit,
-    ): ActivityScenario<WeatherObservationsActivity> {
+        configure: (CurrentObservationsActivity) -> Unit,
+    ): ActivityScenario<CurrentObservationsActivity> {
         val intent =
-            Intent(context, WeatherObservationsActivity::class.java).apply {
+            Intent(context, CurrentObservationsActivity::class.java).apply {
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
             }
-        return ActivityScenario.launch<WeatherObservationsActivity>(intent).also { scenario ->
+        return ActivityScenario.launch<CurrentObservationsActivity>(intent).also { scenario ->
             scenario.onActivity { activity ->
                 // Synchronous loads so the repair chain completes before assertions.
                 activity.ioDispatcher = kotlinx.coroutines.test.UnconfinedTestDispatcher()

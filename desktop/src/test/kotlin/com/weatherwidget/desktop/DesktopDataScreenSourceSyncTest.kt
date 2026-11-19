@@ -154,7 +154,7 @@ class DesktopDataScreenSourceSyncTest {
     fun `stations pill switches the main source, counted as OBSERVATIONS`() {
         val holder = ConfigHolder(config("NWS"))
         composeTestRule.setContent {
-            ObservationsContent(
+            CurrentObservationsContent(
                 weatherDao = dao, config = holder.cfg, onClose = {},
                 saves = holder.observations,
             )
@@ -175,10 +175,10 @@ class DesktopDataScreenSourceSyncTest {
     }
 
     @Test
-    fun `a main-window switch shows in an open stations window`() {
+    fun `a main-window switch shows in an open Current Observations window`() {
         val holder = ConfigHolder(config("NWS"))
         composeTestRule.setContent {
-            ObservationsContent(
+            CurrentObservationsContent(
                 weatherDao = dao, config = holder.cfg, onClose = {},
                 saves = holder.observations,
             )

@@ -170,8 +170,8 @@ internal fun runDesktopUiApplication() = application {
         // date (Android parity: TemperatureTouchTargets passes centerTime.toLocalDate()), so
         // opening history while viewing a past day lands on THAT day, not today.
         var comparisonInitialDate by remember { mutableStateOf(LocalDate.now()) }
-        var observationsVisible by remember { mutableStateOf(false) }
-        var obsShowRequestId by remember { mutableStateOf(0) }
+        var currentObservationsVisible by remember { mutableStateOf(false) }
+        var currentObservationsShowRequestId by remember { mutableStateOf(0) }
         var appLogsVisible by remember { mutableStateOf(false) }
         var appLogsShowRequestId by remember { mutableStateOf(0) }
         var iconGalleryVisible by remember { mutableStateOf(false) }
@@ -548,7 +548,7 @@ internal fun runDesktopUiApplication() = application {
         }
 
         // Exit on close logic:
-        val anyWindowOpen = popupVisible || pickerVisible || settingsVisible || statsVisible || comparisonVisible || observationsVisible || appLogsVisible || iconGalleryVisible || simLoopVisible || radarVisible
+        val anyWindowOpen = popupVisible || pickerVisible || settingsVisible || statsVisible || comparisonVisible || currentObservationsVisible || appLogsVisible || iconGalleryVisible || simLoopVisible || radarVisible
         LaunchedEffect(anyWindowOpen) {
             if (!anyWindowOpen) {
                 Log.i(TAG, "All windows closed. Ephemeral UI process exiting...")
@@ -919,7 +919,7 @@ internal fun runDesktopUiApplication() = application {
         // Keyed on visibility too: a new UI process opens its popup with showRequestId still 0.
         LaunchedEffect(showRequestId, popupVisible) { if (popupVisible) checkViewedSource("popup_open", RefreshNoticeSurface.POPUP) }
         LaunchedEffect(comparisonShowRequestId) { if (comparisonShowRequestId > 0) checkViewedSource("history_open", RefreshNoticeSurface.COMPARISON) }
-        LaunchedEffect(obsShowRequestId) { if (obsShowRequestId > 0) checkViewedSource("observations_open", RefreshNoticeSurface.OBSERVATIONS) }
+        LaunchedEffect(currentObservationsShowRequestId) { if (currentObservationsShowRequestId > 0) checkViewedSource("observations_open", RefreshNoticeSurface.CURRENT_OBSERVATIONS) }
 
         fun requestFullRefresh(origin: String) {
             val repo = repository
@@ -1069,7 +1069,7 @@ internal fun runDesktopUiApplication() = application {
         }
 
         /**
-         * The Observations window's Refresh: current observations only — the displayed source's
+         * The Current Observations window's Refresh: current observations only — the displayed source's
          * forced recent-only fetch the current-temp loop makes, never the forecast (user, 2026-10-14;
          * plans/261014-observations-refresh-fetches-observations-only.md), on any viewed day.
          */
@@ -1088,7 +1088,7 @@ internal fun runDesktopUiApplication() = application {
                 }
                 refreshNotice.show(
                     RefreshNotice.NotQueued(if (refreshInFlight) RefreshNotice.Reason.IN_PROGRESS else RefreshNotice.Reason.NO_LOCATION),
-                    RefreshNoticeSurface.OBSERVATIONS,
+                    RefreshNoticeSurface.CURRENT_OBSERVATIONS,
                     origin,
                 )
                 return
@@ -1113,7 +1113,7 @@ internal fun runDesktopUiApplication() = application {
                             elapsedMinutes = decision.elapsedMinutes,
                             remainingMinutes = decision.remainingMinutes,
                         ),
-                        RefreshNoticeSurface.OBSERVATIONS,
+                        RefreshNoticeSurface.CURRENT_OBSERVATIONS,
                         origin,
                     )
                     return
@@ -1124,7 +1124,7 @@ internal fun runDesktopUiApplication() = application {
             }
 
             refreshInFlight = true
-            refreshNotice.show(RefreshNotice.Queued(RefreshNotice.Kind.OBSERVATIONS, WeatherSource.fromDisplaySource(currentConfig?.displaySource ?: "").shortDisplayName), RefreshNoticeSurface.OBSERVATIONS, origin)
+            refreshNotice.show(RefreshNotice.Queued(RefreshNotice.Kind.OBSERVATIONS, WeatherSource.fromDisplaySource(currentConfig?.displaySource ?: "").shortDisplayName), RefreshNoticeSurface.CURRENT_OBSERVATIONS, origin)
             val startedAtMs = System.currentTimeMillis()
             val refreshedSourceId = WeatherSource.fromDisplaySource(currentConfig?.displaySource ?: "").id
             // The shared runner, as in requestFullRefresh: closing the window cannot cancel it.
@@ -1141,7 +1141,7 @@ internal fun runDesktopUiApplication() = application {
                     dataUpdateCount++
                     notifyRefreshRequested()
                     weatherDao.log("REFRESH_CLICK", "origin=$origin completed", "INFO")
-                    announceRefreshDone(origin, refreshedSourceId, ok = true, startedAtMs, RefreshNoticeSurface.OBSERVATIONS)
+                    announceRefreshDone(origin, refreshedSourceId, ok = true, startedAtMs, RefreshNoticeSurface.CURRENT_OBSERVATIONS)
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     weatherDao.log("REFRESH_CLICK", "origin=$origin refresh cancelled", "WARN")
                     throw e
@@ -1151,7 +1151,7 @@ internal fun runDesktopUiApplication() = application {
                         "origin=$origin refresh failed ${e::class.simpleName}: ${e.message}",
                         "WARN",
                     )
-                    announceRefreshDone(origin, refreshedSourceId, ok = false, startedAtMs, RefreshNoticeSurface.OBSERVATIONS)
+                    announceRefreshDone(origin, refreshedSourceId, ok = false, startedAtMs, RefreshNoticeSurface.CURRENT_OBSERVATIONS)
                 } finally {
                     refreshInFlight = false
                 }
@@ -1260,17 +1260,17 @@ internal fun runDesktopUiApplication() = application {
             ) }
         }
 
-        if (observationsVisible && currentConfig != null && repository != null) {
-            CompositionLocalProvider(LocalRefreshNotice provides refreshNotice) { ObservationsWindow(
+        if (currentObservationsVisible && currentConfig != null && repository != null) {
+            CompositionLocalProvider(LocalRefreshNotice provides refreshNotice) { CurrentObservationsWindow(
                 weatherDao = weatherDao,
                 config = currentConfig,
-                showRequestId = obsShowRequestId,
+                showRequestId = currentObservationsShowRequestId,
                 // Same "DB changed" signal the popup reloads on, so the stations list tracks the
                 // live DB instead of freezing at the snapshot taken when the window was opened.
                 dataUpdateCount = dataUpdateCount,
                 isRefreshing = refreshInFlight,
                 onRefreshData = { requestObservationsRefresh() },
-                onClose = { observationsVisible = false },
+                onClose = { currentObservationsVisible = false },
                 saves = DataWindowSaves.forStations(saveConfigAndNotify),
             ) }
         }
@@ -1372,9 +1372,9 @@ internal fun runDesktopUiApplication() = application {
                     settingsVisible = true
                     settingsShowRequestId++
                 },
-                onOpenObservations = { _ ->
-                    observationsVisible = true
-                    obsShowRequestId++
+                onOpenCurrentObservations = { _ ->
+                    currentObservationsVisible = true
+                    currentObservationsShowRequestId++
                 },
                 onOpenComparison = { viewedDate ->
                     Log.d(TAG, "OpenHistory: viewedDate=$viewedDate (hourlyOffset=${currentConfig.hourlyOffset})")
@@ -1526,7 +1526,7 @@ private fun DataUpdateWatcher(
 /** Which window's Refresh asked, for its notice. */
 internal fun refreshNoticeSurface(origin: String): RefreshNoticeSurface = when (origin) {
     "history" -> RefreshNoticeSurface.COMPARISON
-    "observations" -> RefreshNoticeSurface.OBSERVATIONS
+    "observations" -> RefreshNoticeSurface.CURRENT_OBSERVATIONS
     else -> RefreshNoticeSurface.SETTINGS
 }
 

@@ -4,8 +4,8 @@ import com.weatherwidget.data.local.ObservationSiteMerge
 import com.weatherwidget.data.model.WeatherSource
 
 /**
- * The Observations screen's stations list, the whole rule: the Android Current Observations screen
- * and the desktop Observations window both run it; each supplies only its reads ([Host]).
+ * The Current Observations screen's stations list, the whole rule: the Android Current Observations screen
+ * and the desktop Current Observations window both run it; each supplies only its reads ([Host]).
  *
  * - **Scoped to the active site.** Rows record the location they were fetched under and the 24 h window
  *   can straddle a move, so the list reads the proximity box at the active location, keeps the

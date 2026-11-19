@@ -523,7 +523,7 @@ internal suspend fun maybeEnqueueHourlyObservationBackfill(
     // fetched under a neighbouring coordinate. The old hard-default fallback then wrote the
     // NWS backfill under Google HQ, ~0.7 km from a real GPS fix (37.4168) —
     // a permanent LocationMatch fragment that selectNearestSite later drops, so the Current
-    // Observations screen showed "No recent observations found for NWS". See [[snapshot_paths_must_select_a_site]].
+    // Current Observations screen showed "No recent observations found for NWS". See [[snapshot_paths_must_select_a_site]].
     // Jittered short delay: avoids landing in the first-second startup scrum (see
     // StartupFetchPolicy) without meaningfully slowing the interactive missing-hourly-data banner
     // flow, which already tolerates a several-second wait.

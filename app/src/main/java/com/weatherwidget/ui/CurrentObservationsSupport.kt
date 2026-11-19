@@ -5,7 +5,7 @@ import com.weatherwidget.data.local.AppLogEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.observations.ObservationSourceMatcher
 
-internal object WeatherObservationsSupport {
+internal object CurrentObservationsSupport {
     fun shouldRefreshWidgetOnExit(
         appWidgetId: Int,
         widgetContentChanged: Boolean,
