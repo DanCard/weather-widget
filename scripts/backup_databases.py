@@ -131,7 +131,9 @@ def get_unique_devices():
     device_map = {}
     for serial in serials:
         manufacturer, model = get_device_identity(serial)
-        device_key = (manufacturer, model)
+        # Collapse a phone seen over both USB and Wi-Fi into one entry, but never merge
+        # emulators: every AVD from the same system image reports the same model.
+        device_key = serial if serial.startswith("emulator-") else (manufacturer, model)
         is_wireless = is_wireless_connection(serial)
         log(serial, f"Discovered {manufacturer} {model} ({'wireless' if is_wireless else 'non-wireless'})")
 
