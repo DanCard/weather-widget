@@ -28,6 +28,7 @@ class DailyForecastWriteTest {
         predicted: LocalDate = today,
         summary: DailyHourlySummaries.Summary = DailyHourlySummaries.Summary(),
         ref: String = "$date@$fetchedAt",
+        exactKey: Boolean = true,
     ) = DailyForecastWrite.Stored(
         date,
         DailyForecastWrite.Values(high, low, "Clear", null, null, null, null, null, null, null, summary),
@@ -35,6 +36,7 @@ class DailyForecastWriteTest {
         lastConfirmedAt = batch,
         fetchedAt = fetchedAt,
         ref = ref,
+        exactKey = exactKey,
     )
 
     private fun plan(
@@ -187,5 +189,34 @@ class DailyForecastWriteTest {
         assertEquals(40, summary.noonCloudPercent)
         assertEquals(30, summary.nightPrecipMax)
         assertNull(summary.dayPrecipMax)
+    }
+
+    /**
+     * Fold 4, OWM 2026-11-19: the 16:26 row on -122.088 held 53.22/50.09; the 17:25 fetch came from a
+     * fix 0.001° away (-122.089, a new key) carrying only the evening, 53.13/52.88. With exact-key priors
+     * the guard saw none and stored the evening as today's range (a dot). The neighbour is the same site.
+     */
+    @Test
+    fun `a same-site neighbour key's pre-cutoff row holds today's extremes but is never re-stamped`() {
+        val neighbour = listOf(
+            stored(today, 53.22f, 50.09f, at(13), ref = "neighbour-13", exactKey = false),
+            stored(today, 54.34f, 50.09f, at(7), ref = "neighbour-07", exactKey = false),
+        )
+        val p = plan(listOf(day(today, 53.13f, 52.88f)), neighbour, nowMs = at(17))
+        p.lines.forEach { println("${it.tag} ${it.message}") }
+        val v = p.write.single().values
+        assertEquals("13:00 high is a fresh prior for 16:00", 53.22f, v.highTemp)
+        assertEquals(53.13f, v.hindcastHighTemp)
+        assertEquals("07:00 is the first low after 06:00 (no pre-06:00 row)", 50.09f, v.lowTemp)
+        assertEquals(52.88f, v.hindcastLowTemp)
+        assertTrue(p.restamp.isEmpty())
+        assertTrue(p.lines.none { it.tag == "SNAPSHOT_HINDCAST_ACCEPTED" })
+        assertTrue(p.lines.any { it.tag == "SNAPSHOT_SKIP_HINDCAST" && it.message.contains("neighbour_rows=2") })
+
+        // The same values on a neighbour are not "unchanged": this key gets its own row, the neighbour no re-stamp.
+        val tomorrow = today.plusDays(1)
+        val q = plan(listOf(day(tomorrow, 60f, 45f)), listOf(stored(tomorrow, 60f, 45f, at(13), ref = "n", exactKey = false)), nowMs = at(17))
+        assertEquals(listOf(tomorrow), q.write.map { it.date })
+        assertTrue(q.restamp.isEmpty())
     }
 }

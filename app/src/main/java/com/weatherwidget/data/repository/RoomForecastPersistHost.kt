@@ -56,7 +56,10 @@ internal class RoomForecastPersistHost(
     override suspend fun log(tag: String, message: String, level: String) = appLogDao.log(tag, message, level)
 }
 
-/** [sourceId]'s `forecasts` rows dated [from]..[to] on the exact key [keyLat], [keyLon] — [DailyForecastWrite]'s prior rows. */
+/**
+ * [sourceId]'s `forecasts` rows dated [from]..[to] on the site of [keyLat], [keyLon] — [DailyForecastWrite]'s
+ * prior rows: the exact key, plus GPS-jitter keys ([LocationMatch.sameSite]) flagged `exactKey = false`.
+ */
 internal suspend fun storedForecastsAtSite(
     forecastDao: ForecastDao,
     keyLat: Double,
@@ -71,7 +74,8 @@ internal suspend fun storedForecastsAtSite(
         lat = keyLat,
         lon = keyLon,
         source = sourceId,
-    ).filter { it.locationLat == keyLat && it.locationLon == keyLon }.map { it.toStored() }
+    ).filter { LocationMatch.sameSite(it.locationLat, it.locationLon, keyLat, keyLon) }
+        .map { it.toStored(exactKey = it.locationLat == keyLat && it.locationLon == keyLon) }
 
 /** A [DailyForecastWrite.Plan]: [restamp] rows take [lastConfirmedAt]; [write] rows are new, dated today. */
 internal suspend fun writeForecastPlan(
@@ -111,7 +115,7 @@ internal suspend fun writeForecastPlan(
     if (rows.isNotEmpty()) forecastDao.insertAll(rows)
 }
 
-internal fun ForecastEntity.toStored() = DailyForecastWrite.Stored(
+internal fun ForecastEntity.toStored(exactKey: Boolean = true) = DailyForecastWrite.Stored(
     date = LocalDate.ofEpochDay(targetDate / WidgetConstants.MS_IN_A_DAY),
     values = DailyForecastWrite.Values(
         highTemp = highTemp,
@@ -130,5 +134,6 @@ internal fun ForecastEntity.toStored() = DailyForecastWrite.Stored(
     lastConfirmedAt = lastConfirmedAt,
     fetchedAt = fetchedAt,
     ref = this,
+    exactKey = exactKey,
 )
 

@@ -363,6 +363,10 @@ agree. No other source sends an issuance time ([plan](../plans/261114-nws-issuan
 Dimming measures age from the same made-at time. Today's daily low after 06:00 and high after 16:00 follow the same rule
 (`SameDayExtremeCutoff.settle`); a held sent value goes to `hindcastLowTemp` / `hindcastHighTemp`, and
 the writer logs `SNAPSHOT_SKIP_HINDCAST` (held) or `SNAPSHOT_HINDCAST_ACCEPTED` (prior missing).
+Those daily priors are this source's rows on the same site (`LocationMatch.sameSite`, the GPS-jitter
+tolerance), not only the exact quantized key, so a fix a few metres off after a cutoff does not count as
+"no prior". The log lines' `neighbour_rows` counts the jitter-key rows read. Dedup and re-stamps stay on
+the exact key ([plan](../plans/261119-hindcast-guard-same-site-priors.md)).
 ([plan](../plans/261113-no-hindcasts-unless-prior-missing.md); the 2026-10-27 freeze had no age limit
 and was removed 2026-11-04.) Every fetch also files the elapsed hours
 its payload still carries (NWS gridpoint since the issuance, Open-Meteo `past_days`, Silurian

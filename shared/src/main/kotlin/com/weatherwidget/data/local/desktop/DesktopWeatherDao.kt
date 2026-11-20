@@ -388,7 +388,10 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
     /** A stored `forecasts` row's primary key, for re-stamping its `lastConfirmedAt`. */
     data class ForecastKey(val targetDate: Long, val dateOfPrediction: Long, val fetchedAt: Long)
 
-    /** [source]'s rows dated [start]..[end] on this site's exact quantized key — the prior rows [DailyForecastWrite] reads. */
+    /**
+     * [source]'s rows dated [start]..[end] on this site — the prior rows [DailyForecastWrite] reads: the
+     * exact quantized key, plus GPS-jitter keys ([LocationMatch.sameSite]) flagged `exactKey = false`.
+     */
     private fun storedAtSite(
         conn: Connection,
         keyLat: Double,
@@ -399,7 +402,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
     ): List<DailyForecastWrite.Stored<ForecastKey>> {
         val sql = """
             SELECT * FROM forecasts
-            WHERE locationLat = ? AND locationLon = ? AND source = ? AND targetDate >= ? AND targetDate <= ?
+            WHERE ${LocationMatch.JDBC_SAME_SITE_WHERE} AND source = ? AND targetDate >= ? AND targetDate <= ?
         """.trimIndent()
         return conn.prepareStatement(sql).use { stmt ->
             stmt.setDouble(1, keyLat)
@@ -444,6 +447,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
                             lastConfirmedAt = rs.getLong("lastConfirmedAt"),
                             fetchedAt = fetchedAt,
                             ref = ForecastKey(targetDate, dateOfPrediction, fetchedAt),
+                            exactKey = rs.getDouble("locationLat") == keyLat && rs.getDouble("locationLon") == keyLon,
                         ),
                     )
                 }

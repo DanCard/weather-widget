@@ -22,7 +22,10 @@ import java.time.ZoneId
  *   confirmation ([PriorDayForecast]) still see it confirmed — unless a user Refresh, which writes.
  *
  * "Prior" is the newest stored row of the day on this site's own quantized key — never another site
- * in the proximity box. The platform reads [Stored] rows there and writes the [Plan].
+ * in the proximity box. Today's cutoff guard and kept low also read the same site's jitter keys
+ * (±0.002°): on 2026-11-19 a fix 0.001° away found no prior on its new key and stored OWM's
+ * evening-only 53.1/52.9 over a held 53.2/50.1 (`plans/261119-hindcast-guard-same-site-priors.md`).
+ * The platform reads [Stored] rows there and writes the [Plan].
  */
 object DailyForecastWrite {
     /** One day as this fetch sent it. [periodEndMs]: NWS's daytime period end; null elsewhere. */
@@ -56,7 +59,12 @@ object DailyForecastWrite {
         val summary: DailyHourlySummaries.Summary,
     )
 
-    /** A stored row of this source on this site's exact quantized key. */
+    /**
+     * A stored row of this source on this site: the exact quantized key ([exactKey]) or a GPS-jitter
+     * neighbour within [com.weatherwidget.data.local.LocationMatch.sameSite]. Only exact-key rows are
+     * deduplicated against, re-stamped or carried forward; neighbours count only as today's prior
+     * extremes, so a 0.001° fix after a cutoff does not look like "no prior".
+     */
     data class Stored<K>(
         val date: LocalDate,
         val values: Values,
@@ -64,6 +72,7 @@ object DailyForecastWrite {
         val lastConfirmedAt: Long,
         val fetchedAt: Long,
         val ref: K,
+        val exactKey: Boolean = true,
     )
 
     /** A row to write, dated [date], with `dateOfPrediction` = today and this fetch's stamps. */
@@ -105,7 +114,8 @@ object DailyForecastWrite {
         val newestFirst = compareByDescending<Stored<K>> { it.dateOfPrediction }
             .thenByDescending { it.lastConfirmedAt }
             .thenByDescending { it.fetchedAt }
-        val priorByDate = stored.sortedWith(newestFirst).distinctBy { it.date }.associateBy { it.date }
+        // Dedup, re-stamp and carried summaries stay on this key; neighbours are only extreme priors.
+        val priorByDate = stored.filter { it.exactKey }.sortedWith(newestFirst).distinctBy { it.date }.associateBy { it.date }
         // Newest stored row per day that has a low: the newest row may have none (a source that no
         // longer reports the night ending this morning), so it cannot be the one to keep from.
         val newestLowByDate = stored.filter { it.values.lowTemp != null }
@@ -140,18 +150,19 @@ object DailyForecastWrite {
             // forecast draws it as a dashed fallback (PastDayForecastOverlay).
             val hindcastHigh = high.takeIf { highSettled.held && it != highSettled.value }
             val hindcastLow = low.takeIf { lowSettled.held && it != lowSettled.value }
+            val neighbourRows = dayRows.count { !it.exactKey }
             for ((name, settled, sent) in listOf(Triple("high", highSettled, high), Triple("low", lowSettled, low))) {
                 val ageH = settled.priorAgeMs?.let { String.format(java.util.Locale.US, "%.1f", it / 3_600_000.0) }
                 when {
                     settled.held && sent != settled.value -> lines += Line(
                         "SNAPSHOT_SKIP_HINDCAST",
                         "date=${day.date} source=$sourceId froze=$name kept=${settled.value} sent=$sent " +
-                            "reason=${settled.reason} prior_age_h=$ageH",
+                            "reason=${settled.reason} prior_age_h=$ageH neighbour_rows=$neighbourRows",
                     )
                     settled.reason == SameDayExtremeCutoff.Reason.THIS_FETCH_FIRST -> lines += Line(
                         "SNAPSHOT_HINDCAST_ACCEPTED",
                         "date=${day.date} source=$sourceId $name=${settled.value} prior_age_h=$ageH " +
-                            "max_age_h=${HindcastGuard.maxPriorAgeHours}",
+                            "max_age_h=${HindcastGuard.maxPriorAgeHours} neighbour_rows=$neighbourRows",
                     )
                 }
             }
