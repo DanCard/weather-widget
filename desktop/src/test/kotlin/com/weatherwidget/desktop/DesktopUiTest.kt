@@ -605,7 +605,8 @@ currentCondition = "Sunny"),
         val now = System.currentTimeMillis()
         composeTestRule.setContent {
             WidgetPopup(
-                config = stubConfig.copy(viewMode = ViewMode.DAILY),
+                // Written for the 6 h window; the default is 1 h since 2026-11-20.
+                config = stubConfig.copy(viewMode = ViewMode.DAILY, settings = stubConfig.settings.copy(headerRainLookaheadHours = 6)),
                 forecast = stubForecast.copy(
                     raw = stubForecast.raw.copy(
                         hourly = listOf(
@@ -631,7 +632,8 @@ currentCondition = "Sunny"),
         val now = System.currentTimeMillis()
         composeTestRule.setContent {
             WidgetPopup(
-                config = stubConfig.copy(viewMode = ViewMode.TEMPERATURE),
+                // Written for the 6 h window; the default is 1 h since 2026-11-20.
+                config = stubConfig.copy(viewMode = ViewMode.TEMPERATURE, settings = stubConfig.settings.copy(headerRainLookaheadHours = 6)),
                 forecast = stubForecast.copy(
                     raw = stubForecast.raw.copy(
                         hourly = listOf(
@@ -711,7 +713,8 @@ currentCondition = "Sunny"),
         val now = System.currentTimeMillis()
         composeTestRule.setContent {
             WidgetPopup(
-                config = stubConfig.copy(viewMode = ViewMode.DAILY),
+                // Written for the 6 h window; the default is 1 h since 2026-11-20.
+                config = stubConfig.copy(viewMode = ViewMode.DAILY, settings = stubConfig.settings.copy(headerRainLookaheadHours = 6)),
                 forecast = stubForecast.copy(
                     raw = stubForecast.raw.copy(
                         hourly = listOf(

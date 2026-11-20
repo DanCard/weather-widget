@@ -14,7 +14,7 @@ class DisplaySettingsTest {
         val spec = DisplaySettings.HEADER_RAIN_LOOKAHEAD
         assertEquals(1, spec.min)
         assertEquals(8, spec.max)
-        assertEquals(6, spec.default)
+        assertEquals(1, spec.default)
         assertEquals(7, spec.seekBarMax)
         assertEquals(6, spec.composeSteps)
         assertEquals(1f..8f, spec.composeRange)
@@ -60,7 +60,7 @@ class DisplaySettingsTest {
         )
         val diff = updated.diffFrom(base)
         println("diff=$diff")
-        assertTrue(diff.contains("headerRainLookaheadHours: 6 -> 3"))
+        assertTrue(diff.contains("headerRainLookaheadHours: 1 -> 3"))
         assertTrue(diff.contains("showDailyZoomOutButton: false -> true"))
         assertEquals(2, diff.size)
         assertTrue(base.diffFrom(base).isEmpty())

@@ -2,7 +2,6 @@ package com.weatherwidget.shared.settings
 
 import com.weatherwidget.data.model.HindcastGuard
 import com.weatherwidget.shared.graph.HourlyZoomRules
-import com.weatherwidget.shared.util.PrecipProbabilityCalculator
 import kotlinx.serialization.Serializable
 
 /**
@@ -102,10 +101,12 @@ data class DisplaySettings(
             max = HindcastGuard.MAX_PRIOR_AGE_HOURS_LIMIT,
             default = HindcastGuard.DEFAULT_MAX_PRIOR_AGE_HOURS,
         )
+        // Default 1 h (user, 2026-11-20: was 6 h). Unstored values follow it, so installs that never
+        // moved the slider also read 1 h.
         val HEADER_RAIN_LOOKAHEAD = IntSliderSpec(
             min = 1,
             max = 8,
-            default = PrecipProbabilityCalculator.VISIBLE_LOOKAHEAD_HOURS.toInt(),
+            default = 1,
         )
 
         const val DEFAULT_MULTI_DAY_ZOOM_ENABLED = false

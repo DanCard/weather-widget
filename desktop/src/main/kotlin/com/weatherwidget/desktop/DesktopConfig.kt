@@ -43,7 +43,7 @@ data class DesktopSettings(
     // Temporary experiment: HindcastGuard's max prior age in hours (0 = off). Android:
     // WeatherDisplayPreferences.hindcastMaxPriorAgeHours. plans/261113-no-hindcasts-unless-prior-missing.md
     val hindcastMaxPriorAgeHours: Int = DisplaySettings.HINDCAST_MAX_PRIOR_AGE.default,
-    // Forward window (1..8h, default 6) scanned for the header's rain % in daily & hourly views.
+    // Forward window (1..8h, default 1) scanned for the header's rain % in daily & hourly views.
     val headerRainLookaheadHours: Int = DisplaySettings.HEADER_RAIN_LOOKAHEAD.default,
     // Locale-derived for a legacy/first-run config, then materialized by DesktopConfigStore on
     // every save so the daemon and UI cannot derive different defaults from their environments.

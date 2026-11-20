@@ -108,7 +108,7 @@ class WidgetStateManager internal constructor(
         com.weatherwidget.data.model.HindcastGuard.setMaxPriorAgeHours(hours)
     }
 
-    /** Forward window (1..8h, default 6) scanned for the header's rain % in daily & hourly views. */
+    /** Forward window (1..8h, default 1) scanned for the header's rain % in daily & hourly views. */
     fun getHeaderRainLookaheadHours(): Int = displayPreferences.headerRainLookaheadHours()
 
     fun setHeaderRainLookaheadHours(hours: Int) {

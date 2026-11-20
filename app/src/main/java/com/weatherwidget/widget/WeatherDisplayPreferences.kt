@@ -59,7 +59,7 @@ internal class WeatherDisplayPreferences(
         ).apply()
     }
 
-    /** Forward window (1..8 h, default 6) scanned for the header's rain chance in daily & hourly views. */
+    /** Forward window (1..8 h, default 1) scanned for the header's rain chance in daily & hourly views. */
     fun headerRainLookaheadHours(): Int =
         DisplaySettings.HEADER_RAIN_LOOKAHEAD.clamp(
             prefs.getInt(KEY_HEADER_RAIN_LOOKAHEAD_HOURS, DisplaySettings.HEADER_RAIN_LOOKAHEAD.default),

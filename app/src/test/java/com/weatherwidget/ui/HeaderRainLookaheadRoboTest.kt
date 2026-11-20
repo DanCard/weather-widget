@@ -17,7 +17,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * Header rain lookahead slider (1–8h, default 6h) backed by the shared [DisplaySettings] spec.
+ * Header rain lookahead slider (1–8h, default 1h) backed by the shared [DisplaySettings] spec.
  * Desktop twin: `DesktopHeaderRainLookaheadTest`.
  */
 @RunWith(RobolectricTestRunner::class)
@@ -27,10 +27,10 @@ class HeaderRainLookaheadRoboTest {
     private val context = ApplicationProvider.getApplicationContext<android.content.Context>()
 
     @Test
-    fun `default is 6 hours and clamping matches shared DisplaySettings spec`() {
+    fun `default is 1 hour and clamping matches shared DisplaySettings spec`() {
         val state = WidgetStateManager(context)
-        assertEquals(6, state.getHeaderRainLookaheadHours())
-        assertEquals(6, state.getDisplaySettings().headerRainLookaheadHours)
+        assertEquals(1, state.getHeaderRainLookaheadHours())
+        assertEquals(1, state.getDisplaySettings().headerRainLookaheadHours)
 
         state.setHeaderRainLookaheadHours(0)
         assertEquals(DisplaySettings.HEADER_RAIN_LOOKAHEAD.min, state.getHeaderRainLookaheadHours())

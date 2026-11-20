@@ -246,7 +246,7 @@ rain `%` toggles `PRECIPITATION ↔ DAILY`, and the weather icon follows rain `%
 is true or temperature/delta otherwise.
 
 The header's rain percentage scans forward by `DisplaySettings.headerRainLookaheadHours` (1–8 h,
-default 6 h; Settings → **Header** on both platforms) from `now` in every view: panning or switching
+default 1 h, 6 h before 2026-11-20; installs that never moved the slider follow the default; Settings → **Header** on both platforms) from `now` in every view: panning or switching
 views never changes it, and its daily fallback is always today's row
 (`plans/261119-header-rain-constant-across-views.md`). Android reads it from the same now-centred rows as
 the current temp (`HeaderContent.nowRowsWindowMs`: the current-temp window stretched to the longest

@@ -39,6 +39,8 @@ class HeaderContentTest {
         fallbackDailyPrecip: Int? = null,
         delta: Float? = 2.9f,
         rainNow: com.weatherwidget.shared.observations.RainNow.Level? = null,
+        // These cases were written for the 6 h window; the default is 1 h since 2026-11-20.
+        rainLookaheadHours: Int = 6,
     ) = HeaderContent.build(
         view = view,
         hourly = hourly,
@@ -56,6 +58,7 @@ class HeaderContentTest {
         useCelsius = false,
         widthDp = 400,
         rainNow = rainNow,
+        rainLookaheadHours = rainLookaheadHours,
     )
 
     @Test
@@ -255,7 +258,7 @@ class HeaderContentTest {
     @Test
     fun `precipReserveWindowMs spans 1h before now to lookahead+1h after now`() {
         val now = LocalDateTime.of(2026, 11, 18, 14, 0)
-        val window = HeaderContent.precipReserveWindowMs(now, zone)
+        val window = HeaderContent.precipReserveWindowMs(now, zone, lookaheadHours = 6)
         assertEquals(now.minusHours(1).atZone(zone).toInstant().toEpochMilli(), window.first)
         assertEquals(now.plusHours(7).atZone(zone).toInstant().toEpochMilli(), window.last)
 

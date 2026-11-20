@@ -17,7 +17,7 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 
 /**
- * Header rain lookahead setting (1–8h, default 6h) and [DesktopSettings] <-> [DisplaySettings]
+ * Header rain lookahead setting (1–8h, default 1h) and [DesktopSettings] <-> [DisplaySettings]
  * mapping on desktop. Android twin: `HeaderRainLookaheadRoboTest`.
  */
 @Category(ShortDuration::class)
@@ -25,15 +25,15 @@ class DesktopHeaderRainLookaheadTest {
     private val zone = ZoneId.systemDefault()
 
     @Test
-    fun `default is 6 hours and toDisplaySettings mirrors DesktopSettings`() {
+    fun `default is 1 hour and toDisplaySettings mirrors DesktopSettings`() {
         val defaults = DesktopSettings()
-        assertEquals(6, defaults.headerRainLookaheadHours)
+        assertEquals(1, defaults.headerRainLookaheadHours)
         assertEquals(DisplaySettings.HEADER_RAIN_LOOKAHEAD.default, defaults.toDisplaySettings().headerRainLookaheadHours)
 
         val custom = defaults.copy(headerRainLookaheadHours = 8, showDailyZoomOutButton = true)
         val diff = custom.diffFrom(defaults)
         println("desktop diff=$diff")
-        assertTrue(diff.contains("headerRainLookaheadHours: 6 -> 8"))
+        assertTrue(diff.contains("headerRainLookaheadHours: 1 -> 8"))
         assertTrue(diff.contains("showDailyZoomOutButton: false -> true"))
 
         val json = Json { ignoreUnknownKeys = true }
