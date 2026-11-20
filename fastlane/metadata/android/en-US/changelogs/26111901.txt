@@ -1,0 +1,1 @@
+Faster API toggling, a header rain lookahead slider, header tap routing unified across Android and desktop (rain icon opens hourly precipitation), Forecast Comparison and Stations sources synced with the main view, and a fix for a crash that could occur on some devices when painting the cloud-cover widget.
