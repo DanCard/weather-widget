@@ -21,7 +21,7 @@ For _fastlane_ installation instructions, see [Installing _fastlane_](https://do
 [bundle exec] fastlane android build
 ```
 
-Build a signed release AAB (requires RELEASE_STORE_* signing props / release.keystore)
+Build a signed release AAB and ART-verify it on an emulator, booting one if none runs (requires RELEASE_STORE_* signing props / release.keystore)
 
 ### android validate
 
