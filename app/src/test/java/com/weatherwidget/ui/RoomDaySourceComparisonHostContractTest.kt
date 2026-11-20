@@ -27,7 +27,7 @@ class RoomDaySourceComparisonHostContractTest : DaySourceComparisonHostContract(
     override fun open(sources: List<WeatherSource>): Pair<DaySourceComparison.Host, Seed> {
         val db = TestDatabase.create().also { databases.add(it) }
         val host = RoomDaySourceComparisonHost(
-            db.forecastDao(), db.dailyHistoryDao(), db.hourlyForecastDao(), sources,
+            db.forecastDao(), db.dailyHistoryDao(), db.hourlyForecastHistoryDao(), sources,
         ) { _, _, _ -> emptyMap() }
         return host to RoomSeed(db)
     }

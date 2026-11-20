@@ -108,6 +108,45 @@ abstract class DaySourceComparisonHostContract {
         assertEquals(null, rows[2].lastConfirmedAt)
     }
 
+    /**
+     * Desktop 2026-11-20: Tomorrow.io's 10:42 fetch hindcast 0 % for the started 10am hour its 09:02
+     * fetch had at 47 %, so the newest row per hour read 0 % while the header (stitched) read 13 %. The
+     * host must hand over every fetch, and Now must follow the header's stitched rule.
+     */
+    @Test
+    fun `today's Now keeps a started hour's pre-hour forecast, as the header does`() = runBlocking {
+        val now = TODAY.atTime(10, 40)
+        val nowMs = now.atZone(ZONE).toInstant().toEpochMilli()
+        forecast(ForecastSeed("OPEN_METEO", 60f, 48f, fetchedAt = nowMs - 2 * MINUTE).let { it }, today = true)
+        val preHour = TODAY.atTime(9, 0).atZone(ZONE).toInstant().toEpochMilli()
+        val hindcast = nowMs - 2 * MINUTE
+        for (h in 9..14) {
+            val at = TODAY.atTime(h, 0).atZone(ZONE).toInstant().toEpochMilli()
+            for ((fetchedAt, chance) in listOf(preHour to if (h == 10) 60 else 0, hindcast to 0)) {
+                seed.hourly(
+                    HourlyForecast(
+                        at, 60f, "Cloudy", precipProbability = chance, source = "OPEN_METEO",
+                        fetchedAt = fetchedAt, locationLat = LAT, locationLon = LON,
+                    ),
+                )
+            }
+        }
+        val tz = java.util.TimeZone.getDefault()
+        java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone(ZONE)) // the header's calculator reads it
+        try {
+            val rows = DaySourceComparison.load(host, TODAY, LAT, LON, now, ZONE, use24HourClock = false, rainLookaheadHours = 1)
+            val meteo = rows.first { it.source.id == "OPEN_METEO" }
+            println("DaySourceComparisonHostContract Now=${meteo.headerRainPercent}")
+            // 60 % at 10am fading to 0 % at 11am: 20 % at 10:40, the window's peak. The hindcast alone reads 0.
+            assertEquals(20, meteo.headerRainPercent)
+        } finally {
+            java.util.TimeZone.setDefault(tz)
+        }
+    }
+
+    private fun forecast(row: ForecastSeed, today: Boolean) =
+        seed.forecast(row, targetDate = (if (today) TODAY else DAY).toEpochDay() * DAY_MS, dateOfPrediction = TODAY.toEpochDay() * DAY_MS)
+
     companion object {
         const val LAT = 37.422
         const val LON = -122.084

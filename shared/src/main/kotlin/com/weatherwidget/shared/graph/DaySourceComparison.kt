@@ -5,6 +5,7 @@ import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.DailyForecastSnapshot
 import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.data.model.HourlyForecastStitcher
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.daily.DailyColumnBuilder
 import com.weatherwidget.shared.settings.DisplaySettings
@@ -124,7 +125,10 @@ object DaySourceComparison {
         /** `daily_history` rows for [targetDateEpoch] in the box, all sources. */
         suspend fun dailyHistory(targetDateEpoch: Long, lat: Double, lon: Double): List<DailyHistory>
 
-        /** Newest stored hourly row per hour/source/site in the box, carrying source and site. */
+        /**
+         * Every stored fetch's hourly row per hour/source/site in the box (not only the newest), carrying
+         * source and site: [load] reduces them with [HourlyForecastStitcher], as the widget and header do.
+         */
         suspend fun hourly(startMs: Long, endMs: Long, lat: Double, lon: Double, sourceIds: List<String>): List<HourlyForecast>
 
         /**
@@ -162,19 +166,23 @@ object DaySourceComparison {
             startMs = minOf(startMs, rain.first)
             endMs = maxOf(endMs, rain.last)
         }
-        val hourly = host.hourly(
+        val fetched = host.hourly(
             startMs,
             endMs,
             lat, lon,
             sources.map { it.id } + WeatherSource.GENERIC_GAP.id,
         )
+        // One row per hour by the widget's and header's rule: a started hour keeps its pre-hour rain
+        // forecast rather than a later hindcast (desktop 2026-11-20: header 13 % vs Now 0 % for Tmrw,
+        // whose 10:42 fetch hindcast 0 % for the 10am hour the 09:02 fetch had at 47 %).
+        val hourly = HourlyForecastStitcher.stitchBySource(fetched, lat, lon, now.atZone(zone).toInstant().toEpochMilli())
         val bias = host.highBias(sources, lat, lon)
         // Today: tomorrow's rows tell a dropped day from a failed refresh ([Row.noLongerSent]).
         val nextDay = if (date == now.toLocalDate()) host.forecastRows(targetEpoch + MS_IN_A_DAY, lat, lon) else emptyList()
         val rows = build(date, now, lat, lon, sources, stored, history, hourly, bias, use24HourClock, zone, nextDay, rainLookaheadHours)
         Log.d(
             TAG,
-            "DAY_SOURCE_COMPARE date=$date site=%.4f,%.4f rows=${rows.size} stored=${stored.size} hourly=${hourly.size} order=${rows.joinToString(",") { it.source.id }} missing=${rows.filterNot { it.hasForecast }.joinToString(",") { it.source.id }.ifEmpty { "none" }} headerRain=${rows.filter { it.headerRainPercent != null }.joinToString(",") { "${it.source.id}:${it.headerRainPercent}" }.ifEmpty { "none" }}@${rainLookaheadHours}h noLongerSent=${rows.filter { it.noLongerSent }.joinToString(",") { it.source.id }.ifEmpty { "none" }}"
+            "DAY_SOURCE_COMPARE date=$date site=%.4f,%.4f rows=${rows.size} stored=${stored.size} hourly=${hourly.size}/${fetched.size} order=${rows.joinToString(",") { it.source.id }} missing=${rows.filterNot { it.hasForecast }.joinToString(",") { it.source.id }.ifEmpty { "none" }} headerRain=${rows.filter { it.headerRainPercent != null }.joinToString(",") { "${it.source.id}:${it.headerRainPercent}" }.ifEmpty { "none" }}@${rainLookaheadHours}h noLongerSent=${rows.filter { it.noLongerSent }.joinToString(",") { it.source.id }.ifEmpty { "none" }}"
                 .format(Locale.US, lat, lon),
         )
         return rows

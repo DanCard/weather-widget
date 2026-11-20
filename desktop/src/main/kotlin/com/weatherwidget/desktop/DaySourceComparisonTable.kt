@@ -58,8 +58,10 @@ internal class DesktopDaySourceComparisonHost(
     override suspend fun dailyHistory(targetDateEpoch: Long, lat: Double, lon: Double): List<DailyHistory> =
         dao.getExtremesInRange(targetDateEpoch, targetDateEpoch, lat, lon)
 
+    // Every fetch, not the newest per hour: the shared runner stitches them (started hours keep their
+    // pre-hour forecast), as the header's settled read does.
     override suspend fun hourly(startMs: Long, endMs: Long, lat: Double, lon: Double, sourceIds: List<String>): List<HourlyForecast> =
-        sourceIds.flatMap { dao.getHourlyForecasts(lat, lon, it, startMs, endMs) }
+        dao.getHourlyHistorySnapshots(lat, lon, source = null, startMs, endMs + 1).filter { it.source in sourceIds }
 
     override suspend fun highBias(sources: List<WeatherSource>, lat: Double, lon: Double): Map<String, Double> =
         biasBySource.filterKeys { id -> sources.any { it.id == id } }

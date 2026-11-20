@@ -54,7 +54,10 @@ Examples include:
   `HeaderContent.headerRainProbability`, 0 % printed), Day rain %,
   peak hour, night rain, Total (8am–8pm hourly sum as on the widget; only when some row has one),
   noon cloud, 30-day
-  high bias, and age since `lastConfirmedAt` (dimmed past 24 h). Hosts: `RoomDaySourceComparisonHost`,
+  high bias, and age since `lastConfirmedAt` (dimmed past 24 h). Hosts return every stored fetch and
+  the runner stitches them (`HourlyForecastStitcher.stitchBySource`), the header's read, so a started
+  hour keeps its pre-hour rain forecast in both (`DesktopHeaderRainParityTest`,
+  `HeaderRainParityRoboTest`). Hosts: `RoomDaySourceComparisonHost`,
   `DesktopDaySourceComparisonHost`; `DAY_SOURCE_COMPARE` logs each build.
   Columns are sized to their widest text (`DaySourceComparison.layout`; each platform only measures
   text), spare width shared as even gaps. Now is offered first, on top of the widest step, and kept

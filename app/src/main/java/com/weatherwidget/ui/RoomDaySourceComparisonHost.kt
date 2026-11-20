@@ -2,7 +2,7 @@ package com.weatherwidget.ui
 
 import com.weatherwidget.data.local.DailyHistoryDao
 import com.weatherwidget.data.local.ForecastDao
-import com.weatherwidget.data.local.HourlyForecastDao
+import com.weatherwidget.data.local.HourlyForecastHistoryDao
 import com.weatherwidget.data.local.toDailyForecast
 import com.weatherwidget.data.local.toDailyForecastSnapshot
 import com.weatherwidget.data.local.toDailyHistory
@@ -19,7 +19,7 @@ import java.time.ZoneOffset
 internal class RoomDaySourceComparisonHost(
     private val forecastDao: ForecastDao,
     private val dailyHistoryDao: DailyHistoryDao,
-    private val hourlyForecastDao: HourlyForecastDao,
+    private val hourlyHistoryDao: HourlyForecastHistoryDao,
     private val sources: List<WeatherSource>,
     /** 30-day high bias by source id; [accuracyBias] in production. */
     private val bias: suspend (List<WeatherSource>, Double, Double) -> Map<String, Double>,
@@ -36,10 +36,14 @@ internal class RoomDaySourceComparisonHost(
     override suspend fun dailyHistory(targetDateEpoch: Long, lat: Double, lon: Double): List<DailyHistory> =
         dailyHistoryDao.getExtremesInRange(targetDateEpoch, targetDateEpoch, lat, lon).map { it.toDailyHistory() }
 
-    // Raw box rows on purpose: the shared runner picks the nearest site per source, the same rule
-    // desktop's rows go through (HourlyProximityQueryAllowlistTest entry).
+    // Every fetch's raw box rows on purpose: the shared runner stitches them per source (started hours
+    // keep their pre-hour forecast, as the header) and picks the nearest site, the same rule desktop's
+    // rows go through (HourlyProximityQueryAllowlistTest entry).
     override suspend fun hourly(startMs: Long, endMs: Long, lat: Double, lon: Double, sourceIds: List<String>): List<HourlyForecast> =
-        hourlyForecastDao.getHourlyForecastsForSources(startMs, endMs, lat, lon, sourceIds).map { it.toHourlyForecast() }
+        hourlyHistoryDao.getHistoryInRangeForBucketWindowForSources(
+            startDateTime = startMs, endDateTime = endMs + 1, bucketStart = Long.MIN_VALUE, bucketEnd = Long.MAX_VALUE,
+            lat = lat, lon = lon, sources = sourceIds,
+        ).map { it.toHourlyForecast() }
 
     override suspend fun highBias(sources: List<WeatherSource>, lat: Double, lon: Double): Map<String, Double> =
         bias(sources, lat, lon)

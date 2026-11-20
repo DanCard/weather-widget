@@ -77,6 +77,9 @@ class ForecastComparisonActivity : AppCompatActivity() {
     lateinit var hourlyForecastDao: com.weatherwidget.data.local.HourlyForecastDao
 
     @Inject
+    lateinit var hourlyForecastHistoryDao: com.weatherwidget.data.local.HourlyForecastHistoryDao
+
+    @Inject
     lateinit var accuracyCalculator: AccuracyCalculator
 
     @Inject
@@ -885,7 +888,7 @@ class ForecastComparisonActivity : AppCompatActivity() {
             try {
                 val rows = DaySourceComparison.load(
                     host = RoomDaySourceComparisonHost(
-                        forecastDao, dailyHistoryDao, hourlyForecastDao, sources,
+                        forecastDao, dailyHistoryDao, hourlyForecastHistoryDao, sources,
                         RoomDaySourceComparisonHost.accuracyBias(accuracyCalculator),
                     ),
                     date = date,
