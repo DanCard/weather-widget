@@ -855,7 +855,7 @@ object PrecipViewHandler {
     ): Map<LocalDateTime, Float> =
         // One amount per hour for the site: stations are combined, not added (ObservedPrecip).
         com.weatherwidget.shared.actuals.ObservedPrecip.byHour(
-            // The display source's actuals provider, as the daily actual reads it.
+            // The display source's rain provider, as the daily actual reads it.
             com.weatherwidget.shared.actuals.ObservedPrecip.rowsForActualsOf(
                 observations.map { it.toReading() },
                 displaySource,

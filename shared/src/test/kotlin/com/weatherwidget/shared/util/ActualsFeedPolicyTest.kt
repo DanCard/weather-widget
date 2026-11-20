@@ -192,7 +192,8 @@ class ActualsFeedPolicyTest {
         )
         // Silurian is pinned to METAR here, which has its own refresher; Google takes the US default.
         assertEquals(listOf(WeatherSource.NWS, WeatherSource.TOMORROW_IO), feeds.keys.toList())
-        assertEquals(listOf(WeatherSource.NWS, WeatherSource.GOOGLE_WEATHER), feeds[WeatherSource.NWS])
+        // Tomorrow.io consumes NWS too: its own feed has no rain (plans/261120-rain-actuals-from-gauges-for-rainless-feeds.md).
+        assertEquals(listOf(WeatherSource.NWS, WeatherSource.GOOGLE_WEATHER, WeatherSource.TOMORROW_IO), feeds[WeatherSource.NWS])
     }
 
     /**
@@ -231,6 +232,26 @@ class ActualsFeedPolicyTest {
         assertTrue(ActualsFeedPolicy.requiresFeed(WeatherSource.NWS, listOf(WeatherSource.GOOGLE_WEATHER), usLat, usLon, googleNws))
         assertFalse(ActualsFeedPolicy.requiresFeed(WeatherSource.NWS, listOf(WeatherSource.GOOGLE_WEATHER), usLat, usLon, googleMetar))
         assertFalse(ActualsFeedPolicy.requiresFeed(WeatherSource.NWS, listOf(WeatherSource.GOOGLE_WEATHER), kyivLat, kyivLon, prefs()))
+    }
+
+    /** plans/261120-rain-actuals-from-gauges-for-rainless-feeds.md: a rainless feed still needs the gauges. */
+    @Test
+    fun `Tomorrow io alone still needs the gauges for its rain`() {
+        assertEquals(WeatherSource.TOMORROW_IO, ActualsFeedPolicy.feedFor(WeatherSource.TOMORROW_IO, usLat, usLon, prefs()))
+        assertEquals(WeatherSource.NWS, ActualsFeedPolicy.rainFeedFor(WeatherSource.TOMORROW_IO, usLat, usLon, prefs()))
+        assertTrue(ActualsFeedPolicy.requiresFeed(WeatherSource.NWS, listOf(WeatherSource.TOMORROW_IO), usLat, usLon, prefs()))
+        assertEquals(
+            listOf(WeatherSource.TOMORROW_IO, WeatherSource.NWS),
+            ActualsFeedPolicy.currentTempFeeds(listOf(WeatherSource.TOMORROW_IO), usLat, usLon, prefs()).keys.toList(),
+        )
+        // Abroad the gauges are METAR, fetched by its own refresher: Tomorrow.io counts as a consumer.
+        assertEquals(WeatherSource.METAR, ActualsFeedPolicy.rainFeedFor(WeatherSource.TOMORROW_IO, kyivLat, kyivLon, prefs()))
+        assertEquals(
+            listOf(WeatherSource.TOMORROW_IO),
+            ActualsFeedPolicy.borrowers(WeatherSource.METAR, listOf(WeatherSource.TOMORROW_IO), prefs()),
+        )
+        // A source whose own feed carries rain needs nothing more.
+        assertFalse(ActualsFeedPolicy.requiresFeed(WeatherSource.NWS, listOf(WeatherSource.OPEN_METEO), usLat, usLon, prefs()))
     }
 
     @Test

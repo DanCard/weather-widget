@@ -53,9 +53,11 @@ object DailyBlendRecomputeRun {
      * records whether it was gone before sunrise (MorningFog.predawn, drawn petite;
      * plans/261112-observed-no-fog-vetoes-forecast.md). `7` (2026-11-16): an isolated fog report counts
      * only while active (ObservedMorningFog.spikes), so 11-16's single KNUQ ¼ SM report leaves the stored
-     * rows (plans/261116-isolated-fog-report-counts-only-while-active.md).
+     * rows (plans/261116-isolated-fog-report-counts-only-while-active.md). `8` (2026-11-20): a source
+     * whose actuals feed has no rain (Tomorrow.io, OpenWeatherMap) takes its rain from the gauges, so
+     * its NULL past-day rain is rebuilt (plans/261120-rain-actuals-from-gauges-for-rainless-feeds.md).
      */
-    const val WRITE_RULES_VERSION = 7
+    const val WRITE_RULES_VERSION = 8
 
     private const val DAY_MS = 86_400_000L
 
@@ -283,7 +285,6 @@ object DailyBlendRecomputeRun {
         return written
     }
 
-    /** Which sources take their actuals from another feed: `OPEN_METEO=NWS,TOMORROW_IO=NWS`. */
     /**
      * What [day]'s skip compares: the stored observations' signature through the next 8am (the
      * day's night rain falls after its midnight, DayNightHours), the resolved actuals providers (a
@@ -296,12 +297,21 @@ object DailyBlendRecomputeRun {
         return host.observationSignature(dayStartMs, nightEndMs)?.let { "$it|${providerSignature()}|$WRITE_RULES_VERSION" }
     }
 
-    private fun providerSignature(): String =
-        WeatherSourceOrdering.ALL_CONFIGURABLE
+    private fun providerSignature(): String {
+        val temps = WeatherSourceOrdering.ALL_CONFIGURABLE
             .map { it.id to ActualsProviderResolver.providerIdFor(it) }
             .filter { (sourceId, providerId) -> providerId != sourceId }
             .sortedBy { (sourceId, _) -> sourceId }
             .joinToString(",") { (sourceId, providerId) -> "$sourceId=$providerId" }
+        // The rain provider differs from the actuals provider only for a rainless feed; a move of
+        // the gauges (NWS ↔ METAR at the coverage edge) rebuilds those rows' rain.
+        val rain = WeatherSourceOrdering.ALL_CONFIGURABLE
+            .map { Triple(it.id, ActualsProviderResolver.providerIdFor(it), ActualsProviderResolver.rainProviderIdFor(it)) }
+            .filter { (_, providerId, rainId) -> rainId != providerId }
+            .sortedBy { it.first }
+            .joinToString(",") { (sourceId, _, rainId) -> "$sourceId=$rainId" }
+        return if (rain.isEmpty()) temps else "$temps|rain:$rain"
+    }
 
     /**
      * Quantized to the write grid so GPS jitter cannot mint unbounded keys for one place. Format kept

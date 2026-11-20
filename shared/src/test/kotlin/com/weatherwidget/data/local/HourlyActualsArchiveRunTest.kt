@@ -95,20 +95,44 @@ class HourlyActualsArchiveRunTest {
 
     @Test
     fun `rain equals the reader's hourly amount, not a sampled report`() {
-        // Five-minute series: an hour's amount is the sum of its rows, which no single row holds.
+        // Five-minute interval series: an hour's amount is the sum of its rows, which no single row
+        // holds. Open-Meteo's own series (Tomorrow.io's five-minute history used to be the example,
+        // but it carries no rain: plans/261120-rain-actuals-from-gauges-for-rainless-feeds.md).
         val rows = (0 until 36).map {
             reading(
-                "TOMORROW_IO_5M_HISTORY", dayStart + 12 * hour + it * 5 * 60_000L,
-                api = "TOMORROW_IO", distanceKm = 0f, precipMm = 0.25f,
+                "OPEN_METEO_MAIN", dayStart + 12 * hour + it * 5 * 60_000L,
+                api = "OPEN_METEO", distanceKm = 0f, precipMm = 0.25f,
             )
         }
         val host = FakeHost(rows)
         archive(host)
 
-        val expected = ObservedPrecip.byHour(ObservedPrecip.rowsFor(rows, WeatherSource.TOMORROW_IO), zone)
-        val archived = HourlyActualsHistory.rainByHour(host.stored.values.filter { it.source == "TOMORROW_IO" }, zone)
+        val expected = ObservedPrecip.byHour(ObservedPrecip.rowsFor(rows, WeatherSource.OPEN_METEO), zone)
+        val archived = HourlyActualsHistory.rainByHour(host.stored.values.filter { it.source == "OPEN_METEO" }, zone)
         assertEquals(expected.filterKeys { it.toLocalDate() == day }, archived)
         assertEquals(3f, archived[day.atTime(12, 0)]!!, 0.001f)
+    }
+
+    @Test
+    fun `Tomorrow io's archived rain comes from the gauges, never its five-minute rows`() {
+        // Even a five-minute row holding an amount (an older fetch) is not Tomorrow.io's rain: its
+        // feed carries none, so its hours read the gauges. plans/261120-rain-actuals-from-gauges-for-rainless-feeds.md
+        val metar = "KNUQ 151955Z 31009KT 10SM OVC020 15/12 A2990 RMK AO2 P0012"
+        val rows = (0 until 12).map {
+            reading("TOMORROW_IO_5M_HISTORY", dayStart + 12 * hour + it * 5 * 60_000L, api = "TOMORROW_IO", distanceKm = 0f, precipMm = 0.25f)
+        } + reading("KNUQ", dayStart + 13 * hour - 5 * 60_000L, rawMetar = metar, precipMm = 0.12f * 25.4f)
+        ActualsProviderResolver.installLocationSource { lat to lon }
+        try {
+            val host = FakeHost(rows)
+            archive(host)
+            val tomorrow = HourlyActualsHistory.rainByHour(host.stored.values.filter { it.source == "TOMORROW_IO" }, zone)
+            val nws = HourlyActualsHistory.rainByHour(host.stored.values.filter { it.source == "NWS" }, zone)
+            println("archived rain: tmrw=$tomorrow nws=$nws")
+            assertEquals(nws.filterKeys { it.toLocalDate() == day }, tomorrow)
+            assertEquals(0.12f * 25.4f, tomorrow[day.atTime(12, 0)]!!, 0.001f) // not 12 × 0.25 = 3.0
+        } finally {
+            ActualsProviderResolver.resetLocationSource()
+        }
     }
 
     @Test

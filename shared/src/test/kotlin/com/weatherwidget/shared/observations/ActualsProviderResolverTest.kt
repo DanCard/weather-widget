@@ -453,4 +453,27 @@ class ActualsProviderResolverTest {
         assertEquals("METAR (NWS not available here)", ActualsPickerLabels.value("METAR", WeatherSource.NWS))
         assertEquals("NWS", ActualsPickerLabels.value("NWS", null))
     }
+
+    // plans/261120-rain-actuals-from-gauges-for-rainless-feeds.md
+    @Test
+    fun `a feed without rain takes its rain from the gauges, others from their own provider`() {
+        val bayArea = 37.42 to -122.08
+        val london = 51.5 to -0.12
+        fun rain(source: WeatherSource, at: Pair<Double, Double>, pref: (WeatherSource) -> WeatherSource? = { null }) =
+            ActualsProviderResolver.rainProviderIdAt(source, at.first, at.second, pref)
+
+        assertEquals("NWS", rain(WeatherSource.TOMORROW_IO, bayArea))
+        assertEquals("METAR", rain(WeatherSource.TOMORROW_IO, london))
+        assertEquals("NWS", rain(WeatherSource.OPEN_WEATHER_MAP, bayArea))
+        assertEquals("NWS", rain(WeatherSource.NWS, bayArea))
+        assertEquals("OPEN_METEO", rain(WeatherSource.OPEN_METEO, bayArea))
+        assertEquals("WEATHER_API", rain(WeatherSource.WEATHER_API, bayArea))
+        // Silurian pointed at Tomorrow.io: its temperatures follow Tomorrow.io, its rain the gauges.
+        val silurianOnTomorrow: (WeatherSource) -> WeatherSource? = { if (it == WeatherSource.SILURIAN) WeatherSource.TOMORROW_IO else null }
+        assertEquals("TOMORROW_IO", ActualsProviderResolver.providerIdAt(WeatherSource.SILURIAN, 37.42, -122.08, silurianOnTomorrow))
+        assertEquals("NWS", rain(WeatherSource.SILURIAN, bayArea, silurianOnTomorrow))
+        // A user's Synoptic choice carries rain, so it stays.
+        val omOnSynoptic: (WeatherSource) -> WeatherSource? = { if (it == WeatherSource.OPEN_METEO) WeatherSource.SYNOPTIC else null }
+        assertEquals("SYNOPTIC", rain(WeatherSource.OPEN_METEO, bayArea, omOnSynoptic))
+    }
 }

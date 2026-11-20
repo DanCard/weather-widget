@@ -17,7 +17,9 @@ class MetarFetchPolicyTest {
     fun `no consumer visible means no fetch at all`() {
         assertEquals(
             MetarFetchPolicy.Tier.NONE,
-            tier(listOf(WeatherSource.NWS, WeatherSource.TOMORROW_IO), setOf("NWS")),
+            // Open-Meteo measures its own rain; Tomorrow.io no longer fits here, since with no location
+            // known its rain comes from METAR (plans/261120-rain-actuals-from-gauges-for-rainless-feeds.md).
+            tier(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO), setOf("NWS")),
         )
     }
 
@@ -72,9 +74,14 @@ class MetarFetchPolicyTest {
     }
 
     @Test
-    fun `consumers are the configurable sources that resolve to METAR`() {
+    fun `consumers are the configurable sources whose actuals or rain resolve to METAR`() {
         val consumers = MetarFetchPolicy.consumers(WeatherSourceOrdering.ALL_CONFIGURABLE)
-        assertEquals(setOf(WeatherSource.SILURIAN, WeatherSource.GOOGLE_WEATHER), consumers.toSet())
+        // Silurian and Google borrow everything; Tomorrow.io and OpenWeatherMap only their rain, since
+        // their own feeds carry none (no location here, so the gauges are METAR).
+        assertEquals(
+            setOf(WeatherSource.SILURIAN, WeatherSource.GOOGLE_WEATHER, WeatherSource.TOMORROW_IO, WeatherSource.OPEN_WEATHER_MAP),
+            consumers.toSet(),
+        )
     }
 
     /**

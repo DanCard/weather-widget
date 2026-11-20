@@ -358,6 +358,15 @@ object ActualsAggregator {
             .flatMap { (sourceId, obsList) ->
                 val groupingStartNs = System.nanoTime()
                 val sourceHourly = hourlyForecasts.filter { it.source == sourceId || it.source == "GENERIC_GAP" }
+                // Rain from the source's rain provider: its own feed when that measures rain, else the
+                // gauges (Tomorrow.io's five-minute history and OpenWeatherMap carry none). The shared
+                // `byApi` instance keeps the observed-rain memo reducing each provider once per date.
+                val rainProviderId = ActualsProviderResolver.rainProviderIdAt(WeatherSource.fromId(sourceId), locationLat, locationLon)
+                val rainList = if (rainProviderId == ActualsProviderResolver.providerIdFor(WeatherSource.fromId(sourceId))) {
+                    obsList
+                } else {
+                    byApi[rainProviderId].orEmpty()
+                }
                 val byDate = obsList
                     .groupBy { obs -> Instant.ofEpochMilli(obs.timestamp).atZone(zoneId).toLocalDate() }
                 stats?.let { it.groupingMs += (System.nanoTime() - groupingStartNs) / 1_000_000L }
@@ -408,14 +417,19 @@ object ActualsAggregator {
                         // The context window, not just the day: a 23:58 SPECI belongs to the period
                         // the next day's first routine report closes.
                         val precipStartNs = System.nanoTime()
+                        val rainWindowObs = if (rainList === obsList) {
+                            windowObs
+                        } else {
+                            rainList.filter { it.timestamp in windowStartMs until windowEndMs }
+                        }
                         val observedRain = observedRainMemo
-                            .getOrPut(obsList) { HashMap() }
+                            .getOrPut(rainList) { HashMap() }
                             .getOrPut(date) {
                                 stats?.let { it.rainReductions++ }
-                                ObservedPrecip.daily(windowObs, date, zoneId, decodedMetars)
+                                ObservedPrecip.daily(rainWindowObs, date, zoneId, decodedMetars)
                             }
                         val precip = resolveDailyPrecip(
-                            windowObs, sourceHourly, date, zoneId,
+                            rainWindowObs, sourceHourly, date, zoneId,
                             allowForecastFallback = !date.isBefore(today),
                             observed = observedRain,
                         )

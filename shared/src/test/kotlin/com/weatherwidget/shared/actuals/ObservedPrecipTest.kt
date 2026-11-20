@@ -250,4 +250,25 @@ class ObservedPrecipTest {
         val rows = ObservedPrecip.rowsForActualsOf(mixed, WeatherSource.GOOGLE_WEATHER, providerId = WeatherSource.METAR.id)
         assertEquals(listOf("KSJC"), rows.map { it.stationId })
     }
+
+    /**
+     * Tomorrow.io's own feed has no rain, so its hourly "Act" (Android PrecipViewHandler, desktop
+     * PrecipitationGraph, HourlyActualsArchiveRun — all through the default provider) reads the gauges,
+     * never its five-minute rows. plans/261120-rain-actuals-from-gauges-for-rainless-feeds.md
+     */
+    @Test
+    fun `Tomorrow io's hourly Act reads the gauges by default`() {
+        val withTomorrow = mixed + row(
+            com.weatherwidget.shared.actuals.TomorrowIoActuals.FIVE_MINUTE_HISTORY_STATION_ID, 0f, at(10, 0),
+            precipMm = null, api = WeatherSource.TOMORROW_IO,
+        )
+        com.weatherwidget.shared.observations.ActualsProviderResolver.installLocationSource { 37.417 to -122.089 }
+        try {
+            val rows = ObservedPrecip.rowsForActualsOf(withTomorrow, WeatherSource.TOMORROW_IO)
+            println("tomorrow.io Act rows: ${rows.map { it.stationId }}")
+            assertEquals(listOf("KNUQ"), rows.map { it.stationId })
+        } finally {
+            com.weatherwidget.shared.observations.ActualsProviderResolver.resetLocationSource()
+        }
+    }
 }

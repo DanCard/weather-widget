@@ -187,7 +187,9 @@ class DailyBlendRecomputeRunTest {
         DailyBlendRecomputeRun.day(host, day, nowMs, zone)
         val own = host.rows.single { it.date == key(day) && it.source == "OPEN_WEATHER_MAP" }
         assertEquals(55f, own.computedHighTemp!!, 0.01f)
-        assertEquals(null, own.precipNightMm)
+        // OWM's own feed has no rain, so its rain already reads the gauges (was null;
+        // plans/261120-rain-actuals-from-gauges-for-rainless-feeds.md). The switch below is about temperatures.
+        assertEquals(1.75f, own.precipNightMm!!, 0.01f)
 
         ActualsProviderResolver.installPreferenceSource { source ->
             WeatherSource.NWS.takeIf { source == WeatherSource.OPEN_WEATHER_MAP }

@@ -46,6 +46,17 @@ for the **caller's sources only**: a source that borrows a listed source's provi
 displayable source, which accuracy needs. Within one `aggregate` call, observed rain is reduced once
 per provider's rows and date, and the forecast fallback stays per source (`AggregateStats.rainReductions`).
 
+Rain has its own provider (`ActualsProviderResolver.rainProviderIdFor`/`rainProviderIdAt`): the
+source's actuals provider when that feed measures rain (`WeatherSource.actualsCarryRain`), else the
+gauges — NWS inside NWS coverage, METAR elsewhere. Tomorrow.io's five-minute history (Tomorrow.io
+rejects rain fields at `timestep=5m`) and OpenWeatherMap carry no rain, so their past-day amounts,
+today's measured amount and the hourly "Act" (`ObservedPrecip.rowsForActualsOf`, also
+`HourlyActualsArchiveRun`) read the gauges while their temperatures stay their own. Past days never
+fall back to forecast rain, so before this their rows held NULL rain and the daily label showed the
+forecast chance. `ActualsFeedPolicy.rainFeedFor` makes the fetch side ask for the gauges too
+(`requiresFeed`, `currentTempFeeds`, `borrowers`, `SourceFetchGate.actualsFeeds`); the recompute's
+skip signature includes the rain providers (`plans/261120-rain-actuals-from-gauges-for-rainless-feeds.md`).
+
 Android's startup paint runs in two passes (`WidgetStartupCoordinator`). The first paints from
 `DailyActualsAssembler.assembleStored`: stored rows through today, no blend. A source's stored today
 row, as the last recompute left it, is painted with no freshness check (user decision 2026-11-18): a

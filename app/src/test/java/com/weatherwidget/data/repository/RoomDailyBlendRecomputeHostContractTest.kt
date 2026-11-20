@@ -47,6 +47,7 @@ class RoomDailyBlendRecomputeHostContractTest : DailyBlendRecomputeHostContract(
                         temperature = row.temperature, condition = row.condition,
                         locationLat = row.locationLat, locationLon = row.locationLon, distanceKm = row.distanceKm,
                         stationType = row.stationType, fetchedAt = row.fetchedAt, api = row.api,
+                        precipAmountMm = row.precipAmountMm, isMetar = row.isMetar, rawMetar = row.rawMetar,
                     ),
                 ),
             )

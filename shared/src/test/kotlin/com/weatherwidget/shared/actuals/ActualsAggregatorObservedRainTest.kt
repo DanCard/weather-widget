@@ -104,6 +104,48 @@ class ActualsAggregatorObservedRainTest {
         assertEquals(3, stats.datesBlended)
     }
 
+    /** Tomorrow.io's five-minute history: temperature only — Tomorrow.io rejects rain fields at 5 m. */
+    private fun tomorrowFiveMinute(): List<ObservationReading> =
+        (0 until 24 * 12).map { i ->
+            ObservationReading(
+                stationId = TomorrowIoActuals.FIVE_MINUTE_HISTORY_STATION_ID,
+                stationName = TomorrowIoActuals.FIVE_MINUTE_HISTORY_STATION_NAME,
+                timestamp = LocalDateTime.of(day, LocalTime.of(i / 12, (i % 12) * 5)).atZone(zone).toInstant().toEpochMilli(),
+                temperature = 40f + (i / 12) % 12, // its own curve: 40–51°, not the stations' 55–66°
+                condition = "Cloudy",
+                locationLat = 37.42,
+                locationLon = -122.08,
+                distanceKm = 0f,
+                api = WeatherSource.TOMORROW_IO.id,
+            )
+        }
+
+    /**
+     * Desktop 2026-11-20: Tomorrow.io's past rows held NULL rain beside the gauges' 46 mm, so the daily
+     * label fell back to "100%". Its feed has no rain; its rain now comes from the gauges (NWS inside
+     * coverage) while its high/low stay its own (plans/261120-rain-actuals-from-gauges-for-rainless-feeds.md).
+     */
+    @Test
+    fun `a feed without rain takes the gauges' rain and keeps its own temperatures`() {
+        val stations = station("KNUQ", 3.8f, 55) + station("KPAO", 6.1f, 47)
+        val stats = ActualsAggregator.AggregateStats()
+        val rows = ActualsAggregator.aggregate(
+            observations = stations + tomorrowFiveMinute(), hourlyForecasts = emptyList(),
+            locationLat = 37.42, locationLon = -122.08, zoneId = zone, stats = stats,
+        ).filter { it.date == day.toEpochDay() * 86_400_000L }
+        val tomorrow = rows.single { it.source == WeatherSource.TOMORROW_IO.id }
+        val nws = rows.single { it.source == WeatherSource.NWS.id }
+        println("rainless feed: tmrw rain=${tomorrow.precipAmountMm}/${tomorrow.precipDayMm}/${tomorrow.precipNightMm} " +
+            "high=${tomorrow.computedHighTemp} nws high=${nws.computedHighTemp} ${stats.logFragment()}")
+
+        assertEquals(p0012Mm + p0004Mm, tomorrow.precipAmountMm!!, 0.001f) // was null
+        assertEquals(p0012Mm, tomorrow.precipDayMm!!, 0.001f)
+        assertEquals(p0004Mm, tomorrow.precipNightMm!!, 0.001f)
+        assertEquals(51f, tomorrow.computedHighTemp!!, 0.5f) // its own five-minute curve
+        assertEquals(66f, nws.computedHighTemp!!, 0.5f)
+        assertEquals("Tomorrow.io shares NWS's one reduction", 1, stats.rainReductions)
+    }
+
     /** The shared part is the OBSERVED rain only: with none measured, each source falls back to its own forecast. */
     @Test
     fun `a dry provider still gives each borrower its own forecast fallback`() {

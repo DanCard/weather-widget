@@ -5,6 +5,8 @@ import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.StationType
 import com.weatherwidget.shared.actuals.DailyBlendRecomputeRun
+import com.weatherwidget.shared.actuals.TomorrowIoActuals
+import com.weatherwidget.shared.observations.ActualsProviderResolver
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -12,6 +14,7 @@ import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import java.time.LocalDate
+import java.time.ZoneId
 
 /**
  * What [DailyBlendRecomputeRun.Host]'s reads and writes mean, on Android's Room Host and desktop's
@@ -116,6 +119,51 @@ abstract class DailyBlendRecomputeHostContract {
         assertEquals(86f, after.forecastHighTemp)
         assertEquals("KNUQ", after.apiStationId)
         assertNull(after.priorForecastHighTemp)
+    }
+
+    /**
+     * Desktop and Pixel 2026-11-20: Tomorrow.io's past rows held NULL rain beside the gauges' 46 mm.
+     * Through each platform's real database, its rain now comes from the gauges (NWS here) and its high
+     * from its own five-minute history (plans/261120-rain-actuals-from-gauges-for-rainless-feeds.md).
+     */
+    @Test
+    fun `recompute - a rainless feed's past day takes the gauges' rain, its own temperatures`() = runBlocking {
+        val zone = ZoneId.of("America/Los_Angeles")
+        val day = LocalDate.of(2026, 10, 20)
+        fun at(d: LocalDate, h: Int, m: Int) = d.atTime(h, m).atZone(zone).toInstant().toEpochMilli()
+        val p0012Mm = 0.12f * 25.4f
+        // KNUQ's hourly METARs through the next morning (the night window), one 0.12 in shower at 2 pm.
+        for (d in listOf(day, day.plusDays(1))) for (h in 0..23) {
+            val shower = d == day && h == 14
+            seed.observation(
+                obs("KNUQ", at(d, h, 55), "NWS", temp = 55f + h % 12).copy(
+                    isMetar = true,
+                    precipAmountMm = if (shower) p0012Mm else null,
+                    rawMetar = "KNUQ ${d.dayOfMonth}${"%02d".format(h)}55Z AUTO 00000KT 10SM OVC020 15/12 A2990 RMK AO2" +
+                        if (shower) " P0012" else "",
+                ),
+            )
+        }
+        // Tomorrow.io's five-minute history: temperature only, its own 40–51° curve.
+        for (i in 0 until 24 * 12) {
+            seed.observation(
+                obs(TomorrowIoActuals.FIVE_MINUTE_HISTORY_STATION_ID, at(day, i / 12, (i % 12) * 5), "TOMORROW_IO", temp = 40f + (i / 12) % 12)
+                    .copy(stationName = TomorrowIoActuals.FIVE_MINUTE_HISTORY_STATION_NAME, distanceKm = 0f),
+            )
+        }
+        ActualsProviderResolver.installLocationSource { LAT to LON }
+        try {
+            DailyBlendRecomputeRun.day(host, day, at(day.plusDays(2), 12, 0), zone, force = true)
+        } finally {
+            ActualsProviderResolver.resetLocationSource()
+        }
+
+        val rows = host.dailyHistoryAt(day.toEpochDay() * DAY)
+        val tomorrow = rows.single { it.source == "TOMORROW_IO" }
+        println("contract rainless feed: ${rows.map { "${it.source} day=${it.precipDayMm} high=${it.computedHighTemp}" }}")
+        assertEquals(p0012Mm, tomorrow.precipDayMm!!, 0.001f) // was null
+        assertEquals(p0012Mm, rows.single { it.source == "NWS" }.precipDayMm!!, 0.001f)
+        assertEquals(51f, tomorrow.computedHighTemp!!, 0.5f)
     }
 
     companion object {

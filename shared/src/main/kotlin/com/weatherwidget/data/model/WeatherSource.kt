@@ -38,6 +38,12 @@ enum class WeatherSource(
     val supportsTemperatureActuals: Boolean = true,
     /** Whether this source exposes a documented observation/analysis cloud product. */
     val supportsCloudActuals: Boolean = historicalDataKind.preservesHistoricalCloud,
+    /**
+     * Whether this source's actuals feed measures rain. When it does not, the source's observed rain
+     * comes from the gauges instead (`ActualsProviderResolver.rainProviderIdFor`); its temperatures
+     * still come from its own feed. plans/261120-rain-actuals-from-gauges-for-rainless-feeds.md
+     */
+    val actualsCarryRain: Boolean = historicalDataKind.preservesHistoricalPrecipitation,
     /** Whether elapsed forecast/history rows may be re-filed as observations. */
     val supportsHistoricalActualsBackfill: Boolean = supportsTemperatureActuals,
     /** Signup page for key-requiring sources; keyless sources fall back to open-meteo.com. */
@@ -184,6 +190,9 @@ enum class WeatherSource(
         historicalDataKind = HistoricalDataKind.RECENT_ANALYSIS,
         supportsTemperatureActuals = true,
         supportsCloudActuals = true,
+        // The five-minute history (its only actuals product) cannot carry rain: Tomorrow.io rejects
+        // precipitationAccumulation at timestep=5m (400001).
+        actualsCarryRain = false,
         supportsHistoricalActualsBackfill = true,
         signupUrl = "https://app.tomorrow.io/signup",
         requiresApiKey = true,

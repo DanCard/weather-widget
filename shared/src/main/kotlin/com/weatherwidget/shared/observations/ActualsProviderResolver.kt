@@ -270,6 +270,29 @@ object ActualsProviderResolver {
         preference: (WeatherSource) -> WeatherSource? = installedPreference,
     ): String = resolve(source, preference) { latitude to longitude }
 
+    /**
+     * The `observations.api` value that supplies [source]'s observed RAIN: its actuals provider when
+     * that feed measures rain ([WeatherSource.actualsCarryRain]), else the gauges — [borrowerDefault]
+     * (NWS inside NWS coverage, METAR elsewhere). Tomorrow.io's five-minute history and
+     * OpenWeatherMap carry no rain, so their past-day and hourly "Act" rain read the gauges while
+     * their temperatures stay their own (plans/261120-rain-actuals-from-gauges-for-rainless-feeds.md).
+     */
+    fun rainProviderIdFor(
+        source: WeatherSource,
+        preference: (WeatherSource) -> WeatherSource? = installedPreference,
+    ): String = rainProvider(resolve(source, preference, installedLocation), installedLocation)
+
+    /** [rainProviderIdFor] at an explicit location instead of the installed active one. */
+    fun rainProviderIdAt(
+        source: WeatherSource,
+        latitude: Double,
+        longitude: Double,
+        preference: (WeatherSource) -> WeatherSource? = installedPreference,
+    ): String = rainProvider(resolve(source, preference) { latitude to longitude }) { latitude to longitude }
+
+    private fun rainProvider(providerId: String, location: () -> Pair<Double, Double>?): String =
+        if (WeatherSource.fromId(providerId).actualsCarryRain) providerId else borrowerDefault(location()).id
+
     private fun resolve(
         source: WeatherSource,
         preference: (WeatherSource) -> WeatherSource?,

@@ -42,6 +42,22 @@ object ActualsFeedPolicy {
     }
 
     /**
+     * The feed that supplies [source]'s observed RAIN here, or null when none can serve it:
+     * [feedFor]'s feed when it measures rain, else the gauges
+     * ([ActualsProviderResolver.rainProviderIdAt]; plans/261120-rain-actuals-from-gauges-for-rainless-feeds.md).
+     */
+    fun rainFeedFor(
+        source: WeatherSource,
+        latitude: Double,
+        longitude: Double,
+        actualsPreference: (WeatherSource) -> WeatherSource? = ActualsProviderResolver.preferenceSource(),
+    ): WeatherSource? {
+        val feed = WeatherSource.fromId(ActualsProviderResolver.rainProviderIdAt(source, latitude, longitude, actualsPreference))
+        if (!ActualsProviderResolver.servesHere(feed, latitude to longitude)) return null
+        return feed
+    }
+
+    /**
      * The observation pull a full refresh of [displaySource] must make alongside its forecast
      * fetch, or null when none is needed.
      *
@@ -95,7 +111,7 @@ object ActualsFeedPolicy {
     ): Boolean = feedFor(displaySource, latitude, longitude, actualsPreference) == WeatherSource.NWS
 
     /**
-     * Visible sources other than [feed] itself whose actuals come from [feed]. Backs
+     * Visible sources other than [feed] itself whose actuals, or whose rain alone, come from [feed]. Backs
      * `MetarFetchPolicy` and `SynopticFetchPolicy`, whose "is anyone reading this?" question is the
      * same one for every feed.
      */
@@ -105,12 +121,15 @@ object ActualsFeedPolicy {
         actualsPreference: (WeatherSource) -> WeatherSource? = ActualsProviderResolver.preferenceSource(),
     ): List<WeatherSource> =
         visibleSources.filter { source ->
-            source != feed && ActualsProviderResolver.providerIdFor(source, actualsPreference) == feed.id
+            source != feed && (
+                ActualsProviderResolver.providerIdFor(source, actualsPreference) == feed.id ||
+                    ActualsProviderResolver.rainProviderIdFor(source, actualsPreference) == feed.id
+                )
         }
 
     /**
      * True when a fetch serving [sources] needs [feed]'s station observations: one of them is [feed]
-     * itself, or takes its actuals from it here.
+     * itself, or takes its actuals, or only its rain ([rainFeedFor]), from it here.
      */
     fun requiresFeed(
         feed: WeatherSource,
@@ -120,7 +139,9 @@ object ActualsFeedPolicy {
         actualsPreference: (WeatherSource) -> WeatherSource? = ActualsProviderResolver.preferenceSource(),
     ): Boolean =
         sources.any { source ->
-            source == feed || feedFor(source, latitude, longitude, actualsPreference) == feed
+            source == feed ||
+                feedFor(source, latitude, longitude, actualsPreference) == feed ||
+                rainFeedFor(source, latitude, longitude, actualsPreference) == feed
         }
 
     /**
@@ -128,7 +149,8 @@ object ActualsFeedPolicy {
      * to the requested sources it serves (in [requested] order, so callers can rank and throttle a
      * feed by its consumers).
      *
-     * Each source contributes its actuals provider ([feedFor]) and nothing else. A source is its own
+     * Each source contributes its actuals provider ([feedFor]) and, when that feed has no rain, its rain
+     * feed ([rainFeedFor]: Tomorrow.io's gauges for today's rain and the hourly "Act"), and nothing else. A source is its own
      * feed only when it is its own provider: Open-Meteo set to NWS actuals fetches NWS, not its own
      * current, which nothing reads once redirected (the series, the daily actuals and the cloud
      * blend all follow the provider; user, 2026-10-13). It used to be fetched anyway, "to keep the
@@ -144,10 +166,15 @@ object ActualsFeedPolicy {
     ): Map<WeatherSource, List<WeatherSource>> {
         val result = LinkedHashMap<WeatherSource, MutableList<WeatherSource>>()
         for (source in requested.distinct()) {
-            val feed = feedFor(source, latitude, longitude, actualsPreference) ?: continue
-            if (feed.supportsTemperatureActuals && feed !in STATION_NETWORK_FEEDS) {
-                val consumers = result.getOrPut(feed) { mutableListOf() }
-                if (source !in consumers) consumers.add(source)
+            val feeds = listOfNotNull(
+                feedFor(source, latitude, longitude, actualsPreference),
+                rainFeedFor(source, latitude, longitude, actualsPreference),
+            ).distinct()
+            for (feed in feeds) {
+                if (feed.supportsTemperatureActuals && feed !in STATION_NETWORK_FEEDS) {
+                    val consumers = result.getOrPut(feed) { mutableListOf() }
+                    if (source !in consumers) consumers.add(source)
+                }
             }
         }
         return result

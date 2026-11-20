@@ -44,16 +44,18 @@ object ObservedPrecip {
     data class Totals(val total: Float?, val day: Float?, val night: Float?)
 
     /**
-     * The observed-rain rows that stand for [source]: its actuals provider's
-     * ([ActualsProviderResolver.providerIdFor], or [providerId] when given), through [rowsFor]. This
+     * The observed-rain rows that stand for [source]: its rain provider's
+     * ([ActualsProviderResolver.rainProviderIdFor], or [providerId] when given), through [rowsFor]. This
      * is what the daily blend reads, so the hourly "Act" matches the daily actual: Silurian and
-     * Google borrow their provider's gauges, and a source whose user picked NWS reads NWS stations,
-     * not its own model series. plans/261114-hourly-actual-rain-from-actuals-provider.md
+     * Google borrow their provider's gauges, a source whose user picked NWS reads NWS stations, not
+     * its own model series (plans/261114-hourly-actual-rain-from-actuals-provider.md), and a source
+     * whose own feed has no rain (Tomorrow.io, OpenWeatherMap) reads the gauges
+     * (plans/261120-rain-actuals-from-gauges-for-rainless-feeds.md).
      */
     fun rowsForActualsOf(
         rows: List<ObservationReading>,
         source: WeatherSource,
-        providerId: String = ActualsProviderResolver.providerIdFor(source),
+        providerId: String = ActualsProviderResolver.rainProviderIdFor(source),
     ): List<ObservationReading> = rowsFor(rows, WeatherSource.fromId(providerId))
 
     /**

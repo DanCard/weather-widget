@@ -64,14 +64,22 @@ object SourceFetchGate {
         }
     }
 
-    /** Feeds that [sources] take their actuals from here: themselves when they file their own, else their provider. */
+    /**
+     * Feeds that [sources] take their actuals from here: themselves when they file their own, else their
+     * provider; plus the gauges for a source whose own feed has no rain ([ActualsFeedPolicy.rainFeedFor]).
+     */
     fun actualsFeeds(
         sources: Collection<WeatherSource>,
         latitude: Double,
         longitude: Double,
         actualsPreference: (WeatherSource) -> WeatherSource? = ActualsProviderResolver.preferenceSource(),
     ): Set<WeatherSource> =
-        sources.mapNotNullTo(LinkedHashSet()) { ActualsFeedPolicy.feedFor(it, latitude, longitude, actualsPreference) }
+        sources.flatMapTo(LinkedHashSet()) {
+            listOfNotNull(
+                ActualsFeedPolicy.feedFor(it, latitude, longitude, actualsPreference),
+                ActualsFeedPolicy.rainFeedFor(it, latitude, longitude, actualsPreference),
+            )
+        }
 
     fun backgroundFetch(
         enabled: List<WeatherSource>,
