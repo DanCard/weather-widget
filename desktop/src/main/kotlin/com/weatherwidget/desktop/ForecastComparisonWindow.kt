@@ -224,7 +224,7 @@ internal fun ForecastComparisonContent(
     // result in place; "Loading…" is only for a different date, source, or location.
     var loadedView by remember { mutableStateOf<ForecastComparisonReload.View?>(null) }
 
-    LaunchedEffect(targetDate, source, config.lat, config.lon, dataUpdateCount) {
+    LaunchedEffect(targetDate, source, config.lat, config.lon, dataUpdateCount, config.settings.headerRainLookaheadHours) {
         val view = ForecastComparisonReload.View(targetDate, source, config.lat, config.lon)
         if (ForecastComparisonReload.showsLoading(loadedView, view)) loading = true
         data = withContext(Dispatchers.IO) {
@@ -259,7 +259,7 @@ internal fun ForecastComparisonContent(
                 loading -> Text("Loading…", color = ObsStyle.textSecondary)
                 d == null -> Text("No data.", color = ObsStyle.textSecondary)
                 else -> Content(
-                    d, graphMode, source, config.settings.useCelsius, targetDate, sourceCompareSort,
+                    d, graphMode, source, config.settings.useCelsius, config.settings.headerRainLookaheadHours, targetDate, sourceCompareSort,
                     enabledSourceIds = config.settings.visibleSources,
                     onToggleMode = {
                         graphMode = if (graphMode == GraphMode.EVOLUTION) GraphMode.ERROR else GraphMode.EVOLUTION
@@ -346,6 +346,7 @@ private fun Content(
     graphMode: GraphMode,
     source: WeatherSource,
     useCelsius: Boolean,
+    rainLookaheadHours: Int,
     targetDate: LocalDate,
     sourceCompareSort: DaySourceComparison.Sort,
     enabledSourceIds: List<String>,
@@ -374,6 +375,7 @@ private fun Content(
             onSortTap,
             canApplyOrder = DaySourceComparison.canApplyOrder(enabledSourceIds, sortedRows),
             onApplyOrder = onApplyOrder,
+            rainLookaheadHours = rainLookaheadHours,
         )
         Spacer(Modifier.height(12.dp))
     }
@@ -811,6 +813,7 @@ private suspend fun loadComparison(
         lon = lon,
         now = LocalDateTime.now(zone),
         zone = zone,
+        rainLookaheadHours = config.settings.headerRainLookaheadHours,
     )
 
     return ComparisonData(

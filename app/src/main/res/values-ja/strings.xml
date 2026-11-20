@@ -101,13 +101,16 @@
     <string name="source_compare_col_source">ソース</string>
     <string name="source_compare_col_high">最高</string>
     <string name="source_compare_col_low">最低</string>
-    <string name="source_compare_col_rain">雨</string>
+    <string name="source_compare_group_rain">雨</string>
+    <string name="source_compare_col_now">今</string>
+    <string name="source_compare_col_rain">日中</string>
     <string name="source_compare_col_peak">ピーク</string>
     <string name="source_compare_col_night">夜</string>
-    <string name="source_compare_col_amount">雨量</string>
+    <string name="source_compare_col_amount">合計</string>
     <string name="source_compare_col_cloud">雲</string>
     <string name="source_compare_col_bias">偏り</string>
     <string name="source_compare_col_age">経過</string>
+    <string name="source_compare_legend_now">今後%1$d時間の1時間ごとの最高確率（ウィジェットのヘッダーと同じ）</string>
     <string name="source_compare_legend_rain">1時間ごとの最高確率、8〜20時</string>
     <string name="source_compare_legend_peak">日中の最高確率の時刻</string>
     <string name="source_compare_legend_night">1時間ごとの最高確率、20〜8時</string>
@@ -116,6 +119,7 @@
     <string name="source_compare_legend_bias">予報最高気温の平均から実測を引いた値、過去30日（+ = 高め）</string>
     <string name="source_compare_legend_age">提供元がこの予報を最後に確認してからの時間。24時間超は灰色</string>
     <string name="source_compare_legend_star">このソースは今日の分を送らなくなりました（日付が UTC 基準）。経過時間は今日を含んだ最後の予報からです。</string>
+    <string name="source_compare_legend_apply_order">天気の提供元をこの表の順に並べ替えます。一番上がメインの提供元になります。</string>
     <string name="loading_accuracy_summary">予報精度を読み込み中...</string>
     <string name="error_loading_accuracy_summary">予報精度を現在読み込めません。</string>
     <string name="data_freshness_unknown">データの鮮度：不明</string>

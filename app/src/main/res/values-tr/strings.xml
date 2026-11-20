@@ -101,13 +101,16 @@
     <string name="source_compare_col_source">Kaynak</string>
     <string name="source_compare_col_high">Yüksek</string>
     <string name="source_compare_col_low">Düşük</string>
-    <string name="source_compare_col_rain">Yağmur</string>
+    <string name="source_compare_group_rain">Yağmur</string>
+    <string name="source_compare_col_now">Şimdi</string>
+    <string name="source_compare_col_rain">Gün</string>
     <string name="source_compare_col_peak">Zirve</string>
     <string name="source_compare_col_night">Gece</string>
-    <string name="source_compare_col_amount">Miktar</string>
+    <string name="source_compare_col_amount">Toplam</string>
     <string name="source_compare_col_cloud">Bulut</string>
     <string name="source_compare_col_bias">Sapma</string>
     <string name="source_compare_col_age">Yaş</string>
+    <string name="source_compare_legend_now">önümüzdeki %1$d saatteki en yüksek saatlik olasılık, widget başlığındaki gibi</string>
     <string name="source_compare_legend_rain">en yüksek saatlik olasılık, 08–20</string>
     <string name="source_compare_legend_peak">gündüz en yüksek olasılığın saati</string>
     <string name="source_compare_legend_night">en yüksek saatlik olasılık, 20–08</string>
@@ -116,6 +119,7 @@
     <string name="source_compare_legend_bias">ortalama tahmini yüksek eksi gerçek, son 30 gün (+ = sıcak)</string>
     <string name="source_compare_legend_age">kaynağın bu tahmini son onaylamasından beri; 24 sa sonra gri</string>
     <string name="source_compare_legend_star">Kaynak artık bugünü göndermiyor (günleri UTC\'ye göre); yaş, bugünü içeren son tahmininden.</string>
+    <string name="source_compare_legend_apply_order">hava durumu kaynaklarınızı bu tablonun sırasına koyar; en üstteki birincil kaynağınız olur.</string>
     <string name="loading_accuracy_summary">Tahmin doğruluğu yükleniyor...</string>
     <string name="error_loading_accuracy_summary">Tahmin doğruluğu şu anda yüklenemiyor.</string>
     <string name="data_freshness_unknown">Veri güncelliği: Bilinmiyor</string>

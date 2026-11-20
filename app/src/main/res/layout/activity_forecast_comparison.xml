@@ -177,6 +177,12 @@
                         android:textStyle="bold" />
                 </LinearLayout>
 
+                <!-- "Rain" over the rain columns; filled per render (outside the table so its rows stay header-first). -->
+                <FrameLayout
+                    android:id="@+id/source_comparison_rain_group"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
                 <LinearLayout
                     android:id="@+id/source_comparison_table"
                     android:layout_width="match_parent"

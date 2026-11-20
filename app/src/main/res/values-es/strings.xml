@@ -101,13 +101,16 @@
     <string name="source_compare_col_source">Fuente</string>
     <string name="source_compare_col_high">Máx</string>
     <string name="source_compare_col_low">Mín</string>
-    <string name="source_compare_col_rain">Lluvia</string>
+    <string name="source_compare_group_rain">Lluvia</string>
+    <string name="source_compare_col_now">Ahora</string>
+    <string name="source_compare_col_rain">Día</string>
     <string name="source_compare_col_peak">Pico</string>
     <string name="source_compare_col_night">Noche</string>
-    <string name="source_compare_col_amount">Cant.</string>
+    <string name="source_compare_col_amount">Total</string>
     <string name="source_compare_col_cloud">Nubes</string>
     <string name="source_compare_col_bias">Sesgo</string>
     <string name="source_compare_col_age">Edad</string>
+    <string name="source_compare_legend_now">mayor probabilidad horaria en las próximas %1$d h, como en la cabecera del widget</string>
     <string name="source_compare_legend_rain">mayor probabilidad horaria, 8–20 h</string>
     <string name="source_compare_legend_peak">hora de la mayor probabilidad diurna</string>
     <string name="source_compare_legend_night">mayor probabilidad horaria, 20–8 h</string>
@@ -116,6 +119,7 @@
     <string name="source_compare_legend_bias">máxima prevista media menos la real, últimos 30 días (+ = más cálida)</string>
     <string name="source_compare_legend_age">desde que la fuente confirmó este pronóstico; gris tras 24 h</string>
     <string name="source_compare_legend_star">La fuente ya no envía hoy (sus días siguen UTC); la antigüedad es de su último pronóstico que lo incluía.</string>
+    <string name="source_compare_legend_apply_order">ordena tus fuentes meteorológicas como esta tabla; la primera pasa a ser tu fuente principal.</string>
     <string name="loading_accuracy_summary">Cargando precisión del pronóstico...</string>
     <string name="error_loading_accuracy_summary">No se puede cargar la precisión del pronóstico ahora mismo.</string>
     <string name="data_freshness_unknown">Actualidad de los datos: desconocida</string>

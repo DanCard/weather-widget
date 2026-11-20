@@ -892,6 +892,7 @@ class ForecastComparisonActivity : AppCompatActivity() {
                     lat = lat,
                     lon = lon,
                     now = LocalDateTime.now(),
+                    rainLookaheadHours = widgetStateManager.getHeaderRainLookaheadHours(),
                 )
                 withContext(Dispatchers.Main) {
                     // A slower load for a day the user has since left must not paint over the new day.
@@ -909,6 +910,7 @@ class ForecastComparisonActivity : AppCompatActivity() {
         val card = findViewById<View>(R.id.source_comparison_card)
         val table = findViewById<android.widget.LinearLayout>(R.id.source_comparison_table)
         table.removeAllViews()
+        findViewById<android.widget.FrameLayout>(R.id.source_comparison_rain_group).removeAllViews()
         if (rows.isEmpty()) {
             card.visibility = View.GONE
             return
@@ -936,17 +938,21 @@ class ForecastComparisonActivity : AppCompatActivity() {
         val secondary = DataScreenStyler.color(com.weatherwidget.shared.graph.DataScreenStyle.TEXT_SECONDARY)
         val names = listOf(
             R.string.source_compare_col_source, R.string.source_compare_col_high, R.string.source_compare_col_low,
-            R.string.source_compare_col_rain, R.string.source_compare_col_peak, R.string.source_compare_col_night,
+            R.string.source_compare_col_now, R.string.source_compare_col_rain, R.string.source_compare_col_peak, R.string.source_compare_col_night,
             R.string.source_compare_col_amount,
             R.string.source_compare_col_cloud, R.string.source_compare_col_bias, R.string.source_compare_col_age,
         ).map { getString(it) }
         val header = names.mapIndexed { i, name -> DaySourceComparison.headerLabel(name, DaySourceComparison.SortColumn.entries[i], sort) }
-        // Card margins (12 + 12) and padding (12 + 12) around the table.
-        val tableWidthPx = resources.displayMetrics.widthPixels - dpToPx(48)
+        // Rotation recreates the activity, so landscape lays out again at its wider width (the Now
+        // column may then fit).
+        val tableWidthPx = sourceCompareTableWidthPx()
         val layout = DaySourceComparison.layout(
             tableWidthPx.toFloat(), DaySourceComparison.MIN_COLUMN_GAP_DP * resources.displayMetrics.density,
             header, cells, comparisonTextMeasurer(),
         )
+        layout.rainGroupBounds()?.let { (start, width) ->
+            findViewById<android.widget.FrameLayout>(R.id.source_comparison_rain_group).addView(rainGroupRow(start, width, secondary))
+        }
         table.addView(
             comparisonRow(layout.headers(header), layout, secondary, bold = false, staleAge = false) { column ->
                 onSourceCompareHeaderTap(DaySourceComparison.SortColumn.entries[column])
@@ -955,11 +961,59 @@ class ForecastComparisonActivity : AppCompatActivity() {
         cells.forEachIndexed { i, c ->
             table.addView(comparisonRow(layout.values(c), layout, primary, bold = sorted[i].source == cachedRequestedSource, staleAge = c.ageIsStale))
         }
-        findViewById<TextView>(R.id.source_comparison_legend).text = sourceComparisonLegend(names, layout.showAmount, DaySourceComparison.showStarNote(cells))
+        findViewById<TextView>(R.id.source_comparison_legend).text = sourceComparisonLegend(
+            names, layout.showAmount, DaySourceComparison.showStarNote(cells),
+            showHeaderRain = layout.showHeaderRain, rainLookaheadHours = widgetStateManager.getHeaderRainLookaheadHours(),
+        )
     }
 
-    /** One line per column, "Rain highest hourly chance, 8am–8pm": shared column choice, bold names, localized notes. */
-    internal fun sourceComparisonLegend(names: List<String>, showAmount: Boolean, showStar: Boolean): CharSequence {
+    /**
+     * The table's width: the root's inner width less the card's margins (12 + 12) and padding
+     * (12 + 12). The root's padding carries the system insets (`fitsSystemWindows`), so a landscape
+     * camera cutout narrows the table instead of pushing Age off the card (Pixel 7 Pro, 2026-11-20).
+     * The screen width only stands in before the root is laid out.
+     */
+    private fun sourceCompareTableWidthPx(): Int {
+        val root = findViewById<View>(R.id.history_root)
+        val inner = if (root.width > 0) root.width - root.paddingLeft - root.paddingRight else resources.displayMetrics.widthPixels
+        Log.v(TAG, "SOURCE_COMPARE_WIDTH root=${root.width} pad=${root.paddingLeft}+${root.paddingRight} screen=${resources.displayMetrics.widthPixels} table=${inner - dpToPx(48)}")
+        return inner - dpToPx(48)
+    }
+
+    /** "Rain" centred over the rain columns ([DaySourceComparison.Layout.rainGroupBounds], px), a hairline under it. */
+    private fun rainGroupRow(startPx: Float, widthPx: Float, color: Int): View {
+        val row = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.HORIZONTAL
+            tag = "source_compare_rain_group"
+        }
+        row.addView(View(this), android.widget.LinearLayout.LayoutParams(startPx.toInt(), 1))
+        val group = android.widget.LinearLayout(this).apply { orientation = android.widget.LinearLayout.VERTICAL }
+        group.addView(
+            TextView(this).apply {
+                text = getString(R.string.source_compare_group_rain)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+                setTextColor(color)
+                gravity = android.view.Gravity.CENTER_HORIZONTAL
+                maxLines = 1
+            },
+            android.widget.LinearLayout.LayoutParams(android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT),
+        )
+        group.addView(
+            View(this).apply { setBackgroundColor(color); alpha = 0.5f },
+            android.widget.LinearLayout.LayoutParams(android.view.ViewGroup.LayoutParams.MATCH_PARENT, dpToPx(1)).apply { topMargin = dpToPx(1) },
+        )
+        row.addView(group, android.widget.LinearLayout.LayoutParams(widthPx.toInt(), android.view.ViewGroup.LayoutParams.WRAP_CONTENT))
+        return row
+    }
+
+    /** One line per column, "Day highest hourly chance, 8am–8pm": shared column choice, bold names, localized notes. */
+    internal fun sourceComparisonLegend(
+        names: List<String>,
+        showAmount: Boolean,
+        showStar: Boolean,
+        showHeaderRain: Boolean = false,
+        rainLookaheadHours: Int = com.weatherwidget.shared.settings.DisplaySettings.HEADER_RAIN_LOOKAHEAD.default,
+    ): CharSequence {
         val notes = mapOf(
             DaySourceComparison.SortColumn.DAY_RAIN to R.string.source_compare_legend_rain,
             DaySourceComparison.SortColumn.PEAK to R.string.source_compare_legend_peak,
@@ -970,10 +1024,15 @@ class ForecastComparisonActivity : AppCompatActivity() {
             DaySourceComparison.SortColumn.AGE to R.string.source_compare_legend_age,
         )
         val text = android.text.SpannableStringBuilder()
-        DaySourceComparison.legendColumns(showAmount).forEachIndexed { i, column ->
+        DaySourceComparison.legendColumns(showAmount, showHeaderRain).forEachIndexed { i, column ->
             if (i > 0) text.append("\n")
             text.append(names[column.ordinal], android.text.style.StyleSpan(android.graphics.Typeface.BOLD), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-            text.append(" ").append(getString(notes.getValue(column)))
+            val note = if (column == DaySourceComparison.SortColumn.HEADER_RAIN) {
+                getString(R.string.source_compare_legend_now, rainLookaheadHours)
+            } else {
+                getString(notes.getValue(column))
+            }
+            text.append(" ").append(note)
         }
         // Only while some Age carries the star (DaySourceComparison.Row.noLongerSent).
         if (showStar) {
@@ -981,6 +1040,10 @@ class ForecastComparisonActivity : AppCompatActivity() {
             text.append(DaySourceComparison.AGE_STAR, android.text.style.StyleSpan(android.graphics.Typeface.BOLD), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             text.append(" ").append(getString(R.string.source_compare_legend_star))
         }
+        // The button above the table: what a tap changes (user wording, 2026-11-20). Always shown.
+        text.append("\n")
+        text.append(getString(R.string.source_compare_set_api_order), android.text.style.StyleSpan(android.graphics.Typeface.BOLD), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        text.append(" ").append(getString(R.string.source_compare_legend_apply_order))
         return text
     }
 

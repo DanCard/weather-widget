@@ -101,13 +101,16 @@
     <string name="source_compare_col_source">Źródło</string>
     <string name="source_compare_col_high">Maks</string>
     <string name="source_compare_col_low">Min</string>
-    <string name="source_compare_col_rain">Deszcz</string>
+    <string name="source_compare_group_rain">Deszcz</string>
+    <string name="source_compare_col_now">Teraz</string>
+    <string name="source_compare_col_rain">Dzień</string>
     <string name="source_compare_col_peak">Szczyt</string>
     <string name="source_compare_col_night">Noc</string>
-    <string name="source_compare_col_amount">Ilość</string>
+    <string name="source_compare_col_amount">Suma</string>
     <string name="source_compare_col_cloud">Chmury</string>
     <string name="source_compare_col_bias">Odchył.</string>
     <string name="source_compare_col_age">Wiek</string>
+    <string name="source_compare_legend_now">najwyższe godzinowe prawdopodobieństwo w ciągu %1$d h, jak w nagłówku widżetu</string>
     <string name="source_compare_legend_rain">najwyższe godzinowe prawdopodobieństwo, 8–20</string>
     <string name="source_compare_legend_peak">godzina najwyższego prawdopodobieństwa w dzień</string>
     <string name="source_compare_legend_night">najwyższe godzinowe prawdopodobieństwo, 20–8</string>
@@ -116,6 +119,7 @@
     <string name="source_compare_legend_bias">średnia prognozowana maks. minus rzeczywista, ostatnie 30 dni (+ = za ciepło)</string>
     <string name="source_compare_legend_age">od ostatniego potwierdzenia tej prognozy przez źródło; szare po 24 h</string>
     <string name="source_compare_legend_star">Źródło nie wysyła już dzisiejszego dnia (jego doby liczone są w UTC); wiek pochodzi z ostatniej prognozy, która go zawierała.</string>
+    <string name="source_compare_legend_apply_order">ustawia twoje źródła pogody w kolejności tej tabeli; pierwsze staje się źródłem głównym.</string>
     <string name="loading_accuracy_summary">Ładowanie trafności prognoz...</string>
     <string name="error_loading_accuracy_summary">Nie można teraz wczytać trafności prognoz.</string>
     <string name="data_freshness_unknown">Aktualność danych: nieznana</string>

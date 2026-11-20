@@ -1,6 +1,10 @@
 package com.weatherwidget.desktop
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsEnabled
@@ -10,6 +14,9 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.graphics.toAwtImage
 import androidx.compose.ui.semantics.SemanticsProperties
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
@@ -112,9 +119,10 @@ class DesktopForecastComparisonSourcesTest {
         val legend = composeTestRule.onNodeWithTag("source_compare_legend", useUnmergedTree = true)
             .fetchSemanticsNode().config[SemanticsProperties.Text].joinToString()
         println("DesktopForecastComparisonSourcesTest legend: $legend")
-        assertTrue(legend, legend.startsWith("Rain highest hourly chance, 8am–8pm\nPeak hour of the highest daytime chance\n"))
+        assertTrue(legend, legend.startsWith("Day highest hourly chance, 8am–8pm\nPeak hour of the highest daytime chance\n"))
         assertTrue(legend, legend.contains("\nCloud cloud cover at noon\n"))
-        assertTrue(legend, legend.endsWith("Age time since the source last confirmed this forecast; grey after 24 h"))
+        assertTrue(legend, legend.endsWith("Age time since the source last confirmed this forecast; grey after 24 h\n$APPLY_ORDER_LABEL $APPLY_ORDER_NOTE"))
+        assertTrue(legend, legend.endsWith("\nSet API order puts your weather sources in this table's order; the top one becomes your primary source."))
         assertEquals("every legend column has text", DaySourceComparison.legendColumns(true).toSet(), LEGEND_TEXT.keys)
     }
 
@@ -144,16 +152,16 @@ class DesktopForecastComparisonSourcesTest {
         assertEquals(listOf("NWS", "Meteo", "Silur"), sourcesInOrder())
         composeTestRule.onNodeWithText("High ▾").assertExists()
 
-        composeTestRule.onNodeWithTag("source_compare_header_3", useUnmergedTree = true).performClick()
+        composeTestRule.onNodeWithTag("source_compare_header_4", useUnmergedTree = true).performClick()
         composeTestRule.waitForIdle()
         assertEquals(listOf("Meteo", "NWS", "Silur"), sourcesInOrder())
-        composeTestRule.onNodeWithText("Rain ▾").assertExists()
+        composeTestRule.onNodeWithText("Day ▾").assertExists()
         composeTestRule.onNodeWithText("High").assertExists()
 
-        composeTestRule.onNodeWithTag("source_compare_header_3", useUnmergedTree = true).performClick()
+        composeTestRule.onNodeWithTag("source_compare_header_4", useUnmergedTree = true).performClick()
         composeTestRule.waitForIdle()
         assertEquals("blank stays last when reversed", listOf("NWS", "Meteo", "Silur"), sourcesInOrder())
-        composeTestRule.onNodeWithText("Rain ▴").assertExists()
+        composeTestRule.onNodeWithText("Day ▴").assertExists()
         assertEquals(listOf("DAY_RAIN:desc", "DAY_RAIN:asc"), saved)
     }
 
@@ -175,7 +183,7 @@ class DesktopForecastComparisonSourcesTest {
             .fetchSemanticsNode().children.first().config[SemanticsProperties.Text].joinToString()
         println("DesktopForecastComparisonSourcesTest saved-sort first row: $first")
         assertEquals("Meteo", first)
-        composeTestRule.onNodeWithText("Rain ▾").assertExists()
+        composeTestRule.onNodeWithText("Day ▾").assertExists()
     }
 
     @Test
@@ -195,7 +203,7 @@ class DesktopForecastComparisonSourcesTest {
         val legend = composeTestRule.onNodeWithTag("source_compare_legend", useUnmergedTree = true)
             .fetchSemanticsNode().config[SemanticsProperties.Text].joinToString()
         println("DesktopForecastComparisonSourcesTest today legend: $legend")
-        assertTrue(legend, legend.endsWith("grey after 24 h\n* $STAR_NOTE"))
+        assertTrue(legend, legend.endsWith("grey after 24 h\n* $STAR_NOTE\n$APPLY_ORDER_LABEL $APPLY_ORDER_NOTE"))
         assertTrue("NWS is not starred", composeTestRule.onAllNodesWithText("1m").fetchSemanticsNodes().isNotEmpty())
     }
 
@@ -228,7 +236,7 @@ class DesktopForecastComparisonSourcesTest {
         composeTestRule.onNodeWithTag("source_compare_apply_order").assertIsNotEnabled()
 
         // Click Rain header -> [OPEN_METEO, NWS, SILURIAN]: button becomes enabled.
-        composeTestRule.onNodeWithTag("source_compare_header_3", useUnmergedTree = true).performClick()
+        composeTestRule.onNodeWithTag("source_compare_header_4", useUnmergedTree = true).performClick()
         composeTestRule.waitForIdle()
         composeTestRule.onNodeWithTag("source_compare_apply_order").assertIsEnabled()
 
@@ -269,5 +277,74 @@ class DesktopForecastComparisonSourcesTest {
         composeTestRule.onNodeWithTag("graph_mode_button").performClick()
         composeTestRule.waitForIdle()
         composeTestRule.onNodeWithText("Mode: Error").assertExists()
+    }
+
+    /**
+     * The Now column (header rain %) through the real SQLite rows and the shared runner: today, a wide
+     * table shows it under the "Rain" group; shrinking the same composition drops it, widening brings
+     * it back (plans/261120-all-sources-header-rain-column.md).
+     */
+    @Test
+    fun `today's Now column appears and disappears as the window width changes`() {
+        seed("NWS", 66.4f, 50.2f, ageMs = 3_600_000L, noonCloud = 80, dayMax = 30, dayOffset = 0)
+        seed("OPEN_METEO", 68.1f, 52.6f, ageMs = 2 * 3_600_000L, noonCloud = 40, dayMax = 70, dayOffset = 0)
+        val today = LocalDate.now()
+        val zone = java.time.ZoneId.systemDefault()
+        val dao = DesktopWeatherDao(db)
+        val fetched = System.currentTimeMillis()
+        // Every hour from yesterday evening to tomorrow morning, so "now + 1 h" is covered at any test time.
+        val hours = (-6..33).map { today.atStartOfDay(zone).plusHours(it.toLong()).toInstant().toEpochMilli() }
+        for ((source, chance) in listOf("NWS" to 30, "OPEN_METEO" to 70)) {
+            dao.upsertHourlyForecasts(
+                lat, lon, source,
+                hours.map {
+                    com.weatherwidget.data.model.HourlyForecast(
+                        it, 60f, "Cloudy", precipProbability = chance, source = source, fetchedAt = fetched,
+                        locationLat = lat, locationLon = lon,
+                    )
+                },
+            )
+        }
+        var widthDp by mutableStateOf(1000)
+        composeTestRule.setContent {
+            Box(Modifier.width(widthDp.dp)) {
+                ForecastComparisonContent(weatherDao = dao, config = config, initialDate = today, onClose = {})
+            }
+        }
+        composeTestRule.waitUntil(timeoutMillis = 10_000) {
+            composeTestRule.onAllNodesWithText("Silur").fetchSemanticsNodes().isNotEmpty()
+        }
+        val nowTag = "source_compare_header_${DaySourceComparison.HEADER_RAIN_COLUMN}"
+        fun shown(tag: String) =
+            composeTestRule.onAllNodes(androidx.compose.ui.test.hasTestTag(tag), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+        fun rowTexts(i: Int): List<String> =
+            composeTestRule.onNodeWithTag("source_compare_row_$i", useUnmergedTree = true)
+                .fetchSemanticsNode().children.map { it.config[SemanticsProperties.Text].joinToString() }
+
+        println("DesktopForecastComparisonSourcesTest wide rows: ${(0..2).map { rowTexts(it) }}")
+        assertTrue("wide: Now shown", shown(nowTag))
+        assertTrue("Rain group label", shown("source_compare_rain_group"))
+        val meteo = (0..2).map { rowTexts(it) }.first { it.first() == "Meteo" }
+        assertEquals("Meteo's Now = its header chance", "70%", meteo[3])
+        val legend = composeTestRule.onNodeWithTag("source_compare_legend", useUnmergedTree = true)
+            .fetchSemanticsNode().config[SemanticsProperties.Text].joinToString()
+        assertTrue(legend, legend.startsWith("Now ${nowLegend(1)}\nDay "))
+        // A look at the real rendering (Rain label vs Low), kept as a diagnostic.
+        val shot = java.io.File("build/test-screens/source_compare_wide.png").apply { parentFile.mkdirs() }
+        javax.imageio.ImageIO.write(
+            composeTestRule.onRoot().captureToImage().toAwtImage(), "png", shot,
+        )
+        println("DesktopForecastComparisonSourcesTest screenshot: ${shot.absolutePath}")
+
+        widthDp = 420
+        composeTestRule.waitForIdle()
+        println("DesktopForecastComparisonSourcesTest narrow rows: ${(0..2).map { rowTexts(it) }}")
+        assertTrue("narrow: Now dropped", !shown(nowTag))
+        assertTrue("Rain group still over Day..", shown("source_compare_rain_group"))
+        assertTrue("Day column still shown", shown("source_compare_header_${DaySourceComparison.SortColumn.DAY_RAIN.ordinal}"))
+
+        widthDp = 1000
+        composeTestRule.waitForIdle()
+        assertTrue("widened again: Now back", shown(nowTag))
     }
 }

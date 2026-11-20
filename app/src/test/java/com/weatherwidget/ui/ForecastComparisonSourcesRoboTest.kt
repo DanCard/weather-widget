@@ -139,10 +139,11 @@ class ForecastComparisonSourcesRoboTest {
         assertEquals(listOf(SortColumn.DAY_RAIN, SortColumn.PEAK, SortColumn.NIGHT_RAIN, SortColumn.CLOUD, SortColumn.BIAS, SortColumn.AGE),
             DaySourceComparison.legendColumns(showAmount = false))
         assertEquals(
-            "Rain highest hourly chance, 8am–8pm\nPeak hour of the highest daytime chance\n" +
+            "Day highest hourly chance, 8am–8pm\nPeak hour of the highest daytime chance\n" +
                 "Night highest hourly chance, 8pm–8am\nCloud cloud cover at noon\n" +
                 "Bias average forecast high minus actual, last 30 days (+ = ran warm)\n" +
-                "Age time since the source last confirmed this forecast; grey after 24 h",
+                "Age time since the source last confirmed this forecast; grey after 24 h\n" +
+                "Set API order puts your weather sources in this table's order; the top one becomes your primary source.",
             legend,
         )
     }
@@ -204,19 +205,19 @@ class ForecastComparisonSourcesRoboTest {
         cell(table, 0, 3).performClick()
         shadowOf(Looper.getMainLooper()).idle()
         assertEquals(listOf("Meteo", "NWS", "Silur"), order(table))
-        assertEquals("Rain ▾", cell(table, 0, 3).text.toString())
+        assertEquals("Day ▾", cell(table, 0, 3).text.toString())
         assertEquals("High", cell(table, 0, 1).text.toString())
 
         cell(table, 0, 3).performClick()
         shadowOf(Looper.getMainLooper()).idle()
         assertEquals("blank stays last when reversed", listOf("NWS", "Meteo", "Silur"), order(table))
-        assertEquals("Rain ▴", cell(table, 0, 3).text.toString())
+        assertEquals("Day ▴", cell(table, 0, 3).text.toString())
         assertEquals("DAY_RAIN:asc", state.sourceCompareSort())
 
         // A fresh open applies the remembered sort.
         val reopened = open()
         assertEquals(listOf("NWS", "Meteo", "Silur"), order(reopened))
-        assertEquals("Rain ▴", cell(reopened, 0, 3).text.toString())
+        assertEquals("Day ▴", cell(reopened, 0, 3).text.toString())
     }
 
     @Test
@@ -261,7 +262,10 @@ class ForecastComparisonSourcesRoboTest {
         assertEquals("1m", rows.single { it[0] == "NWS" }.last())
         val legend = activity.findViewById<TextView>(R.id.source_comparison_legend).text.toString()
         println("ForecastComparisonSourcesRoboTest today legend: $legend")
-        assertTrue(legend, legend.endsWith("grey after 24 h\n* " + context.getString(R.string.source_compare_legend_star)))
+        assertTrue(legend, legend.endsWith(
+            "grey after 24 h\n* " + context.getString(R.string.source_compare_legend_star) + "\n" +
+                context.getString(R.string.source_compare_set_api_order) + " " + context.getString(R.string.source_compare_legend_apply_order),
+        ))
     }
 
     /**
@@ -335,7 +339,7 @@ class ForecastComparisonSourcesRoboTest {
 
             val header = cells(0).map { it.text.toString() }
             assertEquals("all ten columns", 10, header.size)
-            assertEquals("Amount", header[6])
+            assertEquals("Total", header[6])
             val owm = cells((1 until table.childCount).first { cells(it)[0].text == "OWM" }).map { it.text.toString() }
             assertEquals("48.2°", owm[2]) // decimals kept: rounding is only a fallback
             val meteo = cells((1 until table.childCount).first { cells(it)[0].text == "Meteo" }).map { it.text.toString() }
@@ -348,7 +352,7 @@ class ForecastComparisonSourcesRoboTest {
                 views.forEach { v -> assertTrue("'${v.text}' fits ${v.layoutParams.width}", v.paint.measureText(v.text.toString()) <= v.layoutParams.width) }
             }
             val legend = activity.findViewById<TextView>(R.id.source_comparison_legend).text.toString()
-            assertTrue(legend, legend.contains("Amount "))
+            assertTrue(legend, legend.contains("Total "))
         } finally {
             runBlocking { db.forecastDao().deleteForecastsAtSite(siteLat, siteLon) }
             db.openHelper.writableDatabase.execSQL(
@@ -406,7 +410,7 @@ class ForecastComparisonSourcesRoboTest {
         // Default High sort is [NWS, OPEN_METEO, SILURIAN] which already matches enabled order.
         assertTrue("disabled when table already matches API order", !applyButton.isEnabled)
 
-        // Tap Rain header -> [OPEN_METEO, NWS, SILURIAN].
+        // Tap Day (rain) header -> [OPEN_METEO, NWS, SILURIAN].
         ((table.getChildAt(0) as LinearLayout).getChildAt(3) as TextView).performClick()
         shadowOf(Looper.getMainLooper()).idle()
         assertTrue("enabled after sorting into a different order", applyButton.isEnabled)
@@ -430,5 +434,140 @@ class ForecastComparisonSourcesRoboTest {
                     it.getBooleanExtra(com.weatherwidget.widget.WidgetActions.EXTRA_UI_ONLY, false)
             },
         )
+    }
+
+    /**
+     * Today's Now column (the header rain %) on a Pixel 7 Pro (real font metrics), through Room and the
+     * shared runner: portrait is too tight for its plenty-of-width gap, so it stays out; rotating to
+     * landscape recreates the activity at the wider width, and it appears under the "Rain" group.
+     * plans/261120-all-sources-header-rain-column.md
+     */
+    @Test
+    @Config(sdk = [35], qualifiers = "w411dp-h891dp-port-420dpi")
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun `today's Now column stays out in portrait and appears after rotating to landscape`() {
+        val siteLat = 40.115
+        val siteLon = -105.17
+        val today = LocalDate.now()
+        val epoch = today.toEpochDay() * 86_400_000L
+        val now = System.currentTimeMillis()
+        val zone = java.time.ZoneId.systemDefault()
+        val sources = listOf(
+            WeatherSource.OPEN_WEATHER_MAP to (58.0f to 48.2f), WeatherSource.NWS to (60f to 47f),
+            WeatherSource.GOOGLE_WEATHER to (55.8f to 53f), WeatherSource.WEATHER_API to (55.1f to 51.2f),
+            WeatherSource.TOMORROW_IO to (54f to 49.4f), WeatherSource.SILURIAN to (54.5f to 50.9f),
+            WeatherSource.OPEN_METEO to (53.7f to 47f),
+        )
+        try {
+            runBlocking {
+                db.forecastDao().insertAll(
+                    sources.map { (source, temps) ->
+                        ForecastEntity(
+                            targetDate = epoch, dateOfPrediction = epoch,
+                            locationLat = siteLat, locationLon = siteLon, highTemp = temps.first, lowTemp = temps.second,
+                            condition = "Rain", source = source.id, noonCloudPercent = 100, hourlyDayPrecipMax = 100,
+                            hourlyNightPrecipMax = 100, fetchedAt = now - 60_000L, lastConfirmedAt = now - 60_000L,
+                        )
+                    },
+                )
+                // Every source's hours from yesterday evening to tomorrow morning: "now + 1 h" is covered at any time.
+                db.hourlyForecastDao().insertAll(
+                    sources.flatMapIndexed { i, (source, _) ->
+                        (-6..33).map { h ->
+                            HourlyForecastEntity(
+                                dateTime = today.atStartOfDay(zone).plusHours(h.toLong()).toInstant().toEpochMilli(),
+                                locationLat = siteLat, locationLon = siteLon, temperature = 52f, condition = "Rain",
+                                source = source.id, precipProbability = 40 + 10 * i, precipAmountMm = 2f,
+                                fetchedAt = now - 60_000L,
+                            )
+                        }
+                    },
+                )
+            }
+            WidgetStateManager(context).setVisibleSourcesOrder(sources.map { it.first })
+            WidgetStateManager(context).setSourceCompareSort(DaySourceComparison.Sort.DEFAULT.encode())
+            val intent = Intent(context, ForecastComparisonActivity::class.java).apply {
+                putExtra(ForecastComparisonActivity.EXTRA_TARGET_DATE, today.toString())
+                putExtra(ForecastComparisonActivity.EXTRA_LAT, siteLat)
+                putExtra(ForecastComparisonActivity.EXTRA_LON, siteLon)
+                putExtra(ForecastComparisonActivity.EXTRA_SOURCE, WeatherSource.NWS.displayName)
+            }
+            val controller = Robolectric.buildActivity(ForecastComparisonActivity::class.java, intent)
+            opened += controller
+            controller.setup()
+
+            fun awaitTable(activity: ForecastComparisonActivity): LinearLayout {
+                val table = activity.findViewById<LinearLayout>(R.id.source_comparison_table)
+                val deadline = System.currentTimeMillis() + 10_000
+                while (table.childCount == 0 && System.currentTimeMillis() < deadline) {
+                    Thread.sleep(20)
+                    shadowOf(Looper.getMainLooper()).idle()
+                }
+                return table
+            }
+            fun cells(table: LinearLayout, row: Int) =
+                (table.getChildAt(row) as LinearLayout).let { r -> (0 until r.childCount).map { r.getChildAt(it) as TextView } }
+            fun dump(label: String, activity: ForecastComparisonActivity, table: LinearLayout) {
+                println("ForecastComparisonSourcesRoboTest $label widthDp=${activity.resources.configuration.screenWidthDp}")
+                (0 until table.childCount).forEach { row ->
+                    println("ForecastComparisonSourcesRoboTest $label row $row: " + cells(table, row).map { "${it.text}@${it.layoutParams.width}" })
+                }
+            }
+            val nowHeader = context.getString(R.string.source_compare_col_now)
+            val rainGroup = context.getString(R.string.source_compare_group_rain)
+
+            val portrait = controller.get()
+            val portraitTable = awaitTable(portrait)
+            dump("portrait", portrait, portraitTable)
+            val portraitHeader = cells(portraitTable, 0).map { it.text.toString() }
+            assertTrue("portrait: no room for Now $portraitHeader", nowHeader !in portraitHeader)
+            assertTrue("portrait keeps Total $portraitHeader", context.getString(R.string.source_compare_col_amount) in portraitHeader)
+            val portraitGroup = portrait.findViewById<android.widget.FrameLayout>(R.id.source_comparison_rain_group)
+            assertEquals("Rain group shown over Day..Total", 1, portraitGroup.childCount)
+            val portraitLegend = portrait.findViewById<TextView>(R.id.source_comparison_legend).text.toString()
+            assertTrue(portraitLegend, !portraitLegend.startsWith("$nowHeader "))
+
+            // Rotate: the manifest does not handle orientation, so the activity is recreated at the new width.
+            org.robolectric.RuntimeEnvironment.setQualifiers("w891dp-h411dp-land-420dpi")
+            controller.recreate()
+            val landscape = controller.get()
+            val landscapeTable = awaitTable(landscape)
+            dump("landscape", landscape, landscapeTable)
+            val landscapeHeader = cells(landscapeTable, 0).map { it.text.toString() }
+            assertEquals("landscape: Now right after Low $landscapeHeader", nowHeader, landscapeHeader[3])
+            val owm = cells(landscapeTable, (1 until landscapeTable.childCount).first { cells(landscapeTable, it)[0].text == "OWM" })
+            assertEquals("OWM's Now = its header chance", "40%", owm[3].text.toString())
+            val group = (landscape.findViewById<android.widget.FrameLayout>(R.id.source_comparison_rain_group).getChildAt(0) as LinearLayout)
+            val groupLabel = ((group.getChildAt(1) as LinearLayout).getChildAt(0) as TextView).text.toString()
+            assertEquals(rainGroup, groupLabel)
+            val headerViews = cells(landscapeTable, 0)
+            val groupStart = group.getChildAt(0).layoutParams.width
+            val groupEnd = groupStart + group.getChildAt(1).layoutParams.width
+            println("ForecastComparisonSourcesRoboTest rain group start=$groupStart end=$groupEnd lowEnd=${headerViews.take(3).sumOf { it.layoutParams.width }}")
+            assertTrue("group keeps clear of Low's text", groupStart > headerViews.take(3).sumOf { it.layoutParams.width })
+            assertEquals("group ends at Total's right edge", headerViews.take(8).sumOf { it.layoutParams.width }.toDouble(), groupEnd.toDouble(), 3.0)
+            val landscapeLegend = landscape.findViewById<TextView>(R.id.source_comparison_legend).text.toString()
+            assertTrue(landscapeLegend, landscapeLegend.startsWith("$nowHeader " + context.getString(R.string.source_compare_legend_now, 1)))
+
+            // A landscape camera cutout (Pixel 7 Pro): the root's fitsSystemWindows padding narrows the
+            // card, and the table must narrow with it rather than push Age off the right edge.
+            val root = landscape.findViewById<View>(R.id.history_root)
+            root.setPadding(160, root.paddingTop, 0, root.paddingBottom)
+            shadowOf(Looper.getMainLooper()).idle()
+            repeat(2) { // High tapped twice: the same sort, redrawn at the new width
+                cells(landscapeTable, 0)[1].performClick()
+                shadowOf(Looper.getMainLooper()).idle()
+            }
+            val insetTable = root.width - 160 - (48 * landscape.resources.displayMetrics.density).toInt()
+            val insetHeader = cells(landscapeTable, 0)
+            println("ForecastComparisonSourcesRoboTest cutout root=${root.width} table=$insetTable header=" + insetHeader.map { "${it.text}@${it.layoutParams.width}" })
+            assertTrue("rows fit the inset card", insetHeader.sumOf { it.layoutParams.width } <= insetTable)
+            assertEquals("Age still shown", context.getString(R.string.source_compare_col_age), insetHeader.last().text.toString())
+        } finally {
+            runBlocking { db.forecastDao().deleteForecastsAtSite(siteLat, siteLon) }
+            db.openHelper.writableDatabase.execSQL(
+                "DELETE FROM hourly_forecasts WHERE locationLat = ? AND locationLon = ?", arrayOf<Any>(siteLat, siteLon),
+            )
+        }
     }
 }

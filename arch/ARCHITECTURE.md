@@ -49,14 +49,22 @@ Examples include:
 - `DaySourceComparison`: the Forecast Comparison screen's "All sources for <day>" table. Each visible
   source's newest forecast for the day at the nearest site, run through `DailyColumnBuilder` with that
   source as the display source (so the high, rain %, peak hour and noon cloud match the widget's daily
-  view), sorted by high by default; a source with no row is listed last. Columns: short name, high, low, day rain %,
-  peak hour, night rain, amount (8am–8pm hourly sum as on the widget; only when some row has one),
+  view), sorted by high by default; a source with no row is listed last. Columns: short name, high, low,
+  Now (today only: the widget header's rain % over `headerRainLookaheadHours`, by the header's own
+  `HeaderContent.headerRainProbability`, 0 % printed), Day rain %,
+  peak hour, night rain, Total (8am–8pm hourly sum as on the widget; only when some row has one),
   noon cloud, 30-day
   high bias, and age since `lastConfirmedAt` (dimmed past 24 h). Hosts: `RoomDaySourceComparisonHost`,
   `DesktopDaySourceComparisonHost`; `DAY_SOURCE_COMPARE` logs each build.
   Columns are sized to their widest text (`DaySourceComparison.layout`; each platform only measures
-  text), spare width shared as even gaps. A table too narrow for `MIN_COLUMN_GAP_DP` gaps steps
-  down: whole-degree lows, then no Amount, then both (`FitStep`; `DAY_SOURCE_LAYOUT` at VERBOSE).
+  text), spare width shared as even gaps. Now is offered first, on top of the widest step, and kept
+  only with `HEADER_RAIN_MIN_GAP_DP` gaps ("plenty of width"); otherwise it goes before anything else.
+  A table too narrow for `MIN_COLUMN_GAP_DP` gaps then steps
+  down: whole-degree lows, then no Total, then both (`FitStep`; `DAY_SOURCE_LAYOUT` at VERBOSE).
+  Desktop lays out on every width change and Android on each render (rotation recreates the
+  activity), so Now comes and goes with the width. A two-level header puts "Rain" over the shown
+  rain columns, Now through Total (`Layout.rainGroupBounds`).
+  plans/261120-all-sources-header-rain-column.md
   Clicking a column header sorts by it (`Sort.tapped`: same column flips, a new column starts
   descending except Source A–Z, Peak earliest-first and Age freshest-first); blanks stay last and ties keep the source
   order. The sort is remembered (`source_compare_sort` pref / `DesktopConfig.sourceCompareSort`);
@@ -68,6 +76,8 @@ Examples include:
   Pacific: its tomorrow row confirmed more than a minute after its today row) gets `Row.noLongerSent`:
   Age reads `5h*` and the legend adds a `*` note (`showStarNote`; desktop `STAR_NOTE`, Android
   `source_compare_legend_star`). A failed refresh leaves tomorrow just as old, so it is never starred.
+  The legend always ends with a line explaining the "Set API order" button (desktop `APPLY_ORDER_NOTE`,
+  Android `source_compare_legend_apply_order`).
 
 A shared planner that leaves ordering or policy in platform glue is not equivalent; that arrangement
 previously allowed Android and desktop to drift. Host contract tests exercise the same runner against

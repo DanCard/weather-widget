@@ -1,5 +1,6 @@
 package com.weatherwidget.desktop
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -68,7 +69,9 @@ internal class DesktopDaySourceComparisonHost(
  * "All sources for <day>": the [DaySourceComparison] rows, with Android's columns and short names
  * (`ForecastComparisonActivity.renderSourceComparison`). The viewed source is bold; an age past
  * [DaySourceComparison.STALE_AGE_MS] is dimmed. Clicking a header sorts by that column
- * ([DaySourceComparison.Sort.tapped]); the sorted header carries the arrow.
+ * ([DaySourceComparison.Sort.tapped]); the sorted header carries the arrow. A "Rain" group label
+ * spans the shown rain columns ([DaySourceComparison.Layout.rainGroupBounds]); the layout re-runs on
+ * every width change, so the optional Now column comes and goes with the window.
  */
 @Composable
 internal fun DaySourceComparisonTable(
@@ -81,6 +84,8 @@ internal fun DaySourceComparisonTable(
     onSortTap: (DaySourceComparison.SortColumn) -> Unit = {},
     canApplyOrder: Boolean = false,
     onApplyOrder: (List<DaySourceComparison.Row>) -> Unit = {},
+    /** The header's lookahead, named in the Now legend line. */
+    rainLookaheadHours: Int = com.weatherwidget.shared.settings.DisplaySettings.HEADER_RAIN_LOOKAHEAD.default,
 ) {
     val dayName = date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
     val monthName = date.month.getDisplayName(TextStyle.SHORT, Locale.getDefault())
@@ -109,7 +114,7 @@ internal fun DaySourceComparisonTable(
             modifier = Modifier.heightIn(min = 30.dp).testTag("source_compare_apply_order"),
         ) {
             Text(
-                "Set API order",
+                APPLY_ORDER_LABEL,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
             )
@@ -130,6 +135,7 @@ internal fun DaySourceComparisonTable(
                 textMeasurer.measure(text, style, maxLines = 1, softWrap = false).size.width / density
             }
             Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                layout.rainGroupBounds()?.let { (start, width) -> RainGroupLabel(start, width) }
                 TableRow(
                     "source_compare_header",
                     layout.headers(header),
@@ -147,7 +153,7 @@ internal fun DaySourceComparisonTable(
                     )
                 }
                 Text(
-                    legendText(layout.showAmount, DaySourceComparison.showStarNote(cells)),
+                    legendText(layout.showAmount, DaySourceComparison.showStarNote(cells), layout.showHeaderRain, rainLookaheadHours),
                     modifier = Modifier.padding(top = 5.dp).testTag("source_compare_legend"),
                     color = ObsStyle.textSecondary,
                     fontSize = 12.sp,
@@ -158,13 +164,36 @@ internal fun DaySourceComparisonTable(
     }
 }
 
-/** One line per column, "Rain highest hourly chance, 8am–8pm", names bold (Android: `sourceComparisonLegend`). */
-internal fun legendText(showAmount: Boolean, showStar: Boolean): AnnotatedString = buildAnnotatedString {
-    DaySourceComparison.legendColumns(showAmount).forEachIndexed { i, column ->
+/** "Rain" centred over the rain columns, a hairline under it marking their extent. */
+@Composable
+private fun RainGroupLabel(startDp: Float, widthDp: Float) {
+    Row(Modifier.fillMaxWidth().testTag("source_compare_rain_group")) {
+        Spacer(Modifier.width(startDp.dp))
+        Column(Modifier.width(widthDp.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(RAIN_GROUP, color = ObsStyle.textSecondary, fontSize = 12.sp, maxLines = 1)
+            Spacer(
+                Modifier.padding(top = 1.dp).fillMaxWidth().height(1.dp)
+                    .background(ObsStyle.textSecondary.copy(alpha = 0.5f)),
+            )
+        }
+    }
+}
+
+/** The group label over the rain columns (Android: `source_compare_group_rain`). */
+internal const val RAIN_GROUP = "Rain"
+
+/** One line per column, "Day highest hourly chance, 8am–8pm", names bold (Android: `sourceComparisonLegend`). */
+internal fun legendText(
+    showAmount: Boolean,
+    showStar: Boolean,
+    showHeaderRain: Boolean = false,
+    rainLookaheadHours: Int = com.weatherwidget.shared.settings.DisplaySettings.HEADER_RAIN_LOOKAHEAD.default,
+): AnnotatedString = buildAnnotatedString {
+    DaySourceComparison.legendColumns(showAmount, showHeaderRain).forEachIndexed { i, column ->
         if (i > 0) append("\n")
         withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(HEADERS[column.ordinal]) }
         append(" ")
-        append(LEGEND_TEXT.getValue(column))
+        append(if (column == DaySourceComparison.SortColumn.HEADER_RAIN) nowLegend(rainLookaheadHours) else LEGEND_TEXT.getValue(column))
     }
     // Only while some Age carries the star (DaySourceComparison.Row.noLongerSent).
     if (showStar) {
@@ -173,10 +202,24 @@ internal fun legendText(showAmount: Boolean, showStar: Boolean): AnnotatedString
         append(" ")
         append(STAR_NOTE)
     }
+    // The button above the table: what a click changes (user wording, 2026-11-20). Always shown.
+    append("\n")
+    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(APPLY_ORDER_LABEL) }
+    append(" ")
+    append(APPLY_ORDER_NOTE)
 }
+
+/** The "Set API order" button's label (Android: `source_compare_set_api_order`). */
+internal const val APPLY_ORDER_LABEL = "Set API order"
+
+/** Its legend note (Android: `source_compare_legend_apply_order`). */
+internal const val APPLY_ORDER_NOTE = "puts your weather sources in this table's order; the top one becomes your primary source."
 
 /** Desktop wording of the Age star's note; Android: `source_compare_legend_star`. */
 internal const val STAR_NOTE = "The source no longer sends today (its days run on UTC); the age is from its last forecast that did."
+
+/** The Now column's note, naming the header's lookahead (Android: `source_compare_legend_now`). */
+internal fun nowLegend(hours: Int): String = "highest hourly chance in the next $hours h, as the widget header shows"
 
 /** Desktop legend wording; Android carries the same in its `source_compare_legend_*` strings. */
 internal val LEGEND_TEXT: Map<DaySourceComparison.SortColumn, String> = mapOf(
@@ -189,7 +232,8 @@ internal val LEGEND_TEXT: Map<DaySourceComparison.SortColumn, String> = mapOf(
     DaySourceComparison.SortColumn.AGE to "time since the source last confirmed this forecast; grey after 24 h",
 )
 
-private val HEADERS = listOf("Source", "High", "Low", "Rain", "Peak", "Night", "Amount", "Cloud", "Bias", "Age")
+/** Column headers in [DaySourceComparison.SortColumn] order; Now…Total sit under [RAIN_GROUP]. */
+internal val HEADERS = listOf("Source", "High", "Low", "Now", "Day", "Peak", "Night", "Total", "Cloud", "Bias", "Age")
 
 /** One table row: [values] are the [layout]'s shown columns; cell tags and [onCellClick] use the shared column index. */
 @Composable

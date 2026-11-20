@@ -101,13 +101,16 @@
     <string name="source_compare_col_source">المصدر</string>
     <string name="source_compare_col_high">العظمى</string>
     <string name="source_compare_col_low">الصغرى</string>
-    <string name="source_compare_col_rain">المطر</string>
+    <string name="source_compare_group_rain">المطر</string>
+    <string name="source_compare_col_now">الآن</string>
+    <string name="source_compare_col_rain">النهار</string>
     <string name="source_compare_col_peak">ذروة</string>
     <string name="source_compare_col_night">الليل</string>
-    <string name="source_compare_col_amount">الكمية</string>
+    <string name="source_compare_col_amount">المجموع</string>
     <string name="source_compare_col_cloud">الغيوم</string>
     <string name="source_compare_col_bias">الانحياز</string>
     <string name="source_compare_col_age">العمر</string>
+    <string name="source_compare_legend_now">أعلى احتمال لكل ساعة خلال الـ%1$d س القادمة، كما في رأس الأداة</string>
     <string name="source_compare_legend_rain">أعلى احتمال لكل ساعة، 8–20</string>
     <string name="source_compare_legend_peak">ساعة أعلى احتمال نهارًا</string>
     <string name="source_compare_legend_night">أعلى احتمال لكل ساعة، 20–8</string>
@@ -116,6 +119,7 @@
     <string name="source_compare_legend_bias">متوسط العظمى المتوقعة ناقص الفعلية، آخر 30 يومًا (+ = أدفأ)</string>
     <string name="source_compare_legend_age">منذ آخر تأكيد للمصدر لهذا التوقع؛ رمادي بعد 24 ساعة</string>
     <string name="source_compare_legend_star">لم يعد المصدر يرسل اليوم (أيامه بتوقيت UTC)؛ العمر من آخر توقع له تضمّن اليوم.</string>
+    <string name="source_compare_legend_apply_order">يرتّب مصادر الطقس لديك بترتيب هذا الجدول؛ ويصبح الأول مصدرك الأساسي.</string>
     <string name="loading_accuracy_summary">جارٍ تحميل دقة التوقعات...</string>
     <string name="error_loading_accuracy_summary">يتعذر تحميل دقة التوقعات حاليًا.</string>
     <string name="data_freshness_unknown">حداثة البيانات: غير معروفة</string>

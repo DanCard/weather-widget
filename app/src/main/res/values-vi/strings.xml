@@ -101,13 +101,16 @@
     <string name="source_compare_col_source">Nguồn</string>
     <string name="source_compare_col_high">Cao</string>
     <string name="source_compare_col_low">Thấp</string>
-    <string name="source_compare_col_rain">Mưa</string>
+    <string name="source_compare_group_rain">Mưa</string>
+    <string name="source_compare_col_now">Giờ</string>
+    <string name="source_compare_col_rain">Ngày</string>
     <string name="source_compare_col_peak">Đỉnh</string>
     <string name="source_compare_col_night">Đêm</string>
-    <string name="source_compare_col_amount">Lượng</string>
+    <string name="source_compare_col_amount">Tổng</string>
     <string name="source_compare_col_cloud">Mây</string>
     <string name="source_compare_col_bias">Lệch</string>
     <string name="source_compare_col_age">Tuổi</string>
+    <string name="source_compare_legend_now">khả năng theo giờ cao nhất trong %1$d giờ tới, như ở đầu tiện ích</string>
     <string name="source_compare_legend_rain">khả năng theo giờ cao nhất, 8–20 giờ</string>
     <string name="source_compare_legend_peak">giờ có khả năng cao nhất ban ngày</string>
     <string name="source_compare_legend_night">khả năng theo giờ cao nhất, 20–8 giờ</string>
@@ -116,6 +119,7 @@
     <string name="source_compare_legend_bias">trung bình cao nhất dự báo trừ thực tế, 30 ngày qua (+ = ấm hơn)</string>
     <string name="source_compare_legend_age">kể từ lần nguồn xác nhận dự báo này gần nhất; xám sau 24 giờ</string>
     <string name="source_compare_legend_star">Nguồn không còn gửi hôm nay (ngày của nguồn theo UTC); tuổi tính từ dự báo cuối cùng có hôm nay.</string>
+    <string name="source_compare_legend_apply_order">sắp xếp các nguồn thời tiết của bạn theo thứ tự bảng này; nguồn đầu tiên trở thành nguồn chính.</string>
     <string name="loading_accuracy_summary">Đang tải độ chính xác dự báo...</string>
     <string name="error_loading_accuracy_summary">Hiện không thể tải độ chính xác dự báo.</string>
     <string name="data_freshness_unknown">Độ mới của dữ liệu: Không rõ</string>

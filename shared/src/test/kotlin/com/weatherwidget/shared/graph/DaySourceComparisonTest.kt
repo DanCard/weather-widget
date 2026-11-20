@@ -238,7 +238,7 @@ class DaySourceComparisonTest {
         assertEquals("49°", c.low)
         assertEquals("30%", c.dayRain)
         assertEquals("1pm", c.peak)
-        assertEquals(listOf("Silur", "65°", "49°", "30%", "1pm", "20%", "—", "45%", "—", "30m"), c.values())
+        assertEquals(listOf("Silur", "65°", "49°", "—", "30%", "1pm", "20%", "—", "45%", "—", "30m"), c.values())
         assertEquals("20%", c.nightRain)
         assertEquals("45%", c.cloud)
         assertEquals("", c.amount)
@@ -276,7 +276,7 @@ class DaySourceComparisonTest {
 
     /** Every character 7 units wide, bold 8: the widths below are easy to count. */
     private val fakeMeasure: (String, Boolean) -> Float = { text, bold -> text.length * if (bold) 8f else 7f }
-    private val layoutHeaders = listOf("Source", "High", "Low", "Rain", "Peak", "Night", "Amount", "Cloud", "Bias", "Age")
+    private val layoutHeaders = listOf("Source", "High", "Low", "Now", "Day", "Peak", "Night", "Total", "Cloud", "Bias", "Age")
 
     private fun layoutCells(amount: String = "0.25\"") = listOf(
         DaySourceComparison.Cells("Google", "55.8°", "48.2°", "100%", "9am", "75%", amount, "99%", "−0.4°", "0m", false, lowWhole = "48°"),
@@ -295,7 +295,7 @@ class DaySourceComparisonTest {
         val layout = DaySourceComparison.layout(600f, 6f, layoutHeaders, cells, fakeMeasure)
         println("DaySourceComparisonTest wide layout: $layout")
         assertEquals(DaySourceComparison.FitStep.ALL, layout.step)
-        assertEquals((0 until 10).toList(), layout.columns)
+        assertEquals("no Now values (not today): never offered", (0 until 11).toList() - 3, layout.columns)
         assertEquals("48.2°", layout.values(cells[0])[2])
         assertEquals(600f, layout.widths.sum(), 0.01f)
         // Source keeps its content width ("Google" bold = 48); every other column carries the same gap.
@@ -307,8 +307,8 @@ class DaySourceComparisonTest {
     @Test
     fun `layout rounds Low before dropping Amount, then drops Amount`() {
         val cells = layoutCells()
-        val all = contentSum(DaySourceComparison.Layout(DaySourceComparison.FitStep.ALL, (0 until 10).toList(), emptyList()), cells)
-        val whole = contentSum(DaySourceComparison.Layout(DaySourceComparison.FitStep.WHOLE_LOWS, (0 until 10).toList(), emptyList()), cells)
+        val all = contentSum(DaySourceComparison.Layout(DaySourceComparison.FitStep.ALL, (0 until 11).toList() - 3, emptyList()), cells)
+        val whole = contentSum(DaySourceComparison.Layout(DaySourceComparison.FitStep.WHOLE_LOWS, (0 until 11).toList() - 3, emptyList()), cells)
         println("DaySourceComparisonTest content all=$all wholeLows=$whole")
         assertTrue(whole < all)
 
@@ -325,6 +325,7 @@ class DaySourceComparisonTest {
         assertEquals(9, noAmount.values(cells[0]).size)
         assertEquals("48.2°", noAmount.values(cells[0])[2])
         assertEquals("Cloud", noAmount.headers(layoutHeaders)[6])
+        assertEquals("rain group spans Day..Night once Total drops", 3..5, noAmount.rainGroupSpan())
     }
 
     @Test
@@ -524,8 +525,9 @@ class DaySourceComparisonTest {
         assertEquals("Rain ▾", DaySourceComparison.headerLabel("Rain", SortColumn.DAY_RAIN, sort))
         assertEquals("Rain ▴", DaySourceComparison.headerLabel("Rain", SortColumn.DAY_RAIN, sort.tapped(SortColumn.DAY_RAIN)))
         assertEquals("High", DaySourceComparison.headerLabel("High", SortColumn.HIGH, sort))
-        assertEquals(10, SortColumn.entries.size)
-        assertEquals(6, DaySourceComparison.AMOUNT_COLUMN)
+        assertEquals(11, SortColumn.entries.size)
+        assertEquals(7, DaySourceComparison.AMOUNT_COLUMN)
+        assertEquals(3, DaySourceComparison.HEADER_RAIN_COLUMN)
         assertEquals(DaySourceComparison.AMOUNT_COLUMN, SortColumn.AMOUNT.ordinal)
     }
 
@@ -541,6 +543,139 @@ class DaySourceComparisonTest {
             all,
         )
         assertEquals(all - SortColumn.AMOUNT, DaySourceComparison.legendColumns(showAmount = false))
+        assertEquals(listOf(SortColumn.HEADER_RAIN) + all, DaySourceComparison.legendColumns(showAmount = true, showHeaderRain = true))
+    }
+
+    // ---- Now column: the header's rain % (plans/261120-all-sources-header-rain-column.md) ----
+
+    private fun todayHourly(source: WeatherSource, chances: Map<Int, Int>, rowLat: Double = lat, rowLon: Double = lon) =
+        chances.map { (h, p) ->
+            HourlyForecast(
+                today.atTime(h, 0).atZone(zone).toInstant().toEpochMilli(), 60f, "Cloudy", precipProbability = p,
+                source = source.id, fetchedAt = nowMs, locationLat = rowLat, locationLon = rowLon,
+            )
+        }
+
+    private fun storedToday(source: WeatherSource, high: Float) = stored(source, high).let {
+        it.copy(forecast = it.forecast.copy(date = today.toString()), snapshot = it.snapshot.copy(date = today.toString()))
+    }
+
+    private fun buildToday(hourly: List<HourlyForecast>, lookahead: Int, sources: List<WeatherSource> = listOf(WeatherSource.OPEN_METEO)) =
+        DaySourceComparison.build(
+            date = today, now = now, lat = lat, lon = lon, sources = sources,
+            stored = sources.map { storedToday(it, 65f) }, history = emptyList(), hourly = hourly,
+            highBias = emptyMap(), use24HourClock = false, zone = zone, rainLookaheadHours = lookahead,
+        ).also { rows -> println("DaySourceComparisonTest today rows: " + rows.joinToString { "${it.source.id} now=${it.headerRainPercent} day=${it.dayRainPercent}" }) }
+
+    /** The header's calculator reads the system zone; pin it to the test's. */
+    private fun <T> inTestZone(block: () -> T): T {
+        val zone0 = java.util.TimeZone.getDefault()
+        java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone(zone))
+        try {
+            return block()
+        } finally {
+            java.util.TimeZone.setDefault(zone0)
+        }
+    }
+
+    @Test
+    fun `Now is the header's chance over its lookahead, not the day's max`() = inTestZone {
+        // 20 % for the next hours, 80 % at 3 pm: Day reads 80, Now (1 h from 10 am) 20; a 6 h lookahead reaches 3 pm.
+        val hourly = todayHourly(WeatherSource.OPEN_METEO, (8..20).associateWith { if (it == 15) 80 else 20 })
+        val oneHour = buildToday(hourly, lookahead = 1).single()
+        assertEquals(20, oneHour.headerRainPercent)
+        assertEquals(80, oneHour.dayRainPercent)
+        assertEquals(80, buildToday(hourly, lookahead = 6).single().headerRainPercent)
+        assertEquals("20%", DaySourceComparison.cells(oneHour, nowMs, useCelsius = false).headerRain)
+    }
+
+    @Test
+    fun `Now matches HeaderContent for the same rows, and prints 0 percent`() = inTestZone {
+        run {
+            val hourly = todayHourly(WeatherSource.OPEN_METEO, mapOf(9 to 0, 10 to 0, 11 to 40, 12 to 0)) +
+                todayHourly(WeatherSource.NWS, (8..14).associateWith { 0 })
+            val rows = buildToday(hourly, lookahead = 1, sources = listOf(WeatherSource.OPEN_METEO, WeatherSource.NWS))
+            for (row in rows) {
+                val header = com.weatherwidget.shared.util.HeaderContent.headerRainProbability(
+                    hourly.filter { it.source == row.source.id }, row.source.id, now, 1,
+                )
+                assertEquals(row.source.id, header, row.headerRainPercent)
+            }
+            val nws = rows.first { it.source == WeatherSource.NWS }
+            assertEquals(0, nws.headerRainPercent)
+            assertEquals("0 % prints (the header hides it; a table blank reads as no data)", "0%", DaySourceComparison.cells(nws, nowMs, false).headerRain)
+        }
+    }
+
+    @Test
+    fun `Now is blank on any day but today`() {
+        val hourly = (8..20).map { h ->
+            HourlyForecast(
+                tomorrow.atTime(h, 0).atZone(zone).toInstant().toEpochMilli(), 60f, "Rain", precipProbability = 90,
+                source = WeatherSource.OPEN_METEO.id, fetchedAt = nowMs, locationLat = lat, locationLon = lon,
+            )
+        }
+        val row = build(listOf(WeatherSource.OPEN_METEO), listOf(stored(WeatherSource.OPEN_METEO, 64f)), hourly = hourly).single()
+        assertNull(row.headerRainPercent)
+        assertEquals("", DaySourceComparison.cells(row, nowMs, false).headerRain)
+    }
+
+    private fun nowCells() = layoutCells().mapIndexed { i, c -> c.copy(headerRain = if (i == 0) "100%" else "5%") }
+
+    @Test
+    fun `layout adds Now only with plenty of width, dropping it before lows round or Total drops`() {
+        val cells = nowCells()
+        val withNow = contentSum(DaySourceComparison.Layout(DaySourceComparison.FitStep.ALL, (0 until 11).toList(), emptyList(), true), cells)
+        val without = contentSum(DaySourceComparison.Layout(DaySourceComparison.FitStep.ALL, (0 until 11).toList() - 3, emptyList()), cells)
+        println("DaySourceComparisonTest Now content with=$withNow without=$without")
+        val minGap = 6f
+        val plentyGap = minGap * DaySourceComparison.HEADER_RAIN_MIN_GAP_DP / DaySourceComparison.MIN_COLUMN_GAP_DP
+
+        val wide = DaySourceComparison.layout(withNow + 10 * plentyGap, minGap, layoutHeaders, cells, fakeMeasure)
+        assertTrue(wide.showHeaderRain)
+        assertEquals((0 until 11).toList(), wide.columns)
+        assertEquals("100%", wide.values(cells[0])[3])
+        assertEquals("Rain spans Now..Total", 3..7, wide.rainGroupSpan())
+        // The label starts at Now's text, clear of Low's (not at Now's gap), and ends at Total's right edge.
+        val (start, width) = wide.rainGroupBounds()!!
+        val nowGap = wide.widths[3] - wide.contentWidths[3]
+        println("DaySourceComparisonTest rain group start=$start width=$width nowGap=$nowGap")
+        assertTrue("Now has a gap to skip", nowGap >= plentyGap)
+        assertEquals(wide.widths.take(3).sum() + nowGap, start, 0.01f)
+        assertEquals(wide.widths.take(8).sum(), start + width, 0.01f)
+
+        // Room for Now at the normal gap but not at the plenty gap: Now goes, decimals and Total stay.
+        val tight = DaySourceComparison.layout(withNow + 10 * plentyGap - 1f, minGap, layoutHeaders, cells, fakeMeasure)
+        assertFalse(tight.showHeaderRain)
+        assertEquals(DaySourceComparison.FitStep.ALL, tight.step)
+        assertFalse(DaySourceComparison.HEADER_RAIN_COLUMN in tight.columns)
+        assertEquals("Rain spans Day..Total", 3..6, tight.rainGroupSpan())
+
+        // Growing back (a desktop window widened, a phone rotated) brings it back.
+        assertTrue(DaySourceComparison.layout(withNow + 10 * plentyGap + 50f, minGap, layoutHeaders, cells, fakeMeasure).showHeaderRain)
+    }
+
+    @Test
+    fun `layout offers Now on top of the no-Total step when no row has an amount`() {
+        val cells = nowCells().map { it.copy(amount = "") }
+        val wide = DaySourceComparison.layout(800f, 6f, layoutHeaders, cells, fakeMeasure)
+        assertTrue(wide.showHeaderRain)
+        assertEquals(DaySourceComparison.FitStep.NO_AMOUNT, wide.step)
+        assertEquals((0 until 11).toList() - 7, wide.columns)
+    }
+
+    @Test
+    fun `Now sorts wettest first and round-trips its stored sort`() {
+        val rows = listOf(
+            row(WeatherSource.NWS, 0).copy(headerRainPercent = 10),
+            row(WeatherSource.OPEN_METEO, 1).copy(headerRainPercent = null),
+            row(WeatherSource.SILURIAN, 2).copy(headerRainPercent = 60),
+        )
+        val sort = DaySourceComparison.Sort.DEFAULT.tapped(SortColumn.HEADER_RAIN)
+        assertEquals(DaySourceComparison.Sort(SortColumn.HEADER_RAIN, true), sort)
+        assertEquals(listOf(WeatherSource.SILURIAN, WeatherSource.NWS, WeatherSource.OPEN_METEO), DaySourceComparison.sort(rows, sort).map { it.source })
+        assertEquals(sort, DaySourceComparison.Sort.decode("HEADER_RAIN:desc"))
+        assertEquals("pre-existing saved sorts still decode", DaySourceComparison.Sort(SortColumn.AMOUNT, true), DaySourceComparison.Sort.decode("AMOUNT:desc"))
     }
 
     @Test

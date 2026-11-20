@@ -101,13 +101,16 @@
     <string name="source_compare_col_source">উৎস</string>
     <string name="source_compare_col_high">সর্বোচ্চ</string>
     <string name="source_compare_col_low">সর্বনিম্ন</string>
-    <string name="source_compare_col_rain">বৃষ্টি</string>
+    <string name="source_compare_group_rain">বৃষ্টি</string>
+    <string name="source_compare_col_now">এখন</string>
+    <string name="source_compare_col_rain">দিন</string>
     <string name="source_compare_col_peak">শীর্ষ</string>
     <string name="source_compare_col_night">রাত</string>
-    <string name="source_compare_col_amount">পরিমাণ</string>
+    <string name="source_compare_col_amount">মোট</string>
     <string name="source_compare_col_cloud">মেঘ</string>
     <string name="source_compare_col_bias">পক্ষপাত</string>
     <string name="source_compare_col_age">বয়স</string>
+    <string name="source_compare_legend_now">পরের %1$d ঘণ্টায় প্রতি ঘণ্টার সর্বোচ্চ সম্ভাবনা, উইজেটের শিরোনামের মতো</string>
     <string name="source_compare_legend_rain">প্রতি ঘণ্টার সর্বোচ্চ সম্ভাবনা, 8–20</string>
     <string name="source_compare_legend_peak">দিনের সর্বোচ্চ সম্ভাবনার সময়</string>
     <string name="source_compare_legend_night">প্রতি ঘণ্টার সর্বোচ্চ সম্ভাবনা, 20–8</string>
@@ -116,6 +119,7 @@
     <string name="source_compare_legend_bias">গড় পূর্বাভাসিত সর্বোচ্চ বিয়োগ প্রকৃত, গত 30 দিন (+ = বেশি উষ্ণ)</string>
     <string name="source_compare_legend_age">উৎস শেষবার এই পূর্বাভাস নিশ্চিত করার পর থেকে; 24 ঘণ্টা পরে ধূসর</string>
     <string name="source_compare_legend_star">উৎসটি আর আজকের তথ্য পাঠায় না (এর দিন UTC অনুযায়ী); বয়স হলো আজ থাকা তার শেষ পূর্বাভাস থেকে।</string>
+    <string name="source_compare_legend_apply_order">আপনার আবহাওয়ার উৎসগুলো এই টেবিলের ক্রমে সাজায়; সবার উপরেরটি আপনার প্রধান উৎস হয়।</string>
     <string name="loading_accuracy_summary">পূর্বাভাসের নির্ভুলতা লোড হচ্ছে...</string>
     <string name="error_loading_accuracy_summary">এখন পূর্বাভাসের নির্ভুলতা লোড করা যাচ্ছে না।</string>
     <string name="data_freshness_unknown">ডেটার সতেজতা: অজানা</string>

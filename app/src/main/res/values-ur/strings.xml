@@ -101,13 +101,16 @@
     <string name="source_compare_col_source">ذریعہ</string>
     <string name="source_compare_col_high">زیادہ</string>
     <string name="source_compare_col_low">کم</string>
-    <string name="source_compare_col_rain">بارش</string>
+    <string name="source_compare_group_rain">بارش</string>
+    <string name="source_compare_col_now">ابھی</string>
+    <string name="source_compare_col_rain">دن</string>
     <string name="source_compare_col_peak">عروج</string>
     <string name="source_compare_col_night">رات</string>
-    <string name="source_compare_col_amount">مقدار</string>
+    <string name="source_compare_col_amount">کل</string>
     <string name="source_compare_col_cloud">بادل</string>
     <string name="source_compare_col_bias">جھکاؤ</string>
     <string name="source_compare_col_age">عمر</string>
+    <string name="source_compare_legend_now">اگلے %1$d گھنٹوں میں فی گھنٹہ سب سے زیادہ امکان، جیسا ویجیٹ ہیڈر میں</string>
     <string name="source_compare_legend_rain">فی گھنٹہ سب سے زیادہ امکان، 8–20</string>
     <string name="source_compare_legend_peak">دن میں سب سے زیادہ امکان کا وقت</string>
     <string name="source_compare_legend_night">فی گھنٹہ سب سے زیادہ امکان، 20–8</string>
@@ -116,6 +119,7 @@
     <string name="source_compare_legend_bias">اوسط پیشگوئی شدہ زیادہ سے زیادہ منفی اصل، پچھلے 30 دن (+ = زیادہ گرم)</string>
     <string name="source_compare_legend_age">ماخذ کی اس پیشگوئی کی آخری تصدیق سے؛ 24 گھنٹے بعد سرمئی</string>
     <string name="source_compare_legend_star">ماخذ اب آج کا ڈیٹا نہیں بھیجتا (اس کے دن UTC پر چلتے ہیں)؛ عمر اس کی آخری ایسی پیشگوئی سے ہے جس میں آج شامل تھا۔</string>
+    <string name="source_compare_legend_apply_order">آپ کے موسمی ذرائع کو اس جدول کی ترتیب میں رکھتا ہے؛ سب سے اوپر والا آپ کا بنیادی ذریعہ بن جاتا ہے۔</string>
     <string name="loading_accuracy_summary">پیشن گوئی کی درستگی لوڈ ہو رہی ہے...</string>
     <string name="error_loading_accuracy_summary">ابھی پیشن گوئی کی درستگی لوڈ نہیں ہو سکتی۔</string>
     <string name="data_freshness_unknown">ڈیٹا کی تازگی: نامعلوم</string>

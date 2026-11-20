@@ -101,13 +101,16 @@
     <string name="source_compare_col_source">स्रोत</string>
     <string name="source_compare_col_high">अधिकतम</string>
     <string name="source_compare_col_low">न्यूनतम</string>
-    <string name="source_compare_col_rain">बारिश</string>
+    <string name="source_compare_group_rain">बारिश</string>
+    <string name="source_compare_col_now">अभी</string>
+    <string name="source_compare_col_rain">दिन</string>
     <string name="source_compare_col_peak">चरम</string>
     <string name="source_compare_col_night">रात</string>
-    <string name="source_compare_col_amount">मात्रा</string>
+    <string name="source_compare_col_amount">कुल</string>
     <string name="source_compare_col_cloud">बादल</string>
     <string name="source_compare_col_bias">झुकाव</string>
     <string name="source_compare_col_age">आयु</string>
+    <string name="source_compare_legend_now">अगले %1$d घंटे में प्रति घंटे सबसे अधिक संभावना, जैसा विजेट हेडर में</string>
     <string name="source_compare_legend_rain">प्रति घंटे सबसे अधिक संभावना, 8–20</string>
     <string name="source_compare_legend_peak">दिन में सबसे अधिक संभावना का समय</string>
     <string name="source_compare_legend_night">प्रति घंटे सबसे अधिक संभावना, 20–8</string>
@@ -116,6 +119,7 @@
     <string name="source_compare_legend_bias">औसत पूर्वानुमानित अधिकतम घटा वास्तविक, पिछले 30 दिन (+ = अधिक गर्म)</string>
     <string name="source_compare_legend_age">स्रोत द्वारा इस पूर्वानुमान की अंतिम पुष्टि से; 24 घंटे बाद धूसर</string>
     <string name="source_compare_legend_star">स्रोत अब आज का डेटा नहीं भेजता (उसके दिन UTC पर चलते हैं); आयु उसके आख़िरी ऐसे पूर्वानुमान से है जिसमें आज था।</string>
+    <string name="source_compare_legend_apply_order">आपके मौसम स्रोतों को इस तालिका के क्रम में रखता है; सबसे ऊपर वाला आपका मुख्य स्रोत बन जाता है।</string>
     <string name="loading_accuracy_summary">पूर्वानुमान सटीकता लोड हो रही है...</string>
     <string name="error_loading_accuracy_summary">अभी पूर्वानुमान सटीकता लोड नहीं हो पा रही।</string>
     <string name="data_freshness_unknown">डेटा ताज़गी: अज्ञात</string>

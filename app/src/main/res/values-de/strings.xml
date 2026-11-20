@@ -101,13 +101,16 @@
     <string name="source_compare_col_source">Quelle</string>
     <string name="source_compare_col_high">Hoch</string>
     <string name="source_compare_col_low">Tief</string>
-    <string name="source_compare_col_rain">Regen</string>
+    <string name="source_compare_group_rain">Regen</string>
+    <string name="source_compare_col_now">Jetzt</string>
+    <string name="source_compare_col_rain">Tag</string>
     <string name="source_compare_col_peak">Spitze</string>
     <string name="source_compare_col_night">Nacht</string>
-    <string name="source_compare_col_amount">Menge</string>
+    <string name="source_compare_col_amount">Summe</string>
     <string name="source_compare_col_cloud">Wolken</string>
     <string name="source_compare_col_bias">Abw.</string>
     <string name="source_compare_col_age">Alter</string>
+    <string name="source_compare_legend_now">höchste stündliche Wahrscheinlichkeit in den nächsten %1$d Std., wie im Widget-Kopf</string>
     <string name="source_compare_legend_rain">höchste stündliche Wahrscheinlichkeit, 8–20 Uhr</string>
     <string name="source_compare_legend_peak">Stunde der höchsten Tageswahrscheinlichkeit</string>
     <string name="source_compare_legend_night">höchste stündliche Wahrscheinlichkeit, 20–8 Uhr</string>
@@ -116,6 +119,7 @@
     <string name="source_compare_legend_bias">mittleres Prognose-Hoch minus Ist-Wert, letzte 30 Tage (+ = zu warm)</string>
     <string name="source_compare_legend_age">seit die Quelle diese Prognose zuletzt bestätigt hat; grau nach 24 h</string>
     <string name="source_compare_legend_star">Die Quelle sendet heute nicht mehr (ihre Tage laufen nach UTC); das Alter stammt von ihrer letzten Vorhersage, die heute enthielt.</string>
+    <string name="source_compare_legend_apply_order">ordnet deine Wetterquellen in der Reihenfolge dieser Tabelle; die oberste wird deine Hauptquelle.</string>
     <string name="loading_accuracy_summary">Vorhersagegenauigkeit wird geladen...</string>
     <string name="error_loading_accuracy_summary">Vorhersagegenauigkeit kann derzeit nicht geladen werden.</string>
     <string name="data_freshness_unknown">Datenaktualität: Unbekannt</string>

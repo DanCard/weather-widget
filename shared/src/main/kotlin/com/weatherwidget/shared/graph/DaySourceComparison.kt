@@ -7,7 +7,9 @@ import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.daily.DailyColumnBuilder
+import com.weatherwidget.shared.settings.DisplaySettings
 import com.weatherwidget.shared.util.DailyRainLabels
+import com.weatherwidget.shared.util.HeaderContent
 import com.weatherwidget.shared.util.Log
 import com.weatherwidget.shared.util.PartialForecastDays
 import com.weatherwidget.shared.util.TempUtils
@@ -29,6 +31,10 @@ import kotlin.math.roundToInt
  *
  * Tapping a column header sorts by that column ([Sort.tapped], [sort]; plans/261112-all-sources-column-sort.md).
  * The choice is remembered across opens on both platforms as [Sort.encode] text.
+ *
+ * Today only, a Now column carries the widget header's rain % ([HeaderContent.headerRainProbability])
+ * when the table has plenty of width ([HEADER_RAIN_MIN_GAP_DP]); the rain columns sit under one
+ * "Rain" group label ([Layout.rainGroupSpan]; plans/261120-all-sources-header-rain-column.md).
  */
 object DaySourceComparison {
     private const val TAG = "DaySourceComparison"
@@ -74,6 +80,11 @@ object DaySourceComparison {
          * ([AGE_STAR]) and the legend explains it ([showStarNote]).
          */
         val noLongerSent: Boolean = false,
+        /**
+         * Today only: the widget header's rain % for this source (next `headerRainLookaheadHours` h
+         * from now, 0 kept); null on other days or with no hourly rows in the window.
+         */
+        val headerRainPercent: Int? = null,
     ) {
         val hasForecast: Boolean get() = lastConfirmedAt != null
     }
@@ -95,10 +106,12 @@ object DaySourceComparison {
         val ageNoLongerSent: Boolean = false,
         /** [low] rounded to whole degrees, for a table too narrow for decimals ([FitStep.wholeLows]). */
         val lowWhole: String = low,
+        /** The Now column ([Row.headerRainPercent]); blank off today. */
+        val headerRain: String = "",
     ) {
         /** The cells in column order ([SortColumn]), blanks as "—". */
         fun values(): List<String> =
-            listOf(source, high, low, dayRain, peak, nightRain, amount, cloud, bias, age).map { it.ifEmpty { "—" } }
+            listOf(source, high, low, headerRain, dayRain, peak, nightRain, amount, cloud, bias, age).map { it.ifEmpty { "—" } }
     }
 
     interface Host {
@@ -129,6 +142,8 @@ object DaySourceComparison {
         now: LocalDateTime,
         zone: ZoneId = ZoneId.systemDefault(),
         use24HourClock: Boolean = DailyRainLabels.localeUses24HourClock(),
+        /** The header's lookahead (`headerRainLookaheadHours`), for the Now column. */
+        rainLookaheadHours: Int = DisplaySettings.HEADER_RAIN_LOOKAHEAD.default,
     ): List<Row> {
         val sources = host.visibleSources().filter { it != WeatherSource.GENERIC_GAP }
         if (sources.isEmpty()) {
@@ -138,20 +153,28 @@ object DaySourceComparison {
         val targetEpoch = date.toEpochDay() * MS_IN_A_DAY
         val stored = host.forecastRows(targetEpoch, lat, lon)
         val history = host.dailyHistory(targetEpoch, lat, lon)
-        // The day plus its night (8pm until 8am the next morning), as the daily column reads.
+        // The day plus its night (8pm until 8am the next morning), as the daily column reads; today
+        // also the header's rain window (an hour back to the lookahead's end) for the Now column.
+        var startMs = date.atStartOfDay(zone).toInstant().toEpochMilli()
+        var endMs = date.plusDays(1).atTime(9, 0).atZone(zone).toInstant().toEpochMilli()
+        if (date == now.toLocalDate()) {
+            val rain = HeaderContent.precipReserveWindowMs(now, zone, rainLookaheadHours)
+            startMs = minOf(startMs, rain.first)
+            endMs = maxOf(endMs, rain.last)
+        }
         val hourly = host.hourly(
-            date.atStartOfDay(zone).toInstant().toEpochMilli(),
-            date.plusDays(1).atTime(9, 0).atZone(zone).toInstant().toEpochMilli(),
+            startMs,
+            endMs,
             lat, lon,
             sources.map { it.id } + WeatherSource.GENERIC_GAP.id,
         )
         val bias = host.highBias(sources, lat, lon)
         // Today: tomorrow's rows tell a dropped day from a failed refresh ([Row.noLongerSent]).
         val nextDay = if (date == now.toLocalDate()) host.forecastRows(targetEpoch + MS_IN_A_DAY, lat, lon) else emptyList()
-        val rows = build(date, now, lat, lon, sources, stored, history, hourly, bias, use24HourClock, zone, nextDay)
+        val rows = build(date, now, lat, lon, sources, stored, history, hourly, bias, use24HourClock, zone, nextDay, rainLookaheadHours)
         Log.d(
             TAG,
-            "DAY_SOURCE_COMPARE date=$date site=%.4f,%.4f rows=${rows.size} stored=${stored.size} hourly=${hourly.size} order=${rows.joinToString(",") { it.source.id }} missing=${rows.filterNot { it.hasForecast }.joinToString(",") { it.source.id }.ifEmpty { "none" }} noLongerSent=${rows.filter { it.noLongerSent }.joinToString(",") { it.source.id }.ifEmpty { "none" }}"
+            "DAY_SOURCE_COMPARE date=$date site=%.4f,%.4f rows=${rows.size} stored=${stored.size} hourly=${hourly.size} order=${rows.joinToString(",") { it.source.id }} missing=${rows.filterNot { it.hasForecast }.joinToString(",") { it.source.id }.ifEmpty { "none" }} headerRain=${rows.filter { it.headerRainPercent != null }.joinToString(",") { "${it.source.id}:${it.headerRainPercent}" }.ifEmpty { "none" }}@${rainLookaheadHours}h noLongerSent=${rows.filter { it.noLongerSent }.joinToString(",") { it.source.id }.ifEmpty { "none" }}"
                 .format(Locale.US, lat, lon),
         )
         return rows
@@ -171,13 +194,15 @@ object DaySourceComparison {
         zone: ZoneId = ZoneId.systemDefault(),
         /** The next day's stored rows; read only when [date] is today ([Row.noLongerSent]). */
         nextDay: List<StoredRow> = emptyList(),
+        /** The header's lookahead for [Row.headerRainPercent] (today only). */
+        rainLookaheadHours: Int = DisplaySettings.HEADER_RAIN_LOOKAHEAD.default,
     ): List<Row> {
         val today = now.toLocalDate()
         val rows = sources.filter { it != WeatherSource.GENERIC_GAP }.mapIndexed { index, source ->
             // Stored as actual − forecast; the table shows forecast − actual ("+2.1°" = runs warm),
             // the reading the accuracy card's "(2.1° high)" gives.
             val bias = highBias[source.id]?.let { -it }
-            val row = rowFor(source, date, today, now, lat, lon, stored, history, hourly, bias, use24HourClock, zone)
+            val row = rowFor(source, date, today, now, lat, lon, stored, history, hourly, bias, use24HourClock, zone, rainLookaheadHours)
             val todayConfirmed = row.lastConfirmedAt
             val nextConfirmed = if (date == today) lastConfirmed(sitedRows(source, nextDay, lat, lon)) else null
             row.copy(
@@ -195,9 +220,17 @@ object DaySourceComparison {
         /** Direction of the first tap on this column. */
         val firstDescending: Boolean,
     ) {
-        SOURCE(false), HIGH(true), LOW(true), DAY_RAIN(true), PEAK(false), NIGHT_RAIN(true),
+        SOURCE(false), HIGH(true), LOW(true), HEADER_RAIN(true), DAY_RAIN(true), PEAK(false), NIGHT_RAIN(true),
         AMOUNT(true), CLOUD(true), BIAS(true), AGE(false),
+        ;
+
+        /** Under the "Rain" group label ([Layout.rainGroupSpan]); contiguous in this order. */
+        val isRain: Boolean get() = this in RAIN_COLUMNS
     }
+
+    private val RAIN_COLUMNS = setOf(
+        SortColumn.HEADER_RAIN, SortColumn.DAY_RAIN, SortColumn.PEAK, SortColumn.NIGHT_RAIN, SortColumn.AMOUNT,
+    )
 
     data class Sort(val column: SortColumn, val descending: Boolean) {
         /** The sort after a tap on [tapped]'s header: the same column flips, another starts in its first direction. */
@@ -229,6 +262,7 @@ object DaySourceComparison {
         SortColumn.SOURCE -> row.source.shortDisplayName.lowercase(Locale.ROOT)
         SortColumn.HIGH -> row.high
         SortColumn.LOW -> row.low
+        SortColumn.HEADER_RAIN -> row.headerRainPercent
         SortColumn.DAY_RAIN -> row.dayRainPercent
         // Earliest peak first on the first tap.
         SortColumn.PEAK -> row.dayPeakAt
@@ -293,6 +327,7 @@ object DaySourceComparison {
         highBias: Double?,
         use24HourClock: Boolean,
         zone: ZoneId,
+        rainLookaheadHours: Int,
     ): Row {
         val isPast = date.isBefore(today)
         val mine = ownRows(source, stored)
@@ -350,6 +385,12 @@ object DaySourceComparison {
             noonCloudPercent = column.cloudCoverRatio?.let { (it * 100f).roundToInt() },
             highBias = highBias,
             lastConfirmedAt = lastConfirmed,
+            // The header's own rule over the same sited rows (with the gap fill), from now: today only.
+            headerRainPercent = if (date == today) {
+                HeaderContent.headerRainProbability(sourceHourly, source.id, now, rainLookaheadHours)
+            } else {
+                null
+            },
         )
     }
 
@@ -411,6 +452,7 @@ object DaySourceComparison {
             ageIsStale = age != null && age > STALE_AGE_MS,
             ageNoLongerSent = age != null && row.noLongerSent,
             lowWhole = TempUtils.formatDayTemp(row.low, useCelsius, wholeDegrees = true).orEmpty(),
+            headerRain = row.headerRainPercent?.let { "$it%" }.orEmpty(),
         )
     }
 
@@ -429,11 +471,20 @@ object DaySourceComparison {
     /** Index of the Amount column in the shared column order ([SortColumn]). */
     val AMOUNT_COLUMN = SortColumn.AMOUNT.ordinal
 
+    /** Index of the Now column (header rain %) in the shared column order ([SortColumn]). */
+    val HEADER_RAIN_COLUMN = SortColumn.HEADER_RAIN.ordinal
+
     /** Index of the Low column in the shared column order ([SortColumn]). */
     private val LOW_COLUMN = SortColumn.LOW.ordinal
 
     /** Smallest space (dp) between two columns' text before the table steps down ([layout]). */
     const val MIN_COLUMN_GAP_DP = 5f
+
+    /**
+     * "Plenty of width" for the optional Now column (user, 2026-11-20): it shows only when every gap
+     * stays at least this wide with it (Claude proposal: twice [MIN_COLUMN_GAP_DP]).
+     */
+    const val HEADER_RAIN_MIN_GAP_DP = 10f
 
     /** How the table fits its width, tried in this order ([layout]; plans/261117-all-sources-content-sized-columns.md). */
     enum class FitStep(val showAmount: Boolean, val wholeLows: Boolean) {
@@ -445,10 +496,40 @@ object DaySourceComparison {
 
     /**
      * The table's columns, both platforms: [columns] are the shown column indices (shared order) and
-     * [widths] their widths in the caller's unit, summing to the table width.
+     * [widths] their widths in the caller's unit, summing to the table width. [showHeaderRain] = the
+     * optional Now column is shown (only on top of the widest [step]).
      */
-    data class Layout(val step: FitStep, val columns: List<Int>, val widths: List<Float>) {
+    data class Layout(
+        val step: FitStep,
+        val columns: List<Int>,
+        val widths: List<Float>,
+        val showHeaderRain: Boolean = false,
+        /** Each shown column's text width (widest header or cell); [widths] adds the gap left of it. */
+        val contentWidths: List<Float> = emptyList(),
+    ) {
         val showAmount: Boolean get() = step.showAmount
+
+        /**
+         * The positions in [columns] under the "Rain" group label (first..last shown rain column);
+         * null when none is shown.
+         */
+        fun rainGroupSpan(): IntRange? {
+            val shown = columns.indices.filter { SortColumn.entries[columns[it]].isRain }
+            return if (shown.isEmpty()) null else shown.first()..shown.last()
+        }
+
+        /**
+         * The "Rain" label's left edge and width, in [widths]' unit; null when no rain column is shown.
+         * It starts where the first rain column's text starts, not at its gap, so the line keeps clear
+         * of Low's text (user, 2026-11-20: "Rain header too close to temperature low"), and ends at the
+         * last rain column's right edge (its text is end-aligned).
+         */
+        fun rainGroupBounds(): Pair<Float, Float>? {
+            val span = rainGroupSpan() ?: return null
+            val gap = contentWidths.getOrNull(span.first)?.let { (widths[span.first] - it).coerceAtLeast(0f) } ?: 0f
+            val start = widths.take(span.first).sum() + gap
+            return start to widths.subList(span.first, span.last + 1).sum() - gap
+        }
 
         /** [cells]' text for the shown columns, Low rounded to whole degrees under [FitStep.wholeLows]. */
         fun values(cells: Cells): List<String> {
@@ -468,6 +549,11 @@ object DaySourceComparison {
      * Amount is never shown when no row has one. When nothing fits, the last step's columns shrink in
      * proportion (cells clip on one line). [measure] is the platform's width of a text at 12sp, in the
      * same unit as [tableWidth] and [minGap]; [headers] are the header texts in column order.
+     *
+     * The Now column (header rain %) is tried first, on top of the widest step, and kept only when
+     * every gap stays at least [HEADER_RAIN_MIN_GAP_DP] (scaled from [minGap]); it goes before Low
+     * loses its decimals or Amount drops. Never offered when no row has a value (any day but today).
+     * Desktop re-runs this on every width change, so the column comes and goes with the window.
      */
     fun layout(
         tableWidth: Float,
@@ -477,10 +563,19 @@ object DaySourceComparison {
         measure: (text: String, bold: Boolean) -> Float,
     ): Layout {
         val anyAmount = cells.any { it.amount.isNotEmpty() }
+        val anyHeaderRain = cells.any { it.headerRain.isNotEmpty() }
         val steps = FitStep.entries.filter { anyAmount || !it.showAmount }
-        for ((n, step) in steps.withIndex()) {
-            val columns = SortColumn.entries.indices.filter { step.showAmount || it != AMOUNT_COLUMN }
-            val draft = Layout(step, columns, emptyList())
+        // (step, with Now, gap it needs): Now only on top of the widest step, at the wider gap.
+        val attempts = buildList {
+            if (anyHeaderRain) add(Triple(steps.first(), true, minGap * HEADER_RAIN_MIN_GAP_DP / MIN_COLUMN_GAP_DP))
+            steps.forEach { add(Triple(it, false, minGap)) }
+        }
+        for ((n, attempt) in attempts.withIndex()) {
+            val (step, withNow, needGap) = attempt
+            val columns = SortColumn.entries.indices.filter {
+                (step.showAmount || it != AMOUNT_COLUMN) && (withNow || it != HEADER_RAIN_COLUMN)
+            }
+            val draft = Layout(step, columns, emptyList(), withNow)
             val rows = cells.map { draft.values(it) }
             // Rows measured bold (the viewed source's row is), so switching source never re-lays out.
             val content = columns.indices.map { i ->
@@ -488,19 +583,19 @@ object DaySourceComparison {
             }
             val gaps = columns.size - 1
             val slack = tableWidth - content.sum()
-            val fits = slack >= minGap * gaps
-            if (!fits && n < steps.lastIndex) continue
+            val fits = slack >= needGap * gaps
+            if (!fits && n < attempts.lastIndex) continue
             val widths = if (slack >= 0f) {
                 content.mapIndexed { i, w -> if (i == 0) w else w + slack / gaps }
             } else {
                 content.map { it * tableWidth / content.sum() }
             }
             Log.v(TAG) {
-                "DAY_SOURCE_LAYOUT width=${"%.0f".format(Locale.US, tableWidth)} step=$step fits=$fits " +
+                "DAY_SOURCE_LAYOUT width=${"%.0f".format(Locale.US, tableWidth)} step=$step now=$withNow fits=$fits " +
                     "gap=${"%.1f".format(Locale.US, slack / gaps)} " +
                     "content=${content.joinToString(",") { "%.0f".format(Locale.US, it) }}"
             }
-            return Layout(step, columns, widths)
+            return Layout(step, columns, widths, withNow, content)
         }
         error("no FitStep") // FitStep.entries always leaves the no-Amount steps.
     }
@@ -510,13 +605,14 @@ object DaySourceComparison {
      * column order. Amount only while its column is shown. Source, High and Low need no note.
      * The wording is per platform (desktop `LEGEND_TEXT`, Android `source_compare_legend_*`) and says
      * exactly what each cell holds: Rain/Night are the windowed hourly max ([DailyRainLabels]), Amount
-     * the 8am–8pm hourly sum (as the widget's day label), Bias the 30-day mean high error as forecast − actual.
+     * the 8am–8pm hourly sum (as the widget's day label), Bias the 30-day mean high error as forecast − actual,
+     * Now the header's rain % over its lookahead (only while that column is shown).
      */
-    fun legendColumns(showAmount: Boolean): List<SortColumn> =
-        LEGEND_COLUMNS.filter { showAmount || it != SortColumn.AMOUNT }
+    fun legendColumns(showAmount: Boolean, showHeaderRain: Boolean = false): List<SortColumn> =
+        LEGEND_COLUMNS.filter { (showAmount || it != SortColumn.AMOUNT) && (showHeaderRain || it != SortColumn.HEADER_RAIN) }
 
     private val LEGEND_COLUMNS = listOf(
-        SortColumn.DAY_RAIN, SortColumn.PEAK, SortColumn.NIGHT_RAIN, SortColumn.AMOUNT,
+        SortColumn.HEADER_RAIN, SortColumn.DAY_RAIN, SortColumn.PEAK, SortColumn.NIGHT_RAIN, SortColumn.AMOUNT,
         SortColumn.CLOUD, SortColumn.BIAS, SortColumn.AGE,
     )
 

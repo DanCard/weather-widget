@@ -182,6 +182,18 @@ object HeaderContent {
     }
 
     /**
+     * The rain % [build] computes for [sourceId] (before the header hides 0 %), by the same rule; the
+     * Forecast Comparison "All sources" Now column reads it so the two cannot drift
+     * (plans/261120-all-sources-header-rain-column.md). No daily fallback.
+     */
+    fun headerRainProbability(
+        hourly: List<HourlyForecast>,
+        sourceId: String,
+        now: LocalDateTime,
+        rainLookaheadHours: Int = DisplaySettings.HEADER_RAIN_LOOKAHEAD.default,
+    ): Int? = precipitation(hourly, sourceId, null, now, rainLookaheadHours).computed
+
+    /**
      * The displayed source's coming hour (daily) or this hour (hourly views, with twilight); see
      * [HeaderConditionIcon]. With no such row the daily view draws today's daily row
      * ([DailyIconName]); an hourly view draws no icon rather than a "?" or another source's guess.

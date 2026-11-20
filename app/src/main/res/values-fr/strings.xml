@@ -101,13 +101,16 @@
     <string name="source_compare_col_source">Source</string>
     <string name="source_compare_col_high">Max</string>
     <string name="source_compare_col_low">Min</string>
-    <string name="source_compare_col_rain">Pluie</string>
+    <string name="source_compare_group_rain">Pluie</string>
+    <string name="source_compare_col_now">Maint.</string>
+    <string name="source_compare_col_rain">Jour</string>
     <string name="source_compare_col_peak">Pic</string>
     <string name="source_compare_col_night">Nuit</string>
-    <string name="source_compare_col_amount">Quant.</string>
+    <string name="source_compare_col_amount">Total</string>
     <string name="source_compare_col_cloud">Nuages</string>
     <string name="source_compare_col_bias">Biais</string>
     <string name="source_compare_col_age">Âge</string>
+    <string name="source_compare_legend_now">plus forte probabilité horaire dans les %1$d h à venir, comme dans l\'en-tête du widget</string>
     <string name="source_compare_legend_rain">plus forte probabilité horaire, 8 h–20 h</string>
     <string name="source_compare_legend_peak">heure de la plus forte probabilité en journée</string>
     <string name="source_compare_legend_night">plus forte probabilité horaire, 20 h–8 h</string>
@@ -116,6 +119,7 @@
     <string name="source_compare_legend_bias">max prévu moyen moins le réel, 30 derniers jours (+ = trop chaud)</string>
     <string name="source_compare_legend_age">depuis la dernière confirmation de cette prévision par la source ; gris après 24 h</string>
     <string name="source_compare_legend_star">La source n\'envoie plus aujourd\'hui (ses jours suivent l\'UTC) ; l\'âge est celui de sa dernière prévision qui l\'incluait.</string>
+    <string name="source_compare_legend_apply_order">range vos sources météo dans l\'ordre de ce tableau ; la première devient votre source principale.</string>
     <string name="loading_accuracy_summary">Chargement de la précision des prévisions...</string>
     <string name="error_loading_accuracy_summary">Impossible de charger la précision des prévisions pour le moment.</string>
     <string name="data_freshness_unknown">Fraîcheur des données : inconnue</string>

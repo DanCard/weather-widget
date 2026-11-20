@@ -101,13 +101,16 @@
     <string name="source_compare_col_source">Sumber</string>
     <string name="source_compare_col_high">Maks</string>
     <string name="source_compare_col_low">Min</string>
-    <string name="source_compare_col_rain">Hujan</string>
+    <string name="source_compare_group_rain">Hujan</string>
+    <string name="source_compare_col_now">Kini</string>
+    <string name="source_compare_col_rain">Siang</string>
     <string name="source_compare_col_peak">Puncak</string>
     <string name="source_compare_col_night">Malam</string>
-    <string name="source_compare_col_amount">Jumlah</string>
+    <string name="source_compare_col_amount">Total</string>
     <string name="source_compare_col_cloud">Awan</string>
     <string name="source_compare_col_bias">Bias</string>
     <string name="source_compare_col_age">Usia</string>
+    <string name="source_compare_legend_now">peluang per jam tertinggi dalam %1$d jam ke depan, seperti di kepala widget</string>
     <string name="source_compare_legend_rain">peluang per jam tertinggi, 08–20</string>
     <string name="source_compare_legend_peak">jam peluang tertinggi siang hari</string>
     <string name="source_compare_legend_night">peluang per jam tertinggi, 20–08</string>
@@ -116,6 +119,7 @@
     <string name="source_compare_legend_bias">rata-rata prakiraan maks dikurangi aktual, 30 hari terakhir (+ = lebih hangat)</string>
     <string name="source_compare_legend_age">sejak sumber terakhir mengonfirmasi prakiraan ini; abu-abu setelah 24 jam</string>
     <string name="source_compare_legend_star">Sumber tidak lagi mengirim hari ini (harinya mengikuti UTC); usia dihitung dari prakiraan terakhir yang memuatnya.</string>
+    <string name="source_compare_legend_apply_order">mengurutkan sumber cuaca Anda sesuai tabel ini; yang teratas menjadi sumber utama Anda.</string>
     <string name="loading_accuracy_summary">Memuat akurasi prakiraan...</string>
     <string name="error_loading_accuracy_summary">Tidak dapat memuat akurasi prakiraan saat ini.</string>
     <string name="data_freshness_unknown">Kesegaran data: Tidak diketahui</string>
