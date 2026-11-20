@@ -131,6 +131,7 @@ object DailyViewLogic {
         use24HourClock: Boolean,
         allowTodayRainChanceLabel: Boolean,
         showFuturePriorBar: Boolean = false,
+        rainLookaheadHours: Int = com.weatherwidget.shared.settings.DisplaySettings.HEADER_RAIN_LOOKAHEAD.default,
     ): Pair<com.weatherwidget.shared.daily.DailyColumn, com.weatherwidget.data.model.DailyForecast?> {
         val shown = if (date.isBefore(today)) null else {
             shownRows[date]
@@ -160,6 +161,7 @@ object DailyViewLogic {
             use24HourClock = use24HourClock,
             allowTodayRainChanceLabel = allowTodayRainChanceLabel,
             showFuturePriorBar = showFuturePriorBar,
+            rainLookaheadHours = rainLookaheadHours,
         )
         Log.d(TAG, "$caller: date=$date shown=${shown != null} older=${olderRows.size} icon=${column.iconName}")
         return column to shown
@@ -280,6 +282,8 @@ object DailyViewLogic {
                 centerLon = centerLon,
                 use24HourClock = com.weatherwidget.shared.util.DailyRainLabels.localeUses24HourClock(),
                 allowTodayRainChanceLabel = true,
+                rainLookaheadHours = stateManager?.getHeaderRainLookaheadHours()
+                    ?: com.weatherwidget.shared.settings.DisplaySettings.HEADER_RAIN_LOOKAHEAD.default,
             )
             val textHigh = com.weatherwidget.shared.daily.DailyColumnBuilder.textHigh(column)
             val textLow = com.weatherwidget.shared.daily.DailyColumnBuilder.textLow(column)
@@ -484,6 +488,7 @@ object DailyViewLogic {
                 use24HourClock = request.use24HourClock,
                 allowTodayRainChanceLabel = request.allowTodayRainChanceLabel,
                 showFuturePriorBar = request.showFuturePriorBar,
+                rainLookaheadHours = request.rainLookaheadHours,
             )
             // Permanent diagnostics, read by DailyCloudCoverSiteParityRoboTest.
             Log.v(

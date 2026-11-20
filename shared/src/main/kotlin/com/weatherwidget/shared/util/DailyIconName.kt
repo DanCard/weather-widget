@@ -1,12 +1,16 @@
 package com.weatherwidget.shared.util
 
+import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.WeatherCodeMapper
+import com.weatherwidget.shared.actuals.HourlyForecastSelector
 import com.weatherwidget.shared.util.WeatherConditionResolver as R
 import com.weatherwidget.util.SunPositionUtils
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.temporal.ChronoUnit
+import com.weatherwidget.shared.settings.DisplaySettings
 
 /**
  * A daily forecast row's icon name: the provider's native token when it has one, else its condition
@@ -47,6 +51,93 @@ object DailyIconName {
             return R.getCloudCoverIcon(isNight, cloudCover)
         }
         return R.applyDailyPartlyCloudyFloor(icon, cloudCover, isNight)
+    }
+
+    private const val TAG = "DailyIconName"
+
+    /** The header's rain % (next N hours, the user's setting) at which today's dry daily icon turns rainy. */
+    const val TODAY_HOUR_RAIN_MIN_PERCENT = 70
+
+    /** How far back the "current hour" row may start: a 3-hourly series (OWM free) still counts. */
+    private const val CURRENT_HOUR_MAX_AGE_MS = 3 * 3_600_000L
+
+    private val CLEAR_SIDE = setOf(R.IC_CLEAR, R.IC_NIGHT, R.IC_MOSTLY_CLEAR)
+    private val CLOUDY_SIDE = setOf(R.IC_CLOUDY, R.IC_MOSTLY_CLOUDY, R.IC_MOSTLY_CLOUDY_NIGHT)
+
+    /**
+     * Today's column icon when the display source's hourly forecast clearly contradicts [dailyIcon]
+     * (plans/261120-today-icon-hourly-rain-override.md), else null:
+     * - rain: a daily icon without precipitation, and the header's rain % — the highest interpolated
+     *   chance in the next [rainLookaheadHours] (the same [PrecipProbabilityCalculator] call and
+     *   setting as `HeaderContent`) — is ≥ [TODAY_HOUR_RAIN_MIN_PERCENT] → the rain-type icon of the
+     *   wettest hour in that window: rain / storm / snow at ≥ 80 %, a "chance rain" icon at 70–79 %
+     *   (Tomorrow.io 2026-11-20: daily "Clear" while the header read 97 % for 8am);
+     * - cloud: the current hour (newest site row at or before [now], within 3 h) two or more cloud
+     *   steps from the daily icon — a clear-side icon in a cloudy (≥ 91 %) hour → cloudy; a cloudy-side
+     *   icon in a mostly clear (≤ 25 %) hour → mostly clear / clear night. Neighbouring steps never
+     *   switch, so the icon does not flicker hour to hour.
+     */
+    @Suppress("LongParameterList")
+    fun todayCurrentHourOverride(
+        dailyIcon: String,
+        hourly: List<HourlyForecast>,
+        displaySourceId: String,
+        centerLat: Double,
+        centerLon: Double,
+        now: LocalDateTime,
+        rainLookaheadHours: Int = DisplaySettings.HEADER_RAIN_LOOKAHEAD.default,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): String? {
+        if (R.isPrecipitation(dailyIcon)) return null
+        val nowMs = now.atZone(zone).toInstant().toEpochMilli()
+        val siteRows = HourlyForecastSelector.selectForecastsByTime(hourly, displaySourceId, centerLat, centerLon)
+            .values.sortedBy { it.dateTime }
+        if (siteRows.isEmpty()) return null
+        val isNight = SunPositionUtils.getSunInfoOrUnknown(now, centerLat, centerLon).isNight
+        val lookahead = DisplaySettings.HEADER_RAIN_LOOKAHEAD.clamp(rainLookaheadHours).toLong()
+
+        val headerChance = PrecipProbabilityCalculator.maxPrecipProbabilityWithin(
+            lookaheadHours = lookahead,
+            hourlyForecasts = siteRows,
+            displaySourceId = displaySourceId,
+            fallbackSourceId = WeatherSource.GENERIC_GAP.id,
+            fallbackDailyProbability = null,
+            referenceTime = now,
+        )
+        val rainIcon = if (headerChance != null && headerChance >= TODAY_HOUR_RAIN_MIN_PERCENT) {
+            // The window's rows plus the hour after it, whose value the end of the window interpolates toward.
+            val windowStart = now.truncatedTo(ChronoUnit.HOURS).atZone(zone).toInstant().toEpochMilli()
+            val windowEnd = now.plusHours(lookahead + 1).atZone(zone).toInstant().toEpochMilli()
+            val wettest = siteRows.filter { it.dateTime in windowStart..windowEnd && it.precipProbability != null }
+                .maxWithOrNull(compareBy<HourlyForecast> { it.precipProbability }.thenByDescending { it.dateTime })
+            wettest?.let {
+                val icon = R.resolveIconName(it.condition, isNight, it.cloudCover, headerChance)
+                // A wet hour worded dry ("Cloudy" at 90 %): rain, at the header's chance tier.
+                if (R.isRainIndicator(icon)) icon else R.resolveIconName("Rain", isNight, it.cloudCover, headerChance)
+            }
+        } else {
+            null
+        }
+
+        val hour = siteRows.lastOrNull { it.dateTime <= nowMs && nowMs - it.dateTime < CURRENT_HOUR_MAX_AGE_MS }
+        val cloudIcon = hour?.cloudCover?.let { cloud ->
+            val hourCloudIcon = R.getCloudCoverIcon(isNight, cloud)
+            when {
+                dailyIcon in CLEAR_SIDE && hourCloudIcon == R.IC_CLOUDY -> hourCloudIcon
+                dailyIcon in CLOUDY_SIDE && hourCloudIcon in CLEAR_SIDE -> hourCloudIcon
+                else -> null
+            }
+        }
+
+        val override = (rainIcon ?: cloudIcon)?.takeIf { it != dailyIcon }
+        if (override != null) {
+            Log.v(
+                TAG,
+                "TODAY_ICON_HOURLY source=$displaySourceId daily=$dailyIcon headerRain=$headerChance " +
+                    "lookahead=${lookahead}h hourStart=${hour?.dateTime} cloud=${hour?.cloudCover} -> $override",
+            )
+        }
+        return override
     }
 
     /** A rain icon whose day AND night chances are both known and below the day's thresholds. */

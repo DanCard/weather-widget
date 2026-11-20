@@ -42,4 +42,7 @@ data class GraphDayRequest(
     val centerLon: Double? = null,
     /** Settings → "Show forecast from 24 h ago on future days" (shared DailyColumnBuilder.showFuturePriorBar). */
     val showFuturePriorBar: Boolean = stateManager?.showFuturePriorForecast() == true,
+    /** Settings → Header rain lookahead: today's icon reads the header's rain % over it (DailyColumnBuilder). */
+    val rainLookaheadHours: Int = stateManager?.getHeaderRainLookaheadHours()
+        ?: com.weatherwidget.shared.settings.DisplaySettings.HEADER_RAIN_LOOKAHEAD.default,
 )

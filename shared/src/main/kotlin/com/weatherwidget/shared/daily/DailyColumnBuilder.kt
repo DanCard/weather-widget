@@ -154,6 +154,11 @@ object DailyColumnBuilder {
          * plans/261110-future-days-prior-forecast-bar.md).
          */
         showFuturePriorBar: Boolean = false,
+        /**
+         * Settings → Header rain lookahead (hours): today's icon turns rainy when the header's rain %
+         * over this window reaches 70 % (plans/261120-today-icon-hourly-rain-override.md).
+         */
+        rainLookaheadHours: Int = com.weatherwidget.shared.settings.DisplaySettings.HEADER_RAIN_LOOKAHEAD.default,
     ): DailyColumn {
         val isToday = date == today
         val isPast = date.isBefore(today)
@@ -474,6 +479,23 @@ object DailyColumnBuilder {
             com.weatherwidget.shared.util.WeatherConditionResolver.resolveIconName(
                 condition = actual?.condition ?: displaySnapshot?.condition,
             )
+        }.let { dailyIcon ->
+            // Today only: the header's rain % or the current hour's cloud wins a clear conflict with the daily icon
+            // (plans/261120-today-icon-hourly-rain-override.md), so the icon follows the clock.
+            if (isToday && forecast != null && !forecast.isClimateNormal) {
+                com.weatherwidget.shared.util.DailyIconName.todayCurrentHourOverride(
+                    dailyIcon = dailyIcon,
+                    hourly = hourly,
+                    displaySourceId = displaySourceId,
+                    centerLat = centerLat,
+                    centerLon = centerLon,
+                    now = now,
+                    rainLookaheadHours = rainLookaheadHours,
+                    zone = zone,
+                ) ?: dailyIcon
+            } else {
+                dailyIcon
+            }
         }
         // Today's left bar ("yesterday's forecast"): its own row's chances, no cloud %, as Android.
         val snapshotIconName = when {

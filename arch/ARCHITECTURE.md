@@ -193,6 +193,21 @@ the max (`forecasts.hourlyDayPrecipCombined` / `hourlyNightPrecipCombined`) and 
 source-comparison popup and the frozen `daily_history` chance all read the resolved value; the hourly
 view is unchanged (`plans/261117-google-combined-daily-rain-chance.md`).
 
+A daily column's icon comes from `:shared` `DailyIconName.resolve` inside `DailyColumnBuilder`: the
+provider's native token (else its condition text), turned into a cloud icon when a rain icon's day and
+night chances both fall below the thresholds, then the partly-cloudy floor from noon cloud %. Today's
+column then lets the hourly forecast win a clear conflict (`DailyIconName.todayCurrentHourOverride`):
+a daily icon without precipitation turns rainy when the header's rain % — the same
+`PrecipProbabilityCalculator` call over the same header rain lookahead setting — is at least 70 %,
+taking the wettest hour's rain-type icon in that window (rain / storm / snow at ≥ 80 %, "chance rain"
+at 70–79 %). Otherwise the current hour (the newest site row at or before now, within 3 h) decides
+cloud: a clear or mostly-clear icon becomes cloudy in a ≥ 91 % hour, and a cloudy or mostly-cloudy
+one becomes mostly clear (clear night after dark) in a ≤ 25 % hour; neighbouring cloud steps never
+switch. The icon therefore changes with the clock at the next repaint (about every 3 minutes), and
+bar colour follows the icon. Providers' daily codes can contradict their own hours (Tomorrow.io sent
+code 1000 "Clear" beside a 94 % day whose rain fell 5–9am). Trace: `TODAY_ICON_HOURLY` at VERBOSE
+(`plans/261120-today-icon-hourly-rain-override.md`).
+
 Daily night rain labels (the chance or amount between two columns) are placed by one scored search,
 `:shared` `NightRainLabelPlacer`, run from `DailyRainLabelLayout.layoutNights`
 (`plans/261116-night-rain-label-scored-placement-redesign.md`). The hosts measure ink, not line

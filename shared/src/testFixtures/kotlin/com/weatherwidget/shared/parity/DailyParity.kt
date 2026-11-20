@@ -423,6 +423,23 @@ object DailyParity {
                 hourly = hourlyDay(today, GOOGLE, 48f, 68f, cloud = 20, fetchedAt = todayFetch),
                 currentTemp = 49f,
             ),
+            // The header's rain % wins a clear rain conflict with today's daily icon: the row says "Clear"
+            // (Tomorrow.io code 1000 on emulator-5556, 2026-11-20) but 8am is Rain 94 % and it is 07:45,
+            // so the next 6 h (the default lookahead, both platforms) read 94 %. Tomorrow keeps its own
+            // icon. (plans/261120-today-icon-hourly-rain-override.md)
+            Fixture(
+                name = "today-hour-rain-icon",
+                now = today.atTime(7, 45),
+                displaySource = GOOGLE,
+                rows = week(today, GOOGLE) { d, r ->
+                    if (d == today && r.fetchedAt == todayFetch) r.copy(precip = 94, dayPrecip = 94, noonCloud = 3) else r
+                },
+                history = pastHistory(today, GOOGLE),
+                hourly = hourlyDay(today, GOOGLE, 42f, 56f, cloud = 3, fetchedAt = todayFetch).map {
+                    if (it.dateTime == ms(today, 8)) it.copy(condition = "Rain", precipProbability = 94, cloudCover = 100) else it
+                } + hourlyDay(today.plusDays(1), GOOGLE, 41f, 57f, cloud = 3, fetchedAt = todayFetch),
+                currentTemp = 47.9f,
+            ),
         )
     }
 }
