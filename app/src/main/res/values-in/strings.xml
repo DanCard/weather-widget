@@ -96,6 +96,8 @@
     <string name="months_view_more_history">%1$s memiliki riwayat sejak %2$s. Ketuk untuk beralih.</string>
     <string name="forecast_accuracy_summary_title">Akurasi prakiraan (30 hari terakhir)</string>
     <string name="source_compare_title">Semua sumber untuk %1$s</string>
+    <string name="source_compare_set_api_order">Atur urutan API</string>
+    <string name="source_compare_order_applied">Urutan API diperbarui</string>
     <string name="source_compare_col_source">Sumber</string>
     <string name="source_compare_col_high">Maks</string>
     <string name="source_compare_col_low">Min</string>

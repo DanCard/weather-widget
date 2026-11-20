@@ -96,6 +96,8 @@
     <string name="months_view_more_history">%1$s का इतिहास %2$s से उपलब्ध है। बदलने के लिए टैप करें।</string>
     <string name="forecast_accuracy_summary_title">पूर्वानुमान सटीकता (पिछले 30 दिन)</string>
     <string name="source_compare_title">%1$s के सभी स्रोत</string>
+    <string name="source_compare_set_api_order">API क्रम सेट करें</string>
+    <string name="source_compare_order_applied">API क्रम अपडेट किया गया</string>
     <string name="source_compare_col_source">स्रोत</string>
     <string name="source_compare_col_high">अधिकतम</string>
     <string name="source_compare_col_low">न्यूनतम</string>

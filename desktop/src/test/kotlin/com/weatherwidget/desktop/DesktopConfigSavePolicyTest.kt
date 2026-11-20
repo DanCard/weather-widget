@@ -140,6 +140,41 @@ class DesktopConfigSavePolicyTest {
         assertEquals("Kyiv", result.config.recentLocations[1].label)
     }
 
+    @Test
+    fun `comparison source order save updates visibleSources while merging away stale other settings`() {
+        val persisted = config(source = "NWS", narrowSpan = 4)
+        val reordered = listOf("SILURIAN", "OPEN_METEO", "NWS")
+        val staleDraft = config(source = "OPEN_METEO", narrowSpan = 8).copy(
+            settings = persisted.settings.copy(
+                weatherSource = "OPEN_METEO",
+                narrowZoomSpanHours = 8,
+                visibleSources = reordered,
+            ),
+        )
+
+        val result = resolveDesktopConfigSave(persisted, staleDraft, source = ConfigSaveSource.COMPARISON_SOURCE_ORDER)
+
+        assertEquals(reordered, result.config.settings.visibleSources)
+        assertEquals("NWS", result.config.settings.weatherSource)
+        assertEquals(4, result.config.settings.narrowZoomSpanHours)
+        assertEquals(listOf("visibleSources: [NWS, OPEN_METEO, SILURIAN] -> $reordered"), result.settingsChanges)
+        assertEquals(2, result.mergedAwaySettings.size)
+    }
+
+    @Test
+    fun `comparison window save still merges away stale visibleSources`() {
+        val persisted = config(source = "NWS", narrowSpan = 4)
+        val staleDraft = persisted.copy(
+            sourceCompareSort = "DAY_RAIN:desc",
+            settings = persisted.settings.copy(visibleSources = listOf("SILURIAN", "NWS", "OPEN_METEO")),
+        )
+
+        val result = resolveDesktopConfigSave(persisted, staleDraft, source = ConfigSaveSource.COMPARISON_WINDOW)
+
+        assertEquals(persisted.settings.visibleSources, result.config.settings.visibleSources)
+        assertEquals("DAY_RAIN:desc", result.config.sourceCompareSort)
+    }
+
     private fun config(
         source: String = "NWS",
         narrowSpan: Int = 6,

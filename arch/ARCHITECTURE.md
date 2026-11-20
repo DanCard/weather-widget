@@ -60,7 +60,9 @@ Examples include:
   Clicking a column header sorts by it (`Sort.tapped`: same column flips, a new column starts
   descending except Source A–Z, Peak earliest-first and Age freshest-first); blanks stay last and ties keep the source
   order. The sort is remembered (`source_compare_sort` pref / `DesktopConfig.sourceCompareSort`);
-  `DAY_SOURCE_SORT` logs each tap. A legend under the table gives one line per ambiguous column
+  `DAY_SOURCE_SORT` logs each tap. A "Set API order" button on the header row applies the table's
+  sorted order to the user's enabled sources (`reorderedEnabledIds` / `canApplyOrder`, preserving any
+  location-unavailable enabled sources) without fetching (`SourceListEdit`). A legend under the table gives one line per ambiguous column
   (`legendColumns`; wording per platform: desktop `LEGEND_TEXT`, Android `source_compare_legend_*`).
   Today only, a source whose later fetch succeeded but left today out (Silurian's UTC days after 4 PM
   Pacific: its tomorrow row confirmed more than a minute after its today row) gets `Row.noLongerSent`:

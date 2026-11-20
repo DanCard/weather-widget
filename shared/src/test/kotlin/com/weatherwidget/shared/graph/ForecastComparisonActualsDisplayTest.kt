@@ -68,4 +68,30 @@ class ForecastComparisonActualsDisplayTest {
         assertFalse(d.showLocationActualLegend)
         assertFalse(d.showFooterCard)
     }
+
+    @Test
+    fun `graphModeButton shows mode toggle only on past days and resets effective mode on today or future`() {
+        val today = java.time.LocalDate.of(2026, 11, 20)
+        val past = today.minusDays(1)
+        val future = today.plusDays(1)
+
+        assertEquals(
+            ForecastComparisonViewLogic.ButtonMode.EVOLUTION,
+            ForecastComparisonViewLogic.graphModeButton(past, hasApiActuals = false, ForecastComparisonViewLogic.GraphMode.EVOLUTION, today),
+        )
+        assertEquals(
+            ForecastComparisonViewLogic.ButtonMode.ERROR,
+            ForecastComparisonViewLogic.graphModeButton(past, hasApiActuals = true, ForecastComparisonViewLogic.GraphMode.ERROR, today),
+        )
+        assertEquals(
+            ForecastComparisonViewLogic.GraphMode.ERROR,
+            ForecastComparisonViewLogic.effectiveGraphMode(ForecastComparisonViewLogic.ButtonMode.ERROR),
+        )
+
+        for (day in listOf(today, future)) {
+            val mode = ForecastComparisonViewLogic.graphModeButton(day, hasApiActuals = false, ForecastComparisonViewLogic.GraphMode.ERROR, today)
+            assertEquals(ForecastComparisonViewLogic.ButtonMode.TEMPERATURE, mode)
+            assertEquals(ForecastComparisonViewLogic.GraphMode.EVOLUTION, ForecastComparisonViewLogic.effectiveGraphMode(mode))
+        }
+    }
 }

@@ -3,6 +3,7 @@ package com.weatherwidget.desktop
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -20,6 +21,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.drawText
@@ -41,6 +43,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.desktop.theme.WeatherDarkColorScheme
 import com.weatherwidget.desktop.theme.WeatherTypography
 import com.weatherwidget.shared.graph.AxisScale
+import com.weatherwidget.shared.graph.DataScreenStyle
 import com.weatherwidget.shared.graph.DaySourceComparison
 import com.weatherwidget.shared.graph.ForecastEvolutionCutoff
 import com.weatherwidget.shared.sourceview.SourceViewTrigger
@@ -53,6 +56,7 @@ import com.weatherwidget.shared.graph.ForecastEvolutionGeometry.TimeAxis
 import com.weatherwidget.shared.graph.ForecastEvolutionStyle
 import com.weatherwidget.shared.graph.ForecastComparisonHeader
 import com.weatherwidget.shared.graph.ForecastComparisonViewLogic
+import com.weatherwidget.shared.graph.ForecastComparisonViewLogic.ButtonMode
 import com.weatherwidget.shared.graph.ForecastComparisonViewLogic.GraphMode
 import com.weatherwidget.shared.graph.NiceAxisScale
 import com.weatherwidget.shared.util.TempUtils
@@ -237,7 +241,6 @@ internal fun ForecastComparisonContent(
             Header(
                 targetDate = targetDate,
                 source = source,
-                graphMode = graphMode,
                 canGoBack = ForecastComparisonHeader.canGoBack(targetDate),
                 onBack = onClose,
                 onPrev = { targetDate = targetDate.minusDays(1) },
@@ -248,9 +251,6 @@ internal fun ForecastComparisonContent(
                 isRefreshing = isRefreshing,
                 onRefresh = { onRefreshSource(source) },
                 onOpenSettings = onOpenSettings,
-                onToggleMode = {
-                    graphMode = if (graphMode == GraphMode.EVOLUTION) GraphMode.ERROR else GraphMode.EVOLUTION
-                },
             )
             Spacer(Modifier.height(8.dp))
 
@@ -260,11 +260,26 @@ internal fun ForecastComparisonContent(
                 d == null -> Text("No data.", color = ObsStyle.textSecondary)
                 else -> Content(
                     d, graphMode, source, config.settings.useCelsius, targetDate, sourceCompareSort,
+                    enabledSourceIds = config.settings.visibleSources,
+                    onToggleMode = {
+                        graphMode = if (graphMode == GraphMode.EVOLUTION) GraphMode.ERROR else GraphMode.EVOLUTION
+                    },
                     onSortTap = { column ->
                         val next = sourceCompareSort.tapped(column)
                         sourceCompareSort = next
                         DaySourceComparison.logSortTap(targetDate, next, DaySourceComparison.sort(d.sourceComparison, next))
                         saves.window(config.copy(sourceCompareSort = next.encode()))
+                    },
+                    onApplyOrder = { sorted ->
+                        val previousIds = config.settings.visibleSources
+                        val updatedIds = DaySourceComparison.reorderedEnabledIds(previousIds, sorted)
+                        if (updatedIds != previousIds) {
+                            saves.sourceOrder(config.copy(settings = config.settings.copy(visibleSources = updatedIds)))
+                            val reindexed = d.sourceComparison.map { row ->
+                                row.copy(sourceOrder = updatedIds.indexOf(row.source.id).takeIf { it >= 0 } ?: row.sourceOrder)
+                            }
+                            data = d.copy(sourceComparison = reindexed)
+                        }
                     },
                 )
             }
@@ -284,7 +299,6 @@ internal fun ForecastComparisonContent(
 private fun Header(
     targetDate: LocalDate,
     source: WeatherSource,
-    graphMode: GraphMode,
     canGoBack: Boolean,
     onBack: () -> Unit,
     onPrev: () -> Unit,
@@ -293,14 +307,13 @@ private fun Header(
     isRefreshing: Boolean,
     onRefresh: () -> Unit,
     onOpenSettings: () -> Unit,
-    onToggleMode: () -> Unit,
 ) {
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
             }
-            IconButton(onClick = onPrev, enabled = canGoBack) {
+            IconButton(onClick = onPrev, enabled = canGoBack, modifier = Modifier.testTag("prev_day_button")) {
                 Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Previous day")
             }
             Text(ForecastComparisonHeader.dateLabel(targetDate), fontSize = 18.sp, fontWeight = FontWeight.Bold)
@@ -318,17 +331,12 @@ private fun Header(
                 Icon(Icons.Default.Settings, contentDescription = "Settings")
             }
         }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                "Forecast Comparison",
-                fontSize = 20.sp,
-                color = ObsStyle.textSecondary,
-                modifier = Modifier.weight(1f).padding(start = 8.dp),
-            )
-            OutlinedButton(onClick = onToggleMode) {
-                Text(if (graphMode == GraphMode.EVOLUTION) "Mode: Evolution" else "Mode: Error", color = ObsStyle.accent)
-            }
-        }
+        Text(
+            "Forecast Comparison",
+            fontSize = 20.sp,
+            color = ObsStyle.textSecondary,
+            modifier = Modifier.padding(start = 8.dp),
+        )
     }
 }
 
@@ -340,18 +348,64 @@ private fun Content(
     useCelsius: Boolean,
     targetDate: LocalDate,
     sourceCompareSort: DaySourceComparison.Sort,
+    enabledSourceIds: List<String>,
+    onToggleMode: () -> Unit,
     onSortTap: (DaySourceComparison.SortColumn) -> Unit,
+    onApplyOrder: (List<DaySourceComparison.Row>) -> Unit,
 ) {
     val textMeasurer = rememberTextMeasurer()
-    val isError = graphMode == GraphMode.ERROR
+    val buttonMode = ForecastComparisonViewLogic.graphModeButton(
+        date = targetDate,
+        hasApiActuals = d.apiHigh != null && d.apiLow != null,
+        graphMode = graphMode,
+    )
+    val isError = ForecastComparisonViewLogic.effectiveGraphMode(buttonMode) == GraphMode.ERROR
     val hasPoints = d.points.isNotEmpty()
 
     if (d.sourceComparison.isNotEmpty()) {
+        val sortedRows = DaySourceComparison.sort(d.sourceComparison, sourceCompareSort)
         DaySourceComparisonTable(
-            targetDate, d.sourceComparison, source, useCelsius, System.currentTimeMillis(), sourceCompareSort, onSortTap,
+            targetDate,
+            d.sourceComparison,
+            source,
+            useCelsius,
+            System.currentTimeMillis(),
+            sourceCompareSort,
+            onSortTap,
+            canApplyOrder = DaySourceComparison.canApplyOrder(enabledSourceIds, sortedRows),
+            onApplyOrder = onApplyOrder,
         )
         Spacer(Modifier.height(12.dp))
     }
+
+    // Legend + past-day Evolution/Error toggle right above the graphs they control (mirrors Android's summary_card).
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.weight(1f)) {
+            Legend(source, d.display)
+        }
+        if (buttonMode != ButtonMode.TEMPERATURE) {
+            Button(
+                onClick = onToggleMode,
+                shape = RoundedCornerShape(DataScreenStyle.CARD_RADIUS_DP.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = ObsStyle.sourceButtonFill,
+                    contentColor = ObsStyle.accent,
+                ),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                modifier = Modifier.heightIn(min = 30.dp).testTag("graph_mode_button"),
+            ) {
+                Text(
+                    if (buttonMode == ButtonMode.EVOLUTION) "Mode: Evolution" else "Mode: Error",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        }
+    }
+    Spacer(Modifier.height(8.dp))
 
     if (!hasPoints) {
         Text("No forecast snapshots for ${source.displayName} on this day.", color = ObsStyle.textSecondary, fontSize = 13.sp)
@@ -369,9 +423,6 @@ private fun Content(
         }
         Spacer(Modifier.height(12.dp))
     }
-
-    Legend(source, d.display)
-    Spacer(Modifier.height(8.dp))
 
     if (d.display.showFooterCard) {
         DataCard(Modifier.fillMaxWidth()) {

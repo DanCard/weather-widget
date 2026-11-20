@@ -96,6 +96,8 @@
     <string name="months_view_more_history">%1$s-এর ইতিহাস %2$s থেকে আছে। বদলাতে ট্যাপ করুন।</string>
     <string name="forecast_accuracy_summary_title">পূর্বাভাসের নির্ভুলতা (শেষ ৩০ দিন)</string>
     <string name="source_compare_title">%1$s-এর সব উৎস</string>
+    <string name="source_compare_set_api_order">API ক্রম সেট করুন</string>
+    <string name="source_compare_order_applied">API ক্রম আপডেট হয়েছে</string>
     <string name="source_compare_col_source">উৎস</string>
     <string name="source_compare_col_high">সর্বোচ্চ</string>
     <string name="source_compare_col_low">সর্বনিম্ন</string>

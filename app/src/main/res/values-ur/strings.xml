@@ -96,6 +96,8 @@
     <string name="months_view_more_history">%1$s کی تاریخ %2$s سے موجود ہے۔ تبدیل کرنے کے لیے ٹیپ کریں۔</string>
     <string name="forecast_accuracy_summary_title">پیشن گوئی کی درستگی (آخری 30 دن)</string>
     <string name="source_compare_title">%1$s کے تمام ذرائع</string>
+    <string name="source_compare_set_api_order">API ترتیب سیٹ کریں</string>
+    <string name="source_compare_order_applied">API ترتیب اپ ڈیٹ ہو گئی</string>
     <string name="source_compare_col_source">ذریعہ</string>
     <string name="source_compare_col_high">زیادہ</string>
     <string name="source_compare_col_low">کم</string>

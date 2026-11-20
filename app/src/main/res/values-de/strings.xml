@@ -96,6 +96,8 @@
     <string name="months_view_more_history">%1$s hat Verlaufsdaten seit %2$s. Zum Wechseln tippen.</string>
     <string name="forecast_accuracy_summary_title">Vorhersagegenauigkeit (letzte 30 Tage)</string>
     <string name="source_compare_title">Alle Quellen für %1$s</string>
+    <string name="source_compare_set_api_order">API-Reihenfolge festlegen</string>
+    <string name="source_compare_order_applied">API-Reihenfolge aktualisiert</string>
     <string name="source_compare_col_source">Quelle</string>
     <string name="source_compare_col_high">Hoch</string>
     <string name="source_compare_col_low">Tief</string>

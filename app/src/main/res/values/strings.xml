@@ -96,6 +96,8 @@
     <string name="months_view_more_history">%1$s has history back to %2$s. Tap to switch.</string>
     <string name="forecast_accuracy_summary_title">Forecast Accuracy (Last 30 Days)</string>
     <string name="source_compare_title">All sources for %1$s</string>
+    <string name="source_compare_set_api_order">Set API order</string>
+    <string name="source_compare_order_applied">API order updated</string>
     <string name="source_compare_col_source">Source</string>
     <string name="source_compare_col_high">High</string>
     <string name="source_compare_col_low">Low</string>

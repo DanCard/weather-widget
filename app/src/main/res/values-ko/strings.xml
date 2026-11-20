@@ -96,6 +96,8 @@
     <string name="months_view_more_history">%1$s은(는) %2$s부터의 기록이 있습니다. 탭하여 전환하세요.</string>
     <string name="forecast_accuracy_summary_title">예보 정확도 (최근 30일)</string>
     <string name="source_compare_title">%1$s 전체 소스</string>
+    <string name="source_compare_set_api_order">API 순서로 설정</string>
+    <string name="source_compare_order_applied">API 순서가 업데이트되었습니다</string>
     <string name="source_compare_col_source">소스</string>
     <string name="source_compare_col_high">최고</string>
     <string name="source_compare_col_low">최저</string>

@@ -96,6 +96,8 @@
     <string name="months_view_more_history">%1$s geçmişi %2$s tarihine kadar uzanıyor. Geçmek için dokunun.</string>
     <string name="forecast_accuracy_summary_title">Tahmin doğruluğu (son 30 gün)</string>
     <string name="source_compare_title">%1$s için tüm kaynaklar</string>
+    <string name="source_compare_set_api_order">API sırasını ayarla</string>
+    <string name="source_compare_order_applied">API sırası güncellendi</string>
     <string name="source_compare_col_source">Kaynak</string>
     <string name="source_compare_col_high">Yüksek</string>
     <string name="source_compare_col_low">Düşük</string>

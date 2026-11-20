@@ -4,15 +4,21 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
@@ -30,6 +36,7 @@ import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.graph.DataScreenStyle
 import com.weatherwidget.shared.graph.DaySourceComparison
 import java.time.LocalDate
 import java.time.format.TextStyle
@@ -72,12 +79,43 @@ internal fun DaySourceComparisonTable(
     nowMs: Long,
     sort: DaySourceComparison.Sort = DaySourceComparison.Sort.DEFAULT,
     onSortTap: (DaySourceComparison.SortColumn) -> Unit = {},
+    canApplyOrder: Boolean = false,
+    onApplyOrder: (List<DaySourceComparison.Row>) -> Unit = {},
 ) {
     val dayName = date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
     val monthName = date.month.getDisplayName(TextStyle.SHORT, Locale.getDefault())
-    Text("All sources for $dayName $monthName ${date.dayOfMonth}", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-    Spacer(Modifier.height(4.dp))
     val sorted = DaySourceComparison.sort(rows, sort)
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            "All sources for $dayName $monthName ${date.dayOfMonth}",
+            fontWeight = FontWeight.Bold,
+            fontSize = 14.sp,
+            modifier = Modifier.weight(1f),
+        )
+        Button(
+            onClick = { onApplyOrder(sorted) },
+            enabled = canApplyOrder,
+            shape = RoundedCornerShape(DataScreenStyle.CARD_RADIUS_DP.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = ObsStyle.sourceButtonFill,
+                contentColor = ObsStyle.accent,
+                disabledContainerColor = ObsStyle.sourceButtonFill.copy(alpha = 0.4f),
+                disabledContentColor = ObsStyle.accent.copy(alpha = 0.4f),
+            ),
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+            modifier = Modifier.heightIn(min = 30.dp).testTag("source_compare_apply_order"),
+        ) {
+            Text(
+                "Set API order",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+    }
+    Spacer(Modifier.height(4.dp))
     DataCard(Modifier.fillMaxWidth()) {
         BoxWithConstraints(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
             val cells = sorted.map { DaySourceComparison.cells(it, nowMs, useCelsius) }

@@ -96,6 +96,8 @@
     <string name="months_view_more_history">У %1$s есть история с %2$s. Нажмите, чтобы переключить.</string>
     <string name="forecast_accuracy_summary_title">Точность прогнозов (последние 30 дней)</string>
     <string name="source_compare_title">Все источники на %1$s</string>
+    <string name="source_compare_set_api_order">Применить порядок API</string>
+    <string name="source_compare_order_applied">Порядок API обновлён</string>
     <string name="source_compare_col_source">Источник</string>
     <string name="source_compare_col_high">Макс</string>
     <string name="source_compare_col_low">Мин</string>

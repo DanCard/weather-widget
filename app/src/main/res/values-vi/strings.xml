@@ -96,6 +96,8 @@
     <string name="months_view_more_history">%1$s có lịch sử từ %2$s. Chạm để chuyển.</string>
     <string name="forecast_accuracy_summary_title">Độ chính xác dự báo (30 ngày qua)</string>
     <string name="source_compare_title">Tất cả nguồn cho %1$s</string>
+    <string name="source_compare_set_api_order">Đặt thứ tự API</string>
+    <string name="source_compare_order_applied">Đã cập nhật thứ tự API</string>
     <string name="source_compare_col_source">Nguồn</string>
     <string name="source_compare_col_high">Cao</string>
     <string name="source_compare_col_low">Thấp</string>

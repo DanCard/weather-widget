@@ -245,6 +245,9 @@ class ForecastComparisonActivity : AppCompatActivity() {
         findViewById<Button>(R.id.months_view_button).setOnClickListener {
             startActivity(MonthsViewActivity.intent(this, cachedRequestedSource, targetLat, targetLon))
         }
+        findViewById<Button>(R.id.source_comparison_apply_order_button).setOnClickListener {
+            applySourceComparisonOrder()
+        }
 
         val visibleSources = effectiveVisibleSources()
         cachedRequestedSource = requestedSource?.takeIf { it in visibleSources } ?: visibleSources.firstOrNull()
@@ -824,8 +827,7 @@ class ForecastComparisonActivity : AppCompatActivity() {
         val modeButton = findViewById<Button>(R.id.graph_mode_button)
         val actualLegendText = findViewById<TextView>(R.id.legend_actual_text)
         val hasActualValues = cachedApiActualRow?.apiHighTemp != null && cachedApiActualRow?.apiLowTemp != null
-        val showTemperatureButton = ForecastComparisonViewLogic.shouldShowTemperatureButton(cachedDate, hasActualValues)
-        when (ForecastComparisonViewLogic.resolveButtonMode(showTemperatureButton, graphMode)) {
+        when (ForecastComparisonViewLogic.graphModeButton(cachedDate, hasActualValues, graphMode)) {
             ButtonMode.EVOLUTION -> {
                 modeButton.text = getString(R.string.forecast_mode_evolution)
                 actualLegendText.text = getString(R.string.legend_actual)
@@ -919,6 +921,13 @@ class ForecastComparisonActivity : AppCompatActivity() {
         val dayText = "${date.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, locale)} " +
             "${date.month.getDisplayName(java.time.format.TextStyle.SHORT, locale)} ${date.dayOfMonth}"
         findViewById<TextView>(R.id.source_comparison_title).text = getString(R.string.source_compare_title, dayText)
+        val applyOrderButton = findViewById<Button>(R.id.source_comparison_apply_order_button)
+        val canApplyOrder = DaySourceComparison.canApplyOrder(
+            widgetStateManager.getEnabledSourcesOrder().map { it.id },
+            sorted,
+        )
+        applyOrderButton.isEnabled = canApplyOrder
+        applyOrderButton.alpha = if (canApplyOrder) 1.0f else 0.4f
 
         val useCelsius = widgetStateManager.useCelsius()
         val nowMs = System.currentTimeMillis()
@@ -982,6 +991,41 @@ class ForecastComparisonActivity : AppCompatActivity() {
         widgetStateManager.setSourceCompareSort(next.encode())
         DaySourceComparison.logSortTap(date, next, DaySourceComparison.sort(rows, next))
         renderSourceComparison(date, rows)
+    }
+
+    /** Applies the "All sources" table's current ordering to the enabled API list without fetching. */
+    private fun applySourceComparisonOrder() {
+        val (date, rows) = sourceCompareRows ?: return
+        val sort = DaySourceComparison.Sort.decode(widgetStateManager.sourceCompareSort())
+        val sorted = DaySourceComparison.sort(rows, sort)
+        val previousIds = widgetStateManager.getEnabledSourcesOrder().map { it.id }
+        val updatedIds = DaySourceComparison.reorderedEnabledIds(previousIds, sorted)
+        if (updatedIds == previousIds) return
+        val summary = "All sources (${sort.encode()}): $previousIds -> $updatedIds"
+        Log.d("SOURCE_ORDER", summary)
+        widgetStateManager.setVisibleSourcesOrder(updatedIds.map(WeatherSource::fromId))
+        val change = com.weatherwidget.shared.util.SourceListEdit.classify(previousIds, updatedIds)
+        val editMessage = change?.let { com.weatherwidget.shared.util.SourceListEdit.logMessage("android", it, updatedIds) }
+        if (editMessage != null) Log.d(com.weatherwidget.shared.util.SourceListEdit.LOG_TAG, editMessage)
+        lifecycleScope.launch(Dispatchers.IO) {
+            appLogDao.log("SOURCE_ORDER", summary, "INFO")
+            if (editMessage != null) {
+                appLogDao.log(com.weatherwidget.shared.util.SourceListEdit.LOG_TAG, editMessage, "INFO")
+            }
+        }
+        // Repaint all widgets from cache: the daily home button is bound to index 0 (primary source).
+        sendBroadcast(
+            Intent(this, WidgetActionReceiver::class.java).apply {
+                action = com.weatherwidget.widget.WidgetActions.ACTION_REFRESH
+                putExtra(com.weatherwidget.widget.WidgetActions.EXTRA_UI_ONLY, true)
+            },
+        )
+        val newVisibleIds = effectiveVisibleSources().map { it.id }
+        val reindexed = rows.map { row ->
+            row.copy(sourceOrder = newVisibleIds.indexOf(row.source.id).takeIf { it >= 0 } ?: row.sourceOrder)
+        }
+        renderSourceComparison(date, reindexed)
+        Toast.makeText(this, R.string.source_compare_order_applied, Toast.LENGTH_SHORT).show()
     }
 
     /** A cell's width in px at the table's 12sp, rounded up so a fixed-width TextView never clips it. */
@@ -1051,8 +1095,13 @@ class ForecastComparisonActivity : AppCompatActivity() {
             R.id.accuracy_card,
             R.id.freshness_card,
         ).forEach { DataScreenStyler.card(findViewById(it)) }
-        listOf(R.id.api_source_button, R.id.graph_mode_button, R.id.detailed_stats_button, R.id.months_view_button)
-            .forEach { DataScreenStyler.pillButton(findViewById(it)) }
+        listOf(
+            R.id.api_source_button,
+            R.id.graph_mode_button,
+            R.id.detailed_stats_button,
+            R.id.months_view_button,
+            R.id.source_comparison_apply_order_button,
+        ).forEach { DataScreenStyler.pillButton(findViewById(it)) }
     }
 
     /**

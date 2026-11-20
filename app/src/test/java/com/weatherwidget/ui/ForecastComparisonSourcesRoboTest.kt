@@ -356,4 +356,79 @@ class ForecastComparisonSourcesRoboTest {
             )
         }
     }
+
+    @Test
+    fun `tapping Set API order applies table ordering to enabled sources, repaints widgets, and disables button`() {
+        val tomorrow = LocalDate.now().plusDays(1)
+        val epoch = tomorrow.toEpochDay() * 86_400_000L
+        val now = System.currentTimeMillis()
+        // NWS: hotter (70°) but drier (10%); Open-Meteo: cooler (68°) but wetter (60%).
+        runBlocking {
+            db.forecastDao().insertAll(
+                listOf(
+                    ForecastEntity(
+                        targetDate = epoch, dateOfPrediction = LocalDate.now().toEpochDay() * 86_400_000L,
+                        locationLat = lat, locationLon = lon, highTemp = 70f, lowTemp = 50f, condition = "Cloudy",
+                        source = WeatherSource.NWS.id, hourlyDayPrecipMax = 10, fetchedAt = now - 3_600_000L,
+                        lastConfirmedAt = now - 3_600_000L,
+                    ),
+                    ForecastEntity(
+                        targetDate = epoch, dateOfPrediction = LocalDate.now().toEpochDay() * 86_400_000L,
+                        locationLat = lat, locationLon = lon, highTemp = 68f, lowTemp = 52f, condition = "Cloudy",
+                        source = WeatherSource.OPEN_METEO.id, hourlyDayPrecipMax = 60, fetchedAt = now - 2 * 3_600_000L,
+                        lastConfirmedAt = now - 2 * 3_600_000L,
+                    ),
+                ),
+            )
+        }
+        val state = WidgetStateManager(context)
+        state.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN))
+        state.setSourceCompareSort(DaySourceComparison.Sort.DEFAULT.encode())
+
+        val intent = Intent(context, ForecastComparisonActivity::class.java).apply {
+            putExtra(ForecastComparisonActivity.EXTRA_TARGET_DATE, tomorrow.toString())
+            putExtra(ForecastComparisonActivity.EXTRA_LAT, lat)
+            putExtra(ForecastComparisonActivity.EXTRA_LON, lon)
+            putExtra(ForecastComparisonActivity.EXTRA_SOURCE, WeatherSource.NWS.displayName)
+        }
+        val controller = Robolectric.buildActivity(ForecastComparisonActivity::class.java, intent)
+        opened += controller
+        val activity = controller.get()
+        controller.setup()
+
+        val table = activity.findViewById<LinearLayout>(R.id.source_comparison_table)
+        val deadline = System.currentTimeMillis() + 10_000
+        while (table.childCount == 0 && System.currentTimeMillis() < deadline) {
+            Thread.sleep(20)
+            shadowOf(Looper.getMainLooper()).idle()
+        }
+        val applyButton = activity.findViewById<android.widget.Button>(R.id.source_comparison_apply_order_button)
+        // Default High sort is [NWS, OPEN_METEO, SILURIAN] which already matches enabled order.
+        assertTrue("disabled when table already matches API order", !applyButton.isEnabled)
+
+        // Tap Rain header -> [OPEN_METEO, NWS, SILURIAN].
+        ((table.getChildAt(0) as LinearLayout).getChildAt(3) as TextView).performClick()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue("enabled after sorting into a different order", applyButton.isEnabled)
+
+        val app = ApplicationProvider.getApplicationContext<android.app.Application>()
+        val broadcastsBefore = shadowOf(app).broadcastIntents.size
+        applyButton.performClick()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertEquals(
+            listOf(WeatherSource.OPEN_METEO, WeatherSource.NWS, WeatherSource.SILURIAN),
+            state.getEnabledSourcesOrder(),
+        )
+        assertTrue("button disables once order is applied", !applyButton.isEnabled)
+        assertEquals("displayed source pill unchanged", "NWS", activity.findViewById<TextView>(R.id.api_source_button).text.toString())
+        val newBroadcasts = shadowOf(app).broadcastIntents.drop(broadcastsBefore)
+        assertTrue(
+            "UI-only widget repaint broadcast sent: $newBroadcasts",
+            newBroadcasts.any {
+                it.action == com.weatherwidget.widget.WidgetActions.ACTION_REFRESH &&
+                    it.getBooleanExtra(com.weatherwidget.widget.WidgetActions.EXTRA_UI_ONLY, false)
+            },
+        )
+    }
 }

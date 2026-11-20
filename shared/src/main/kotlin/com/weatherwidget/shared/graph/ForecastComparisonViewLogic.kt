@@ -43,6 +43,22 @@ object ForecastComparisonViewLogic {
         else if (graphMode == GraphMode.EVOLUTION) ButtonMode.EVOLUTION
         else ButtonMode.ERROR
 
+    /**
+     * Resolves the graph-mode button for both platforms: [ButtonMode.EVOLUTION] / [ButtonMode.ERROR]
+     * on past days, or [ButtonMode.TEMPERATURE] on today/future without actuals. Desktop has no
+     * hourly-launch action on this button, so it hides the button on [ButtonMode.TEMPERATURE].
+     */
+    fun graphModeButton(
+        date: LocalDate?,
+        hasApiActuals: Boolean,
+        graphMode: GraphMode,
+        today: LocalDate = LocalDate.now(),
+    ): ButtonMode = resolveButtonMode(shouldShowTemperatureButton(date, hasApiActuals, today), graphMode)
+
+    /** Effective graph mode for [buttonMode]: Error only when the button is in Error mode. */
+    fun effectiveGraphMode(buttonMode: ButtonMode): GraphMode =
+        if (buttonMode == ButtonMode.ERROR) GraphMode.ERROR else GraphMode.EVOLUTION
+
     fun resolveActualLookupMode(
         date: LocalDate,
         requestedSource: WeatherSource?,

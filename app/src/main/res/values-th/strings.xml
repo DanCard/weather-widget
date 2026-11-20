@@ -96,6 +96,8 @@
     <string name="months_view_more_history">%1$s มีประวัติย้อนไปถึง %2$s แตะเพื่อสลับ</string>
     <string name="forecast_accuracy_summary_title">ความแม่นยำของพยากรณ์ (30 วันล่าสุด)</string>
     <string name="source_compare_title">ทุกแหล่งสำหรับ %1$s</string>
+    <string name="source_compare_set_api_order">ตั้งเป็นลำดับ API</string>
+    <string name="source_compare_order_applied">อัปเดตลำดับ API แล้ว</string>
     <string name="source_compare_col_source">แหล่ง</string>
     <string name="source_compare_col_high">สูงสุด</string>
     <string name="source_compare_col_low">ต่ำสุด</string>

@@ -155,4 +155,18 @@ object WeatherSourceOrdering {
         current[pos + 1] = source.id
         return current
     }
+
+    /**
+     * Reorders [enabledIds] so sources present in [orderedVisibleIds] come first in that order,
+     * followed by any other enabled sources (e.g., sources unavailable at the active location) in
+     * their existing relative order. Never enables a source not already in [enabledIds] and never
+     * drops a location-unavailable enabled source.
+     */
+    fun reorderEnabled(enabledIds: List<String>, orderedVisibleIds: List<String>): List<String> {
+        val current = sanitizeVisibleIds(enabledIds)
+        val currentSet = current.toSet()
+        val reordered = orderedVisibleIds.distinct().filter { it in currentSet }
+        val remaining = current.filter { it !in reordered }
+        return sanitizeVisibleIds(reordered + remaining)
+    }
 }

@@ -96,6 +96,8 @@
     <string name="months_view_more_history">لدى %1$s سجل منذ %2$s. اضغط للتبديل.</string>
     <string name="forecast_accuracy_summary_title">دقة التوقعات (آخر 30 يومًا)</string>
     <string name="source_compare_title">كل المصادر ليوم %1$s</string>
+    <string name="source_compare_set_api_order">تعيين ترتيب API</string>
+    <string name="source_compare_order_applied">تم تحديث ترتيب API</string>
     <string name="source_compare_col_source">المصدر</string>
     <string name="source_compare_col_high">العظمى</string>
     <string name="source_compare_col_low">الصغرى</string>

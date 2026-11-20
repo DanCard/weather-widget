@@ -264,6 +264,22 @@ object DaySourceComparison {
         Log.d(TAG, "DAY_SOURCE_SORT date=$date sort=${sort.encode()} order=${rows.joinToString(",") { it.source.id }}")
     }
 
+    /**
+     * Applies [sortedRows]' ordering to the user's [enabledIds] list, keeping any enabled source
+     * not shown at the active location (e.g. NWS abroad) at the end in its existing relative order.
+     */
+    fun reorderedEnabledIds(enabledIds: List<String>, sortedRows: List<Row>): List<String> =
+        com.weatherwidget.shared.util.WeatherSourceOrdering.reorderEnabled(enabledIds, sortedRows.map { it.source.id })
+
+    /**
+     * True when the "Set API order" button can change the user's API order: at least two rows in
+     * the table and the table's current order differs from [enabledIds].
+     */
+    fun canApplyOrder(enabledIds: List<String>, sortedRows: List<Row>): Boolean =
+        sortedRows.size > 1 &&
+            reorderedEnabledIds(enabledIds, sortedRows) !=
+            com.weatherwidget.shared.util.WeatherSourceOrdering.sanitizeVisibleIds(enabledIds)
+
     private fun rowFor(
         source: WeatherSource,
         date: LocalDate,

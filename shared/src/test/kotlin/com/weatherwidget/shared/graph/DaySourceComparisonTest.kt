@@ -562,4 +562,53 @@ class DaySourceComparisonTest {
         assertEquals(1.2f, meteo.amountMm!!, 1e-4f)
         assertNull("no stored hours cover 8am-8pm: blank, never the row total", nws.amountMm)
     }
+
+    @Test
+    fun `reorderedEnabledIds applies table order and preserves location-unavailable enabled sources`() {
+        val enabled = listOf("NWS", "OPEN_METEO", "SILURIAN", "GOOGLE_WEATHER")
+        val sortedAll = listOf(
+            row(WeatherSource.GOOGLE_WEATHER, 3),
+            row(WeatherSource.SILURIAN, 2),
+            row(WeatherSource.NWS, 0),
+            row(WeatherSource.OPEN_METEO, 1),
+        )
+        assertEquals(
+            listOf("GOOGLE_WEATHER", "SILURIAN", "NWS", "OPEN_METEO"),
+            DaySourceComparison.reorderedEnabledIds(enabled, sortedAll),
+        )
+        assertTrue(DaySourceComparison.canApplyOrder(enabled, sortedAll))
+
+        // Abroad: NWS is enabled but not in the table; reordering must keep NWS rather than dropping it.
+        val sortedAbroad = listOf(
+            row(WeatherSource.SILURIAN, 1),
+            row(WeatherSource.GOOGLE_WEATHER, 2),
+            row(WeatherSource.OPEN_METEO, 0),
+        )
+        assertEquals(
+            listOf("SILURIAN", "GOOGLE_WEATHER", "OPEN_METEO", "NWS"),
+            DaySourceComparison.reorderedEnabledIds(enabled, sortedAbroad),
+        )
+        assertTrue(DaySourceComparison.canApplyOrder(enabled, sortedAbroad))
+    }
+
+    @Test
+    fun `canApplyOrder is false when already in table order or only one row`() {
+        val enabled = listOf("NWS", "OPEN_METEO", "SILURIAN")
+        val matching = listOf(
+            row(WeatherSource.NWS, 0),
+            row(WeatherSource.OPEN_METEO, 1),
+            row(WeatherSource.SILURIAN, 2),
+        )
+        assertFalse(DaySourceComparison.canApplyOrder(enabled, matching))
+        assertFalse(DaySourceComparison.canApplyOrder(listOf("NWS"), listOf(row(WeatherSource.NWS, 0))))
+        // Non-enabled source in sortedRows is ignored (never accidentally enabled).
+        val withExtra = listOf(
+            row(WeatherSource.TOMORROW_IO, 0),
+            row(WeatherSource.NWS, 1),
+            row(WeatherSource.OPEN_METEO, 2),
+            row(WeatherSource.SILURIAN, 3),
+        )
+        assertEquals(enabled, DaySourceComparison.reorderedEnabledIds(enabled, withExtra))
+        assertFalse(DaySourceComparison.canApplyOrder(enabled, withExtra))
+    }
 }

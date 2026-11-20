@@ -1,5 +1,10 @@
 package com.weatherwidget.desktop
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
@@ -192,5 +197,77 @@ class DesktopForecastComparisonSourcesTest {
         println("DesktopForecastComparisonSourcesTest today legend: $legend")
         assertTrue(legend, legend.endsWith("grey after 24 h\n* $STAR_NOTE"))
         assertTrue("NWS is not starred", composeTestRule.onAllNodesWithText("1m").fetchSemanticsNodes().isNotEmpty())
+    }
+
+    @Test
+    fun `clicking Set API order saves reordered visibleSources through sourceOrder channel and disables button`() {
+        // NWS: hotter (70°) but drier (10%); Open-Meteo: cooler (68°) but wetter (60%).
+        seed("NWS", 70f, 50f, ageMs = 3_600_000L, dayMax = 10)
+        seed("OPEN_METEO", 68f, 52f, ageMs = 2 * 3_600_000L, dayMax = 60)
+        val tomorrow = LocalDate.now().plusDays(1)
+        var liveConfig by mutableStateOf(config)
+        val saveLabels = mutableListOf<String>()
+
+        composeTestRule.setContent {
+            ForecastComparisonContent(
+                weatherDao = DesktopWeatherDao(db),
+                config = liveConfig,
+                initialDate = tomorrow,
+                onClose = {},
+                saves = DataWindowSaves.forForecastComparison { next, label ->
+                    saveLabels += label
+                    liveConfig = resolveDesktopConfigSave(liveConfig, next, label).config
+                },
+            )
+        }
+        composeTestRule.waitUntil(timeoutMillis = 10_000) {
+            composeTestRule.onAllNodesWithText("Silur").fetchSemanticsNodes().isNotEmpty()
+        }
+
+        // Default High sort matches [NWS, OPEN_METEO, SILURIAN]: button starts disabled.
+        composeTestRule.onNodeWithTag("source_compare_apply_order").assertIsNotEnabled()
+
+        // Click Rain header -> [OPEN_METEO, NWS, SILURIAN]: button becomes enabled.
+        composeTestRule.onNodeWithTag("source_compare_header_3", useUnmergedTree = true).performClick()
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag("source_compare_apply_order").assertIsEnabled()
+
+        // Click "Set API order": saves via COMPARISON_SOURCE_ORDER, keeps weatherSource, disables button.
+        composeTestRule.onNodeWithTag("source_compare_apply_order").performClick()
+        composeTestRule.waitForIdle()
+
+        println("DesktopForecastComparisonSourcesTest applyOrder: sources=${liveConfig.settings.visibleSources} labels=$saveLabels")
+        assertEquals(listOf("OPEN_METEO", "NWS", "SILURIAN"), liveConfig.settings.visibleSources)
+        assertEquals("NWS", liveConfig.settings.weatherSource)
+        assertEquals(ConfigSaveSource.COMPARISON_SOURCE_ORDER, saveLabels.last())
+        composeTestRule.onNodeWithTag("source_compare_apply_order").assertIsNotEnabled()
+    }
+
+    @Test
+    fun `graph mode toggle is hidden on today and shown on past days near the graphs`() {
+        seed("NWS", 70f, 50f, ageMs = 3_600_000L, dayOffset = 0)
+        seed("NWS", 66f, 48f, ageMs = 3_600_000L, dayOffset = -1)
+
+        composeTestRule.setContent {
+            ForecastComparisonContent(
+                weatherDao = DesktopWeatherDao(db),
+                config = config,
+                initialDate = LocalDate.now(),
+                onClose = {},
+            )
+        }
+        composeTestRule.waitUntil(timeoutMillis = 10_000) {
+            composeTestRule.onAllNodesWithText("Silur").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithTag("graph_mode_button").assertDoesNotExist()
+
+        // Navigate back to yesterday: the mode toggle appears and switches Evolution <-> Error.
+        composeTestRule.onNodeWithTag("prev_day_button").performClick()
+        composeTestRule.waitUntil(timeoutMillis = 10_000) {
+            composeTestRule.onAllNodesWithText("Mode: Evolution").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithTag("graph_mode_button").performClick()
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("Mode: Error").assertExists()
     }
 }

@@ -96,6 +96,8 @@
     <string name="months_view_more_history">%1$s 有自 %2$s 起的历史记录。点按即可切换。</string>
     <string name="forecast_accuracy_summary_title">预报准确度（最近 30 天）</string>
     <string name="source_compare_title">%1$s 的所有来源</string>
+    <string name="source_compare_set_api_order">设为 API 顺序</string>
+    <string name="source_compare_order_applied">API 顺序已更新</string>
     <string name="source_compare_col_source">来源</string>
     <string name="source_compare_col_high">最高</string>
     <string name="source_compare_col_low">最低</string>

@@ -242,6 +242,7 @@ internal fun mergeNonSettingsSave(
     draft: DesktopConfig,
     allowWeatherSourceChange: Boolean,
     allowActualsProvidersChange: Boolean = false,
+    allowVisibleSourcesChange: Boolean = false,
 ): DesktopConfig {
     var settings = persisted.settings
     if (allowWeatherSourceChange) {
@@ -249,6 +250,9 @@ internal fun mergeNonSettingsSave(
     }
     if (allowActualsProvidersChange) {
         settings = settings.copy(actualsProviders = draft.settings.actualsProviders)
+    }
+    if (allowVisibleSourcesChange) {
+        settings = settings.copy(visibleSources = draft.settings.visibleSources)
     }
     return draft.copy(settings = settings)
 }
@@ -279,6 +283,7 @@ internal fun resolveDesktopConfigSave(
             // back when the location does.
             allowWeatherSourceChange = source == "popup" || source in ConfigSaveSource.SOURCE_SWITCHES,
             allowActualsProvidersChange = source == ConfigSaveSource.CURRENT_OBSERVATIONS_WINDOW || source == "observations",
+            allowVisibleSourcesChange = source == ConfigSaveSource.COMPARISON_SOURCE_ORDER,
         )
     } else {
         draft
@@ -350,9 +355,11 @@ private val SETTINGS_SAVE_SOURCES = setOf("settings", "settings-close")
  * [mergeNonSettingsSave] dropped the switch ("merged-away-stale-settings weatherSource").
  */
 internal object ConfigSaveSource {
-    /** The Forecast Comparison window's own saves (bounds, sort): never the source. */
+    /** The Forecast Comparison window's own saves (bounds, sort): never the source or API order. */
     const val COMPARISON_WINDOW = "history-window"
     const val COMPARISON_SOURCE_SWITCH = "history-source-switch"
+    /** Forecast Comparison's "Set API order" button: updates `visibleSources` only. */
+    const val COMPARISON_SOURCE_ORDER = "history-source-order"
     /** The Current Observations window's own saves (bounds, tab, actuals picker): never the source. */
     const val CURRENT_OBSERVATIONS_WINDOW = "observations-window"
     const val CURRENT_OBSERVATIONS_SOURCE_SWITCH = "observations-source-switch"
@@ -360,8 +367,9 @@ internal object ConfigSaveSource {
 }
 
 /**
- * A data window's two save channels, each already labelled for [resolveDesktopConfigSave]: [window]
- * for the window's own fields, [sourceSwitch] for its source pill. Built once by [forForecastComparison] /
+ * A data window's save channels, each already labelled for [resolveDesktopConfigSave]: [window]
+ * for the window's own fields, [sourceSwitch] for its source pill, and [sourceOrder] for Forecast
+ * Comparison's "Set API order" button. Built once by [forForecastComparison] /
  * [forStations] for both the app and the tests, and handed down whole, so no layer between
  * `DesktopUiApplication` and the pill can pair a callback with the wrong label (2026-11-19: the pill
  * was wired to the window's label and every switch was merged away).
@@ -369,15 +377,17 @@ internal object ConfigSaveSource {
 internal class DataWindowSaves(
     val window: (DesktopConfig) -> Unit,
     val sourceSwitch: (DesktopConfig) -> Unit,
+    val sourceOrder: (DesktopConfig) -> Unit = {},
 ) {
     companion object {
         /** Saves nothing: previews and tests that do not save. */
-        val NONE = DataWindowSaves({}, {})
+        val NONE = DataWindowSaves({}, {}, {})
 
         /** Forecast Comparison; [save] is `saveConfigAndNotify(config, label)`. */
         fun forForecastComparison(save: (DesktopConfig, String) -> Unit) = DataWindowSaves(
             window = { save(it, ConfigSaveSource.COMPARISON_WINDOW) },
             sourceSwitch = { save(it, ConfigSaveSource.COMPARISON_SOURCE_SWITCH) },
+            sourceOrder = { save(it, ConfigSaveSource.COMPARISON_SOURCE_ORDER) },
         )
 
         /** Stations; [save] is `saveConfigAndNotify(config, label)`. */

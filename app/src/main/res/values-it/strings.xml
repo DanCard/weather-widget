@@ -96,6 +96,8 @@
     <string name="months_view_more_history">%1$s ha uno storico dal %2$s. Tocca per passare.</string>
     <string name="forecast_accuracy_summary_title">Accuratezza delle previsioni (ultimi 30 giorni)</string>
     <string name="source_compare_title">Tutte le fonti per %1$s</string>
+    <string name="source_compare_set_api_order">Imposta ordine API</string>
+    <string name="source_compare_order_applied">Ordine API aggiornato</string>
     <string name="source_compare_col_source">Fonte</string>
     <string name="source_compare_col_high">Max</string>
     <string name="source_compare_col_low">Min</string>
