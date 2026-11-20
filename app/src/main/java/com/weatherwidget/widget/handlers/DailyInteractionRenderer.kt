@@ -314,7 +314,7 @@ internal object DailyInteractionRenderer {
                 lat = lat,
                 lon = lon,
                 displaySource = displaySource,
-                hourlyForecasts = currentTempInputHourly,
+                hourlyForecasts = GraphDataLoader.currentTempInput(currentTempInputHourly, request.now),
                 now = request.now,
                 personalStationWeight = stateManager.getPersonalStationWeight(),
             )

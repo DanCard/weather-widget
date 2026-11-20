@@ -350,7 +350,11 @@ object CloudCoverViewHandler {
             widthDp = dimensions.widthDp,
             rainNow = com.weatherwidget.widget.AndroidRainNow.level(context, lat, lon, effectiveDisplaySource, where = "cloud"),
             rainLookaheadHours = stateManager.getHeaderRainLookaheadHours(),
+            // From now, not the panned hour: the daily view's value (HeaderContent.nowRowsWindowMs).
+            precipHourly = currentTempHourlyForecasts.map(HourlyForecastEntity::toHourlyForecast),
         )
+        // Same line as the daily header and desktop's, so every view's header is checkable from logcat.
+        Log.d(HeaderContent.LOG_TAG, "widget=$appWidgetId " + HeaderContent.logLine(effectiveDisplaySource.id, HeaderContent.View.CLOUD_COVER, content))
         val iconRes = content.iconName?.let(WeatherIconMapper::fromIconName) ?: 0
         HeaderTapTargetHelper.bindWeatherIconHeader(
             context = context,

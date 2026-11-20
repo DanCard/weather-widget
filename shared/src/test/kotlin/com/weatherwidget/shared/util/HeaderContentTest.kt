@@ -125,13 +125,56 @@ class HeaderContentTest {
     }
 
     @Test
-    fun hourlyRainFollowsThePannedHour() {
-        // Dry now, rain tomorrow afternoon: panned there, the hourly header shows tomorrow's chance.
+    fun rainIsTheDailyViewsValueInEveryViewAndPan() {
+        // plans/261119-header-rain-constant-across-views.md. 30% within 6 h of now, 80% tomorrow
+        // afternoon: panned to tomorrow, the old rule showed 80% in the hourly views; now every view
+        // shows the daily view's 30% whatever the pan.
         val now = LocalDateTime.of(2026, 6, 1, 12, 0)
         val tomorrow = now.plusDays(1)
-        val hourly = listOf(row(now, 0), row(now.plusHours(1), 0), row(tomorrow, 80), row(tomorrow.plusHours(1), 80))
-        assertNull(build(View.TEMPERATURE, hourly, now).precipText)
-        assertEquals("80%", build(View.TEMPERATURE, hourly, now, centerTime = tomorrow).precipText)
+        val hourly = listOf(
+            row(now, 0), row(now.plusHours(2), 30), row(now.plusHours(3), 0),
+            row(tomorrow, 80), row(tomorrow.plusHours(1), 80),
+        )
+        val daily = build(View.DAILY, hourly, now).precipText
+        assertEquals("30%", daily)
+        for (view in View.entries) {
+            for (center in listOf(now, now.minusDays(2), tomorrow, now.plusDays(5))) {
+                val shown = build(view, hourly, now, centerTime = center).precipText
+                println("view=$view center=$center precip=$shown daily=$daily")
+                assertEquals("$view panned to $center", daily, shown)
+            }
+        }
+    }
+
+    @Test
+    fun precipHourlyIsWhatTheRainReads() {
+        // Android hands the now-centred rows as precipHourly and its panned graph rows as hourly:
+        // the % comes from precipHourly only.
+        val now = LocalDateTime.of(2026, 6, 1, 12, 0)
+        val graphRows = listOf(row(now.plusDays(3), 90), row(now.plusDays(3).plusHours(1), 90))
+        val nowRows = listOf(row(now, 0), row(now.plusHours(1), 20), row(now.plusHours(2), 0))
+        val content = HeaderContent.build(
+            view = View.PRECIPITATION, hourly = graphRows, precipHourly = nowRows, displaySourceId = "NWS",
+            dailyFallback = null, fallbackDailyPrecip = 55, currentTemp = 62.7f, isStaleEstimate = false,
+            numColumns = 5, deltaFromYesterday = null, now = now, centerTime = now.plusDays(3), lat = lat,
+            lon = lon, useCelsius = false, widthDp = 400, rainNow = null,
+        )
+        assertEquals("20%", content.precipText)
+    }
+
+    @Test
+    fun nowRowsWindowCoversTheCurrentTempWindowAndTheLongestRainLookahead() {
+        val now = LocalDateTime.of(2026, 11, 18, 14, 10)
+        val nowMs = now.atZone(zone).toInstant().toEpochMilli()
+        val window = HeaderContent.nowRowsWindowMs(nowMs, zone)
+        val resolution = com.weatherwidget.widget.CurrentTemperatureResolver.resolutionWindowMs(nowMs, zone)
+        val rain = HeaderContent.precipReserveWindowMs(
+            now, zone, com.weatherwidget.shared.settings.DisplaySettings.HEADER_RAIN_LOOKAHEAD.max,
+        )
+        println("nowRows=$window resolution=$resolution rain=$rain")
+        assertEquals(resolution.first, window.first)
+        assertEquals(rain.last, window.last)
+        assertTrue("reaches past the current-temp window", window.last > resolution.last)
     }
 
     @Test
@@ -175,7 +218,7 @@ class HeaderContentTest {
             listOf(row(t, 5, source = "NWS"), row(t, 70, source = "OPEN_METEO"), row(t, 0, condition = "Clear", source = "SILURIAN"))
         }
         for (view in listOf(View.DAILY, View.TEMPERATURE)) {
-            val labels = HeaderContent.precipLabels(view, hourly, listOf("NWS", "OPEN_METEO", "SILURIAN"), now, now)
+            val labels = HeaderContent.precipLabels(hourly, listOf("NWS", "OPEN_METEO", "SILURIAN"), now)
             for (source in listOf("NWS", "OPEN_METEO")) {
                 val shown = HeaderContent.build(
                     view = view, hourly = hourly, displaySourceId = source, dailyFallback = null,
@@ -210,16 +253,15 @@ class HeaderContentTest {
     }
 
     @Test
-    fun `precipReserveWindowMs spans 1h before earliest to lookahead+1h after latest of now and center`() {
+    fun `precipReserveWindowMs spans 1h before now to lookahead+1h after now`() {
         val now = LocalDateTime.of(2026, 11, 18, 14, 0)
-        val panned = now.plusHours(4)
-        val window = HeaderContent.precipReserveWindowMs(now, panned, zone)
+        val window = HeaderContent.precipReserveWindowMs(now, zone)
         assertEquals(now.minusHours(1).atZone(zone).toInstant().toEpochMilli(), window.first)
-        assertEquals(panned.plusHours(7).atZone(zone).toInstant().toEpochMilli(), window.last)
+        assertEquals(now.plusHours(7).atZone(zone).toInstant().toEpochMilli(), window.last)
 
-        val wideWindow = HeaderContent.precipReserveWindowMs(now, panned, zone, lookaheadHours = 8)
+        val wideWindow = HeaderContent.precipReserveWindowMs(now, zone, lookaheadHours = 8)
         assertEquals(now.minusHours(1).atZone(zone).toInstant().toEpochMilli(), wideWindow.first)
-        assertEquals(panned.plusHours(9).atZone(zone).toInstant().toEpochMilli(), wideWindow.last)
+        assertEquals(now.plusHours(9).atZone(zone).toInstant().toEpochMilli(), wideWindow.last)
     }
 
     @Test

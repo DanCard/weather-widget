@@ -28,6 +28,8 @@ internal object TemperatureHeaderStateBuilder {
         rainNow: com.weatherwidget.shared.observations.RainNow.Level?,
         rainLookaheadHours: Int = com.weatherwidget.shared.settings.DisplaySettings.HEADER_RAIN_LOOKAHEAD.default,
         allApiSourceLabels: List<String> = emptyList(),
+        /** For the [HeaderContent.LOG_TAG] line only. */
+        appWidgetId: Int? = null,
     ): Pair<TemperatureWidgetState.HeaderState, Int?> {
         // Icon, temp, rain % and delta: the shared header rule (desktop draws the same content).
         val content = HeaderContent.build(
@@ -49,6 +51,13 @@ internal object TemperatureHeaderStateBuilder {
             widthDp = dimensions.widthDp,
             rainNow = rainNow,
             rainLookaheadHours = rainLookaheadHours,
+            // From now, not the panned hour: the daily view's value (HeaderContent.nowRowsWindowMs).
+            precipHourly = currentTempHourlyForecasts.map(HourlyForecastEntity::toHourlyForecast),
+        )
+        // Same line as the daily header and desktop's, so every view's header is checkable from logcat.
+        android.util.Log.d(
+            HeaderContent.LOG_TAG,
+            "widget=$appWidgetId " + HeaderContent.logLine(displaySource.id, HeaderContent.View.TEMPERATURE, content),
         )
         val shownPrecip = content.precipProbability
 

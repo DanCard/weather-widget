@@ -231,8 +231,12 @@ rain `%` toggles `PRECIPITATION ↔ DAILY`, and the weather icon follows rain `%
 is true or temperature/delta otherwise.
 
 The header's rain percentage scans forward by `DisplaySettings.headerRainLookaheadHours` (1–8 h,
-default 6 h; Settings → **Header** on both platforms) from `now` in the daily view and from the panned
-center hour in hourly views, while `DayClickResolver.TODAY_LOOKAHEAD_HOURS` stays fixed at 6 h to match
+default 6 h; Settings → **Header** on both platforms) from `now` in every view: panning or switching
+views never changes it, and its daily fallback is always today's row
+(`plans/261119-header-rain-constant-across-views.md`). Android reads it from the same now-centred rows as
+the current temp (`HeaderContent.nowRowsWindowMs`: the current-temp window stretched to the longest
+lookahead; the temp cuts them back to its own window), never from a view's panned graph rows. Desktop
+reads its full forecast. `DayClickResolver.TODAY_LOOKAHEAD_HOURS` stays fixed at 6 h to match
 `ZoomStage.WIDE`. Shared display defaults, integer slider bounds (`IntSliderSpec`), clamping, and diffs
 live in `DisplaySettings` (`:shared`) and are mirrored into Android's `WeatherDisplayPreferences` and
 Desktop's `DesktopSettings` (`plans/261118-header-rain-lookahead-slider.md`).

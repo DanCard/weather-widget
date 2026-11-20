@@ -242,27 +242,43 @@ object GraphDataLoader {
         lon: Double,
         now: LocalDateTime,
     ): List<HourlyForecastEntity> {
-        val window = com.weatherwidget.widget.CurrentTempRun.inputWindow(now)
+        val nowMs = com.weatherwidget.shared.util.WeatherTimeUtils.liveEpochMs(now)
+        val window = currentTempInputWindow(now)
+        // Read on to the header rows' end too: every header's rain % scans these rows forward from
+        // now (HeaderContent.nowRowsWindowMs). [currentTempInput] cuts them back for the observation.
+        val headerEnd = com.weatherwidget.shared.util.HeaderContent.nowRowsWindowMs(nowMs).last
         val rows = historyDao.getHistoryInRangeForBucketWindowForSources(
             startDateTime = window.first,
-            endDateTime = window.last + 1,
+            endDateTime = maxOf(window.last, headerEnd) + 1,
             bucketStart = Long.MIN_VALUE,
             bucketEnd = Long.MAX_VALUE,
             lat = lat,
             lon = lon,
             sources = listOf(displaySource.id, WeatherSource.GENERIC_GAP.id),
         )
-        val nowMs = com.weatherwidget.shared.util.WeatherTimeUtils.liveEpochMs(now)
         return HourlyForecastStitcher.stitchBySource(rows.map { it.toHourlyForecast() }, lat, lon, nowMs)
             .map { it.toEntity(lat, lon) }
     }
 
+    private fun currentTempInputWindow(now: LocalDateTime): LongRange =
+        com.weatherwidget.widget.CurrentTempRun.inputWindow(now)
+
     /**
-     * [rows] inside the current-temp resolution window around [now], so the header is always
-     * resolved around NOW, never around a scrolled graph window.
+     * [rows] cut to [CurrentTempRun.inputWindow], the observation's input, from a
+     * [loadCurrentTempInputHourlyForecasts] read that also covers the header's forward rows.
+     */
+    fun currentTempInput(rows: List<HourlyForecastEntity>, now: LocalDateTime): List<HourlyForecastEntity> {
+        val window = currentTempInputWindow(now)
+        return rows.filter { it.dateTime in window }
+    }
+
+    /**
+     * [rows] inside the header's now-centred window ([HeaderContent.nowRowsWindowMs]): the current
+     * temp (which cuts them to its resolution window) and every view's rain % read these, so the
+     * header is always resolved around NOW, never around a scrolled graph window.
      */
     fun nowCentred(rows: List<HourlyForecastEntity>, now: LocalDateTime): List<HourlyForecastEntity> {
-        val window = com.weatherwidget.widget.CurrentTemperatureResolver.resolutionWindowMs(
+        val window = com.weatherwidget.shared.util.HeaderContent.nowRowsWindowMs(
             com.weatherwidget.shared.util.WeatherTimeUtils.liveEpochMs(now),
         )
         return rows.filter { it.dateTime in window }

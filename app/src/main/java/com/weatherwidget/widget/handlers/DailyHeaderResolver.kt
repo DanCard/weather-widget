@@ -158,6 +158,8 @@ internal object DailyHeaderResolver {
             widthDp = dimensions.widthDp,
             rainNow = rainNow,
             rainLookaheadHours = stateManager.getHeaderRainLookaheadHours(),
+            // The now-centred rows every view's rain % reads, so all four headers show one value.
+            precipHourly = currentTempHourlyForecasts.map(HourlyForecastEntity::toHourlyForecast),
         )
         val iconRes = WeatherIconMapper.fromIconName(content.iconName ?: WeatherConditionResolver.IC_UNKNOWN)
         val formattedTemp = content.tempText

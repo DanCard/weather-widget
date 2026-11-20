@@ -178,7 +178,7 @@ class DesktopTogglePerformanceTest {
         val nowMs = 1_795_037_500_000L
         val zone = ZoneId.systemDefault()
         val nowLocal = Instant.ofEpochMilli(nowMs).atZone(zone).toLocalDateTime()
-        val precipWindow = HeaderContent.precipReserveWindowMs(nowLocal, nowLocal, zone)
+        val precipWindow = HeaderContent.precipReserveWindowMs(nowLocal, zone)
 
         // Seed hourly forecasts: one inside header window, one far outside (5 days back), for 2 sources.
         val insideHourMs = precipWindow.first + 2 * 3_600_000L

@@ -14,7 +14,8 @@ import kotlin.math.abs
  * for Android's daily and hourly headers and desktop's, from one rule. Width fitting and layout stay
  * per platform; nothing here measures text. Each platform used to pick these inputs itself, and every
  * desktop header bug was a different input fed to the same helper (an NWS station's "CLR" for the
- * icon, `now` instead of the panned hour for the rain %, …): `plans/261021-header-shared-content-audit.md`.
+ * icon, …): `plans/261021-header-shared-content-audit.md`. The rain % reads from now in every view
+ * (`plans/261119-header-rain-constant-across-views.md`).
  */
 object HeaderContent {
     const val LOG_TAG = "HEADER_CONTENT"
@@ -91,9 +92,15 @@ object HeaderContent {
         labelSourceId: String = displaySourceId,
         /** Forward window (hours, clamped to [DisplaySettings.HEADER_RAIN_LOOKAHEAD]) scanned for rain %. */
         rainLookaheadHours: Int = DisplaySettings.HEADER_RAIN_LOOKAHEAD.default,
+        /**
+         * Rows the rain % reads, when they differ from [hourly]: Android's now-centred rows
+         * ([nowRowsWindowMs]), the same ones its current temp reads, so a view's panned graph window
+         * cannot change the %.
+         */
+        precipHourly: List<HourlyForecast> = hourly,
         zone: ZoneId = ZoneId.systemDefault(),
     ): Content {
-        val precip = precipitation(view, hourly, displaySourceId, fallbackDailyPrecip, now, centerTime, rainLookaheadHours)
+        val precip = precipitation(precipHourly, displaySourceId, fallbackDailyPrecip, now, rainLookaheadHours)
         val precipText = precip.probability?.let { "$it%" }
         return Content(
             iconName = rainNowIcon(rainNow) ?: iconName(view, iconHourly, displaySourceId, dailyFallback, now, lat, lon, zone),
@@ -135,14 +142,27 @@ object HeaderContent {
      */
     fun precipReserveWindowMs(
         now: LocalDateTime,
-        centerTime: LocalDateTime = now,
         zone: ZoneId = ZoneId.systemDefault(),
         lookaheadHours: Int = DisplaySettings.HEADER_RAIN_LOOKAHEAD.default,
     ): LongRange {
         val clampedLookahead = DisplaySettings.HEADER_RAIN_LOOKAHEAD.clamp(lookaheadHours).toLong()
-        val fromMs = minOf(now, centerTime).minusHours(PRECIP_RESERVE_LOOKBACK_HOURS).atZone(zone).toInstant().toEpochMilli()
-        val toMs = maxOf(now, centerTime).plusHours(clampedLookahead + 1L).atZone(zone).toInstant().toEpochMilli()
+        val fromMs = now.minusHours(PRECIP_RESERVE_LOOKBACK_HOURS).atZone(zone).toInstant().toEpochMilli()
+        val toMs = now.plusHours(clampedLookahead + 1L).atZone(zone).toInstant().toEpochMilli()
         return fromMs..toMs
+    }
+
+    /**
+     * The now-centred rows every header reads, on Android: the current-temp resolution window
+     * ([CurrentTemperatureResolver.resolutionWindowMs]) stretched forward to cover the longest rain
+     * lookahead ([precipReserveWindowMs] at [DisplaySettings.HEADER_RAIN_LOOKAHEAD] max). The current
+     * temp cuts these back to its own window; the rain % scans forward from now. One read, so the
+     * temp and the rain % come from the same rows in every view.
+     */
+    fun nowRowsWindowMs(nowMs: Long, zone: ZoneId = ZoneId.systemDefault()): LongRange {
+        val resolution = CurrentTemperatureResolver.resolutionWindowMs(nowMs, zone)
+        val nowLocal = java.time.Instant.ofEpochMilli(nowMs).atZone(zone).toLocalDateTime()
+        val rain = precipReserveWindowMs(nowLocal, zone, DisplaySettings.HEADER_RAIN_LOOKAHEAD.max)
+        return minOf(resolution.first, rain.first)..maxOf(resolution.last, rain.last)
     }
 
     /**
@@ -151,14 +171,12 @@ object HeaderContent {
      * it (user, 2026-10-26). No daily fallback: [hourly] holds every source's live rows.
      */
     fun precipLabels(
-        view: View,
         hourly: List<HourlyForecast>,
         sourceIds: List<String>,
         now: LocalDateTime,
-        centerTime: LocalDateTime,
         rainLookaheadHours: Int = DisplaySettings.HEADER_RAIN_LOOKAHEAD.default,
     ): Map<String, PrecipLabel?> = sourceIds.associateWith { sourceId ->
-        precipitation(view, hourly, sourceId, null, now, centerTime, rainLookaheadHours).probability?.let {
+        precipitation(hourly, sourceId, null, now, rainLookaheadHours).probability?.let {
             PrecipLabel(text = "$it%", fontScale = DailyRainLabels.headerPrecipFontScale(it))
         }
     }
@@ -212,17 +230,16 @@ object HeaderContent {
     private data class Precip(val probability: Int?, val computed: Int?)
 
     /**
-     * Daily: the next [rainLookaheadHours] h from now. Hourly views: the next [rainLookaheadHours] h
-     * from the panned hour. Hidden at 0 % in every view (user, 2026-11-04: the precip view's "0%"
-     * should print nothing).
+     * The next [rainLookaheadHours] h from now, in every view: panning or switching views never
+     * changes it (user, 2026-11-19: "simpler if it stayed constant to what is shown in daily forecast
+     * view"; plans/261119-header-rain-constant-across-views.md). Hidden at 0 % in every view (user,
+     * 2026-11-04: the precip view's "0%" should print nothing).
      */
     private fun precipitation(
-        view: View,
         hourly: List<HourlyForecast>,
         displaySourceId: String,
         fallbackDailyPrecip: Int?,
         now: LocalDateTime,
-        centerTime: LocalDateTime,
         rainLookaheadHours: Int,
     ): Precip {
         val lookahead = DisplaySettings.HEADER_RAIN_LOOKAHEAD.clamp(rainLookaheadHours).toLong()
@@ -232,7 +249,7 @@ object HeaderContent {
             displaySourceId = displaySourceId,
             fallbackSourceId = WeatherSource.GENERIC_GAP.id,
             fallbackDailyProbability = fallbackDailyPrecip,
-            referenceTime = if (view == View.DAILY) now else centerTime,
+            referenceTime = now,
         )
         val shown = probability?.takeIf { it > 0 }
         return Precip(shown, probability)

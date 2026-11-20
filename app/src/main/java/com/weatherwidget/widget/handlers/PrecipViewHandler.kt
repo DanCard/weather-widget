@@ -292,7 +292,11 @@ object PrecipViewHandler {
             widthDp = dimensions.widthDp,
             rainNow = com.weatherwidget.widget.AndroidRainNow.level(context, lat, lon, displaySource, where = "precip"),
             rainLookaheadHours = stateManager.getHeaderRainLookaheadHours(),
+            // From now, not the panned hour: the daily view's value (HeaderContent.nowRowsWindowMs).
+            precipHourly = currentTempHourlyForecasts.map(HourlyForecastEntity::toHourlyForecast),
         )
+        // Same line as the daily header and desktop's, so every view's header is checkable from logcat.
+        Log.d(HeaderContent.LOG_TAG, "widget=$appWidgetId " + HeaderContent.logLine(displaySource.id, HeaderContent.View.PRECIPITATION, content))
         val iconRes = content.iconName?.let(WeatherIconMapper::fromIconName) ?: 0
         HeaderTapTargetHelper.bindWeatherIconHeader(
             context = context,

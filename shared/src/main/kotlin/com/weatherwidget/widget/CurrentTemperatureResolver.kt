@@ -270,15 +270,19 @@ object CurrentTemperatureResolver {
         smoothedForecasts: Map<Long, Float>? = null,
         nowMs: Long = WeatherTimeUtils.liveEpochMs(now),
     ): QuickCurrentTemperature {
+        // Cut to the resolution window as [resolve] does: Android's now-centred rows reach further
+        // ahead for the header rain % (HeaderContent.nowRowsWindowMs), which must not move the temp.
+        val windowMs = resolutionWindowMs(nowMs)
+        val strictHourlyForecasts = hourlyForecasts.filter { it.dateTime in windowMs }
         val estimatedTemp =
             resolveStrictForecastTemperature(
-                hourlyForecasts = hourlyForecasts,
+                hourlyForecasts = strictHourlyForecasts,
                 targetMs = nowMs,
                 source = displaySource,
                 smoothedForecasts = smoothedForecasts,
                 nowMs = nowMs,
             )
-        val isStaleEstimate = isStaleHourlyData(nowMs, displaySource, hourlyForecasts)
+        val isStaleEstimate = isStaleHourlyData(nowMs, displaySource, strictHourlyForecasts)
         val displayTemp = estimatedTemp ?: lastObservedTemp
 
         return QuickCurrentTemperature(

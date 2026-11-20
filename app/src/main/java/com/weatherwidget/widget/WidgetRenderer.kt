@@ -492,9 +492,12 @@ object WidgetRenderer {
                                 "finalTemp=${observation?.temperature} finalObservedAt=${observation?.observedAt}",
         )
 
-        val targetDateEpoch = centerTime.toLocalDate().toEpochDay() * WidgetConstants.MS_IN_A_DAY
-        val targetPrecip = weatherList
-            .find { it.targetDate == targetDateEpoch && it.source == displaySource.id }
+        // The header rain %'s daily fallback: TODAY's row in every view, as the daily header and the
+        // tap path (GraphInteractionRenderer) use — never the panned day's
+        // (plans/261119-header-rain-constant-across-views.md).
+        val todayDateEpoch = now.toLocalDate().toEpochDay() * WidgetConstants.MS_IN_A_DAY
+        val todayPrecip = weatherList
+            .find { it.targetDate == todayDateEpoch && it.source == displaySource.id }
             ?.precipProbability
 
         val sourceFilteredHourly = unifiedHourlyForecasts.filter {
@@ -559,7 +562,7 @@ object WidgetRenderer {
                 actualsProvisional = actualsProvisional,
                 centerTime = centerTime,
                 displaySource = displaySource,
-                targetPrecip = targetPrecip,
+                todayPrecip = todayPrecip,
                 observation = observation,
                 repository = repository,
                 startupToken = startupToken,
