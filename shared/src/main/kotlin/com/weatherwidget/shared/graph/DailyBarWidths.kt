@@ -33,9 +33,10 @@ data class DailyBarWidths(
         /**
          * Past days' triple bar as a fraction of today's. 0.8 from 2026-10-05
          * (plans/261005-past-days-triple-bar-prior-forecast-at-cutoffs.md); narrowed to 0.65 on
-         * 2026-10-27, with today's bars +1 dp, to set history further apart from today.
+         * 2026-10-27, with today's bars +1 dp, to set history further apart from today; narrowed
+         * further to 0.50 on 2026-11-20.
          */
-        const val PAST_WIDTH_SCALE = 0.65f
+        const val PAST_WIDTH_SCALE = 0.50f
 
         /** No single bar exceeds this fraction of a regular column's width (narrow-column guard). */
         const val MAX_COLUMN_FRACTION = 0.22f
