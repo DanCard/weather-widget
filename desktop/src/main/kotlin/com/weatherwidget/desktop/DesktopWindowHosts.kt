@@ -269,6 +269,10 @@ internal fun PopupWindowHost(
         defaultWidth = 380.dp,
         defaultHeight = 320.dp,
         defaultAlignment = Alignment.TopEnd,
+        onResolved = { line ->
+            Log.i(TAG, "WINDOW_GEOMETRY $line")
+            DesktopAppLogQueue.log("WINDOW_GEOMETRY", line)
+        },
     )
 
     LaunchedEffect(windowState.position, windowState.size) {
@@ -276,6 +280,13 @@ internal fun PopupWindowHost(
         val current = latestConfig.value
         val position = windowState.position
         if (position is WindowPosition.Absolute) {
+            if (current.windowX != position.x.value || current.windowY != position.y.value) {
+                // Where the window settled (window manager placement or a drag), as it is saved.
+                val line = "save ${current.windowX},${current.windowY} -> ${position.x.value},${position.y.value} " +
+                    "size=${windowState.size.width.value}x${windowState.size.height.value}"
+                Log.i(TAG, "WINDOW_GEOMETRY $line")
+                DesktopAppLogQueue.log("WINDOW_GEOMETRY", line)
+            }
             val resized = current.copy(
                 windowX = position.x.value,
                 windowY = position.y.value,

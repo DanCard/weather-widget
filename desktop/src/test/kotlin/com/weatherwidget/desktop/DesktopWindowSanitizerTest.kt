@@ -130,4 +130,25 @@ class DesktopWindowSanitizerTest {
         assertTrue(sanitized.width <= 1240.dp)
         assertTrue(sanitized.height <= 660.dp)
     }
+
+    /**
+     * Desktop 2026-11-20: the main window saved bottom-left at (82, 1728) on a 3840x2160 screen. It
+     * restores there on that screen, but the 1920x1080 detector fallback would call it off-screen
+     * and reset it to the default corner. The decision names which path ran (WINDOW_GEOMETRY log).
+     */
+    @Test
+    fun `a bottom-left 4K position restores on 4K and resets on the 1080p fallback`() {
+        fun on(width: Int, height: Int) = DesktopWindowSanitizer.sanitizeWindowGeometry(
+            savedX = 82f, savedY = 1728f, savedWidth = 380f, savedHeight = 324f,
+            defaultWidth = 380.dp, defaultHeight = 320.dp, defaultAlignment = Alignment.TopEnd,
+            screenWidth = width, screenHeight = height,
+        )
+        val fourK = on(3840, 2160)
+        val fallback = on(1920, 1080)
+        println("DesktopWindowSanitizerTest 4K=${fourK.decision} ${fourK.position} 1080p=${fallback.decision} ${fallback.position}")
+        assertEquals("restored", fourK.decision)
+        assertEquals(WindowPosition(82.dp, 1728.dp), fourK.position)
+        assertEquals("default:off-screen", fallback.decision)
+        assertEquals(WindowPosition(Alignment.TopEnd), fallback.position)
+    }
 }

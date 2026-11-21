@@ -13,7 +13,11 @@ data class SanitizedWindowGeometry(
     val position: WindowPosition,
     val width: Dp,
     val height: Dp,
+    /** Why [position] was chosen: no-saved, off-screen, restored or clamped (WINDOW_GEOMETRY log). */
+    val decision: String = "restored",
 )
+
+private const val TAG = "DesktopWindowSanitizer"
 
 object DesktopWindowSanitizer {
 
@@ -37,7 +41,7 @@ object DesktopWindowSanitizer {
         val height = (savedHeight?.dp ?: defaultHeight).coerceIn(minHeight, maxAvailableHeight)
 
         if (savedX == null || savedY == null) {
-            return SanitizedWindowGeometry(WindowPosition(defaultAlignment), width, height)
+            return SanitizedWindowGeometry(WindowPosition(defaultAlignment), width, height, "default:no-saved")
         }
 
         // Off-screen checks for coordinate sanity on the current display:
@@ -51,7 +55,7 @@ object DesktopWindowSanitizer {
             (savedY < 0)
 
         if (isOffScreen) {
-            return SanitizedWindowGeometry(WindowPosition(defaultAlignment), width, height)
+            return SanitizedWindowGeometry(WindowPosition(defaultAlignment), width, height, "default:off-screen")
         }
 
         // Gently clamp to stay comfortably within the visible screen area
@@ -60,23 +64,28 @@ object DesktopWindowSanitizer {
         val clampedX = savedX.coerceIn(10f, maxX)
         val clampedY = savedY.coerceIn(10f, maxY)
 
-        return SanitizedWindowGeometry(WindowPosition(clampedX.dp, clampedY.dp), width, height)
+        val decision = if (clampedX == savedX && clampedY == savedY) "restored" else "clamped"
+        return SanitizedWindowGeometry(WindowPosition(clampedX.dp, clampedY.dp), width, height, decision)
     }
 
     /**
      * Resolves active screen dimensions. In GUI Compose Desktop, queries AWT Toolkit screen size,
      * falling back to DisplayResolutionDetector.
      */
-    fun activeScreenDimensions(): DisplayDimensions {
+    fun activeScreenDimensions(): DisplayDimensions = activeScreenDimensionsWithSource().first
+
+    /** [activeScreenDimensions] plus where they came from ("awt", "awt-empty->detector", "awt-failed->detector"). */
+    fun activeScreenDimensionsWithSource(): Pair<DisplayDimensions, String> {
         return try {
             val screenSize = java.awt.Toolkit.getDefaultToolkit().screenSize
             if (screenSize.width > 0 && screenSize.height > 0) {
-                DisplayDimensions(screenSize.width, screenSize.height)
+                DisplayDimensions(screenSize.width, screenSize.height) to "awt"
             } else {
-                DisplayResolutionDetector.currentScreenDimensions()
+                DisplayResolutionDetector.currentScreenDimensions() to "awt-empty->detector"
             }
         } catch (e: Exception) {
-            DisplayResolutionDetector.currentScreenDimensions()
+            com.weatherwidget.shared.util.Log.e(TAG, "AWT screen size failed; using DisplayResolutionDetector", e)
+            DisplayResolutionDetector.currentScreenDimensions() to "awt-failed->detector"
         }
     }
 }
@@ -95,9 +104,13 @@ fun rememberSanitizedWindowState(
     defaultWidth: Dp,
     defaultHeight: Dp,
     defaultAlignment: Alignment = Alignment.Center,
+    /** Called once per resolution with a WINDOW_GEOMETRY description (the main window logs it). */
+    onResolved: ((String) -> Unit)? = null,
 ): WindowState {
-    val dimensions = remember { DesktopWindowSanitizer.activeScreenDimensions() }
-    val sanitized = remember(savedX, savedY, savedWidth, savedHeight, dimensions) {
+    val (dimensions, dimensionsSource) = remember { DesktopWindowSanitizer.activeScreenDimensionsWithSource() }
+    // Once per window: rememberWindowState only reads its first position and size, so re-running on
+    // each saved move only re-logged a startup that never happened.
+    val sanitized = remember {
         DesktopWindowSanitizer.sanitizeWindowGeometry(
             savedX = savedX,
             savedY = savedY,
@@ -108,7 +121,13 @@ fun rememberSanitizedWindowState(
             defaultAlignment = defaultAlignment,
             screenWidth = dimensions.width,
             screenHeight = dimensions.height,
-        )
+        ).also { result ->
+            onResolved?.invoke(
+                "startup saved=$savedX,$savedY size=${savedWidth}x$savedHeight " +
+                    "screen=${dimensions.width}x${dimensions.height} via=$dimensionsSource " +
+                    "decision=${result.decision} position=${result.position}",
+            )
+        }
     }
     return rememberWindowState(
         position = sanitized.position,
