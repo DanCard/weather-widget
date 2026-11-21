@@ -153,6 +153,15 @@ on both platforms (`NwsForecastReply`). Desktop's full refresh adds the shared
 itself included — taking the recent window when stored rows reach the last hour and the week only on a
 real gap.
 
+The station networks a source can borrow (METAR, Synoptic) size their routine pull from the gap since
+the newest row stored for that feed at the site, plus a 30-minute margin, between 2 and 24 hours; with
+nothing stored, or a gap of a day or more, they ask for the whole day (`SynopticFetchWindow`, and
+`MetarFetchWindow` in whole hours for Aviation Weather's `hours=`). A switch of a source's actuals to
+METAR therefore pulls 24 h on its first observations-only refresh, and a wake after a long sleep fills
+the sleep. Full refreshes (desktop's recovery pull, Android's full sync) always take the whole day
+(`plans/261121-metar-gap-fetch-window.md`). Logged as `BORROWED_METAR_FETCH hours=…` (desktop console) and
+`METAR_OBS_STORED hours=…` (Android).
+
 Recent NWS station history is filled by the shared `NwsGapFillRun` daily pass. Every trigger enters
 through `NwsGapFillRun.dailyForSources` — Android's full sync, desktop's launch/wake catch-up after it
 publishes, and a user Refresh on both platforms (desktop Settings → Refresh after its fetch; Android's

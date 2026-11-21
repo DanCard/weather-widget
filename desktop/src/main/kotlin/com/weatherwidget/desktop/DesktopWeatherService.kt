@@ -610,7 +610,19 @@ class DesktopWeatherService(
         userLocationChange: Boolean,
     ): RawFetch {
         if (feed == WeatherSource.METAR) {
-            val hours = if (recentOnly) RECENT_BORROWED_METAR_HOURS else RECOVERY_BORROWED_METAR_HOURS
+            // Recent pulls ask for the gap since the newest stored METAR row (MetarFetchWindow): a
+            // fixed 2 h left a just-switched provider with 2 h of data
+            // (plans/261121-metar-gap-fetch-window.md). Recovery keeps the full day.
+            val hours = if (recentOnly) {
+                val newestStored = weatherDao?.getNewestObservationTimestampForApi(
+                    WeatherSource.METAR.id,
+                    latitude,
+                    longitude,
+                )
+                com.weatherwidget.shared.util.MetarFetchWindow.hours(newestStored, System.currentTimeMillis())
+            } else {
+                RECOVERY_BORROWED_METAR_HOURS
+            }
             val readings = metarFetcher.fetchObservations(latitude, longitude, hours = hours)
             Log.i(
                 TAG,
@@ -710,8 +722,8 @@ class DesktopWeatherService(
          * cost. 15 s still admits ~1 Mbps links. See [withStallRetry].
          */
         internal const val OBSERVATION_WINDOW_TIMEOUT_MS = 15_000L
-        internal const val RECENT_BORROWED_METAR_HOURS = 2
-        internal const val RECOVERY_BORROWED_METAR_HOURS = 24
+        /** A full refresh's borrowed METAR pull; recent pulls use [com.weatherwidget.shared.util.MetarFetchWindow]. */
+        internal const val RECOVERY_BORROWED_METAR_HOURS = com.weatherwidget.shared.util.MetarFetchWindow.DEEP_HOURS
 
         private const val TAG = "DesktopWeatherService"
         private const val MAX_OBSERVATION_STATIONS = 5

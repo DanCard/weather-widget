@@ -10,7 +10,9 @@ import com.weatherwidget.data.local.logException
 import com.weatherwidget.data.local.toReading
 import com.weatherwidget.data.repository.MetarObservationSource
 import com.weatherwidget.data.repository.writeObservations
+import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.util.MetarFetchPolicy
+import com.weatherwidget.shared.util.MetarFetchWindow
 
 /**
  * Fetches raw airport METARs when the current run is a cadence they belong to, and stores them.
@@ -64,11 +66,6 @@ internal class MetarObservationRefresher(
      */
     companion object {
         /**
-         * Freshness pull for the frequent current-temp loops: just enough to carry "now".
-         */
-        const val SHALLOW_HOURS = 2
-
-        /**
          * Deep pull for the full sync, which runs on the battery-aware 60–480 minute cadence.
          *
          * A daily high/low is a max/min over the whole day, so a 2-hour window yields an afternoon
@@ -78,7 +75,7 @@ internal class MetarObservationRefresher(
          * REPLACE on their primary key, so re-pulling the same day is idempotent and also self-heals
          * gaps left by cycles that were skipped or offline.
          */
-        const val DEEP_HOURS = 24
+        const val DEEP_HOURS = MetarFetchWindow.DEEP_HOURS
     }
 
     suspend fun refreshIfDue(
@@ -86,11 +83,21 @@ internal class MetarObservationRefresher(
         latitude: Double,
         longitude: Double,
         reason: String,
-        hours: Int = SHALLOW_HOURS,
+        /**
+         * Null (the frequent loops): the gap since the newest stored METAR row at this site, at least
+         * 2 h and the whole day when nothing is stored ([MetarFetchWindow]). A fixed 2 h left a sleep
+         * or offline gap as a hole until the next full sync (plans/261121-metar-gap-fetch-window.md).
+         */
+        hours: Int? = null,
     ) {
         val tier = currentTier(SourceFetchGateLoader.backgroundSources(context, widgetStateManager, latitude to longitude))
         if (tier !in acceptTiers) return
         try {
+            val hours = hours ?: run {
+                val newest = WeatherDatabase.getDatabase(context).observationDao()
+                    .getNewestTimestampForApi(WeatherSource.METAR.id, latitude, longitude)
+                MetarFetchWindow.hours(newest, System.currentTimeMillis())
+            }
             val rows = source.fetchObservations(latitude, longitude, hours = hours)
             if (rows.isEmpty()) return
             val db = WeatherDatabase.getDatabase(context)

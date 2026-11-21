@@ -70,7 +70,8 @@ class DesktopBorrowedMetarObservationsTest {
                 WeatherSource.METAR.id,
                 knuq.api,
             )
-            assertEquals(listOf(DesktopWeatherService.RECENT_BORROWED_METAR_HOURS), requestedHours)
+            // No DAO, so nothing is stored: the recent pull asks for the whole day (MetarFetchWindow).
+            assertEquals(listOf(com.weatherwidget.shared.util.MetarFetchWindow.DEEP_HOURS), requestedHours)
         } finally {
             com.weatherwidget.shared.observations.ActualsProviderResolver.resetPreferenceSource()
             service.close()
@@ -97,6 +98,70 @@ class DesktopBorrowedMetarObservationsTest {
         } finally {
             com.weatherwidget.shared.observations.ActualsProviderResolver.resetPreferenceSource()
             service.close()
+        }
+    }
+
+    /**
+     * The 2026-11-21 desktop bug, through the real SQLite DAO and Ktor pipeline: Google's actuals were
+     * switched NWS -> METAR, the launch check chose an observations-only refresh, and the recent pull
+     * asked for 2 h although no METAR row was stored — 16 rows, 05:35–07:15, and a today high computed
+     * from them. The recent pull now asks for the gap since the newest stored METAR row.
+     * plans/261121-metar-gap-fetch-window.md
+     */
+    @Test
+    fun `recent METAR pull sizes its window from the newest stored METAR row`() = runTest {
+        val dbPath = java.nio.file.Files.createTempFile("borrowed-metar-window", ".db")
+        val db = com.weatherwidget.data.local.desktop.DesktopWeatherDatabase(dbPath).apply { initialize() }
+        val dao = com.weatherwidget.data.local.desktop.DesktopWeatherDao(db)
+        val lat = 37.42
+        val lon = -122.08
+        val requestedHours = mutableListOf<Int>()
+        val service = DesktopWeatherService(
+            latitude = lat,
+            longitude = lon,
+            weatherSource = WeatherSource.GOOGLE_WEATHER.id,
+            weatherDao = dao,
+            injectedHttpClient = HttpClient(engine(requestedHours)),
+        )
+        com.weatherwidget.shared.observations.ActualsProviderResolver.installPreferenceSource { WeatherSource.METAR }
+        fun storeRow(api: String, ageMs: Long) = dao.upsertObservations(
+            listOf(
+                com.weatherwidget.data.local.desktop.DesktopObservationEntity(
+                    stationId = "KNUQ",
+                    stationName = "Moffett",
+                    timestamp = System.currentTimeMillis() - ageMs,
+                    temperature = 40f,
+                    condition = "Clear",
+                    locationLat = lat,
+                    locationLon = lon,
+                    api = api,
+                ),
+            ),
+        )
+        try {
+            // Only NWS rows stored: the switch case. METAR has nothing, so the whole day.
+            storeRow(WeatherSource.NWS.id, ageMs = 10 * 60_000L)
+            service.fetchObservationsOnly(recentOnly = true)
+            println("no METAR rows -> requested hours=$requestedHours")
+            assertEquals(listOf(24), requestedHours)
+
+            // A 5 h sleep gap: 5 h + 30 min margin, rounded up.
+            requestedHours.clear()
+            storeRow(WeatherSource.METAR.id, ageMs = 5 * 3_600_000L)
+            service.fetchObservationsOnly(recentOnly = true)
+            println("METAR newest 5 h old -> requested hours=$requestedHours")
+            assertEquals(listOf(6), requestedHours)
+
+            // Steady state: a fresh METAR row keeps the cheap 2 h pull.
+            requestedHours.clear()
+            storeRow(WeatherSource.METAR.id, ageMs = 10 * 60_000L)
+            service.fetchObservationsOnly(recentOnly = true)
+            println("METAR newest 10 min old -> requested hours=$requestedHours")
+            assertEquals(listOf(2), requestedHours)
+        } finally {
+            com.weatherwidget.shared.observations.ActualsProviderResolver.resetPreferenceSource()
+            service.close()
+            java.nio.file.Files.deleteIfExists(dbPath)
         }
     }
 
