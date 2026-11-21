@@ -1,6 +1,5 @@
 package com.weatherwidget.desktop
 
-import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.remote.ForecastHorizonCadence
 import com.weatherwidget.data.remote.ForecastHorizonMarkers
@@ -23,8 +22,7 @@ internal class DesktopForecastHorizon(
     private val powerState: () -> PowerDetector.PowerState = { PowerDetector.getPowerState() },
     private val screenOn: () -> Boolean = { ScreenStateDetector.isScreenOn() },
 ) : ForecastHorizonMarkers {
-    private val siteKey = "${LocationMatch.quantize(latitude)},${LocationMatch.quantize(longitude)}"
-    private val prefix = "source=$weatherSource site=$siteKey"
+    private val prefix = DesktopWeatherDao.forecastFetchMarkerPrefix(weatherSource, latitude, longitude)
 
     fun lastLongFetch(): Long? = weatherDao?.getLatestLogByTagAndMessagePrefix(LONG_TAG, prefix)?.timestamp
 
@@ -61,6 +59,6 @@ internal class DesktopForecastHorizon(
     }
 
     companion object {
-        const val LONG_TAG = "FORECAST_LONG_FETCH"
+        const val LONG_TAG = DesktopWeatherDao.FORECAST_FETCH_MARKER_TAG
     }
 }

@@ -295,7 +295,7 @@ internal class DaemonRuntime(
                 weatherDao.log("REFRESH_FAIL", "retry $retrySource: $reason ${e.message}", "WARN")
                 onForecastFetchFailed(retrySource, e, trigger = SourceRetry.REASON, wakeLoop = wakeLoopOnFailure)
                 if (isActive && launchRefreshPublishes(config, currentConfig)) {
-                    val lastSuccess = weatherDao.getLastSuccessfulFetch(config.displaySource)
+                    val lastSuccess = weatherDao.getLastSuccessfulFetch(config.displaySource, config.lat, config.lon)
                     dataStatusState.value = deriveDataStatus(
                         cachePresent = forecastState.value != null,
                         lastFetchMs = lastSuccess,
@@ -470,7 +470,7 @@ internal class DaemonRuntime(
                                 // non-failed derivation is accurate here.
                                 dataStatusState.value = deriveDataStatus(
                                     cachePresent = true,
-                                    lastFetchMs = weatherDao.getLastSuccessfulFetch(activeConfig.displaySource),
+                                    lastFetchMs = weatherDao.getLastSuccessfulFetch(activeConfig.displaySource, activeConfig.lat, activeConfig.lon),
                                     refreshFailed = false,
                                     failureIsOffline = false,
                                 )
@@ -491,6 +491,17 @@ internal class DaemonRuntime(
                             forecastState.value = null
                         } else {
                             val localConfig = currentConfig
+                            // What the re-read changed against the config this daemon held: a writer
+                            // that bypassed the UI's save path shows up here (CONFIG_LOAD_DIFF; persisted
+                            // only when a field was lost). plans/261121-desktop-location-change-freshness-and-config-clobber.md
+                            configLoadDiff("daemon", localConfig, newConfig)?.let { diff ->
+                                if (diff.warn) {
+                                    Log.w(TAG, "CONFIG_LOAD_DIFF ${diff.message}")
+                                    weatherDao.log("CONFIG_LOAD_DIFF", diff.message, "WARN")
+                                } else {
+                                    Log.i(TAG, "CONFIG_LOAD_DIFF ${diff.message}")
+                                }
+                            }
                             val restartReason = daemonFetchRestartReason(localConfig, newConfig)
                             if (localConfig != null) {
                                 SourceListEdit.classify(localConfig.settings.visibleSources, newConfig.settings.visibleSources)?.let { change ->
@@ -889,7 +900,7 @@ internal class DaemonRuntime(
                 if (launchCacheNotifiesUi(reason)) {
                     notifyDataUpdated()
                 }
-                val lastFetch = weatherDao.getLastSuccessfulFetch(config.displaySource)
+                val lastFetch = weatherDao.getLastSuccessfulFetch(config.displaySource, config.lat, config.lon)
                 dataStatusState.value = DataStatus.Live(lastFetch ?: System.currentTimeMillis())
                 Log.i(TAG, "DataStatus updated to Live (cached). lastFetch: $lastFetch")
             }
@@ -897,7 +908,7 @@ internal class DaemonRuntime(
             val now = System.currentTimeMillis()
             val displaySource = WeatherSource.fromDisplaySource(config.displaySource)
             val actualsProvider = ActualsProviderResolver.providerIdFor(displaySource)
-            val lastForecastFetch = weatherDao.getLastSuccessfulFetch(displaySource.id)
+            val lastForecastFetch = weatherDao.getLastSuccessfulFetch(displaySource.id, config.lat, config.lon)
             val lastObservationFetch = weatherDao.getLatestObservationFetchedAt(
                 locationLat = config.lat,
                 locationLon = config.lon,
@@ -1013,7 +1024,7 @@ internal class DaemonRuntime(
                                 logDetached("failed")
                                 break
                             }
-                            val lastSuccess = weatherDao.getLastSuccessfulFetch(config.displaySource)
+                            val lastSuccess = weatherDao.getLastSuccessfulFetch(config.displaySource, config.lat, config.lon)
                             dataStatusState.value = deriveDataStatus(
                                 cachePresent = forecastState.value != null,
                                 lastFetchMs = lastSuccess,
@@ -1202,7 +1213,7 @@ internal class DaemonRuntime(
                 }
                 panelPublisher.publishForecastState(result)
                 checkDominantTempWatch(activeRepo, result, "catchup:$reason")
-                dataStatusState.value = DataStatus.Live(weatherDao.getLastSuccessfulFetch(activeConfig.displaySource) ?: System.currentTimeMillis())
+                dataStatusState.value = DataStatus.Live(weatherDao.getLastSuccessfulFetch(activeConfig.displaySource, activeConfig.lat, activeConfig.lon) ?: System.currentTimeMillis())
                 weatherDao.log(CurrentTempStatusLog.TAG, CurrentTempStatusLog.ok(src), "INFO")
                 notifyDataUpdated()
                 Log.i(TAG, "kickObservationCatchUp ($reason) successful.")
@@ -1355,7 +1366,7 @@ internal class DaemonRuntime(
                     // screen is on (ViewingRefreshPolicy). Covers a forecast loop whose timer froze in suspend.
                     var fullRefreshSuppliedObservations = false
                     if (screenOn) {
-                        val lastForecast = weatherDao.getLastSuccessfulFetch(config.displaySource)
+                        val lastForecast = weatherDao.getLastSuccessfulFetch(config.displaySource, config.lat, config.lon)
                         if (ViewingRefreshPolicy.forecastDue(lastForecast, activeForecastCadenceMs(), System.currentTimeMillis())) {
                             try {
                                 Log.i(TAG, "Viewing: forecast due by cadence for ${config.displaySource}; refreshing now.")
@@ -1416,7 +1427,7 @@ internal class DaemonRuntime(
                         }
                         panelPublisher.publishForecastState(result)
                         checkDominantTempWatch(newRepo, result, "obs_loop")
-                        dataStatusState.value = DataStatus.Live(weatherDao.getLastSuccessfulFetch(config.displaySource) ?: System.currentTimeMillis())
+                        dataStatusState.value = DataStatus.Live(weatherDao.getLastSuccessfulFetch(config.displaySource, config.lat, config.lon) ?: System.currentTimeMillis())
                         weatherDao.log(CurrentTempStatusLog.TAG, CurrentTempStatusLog.ok(src), "INFO")
                         notifyDataUpdated()
                         Log.i(TAG, "Temp actuals loop refresh successful.")
@@ -1429,7 +1440,7 @@ internal class DaemonRuntime(
                         val reason = if (isOffline) "offline" else "source_error"
                         weatherDao.log("REFRESH_FAIL", "temp actuals: $reason ${e.message}", "WARN")
                         weatherDao.log(CurrentTempStatusLog.TAG, CurrentTempStatusLog.failure(src, e), "WARN")
-                        val lastSuccess = weatherDao.getLastSuccessfulFetch(config.displaySource)
+                        val lastSuccess = weatherDao.getLastSuccessfulFetch(config.displaySource, config.lat, config.lon)
                         dataStatusState.value = deriveDataStatus(
                             cachePresent = forecastState.value != null,
                             lastFetchMs = lastSuccess,
@@ -1531,7 +1542,7 @@ internal class DaemonRuntime(
                             val reason = if (isOffline) "offline" else "source_error"
                             weatherDao.log("REFRESH_FAIL", "$reason ${e.message}", "WARN")
                             onForecastFetchFailed(activeSource, e, trigger = "forecast_loop", wakeLoop = false)
-                            val lastSuccess = weatherDao.getLastSuccessfulFetch(config.displaySource)
+                            val lastSuccess = weatherDao.getLastSuccessfulFetch(config.displaySource, config.lat, config.lon)
                             dataStatusState.value = deriveDataStatus(
                                 cachePresent = forecastState.value != null,
                                 lastFetchMs = lastSuccess,

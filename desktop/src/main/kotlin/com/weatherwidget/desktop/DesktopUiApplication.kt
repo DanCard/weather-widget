@@ -416,17 +416,33 @@ internal fun runDesktopUiApplication() = application {
                         if (source == "settings" || source == "settings-close") Log.i(TAG, line) else Log.w(TAG, line)
                         // Persist the same breadcrumb to the queryable app_logs DB. This bug was invisible
                         // there because CONFIG_SAVE went only to the console/autostart file.
-                        pendingLogRows += "source=$source ${settingsChanges.joinToString(", ")}" to level
+                        pendingLogRows += "source=$source settings-fields-changed: ${settingsChanges.joinToString(", ")}" to level
                     }
 
                     // Positive proof the merge is working: a non-settings writer carried stale settings
-                    // values that were corrected before persisting.
+                    // values that were corrected before persisting. The label is persisted too: without
+                    // it the app_logs row read exactly like a settings wipe (2026-11-21).
                     val mergedAway = resolution.mergedAwaySettings
                     if (mergedAway.isNotEmpty()) {
                         val line = "CONFIG_SAVE source=$source merged-away-stale-settings: " +
                             mergedAway.joinToString(", ")
                         Log.i(TAG, line)
-                        pendingLogRows += "source=$source ${mergedAway.joinToString(", ")}" to "INFO"
+                        pendingLogRows += "source=$source merged-away-stale-settings: ${mergedAway.joinToString(", ")}" to "INFO"
+                    }
+
+                    // Non-settings fields (window geometry, zoom, view mode, …). Every change goes to the
+                    // console; only LOST fields (DesktopConfig lostFields) are persisted, as WARN, so window
+                    // drags do not flood app_logs (plans/261121-desktop-location-change-freshness-and-config-clobber.md).
+                    val topLevel = resolution.topLevelChanges
+                    if (topLevel.isNotEmpty()) {
+                        val line = "CONFIG_SAVE source=$source top-level-fields-changed: " + topLevel.joinToString(", ")
+                        val lost = topLevel.lostFields()
+                        if (lost.isEmpty()) {
+                            Log.i(TAG, line)
+                        } else {
+                            Log.w(TAG, line)
+                            pendingLogRows += "source=$source top-level-fields-lost: ${lost.joinToString(", ")}" to "WARN"
+                        }
                     }
                 }
 
@@ -604,7 +620,7 @@ internal fun runDesktopUiApplication() = application {
                         val lastFetch = if (memoryCached != null) {
                             (dataStatus as? DataStatus.Live)?.updatedAt ?: System.currentTimeMillis()
                         } else {
-                            weatherDao.getLastSuccessfulFetch(cfg?.settings?.weatherSource) ?: System.currentTimeMillis()
+                            cfg?.let { weatherDao.getLastSuccessfulFetch(it.settings.weatherSource, it.lat, it.lon) } ?: System.currentTimeMillis()
                         }
                         dataStatus = DataStatus.Live(lastFetch)
                     }
@@ -900,7 +916,7 @@ internal fun runDesktopUiApplication() = application {
             val repo = repository
             val cfg = currentConfig
             if (repo != null && cfg != null && !refreshInFlight) {
-                val host = DesktopViewingForecastHost(weatherDao, cfg.displaySource, PowerDetector.getPowerState(), viewingForecastRequests) {
+                val host = DesktopViewingForecastHost(weatherDao, cfg.displaySource, cfg.lat, cfg.lon, PowerDetector.getPowerState(), viewingForecastRequests) {
                     val source = WeatherSource.fromDisplaySource(cfg.displaySource)
                     val startedAtMs = System.currentTimeMillis()
                     refreshNotice.show(RefreshNotice.Queued(RefreshNotice.Kind.FORECAST, source.shortDisplayName), surface, origin)
@@ -958,12 +974,7 @@ internal fun runDesktopUiApplication() = application {
             // Settings → Refresh data: every usable source not fetched or refreshed in the last 10
             // minutes, partitioned once here (plans/261113-settings-refresh-skips-fresh-sources.md).
             val settingsPartition = currentConfig?.takeIf { origin == "settings" }?.let { cfg ->
-                SettingsRefreshAllSources.partition(
-                    SettingsRefreshAllSources.order(cfg.displaySource, cfg.effectiveSources),
-                    lastFetchMs = { weatherDao.getLastSuccessfulFetch(it) },
-                    lastUserRefreshMs = { lastUserRefreshMsBySource[it] },
-                    nowMs = nowMs,
-                ).also { weatherDao.log(SettingsRefreshAllSources.TAG, it.logLine(), "INFO") }
+                desktopSettingsRefreshPartition(weatherDao, cfg, { lastUserRefreshMsBySource[it] }, nowMs).also { weatherDao.log(SettingsRefreshAllSources.TAG, it.logLine(), "INFO") }
             }
             if (settingsPartition != null) {
                 if (settingsPartition.allFresh) {
@@ -971,7 +982,7 @@ internal fun runDesktopUiApplication() = application {
                     return
                 }
                 settingsPartition.fetch.forEach { lastUserRefreshMsBySource[it] = nowMs }
-            } else when (val decision = UserRefreshThrottle.check(lastUserRefreshMsBySource[sourceId], nowMs, weatherDao.getLastSuccessfulFetch(sourceId))) {
+            } else when (val decision = UserRefreshThrottle.check(lastUserRefreshMsBySource[sourceId], nowMs, currentConfig?.let { weatherDao.getLastSuccessfulFetch(sourceId, it.lat, it.lon) })) {
                 is UserRefreshThrottle.Decision.Throttled -> {
                     weatherDao.log(
                         "REFRESH_CLICK",
@@ -1185,7 +1196,7 @@ internal fun runDesktopUiApplication() = application {
 
             val nowMs = System.currentTimeMillis()
             val lastRefresh = lastUserRefreshMsBySource[source.id]
-            when (val decision = UserRefreshThrottle.check(lastRefresh, nowMs, weatherDao.getLastSuccessfulFetch(source.id))) {
+            when (val decision = UserRefreshThrottle.check(lastRefresh, nowMs, weatherDao.getLastSuccessfulFetch(source.id, cfg.lat, cfg.lon))) {
                 is UserRefreshThrottle.Decision.Throttled -> {
                     weatherDao.log(
                         "REFRESH_CLICK",

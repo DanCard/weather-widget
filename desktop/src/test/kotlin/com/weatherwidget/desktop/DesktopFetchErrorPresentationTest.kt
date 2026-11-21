@@ -50,7 +50,7 @@ class DesktopFetchErrorPresentationTest {
     private fun details(viewed: ForecastProduct = ForecastProduct.HOURLY): SourceErrorDetails.Content? {
         val now = System.currentTimeMillis()
         val status = dao.getLatestCurrentTempStatus(google)?.takeIf { !it.ok }
-        return desktopSourceErrorDetails(dao, google, status, viewed, now)
+        return desktopSourceErrorDetails(dao, google, status, viewed, now, 37.42, -122.08)
     }
 
     private fun SourceErrorDetails.Content.row(label: Label): Value? = rows.firstOrNull { it.label == label }?.value

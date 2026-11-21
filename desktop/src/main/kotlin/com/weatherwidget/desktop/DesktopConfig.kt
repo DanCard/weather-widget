@@ -10,6 +10,7 @@ import com.weatherwidget.shared.util.WeatherSourceOrdering
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
@@ -220,6 +221,95 @@ data class DesktopConfig(
 
     /** `field: old -> new` for every settings-owned field that differs from [other]. */
     fun settingsDiffFrom(other: DesktopConfig): List<String> = settings.diffFrom(other.settings)
+
+    /**
+     * Every non-settings field that differs from [other] (the previous config), `settings` excluded
+     * ([settingsDiffFrom] covers it) and `recentLocations` reduced to its size.
+     *
+     * Exists because a location-picker save wiped the window geometry, zoom and view mode while the
+     * logs said nothing about them (2026-11-21, plans/261121-desktop-location-change-freshness-and-config-clobber.md).
+     * Generic over the serialized fields so a field added later is diffed without touching this.
+     */
+    internal fun topLevelDiffFrom(other: DesktopConfig): List<ConfigFieldChange> {
+        val now = DIFF_JSON.encodeToJsonElement(serializer(), this).jsonObject
+        val before = DIFF_JSON.encodeToJsonElement(serializer(), other).jsonObject
+        val defaults = DIFF_DEFAULTS
+        return (now.keys + before.keys)
+            .filter { it != "settings" && it != "recentLocations" }
+            .sorted()
+            .mapNotNull { key ->
+                val newValue = now[key] ?: JsonNull
+                val oldValue = before[key] ?: JsonNull
+                if (newValue == oldValue) return@mapNotNull null
+                ConfigFieldChange(
+                    name = key,
+                    old = oldValue.toString(),
+                    new = newValue.toString(),
+                    nulled = oldValue != JsonNull && newValue == JsonNull,
+                    toDefault = newValue != JsonNull && newValue == defaults[key],
+                )
+            } + listOfNotNull(
+                ConfigFieldChange(
+                    "recentLocations.size", other.recentLocations.size.toString(), recentLocations.size.toString(),
+                    nulled = recentLocations.isEmpty(),
+                    toDefault = false,
+                ).takeIf { recentLocations.size != other.recentLocations.size },
+            )
+    }
+}
+
+/**
+ * One changed top-level config field. [nulled] = it had a value and now has none; [toDefault] = it
+ * is back at its default (normal for one field — returning to today resets `dateOffset`).
+ */
+internal data class ConfigFieldChange(
+    val name: String,
+    val old: String,
+    val new: String,
+    val nulled: Boolean,
+    val toDefault: Boolean,
+) {
+    override fun toString(): String = "$name: $old -> $new"
+}
+
+/**
+ * The fields a change set LOST: any nulled field, plus every reset-to-default field when
+ * [WHOLE_OBJECT_RESET_MIN] or more reset at once — the signature of a writer that built the whole
+ * config from defaults (the 2026-11-21 picker save reset geometry, zoom and view mode together).
+ */
+internal fun List<ConfigFieldChange>.lostFields(): List<ConfigFieldChange> {
+    val resets = filter { it.toDefault }
+    return filter { it.nulled || (it.toDefault && resets.size >= WHOLE_OBJECT_RESET_MIN) }
+}
+
+internal const val WHOLE_OBJECT_RESET_MIN = 3
+
+private val DIFF_JSON = Json { encodeDefaults = true }
+private val DIFF_DEFAULTS by lazy {
+    DIFF_JSON.encodeToJsonElement(DesktopConfig.serializer(), DesktopConfig(lat = 0.0, lon = 0.0, label = "")).jsonObject
+}
+
+/**
+ * The `CONFIG_LOAD_DIFF` line for a config re-read from disk against the one held before, or null
+ * when nothing changed. The daemon is the only reader that re-reads, so this is where a writer that
+ * bypassed the UI's save path (another process, a hand edit, a torn write) shows up. [warn] when
+ * any field was lost.
+ */
+internal data class ConfigLoadDiff(val message: String, val warn: Boolean)
+
+internal fun configLoadDiff(reader: String, previous: DesktopConfig?, loaded: DesktopConfig): ConfigLoadDiff? {
+    if (previous == null) return null
+    val top = loaded.topLevelDiffFrom(previous)
+    val settings = loaded.settingsDiffFrom(previous)
+    if (top.isEmpty() && settings.isEmpty()) return null
+    val lost = top.lostFields()
+    val message = buildString {
+        append("reader=$reader")
+        if (lost.isNotEmpty()) append(" lost=${lost.joinToString(",") { it.name }}")
+        if (top.isNotEmpty()) append(" fields: ${top.joinToString(", ")}")
+        if (settings.isNotEmpty()) append(" settings: ${settings.joinToString(", ")}")
+    }
+    return ConfigLoadDiff(message, warn = lost.isNotEmpty())
 }
 
 /**
@@ -263,6 +353,8 @@ internal data class DesktopConfigSaveResolution(
     val settingsChanges: List<String>,
     val mergedAwaySettings: List<String>,
     val zoomFactorBeforeResnap: Float?,
+    /** Non-settings fields this save changes against the persisted config ([DesktopConfig.topLevelDiffFrom]). */
+    val topLevelChanges: List<ConfigFieldChange> = emptyList(),
 )
 
 /**
@@ -274,7 +366,17 @@ internal fun resolveDesktopConfigSave(
     draft: DesktopConfig,
     source: String,
 ): DesktopConfigSaveResolution {
-    var effective = if (persisted != null && source !in SETTINGS_SAVE_SOURCES) {
+    var effective = if (persisted != null && source == DesktopLocationChangeFeedback.PICKER_SOURCE) {
+        // The picker builds a whole config from defaults (`ResolvedLocation.toConfig()`); only the
+        // location is its to change. Taking the rest of its draft wiped the window geometry, zoom and
+        // view mode on every move (2026-11-21, plans/261121-desktop-location-change-freshness-and-config-clobber.md).
+        persisted.copy(
+            lat = draft.lat,
+            lon = draft.lon,
+            label = draft.label,
+            recentLocations = draft.recentLocations,
+        )
+    } else if (persisted != null && source !in SETTINGS_SAVE_SOURCES) {
         mergeNonSettingsSave(
             persisted = persisted,
             draft = draft,
@@ -296,6 +398,7 @@ internal fun resolveDesktopConfigSave(
         settingsChanges = persisted?.let(effective::settingsDiffFrom).orEmpty(),
         mergedAwaySettings = draft.settingsDiffFrom(effective),
         zoomFactorBeforeResnap = beforeResnap.zoomFactor.takeIf { it != effective.zoomFactor },
+        topLevelChanges = persisted?.let(effective::topLevelDiffFrom).orEmpty(),
     )
 }
 
@@ -487,8 +590,20 @@ class DesktopConfigStore(
             normalized = repairStaleNarrowZoomFactor(normalized)
             // Re-save when the values changed OR the format was migrated flat → nested, so the
             // file converges to the nested schema instead of re-migrating on every launch.
-            if (normalized != decoded || migrated != text || !unitWasExplicit) save(normalized)
+            if (normalized != decoded || migrated != text || !unitWasExplicit) {
+                // load() is a writer too; name it, so a config change with no CONFIG_SAVE is traceable.
+                com.weatherwidget.shared.util.Log.i(
+                    "DesktopConfigStore",
+                    "CONFIG_LOAD_RESAVE normalized=${normalized != decoded} migrated=${migrated != text} " +
+                        "unitMaterialized=${!unitWasExplicit}",
+                )
+                save(normalized)
+            }
             normalized
+        }.onFailure { e ->
+            // A null here reads as "no config": the daemon stops its loops and a fresh UI opens the
+            // first-launch picker, whose save starts from defaults. Never silent.
+            com.weatherwidget.shared.util.Log.e("DesktopConfigStore", "CONFIG_LOAD_FAIL path=$configPath", e)
         }.getOrNull()
     }
 

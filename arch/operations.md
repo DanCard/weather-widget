@@ -315,6 +315,24 @@ and trigger/socket data are under `${XDG_DATA_HOME:-$HOME/.local/share}/weather-
 client is `genmon/genmon-weather-bin`, built with `make -C genmon`; it reads cached Pango markup from
 `weather.sock` rather than querying the database.
 
+`config.json` is written whole by several windows, so each save is reconciled against the persisted
+config (`resolveDesktopConfigSave`): Settings owns `settings`, other windows may change only their own
+fields, and the location picker changes only `lat`, `lon`, `label` and `recentLocations`. To trace a
+setting or window state that changed unexpectedly, query `app_logs` tag `CONFIG_SAVE`:
+
+- `source=… settings-fields-changed: field: old -> new` — a settings field really changed.
+- `source=… merged-away-stale-settings: …` — a writer's stale or default settings were discarded, not
+  saved.
+- `source=… top-level-fields-lost: …` (WARN) — a save set a non-settings field (window bounds, zoom,
+  view mode) to null, or reset three or more of them to their defaults at once. Every top-level change
+  is also printed to the console as `top-level-fields-changed`.
+- `CONFIG_LOAD_DIFF reader=daemon lost=…` (WARN) — the daemon re-read config.json and fields had gone
+  without a UI save, e.g. another process or a hand edit. `CONFIG_LOAD_RESAVE` (console) means `load()`
+  normalized and rewrote the file, and `CONFIG_LOAD_FAIL` (error) means the file could not be parsed,
+  which the app treats as "no config".
+
+See `plans/261121-desktop-location-change-freshness-and-config-clobber.md`.
+
 ## Release commands
 
 Fastlane is installed at `~/.local/share/gem/ruby/3.3.0/bin/fastlane` on the development machine:

@@ -7,6 +7,8 @@ import com.weatherwidget.shared.util.ViewingForecastRefresh
 internal class DesktopViewingForecastHost(
     private val dao: DesktopWeatherDao,
     private val displaySource: String,
+    private val latitude: Double,
+    private val longitude: Double,
     power: PowerDetector.PowerState,
     private val requests: MutableMap<String, Long>,
     private val fetchForecast: suspend () -> Unit,
@@ -14,7 +16,7 @@ internal class DesktopViewingForecastHost(
     override val isCharging = power.isCharging
     override val batteryLevel = power.batteryLevel
     override fun viewedSourceIds() = listOf(displaySource)
-    override fun lastFetchMs(sourceId: String) = dao.getLastSuccessfulFetch(sourceId)
+    override fun lastFetchMs(sourceId: String) = dao.getLastSuccessfulFetch(sourceId, latitude, longitude)
     override fun lastRequestMs(sourceId: String) = requests[sourceId]
     override fun markRequested(sourceId: String, atMs: Long) { requests[sourceId] = atMs }
     override suspend fun fetch(sourceId: String) = fetchForecast()

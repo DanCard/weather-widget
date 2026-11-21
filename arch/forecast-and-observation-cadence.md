@@ -260,7 +260,11 @@ background cadence checks so that an explicit user tap can fetch immediately. Ho
 forecast refreshes at most once every 10 minutes on both platforms (`UserRefreshThrottle`): a request is
 refused when the source was refreshed by the user **or fetched by anything** (popup open, viewing refresh,
 cadence, Settings → Refresh data) within 10 minutes. The fetch time is the later of the LONG-fetch marker and
-the last successful check at the site on Android, `getLastSuccessfulFetch` on desktop. The Observations
+the last successful check at the site on Android, the site's `FORECAST_LONG_FETCH` marker on desktop
+(`DesktopWeatherDao.getLastSuccessfulFetch(source, lat, lon)`). Freshness is always the displayed site's: a
+fetch at the previous location never makes a source look fresh after a move, so Settings → Refresh data,
+the launch check and the viewing refresh fetch what is stale at the new site
+(`plans/261121-desktop-location-change-freshness-and-config-clobber.md`). The Observations
 refresh counts only its own user refreshes (observations scope); the forecast fetch time does not apply.
 
 - **Throttled (< 10 minutes since the source's last user refresh or fetch)**:

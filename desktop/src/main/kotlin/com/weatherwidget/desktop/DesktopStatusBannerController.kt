@@ -73,6 +73,7 @@ internal class DesktopStatusBannerController(
     ): Pair<SourceErrorDetails.Content, String>? {
         val details = desktopSourceErrorDetails(
             weatherDao, src, sourceFailure, QuotaNotice.productOf(activeConfig.viewMode), now,
+            activeConfig.lat, activeConfig.lon,
         ) ?: return null
         val displayName = WeatherSource.fromId(src).displayName
         val errorText = SourceErrorDetails.English.headline(displayName, details.headline) + "\n" +

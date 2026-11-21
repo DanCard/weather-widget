@@ -175,6 +175,84 @@ class DesktopConfigSavePolicyTest {
         assertEquals("DAY_RAIN:desc", result.config.sourceCompareSort)
     }
 
+    /**
+     * 2026-11-21: moving Mountain View -> Scottsdale wiped the popup geometry, zoom, view mode and the
+     * observations window bounds — the picker's draft is `ResolvedLocation.toConfig()`, all defaults,
+     * and only `settings` was merged back. Fails on the old merge (every assertion below but lat/lon).
+     * plans/261121-desktop-location-change-freshness-and-config-clobber.md
+     */
+    @Test
+    fun `location picker save changes the location only and keeps window state`() {
+        val persisted = config(source = "GOOGLE_WEATHER", zoomFactor = 0.2555302f).copy(
+            viewMode = com.weatherwidget.widget.ViewMode.TEMPERATURE,
+            windowX = 44f, windowY = 1218f, windowWidth = 1170f, windowHeight = 926f,
+            obsWindowX = 1687f, obsWindowY = 730f, obsWindowWidth = 500f, obsWindowHeight = 1013f,
+            historyWindowX = 1194f,
+            sourceCompareSort = "DAY_RAIN:desc",
+        )
+        val scottsdale = ResolvedLocation(lat = 33.6451828, lon = -111.9112613, label = "Scottsdale", source = "Google")
+            .toConfig()
+            .copy(recentLocations = listOf(com.weatherwidget.data.model.RecentLocation(33.6451828, -111.9112613, "Scottsdale")))
+
+        val result = resolveDesktopConfigSave(persisted, scottsdale, source = DesktopLocationChangeFeedback.PICKER_SOURCE)
+        val saved = result.config
+        println("picker save top-level changes: ${result.topLevelChanges}")
+
+        assertEquals(33.6451828, saved.lat, 0.0)
+        assertEquals(-111.9112613, saved.lon, 0.0)
+        assertEquals("Scottsdale", saved.label)
+        assertEquals(1, saved.recentLocations.size)
+        assertEquals(persisted.copy(lat = saved.lat, lon = saved.lon, label = saved.label, recentLocations = saved.recentLocations), saved)
+        assertEquals(
+            "only the location fields change",
+            listOf("label", "lat", "lon", "recentLocations.size"),
+            result.topLevelChanges.map { it.name },
+        )
+        assertEquals(emptyList<ConfigFieldChange>(), result.topLevelChanges.lostFields())
+    }
+
+    @Test
+    fun `a whole-object save from defaults is flagged as lost fields`() {
+        val persisted = config(zoomFactor = 0.2555302f).copy(
+            viewMode = com.weatherwidget.widget.ViewMode.TEMPERATURE,
+            windowX = 44f, windowY = 1218f,
+            dateOffset = 2,
+        )
+        // What the old picker path persisted: the draft's defaults for every non-settings field.
+        val defaults = DesktopConfig(lat = 33.6, lon = -111.9, label = "Scottsdale", settings = persisted.settings)
+
+        val changes = defaults.topLevelDiffFrom(persisted)
+        val lost = changes.lostFields().map { it.name }
+        println("whole-object reset: changes=$changes lost=$lost")
+
+        assertEquals(listOf("dateOffset", "viewMode", "windowX", "windowY", "zoomFactor"), lost.sorted())
+    }
+
+    @Test
+    fun `returning one field to its default is not a loss`() {
+        // Navigating back to today resets dateOffset; that is normal, not a clobber.
+        val persisted = config().copy(dateOffset = 3, windowX = 44f)
+        val changes = persisted.copy(dateOffset = 0).topLevelDiffFrom(persisted)
+        assertEquals(listOf("dateOffset"), changes.map { it.name })
+        assertEquals(emptyList<ConfigFieldChange>(), changes.lostFields())
+    }
+
+    @Test
+    fun `config load diff warns only when the re-read lost a field`() {
+        val held = config().copy(windowX = 44f, windowWidth = 1170f)
+        assertNull(configLoadDiff("daemon", held, held))
+        assertNull("first load has nothing to compare", configLoadDiff("daemon", null, held))
+
+        val moved = configLoadDiff("daemon", held, held.copy(windowX = 60f))!!
+        assertEquals(false, moved.warn)
+        assertEquals("reader=daemon fields: windowX: 44.0 -> 60.0", moved.message)
+
+        val clobbered = configLoadDiff("daemon", held, held.copy(windowX = null, windowWidth = null))!!
+        println("clobbered load diff: ${clobbered.message}")
+        assertEquals(true, clobbered.warn)
+        assertEquals(true, clobbered.message.startsWith("reader=daemon lost=windowWidth,windowX "))
+    }
+
     private fun config(
         source: String = "NWS",
         narrowSpan: Int = 6,

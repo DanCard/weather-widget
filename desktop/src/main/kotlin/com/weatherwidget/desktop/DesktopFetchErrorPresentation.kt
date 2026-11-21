@@ -43,6 +43,9 @@ internal fun desktopSourceErrorDetails(
     sourceFailure: CurrentTempStatus?,
     viewed: ForecastProduct,
     nowMs: Long,
+    /** The displayed site: "last success" is this site's last fetch, not one at a previous location. */
+    latitude: Double,
+    longitude: Double,
 ): SourceErrorDetails.Content? {
     val quotas = DesktopQuotaState(weatherDao)
     val facts = SourceErrorDetails.Facts(
@@ -52,7 +55,7 @@ internal fun desktopSourceErrorDetails(
         lastFailureDetail = sourceFailure?.let { CurrentTempStatusLog.parseFailureDetail(it.message) },
         productQuota = { product -> quotas.productQuota(sourceId, product, nowMs) },
         rateLimit = quotas.partialRateLimit(sourceId, nowMs)?.let { SourceErrorDetails.RateLimit(it.atMs, partial = true, detail = it.detail) },
-        lastSuccessMs = weatherDao.getLastSuccessfulFetch(sourceId),
+        lastSuccessMs = weatherDao.getLastSuccessfulFetch(sourceId, latitude, longitude),
     )
     return SourceErrorDetails.build(facts, viewed, nowMs)
 }

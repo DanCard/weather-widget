@@ -50,6 +50,13 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
 
 
     companion object {
+        /** Tag of the per-site forecast-fetch marker rows (`DesktopForecastHorizon` writes them). */
+        const val FORECAST_FETCH_MARKER_TAG = "FORECAST_LONG_FETCH"
+
+        /** `source=… site=lat,lon` on the shared quantized grid: the one spelling writer and readers use. */
+        fun forecastFetchMarkerPrefix(source: String, latitude: Double, longitude: Double): String =
+            "source=$source site=${LocationMatch.quantize(latitude)},${LocationMatch.quantize(longitude)}"
+
         /** Marker in the NOT NULL `condition` column of prior-run cloud rows; never displayed. */
         private const val PRIOR_CLOUD_CONDITION = "prior-run cloud"
 
@@ -1461,6 +1468,22 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         return null
     }
 
+    /**
+     * [source]'s last answered forecast fetch at THIS site: the per-site `FORECAST_LONG_FETCH` marker
+     * (`DesktopForecastHorizon`), Android's `getLastLongFetch(source, lat, lon)`. Null when this site
+     * was never fetched, or not within the 72 h app_logs keep, which reads as stale.
+     *
+     * Freshness and throttle checks use this, never the site-blind [getLastSuccessfulFetch]: after a
+     * move, a fetch at the old site made Settings → Refresh data skip a source whose data at the new
+     * site was 10 h old (2026-11-21, plans/261121-desktop-location-change-freshness-and-config-clobber.md).
+     */
+    fun getLastSuccessfulFetch(source: String, latitude: Double, longitude: Double): Long? =
+        getLatestLogByTagAndMessagePrefix(
+            FORECAST_FETCH_MARKER_TAG,
+            forecastFetchMarkerPrefix(source, latitude, longitude),
+        )?.timestamp
+
+    /** Site-blind: the newest `REFRESH` row for [source] anywhere. Not for freshness; see the per-site overload. */
     fun getLastSuccessfulFetch(source: String? = null): Long? {
         db.getConnection().use { conn ->
             val sql = if (source != null) {
