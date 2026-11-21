@@ -44,6 +44,9 @@ enum class SwitchRefreshSignal(val byte: Byte) {
     }
 }
 
+/** A location-change refresh ended ([DesktopLocationRefreshResult]). Also reloads, as every byte does. */
+internal const val LOCATION_REFRESH_BYTE: Byte = 'L'.code.toByte()
+
 /** Daemon side: accepts UI connections and pushes a byte on each data change. */
 class UiNotifyServer(private val appDataDir: Path) {
     private val clients = CopyOnWriteArrayList<SocketChannel>()
@@ -81,6 +84,8 @@ class UiNotifyServer(private val appDataDir: Path) {
 
     fun pushSwitchRefresh(signal: SwitchRefreshSignal) = push(signal.byte)
 
+    fun pushLocationRefresh() = push(LOCATION_REFRESH_BYTE)
+
     private fun push(byte: Byte) {
         if (clients.isEmpty()) return
         val dead = mutableListOf<SocketChannel>()
@@ -117,6 +122,7 @@ class UiNotifyServer(private val appDataDir: Path) {
 class UiNotifyClient(
     private val appDataDir: Path,
     private val onSwitchRefresh: (SwitchRefreshSignal) -> Unit = {},
+    private val onLocationRefresh: () -> Unit = {},
     private val onNotify: (reason: String) -> Unit,
 ) {
     @Volatile private var running = false
@@ -140,7 +146,10 @@ class UiNotifyClient(
                         val n = channel.read(buf)
                         if (n < 0) break // server closed → reconnect
                         if (n > 0) {
-                            for (i in 0 until n) SwitchRefreshSignal.of(buf.get(i))?.let(onSwitchRefresh)
+                            for (i in 0 until n) {
+                                val b = buf.get(i)
+                                if (b == LOCATION_REFRESH_BYTE) onLocationRefresh() else SwitchRefreshSignal.of(b)?.let(onSwitchRefresh)
+                            }
                             onNotify("push")
                         }
                     }

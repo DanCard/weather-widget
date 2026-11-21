@@ -15,6 +15,9 @@ private const val TAG = "DaemonProcess"
 
 internal const val SOURCE_CYCLE_REASON = "source_change"
 
+/** A new site (the location picker) or the first config: [launchForecastStaleAfterMs] uses [com.weatherwidget.shared.util.LocationChangeRefreshPolicy]. */
+internal const val LOCATION_CHANGE_REASON = "source_or_location_change"
+
 /**
  * Adding, removing or reordering sources: the loops restart so they read the new list, but nothing
  * fetches unless the shown source has nothing to draw ([SourceListEdit], shared with Android).
@@ -25,7 +28,7 @@ internal fun daemonFetchRestartReason(
     previous: DesktopConfig?,
     updated: DesktopConfig,
 ): String? = when {
-    previous == null || updated.lat != previous.lat || updated.lon != previous.lon -> "source_or_location_change"
+    previous == null || updated.lat != previous.lat || updated.lon != previous.lon -> LOCATION_CHANGE_REASON
     // Cycling the displayed source: see [isSourceCycle]. A removal that moves the display to the
     // next source leaves weatherSource alone, so it stays a list edit, as on Android.
     updated.settings.weatherSource != previous.settings.weatherSource -> SOURCE_CYCLE_REASON

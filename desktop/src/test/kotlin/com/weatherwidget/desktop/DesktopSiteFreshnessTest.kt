@@ -97,4 +97,27 @@ class DesktopSiteFreshnessTest {
         assertEquals(LaunchRefreshAction.NONE, actionAt(mountainView))
         assertEquals(LaunchRefreshAction.FULL_FORECAST, actionAt(scottsdale))
     }
+
+    /**
+     * 2026-11-21 08:55:46: back to Mountain View, whose NWS forecast was 86 min old, and it was
+     * fetched anyway (plans/261121-location-change-honours-fresh-cache.md). Real DAO and marker
+     * writer; the decision reads that site's own marker, not Scottsdale's.
+     */
+    @Test
+    fun `a picker move to a site fetched 86 minutes ago keeps its cache`() = runTest {
+        fetchedAt("NWS", mountainView)
+        val now = System.currentTimeMillis()
+        fun moveTo(site: Pair<Double, Double>, atMs: Long, drawable: Boolean = true, highBattery: Boolean = true) =
+            desktopLocationChangeRefresh(dao, "NWS", site.first, site.second, drawable, atMs, highBattery)
+
+        assertEquals(false, moveTo(mountainView, now + 86 * 60_000L).fetchForecast)
+        assertEquals(true, moveTo(mountainView, now + 3 * 3_600_000L).fetchForecast)
+        assertEquals(false, moveTo(mountainView, now + 3 * 3_600_000L, highBattery = false).fetchForecast)
+        assertEquals("nothing to draw", true, moveTo(mountainView, now + 60_000L, drawable = false).fetchForecast)
+        assertEquals("never fetched at Scottsdale", true, moveTo(scottsdale, now + 60_000L).fetchForecast)
+
+        val logged = dao.getRecentLogsByTags(listOf(com.weatherwidget.shared.util.LocationChangeRefreshPolicy.TAG))
+        logged.forEach { println(it.message) }
+        assertEquals(5, logged.size)
+    }
 }

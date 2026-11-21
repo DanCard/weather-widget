@@ -42,6 +42,10 @@ fun notifySwitchRefresh(signal: SwitchRefreshSignal) {
     runCatching { uiNotifyServerRef?.pushSwitchRefresh(signal) }
 }
 
+fun notifyLocationRefresh() {
+    runCatching { uiNotifyServerRef?.pushLocationRefresh() }
+}
+
 fun notifyDataUpdated() {
     touchTrigger(DATA_UPDATED_TRIGGER)
     runCatching { uiNotifyServerRef?.pushDataUpdated() }
@@ -176,6 +180,7 @@ fun launchForecastStaleAfterMs(reason: String, isHighBattery: () -> Boolean, cad
     isAutomaticCatchUp(reason) -> minOf(cadenceMs() ?: Long.MAX_VALUE, CATCH_UP_FORECAST_MAX_AGE_MS)
     reason == STARTUP_REASON -> cadenceMs() ?: Long.MAX_VALUE
     reason == SOURCE_CYCLE_REASON -> com.weatherwidget.shared.util.SourceToggleRefreshPolicy.staleMs(isHighBattery())
+    reason == LOCATION_CHANGE_REASON -> com.weatherwidget.shared.util.LocationChangeRefreshPolicy.staleAfterMs(isHighBattery())
     else -> FORECAST_FRESHNESS_THRESHOLD_MS
 }
 

@@ -112,8 +112,10 @@ class DesktopApiUsageAndRefreshGateTest {
         assertEquals(LaunchRefreshAction.OBSERVATIONS, action)
         // A catch-up never leaves a forecast older than 8 h, even with the cadence off.
         assertEquals(CATCH_UP_FORECAST_MAX_AGE_MS, launchForecastStaleAfterMs("resume:logind", isHighBattery = { false }) { null })
-        // A source or location the user just picked still refetches past the user-present 15 min.
-        assertEquals(FORECAST_FRESHNESS_THRESHOLD_MS, launchForecastStaleAfterMs("source_or_location_change", isHighBattery = { false }) { cadence })
+        // A location the user just picked refetches past the source-toggle limit, not 15 min: an
+        // 86-minute-old Mountain View forecast was refetched on 2026-11-21.
+        assertEquals(4 * 3_600_000L, launchForecastStaleAfterMs(LOCATION_CHANGE_REASON, isHighBattery = { false }) { cadence })
+        assertEquals(2 * 3_600_000L, launchForecastStaleAfterMs(LOCATION_CHANGE_REASON, isHighBattery = { true }) { cadence })
     }
 
     @Test

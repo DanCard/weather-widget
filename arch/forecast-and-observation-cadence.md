@@ -222,6 +222,19 @@ User Refresh, source switches, history-specific refills, and
 location changes have their own targeted scope. These paths do not make routine forecast cadence
 equivalent to "fetch everything on every interaction."
 
+A user location change (setup screen / location picker) shows the new site's cached graph at once when it
+has one. Android never forces a location-change sync: each source fetches only when its own cadence says it
+is due at the new site (per-site markers). A site with nothing to draw has no hourly fetched there within a day,
+which every cadence (at most 24 h) makes due. On desktop the
+displayed source is refetched only when that site has nothing to draw or its forecast **at that site** is
+past the source-switch limit (`LocationChangeRefreshPolicy`, which reuses `SourceToggleRefreshPolicy.staleMs`;
+log tag `LOCATION_CHANGE_REFRESH`); otherwise the launch check refreshes observations as usual.
+On desktop the daemon's `.config-changed` launch refresh is the only fetch for a picker move; the window sends
+none. It records `LOCATION_REFRESH_RESULT site=… ok=…` and pushes an `L` byte on `ui-notify.sock`
+(`DesktopLocationRefreshResult`). A window showing the interstitial or the banner waits up to 150 s for a
+result for its site recorded since the pick, then shows the place's failure message if the result failed or
+none came (`plans/261121-location-change-honours-fresh-cache.md`).
+
 ### Interaction cache and the stored-data version
 
 Android's widget interaction path (`DailyInteractionRenderer`) reads its daily rows, actuals,

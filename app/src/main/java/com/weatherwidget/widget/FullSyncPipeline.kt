@@ -96,10 +96,14 @@ internal class FullSyncPipeline(
                     painter.paintLocationChangeInterstitial(place, location.first, location.second)
                 }
             }
-            // The new site's cache is already on screen: refetch only what is actually stale. A
-            // forced refetch of every source (60 s, 2026-09-29) is what held the previous city's
-            // graph up under the banner.
-            val forceFetch = input.forceRefresh && !adoptedCache
+            // A location change never forces: each source fetches when its own cadence says it is
+            // due at the new site (`isStale` reads per-site markers), so a site with nothing to draw
+            // (no hourly fetched there within a day, longer than any cadence) is fetched on this run,
+            // and a fresh one is not. A forced untargeted sync refetched every visible source,
+            // Google included: 60 s under the banner on 2026-09-29, and NWS refetched at 86 min old
+            // on 2026-11-21 (user: "let the stale fetching code take care of it").
+            // plans/261121-location-change-honours-fresh-cache.md
+            val forceFetch = input.forceRefresh && input.locationChangePlace == null
             // Null once the cache is adopted: its banner is already cleared, and a failed refresh
             // must not paint an error over the new site's good cached graph.
             val bannerPlace = input.locationChangePlace?.takeIf { input.locationChangeBanner && !adoptedCache }

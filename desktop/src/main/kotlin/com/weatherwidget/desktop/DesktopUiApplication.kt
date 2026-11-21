@@ -71,6 +71,9 @@ import com.weatherwidget.util.NavigationUtils
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Job
@@ -217,6 +220,10 @@ internal fun runDesktopUiApplication() = application {
         // "Getting weather for {place}…" interstitial until the first fetch lands (or fails).
         // Android parity: WidgetStateManager.getPendingLocationFetch.
         var pendingLocationLabel by remember { mutableStateOf<String?>(null) }
+        // When the picker saved: the daemon's location-change result counts only from here.
+        var pendingLocationPickedAtMs by remember { mutableStateOf(0L) }
+        // One tick per daemon location-change result ([DesktopLocationRefreshResult]).
+        val locationRefreshTicks = remember { kotlinx.coroutines.flow.MutableStateFlow(0) }
         // Transient "Fetching older data…" banner shown while an on-demand deep-history pull runs.
         var historyFetchToast by remember { mutableStateOf<String?>(null) }
         // "Getting weather for {place}…" over the cached graph while a picker save's fetch runs;
@@ -378,6 +385,7 @@ internal fun runDesktopUiApplication() = application {
             val client = UiNotifyClient(
                 appDataDir(),
                 onSwitchRefresh = { signal -> uiScope.launch { announceSwitchRefresh(signal) } },
+                onLocationRefresh = { locationRefreshTicks.value++ },
             ) { reason -> reloadCachedForecast("socket:$reason") }
             client.start()
             onDispose { client.close() }
@@ -463,6 +471,7 @@ internal fun runDesktopUiApplication() = application {
                             }
                         }
                         DesktopLocationChangeFeedback.pendingPlaceName(source, prev, effective)?.let { place ->
+                            pendingLocationPickedAtMs = System.currentTimeMillis()
                             pendingLocationLabel = place
                         }
                     },
@@ -707,9 +716,11 @@ internal fun runDesktopUiApplication() = application {
         //  - it does not → drop the snapshot (the previous city, or a stale one with nothing in the
         //    visible window — that painted an empty graph for 26 s on 2026-09-28) and show the
         //    full-screen interstitial naming the place.
-        // The fetch runs in both cases: the daemon's `.config-changed` refresh is gated on the
-        // SOURCE's last fetch, not the site's, so it may skip a site that is days stale. Success →
-        // Live; failure → an Error naming the place, or a brief failure banner over the cache.
+        // The window fetches nothing: the daemon's `.config-changed` launch refresh is the one fetch,
+        // deciding by LocationChangeRefreshPolicy (shared with Android) against the new site's own
+        // last fetch. A move with a drawable cache needs nothing more here. Otherwise the window waits
+        // for the daemon's result for this site (DesktopLocationRefreshResult): success → Live;
+        // failure or no answer → an Error naming the place, or a brief failure banner over the cache.
         LaunchedEffect(repository, pendingLocationLabel) {
             val label = pendingLocationLabel ?: return@LaunchedEffect
             val repo = repository ?: return@LaunchedEffect
@@ -752,27 +763,35 @@ internal fun runDesktopUiApplication() = application {
                         dataStatus = DataStatus.FetchingLocation(friendly)
                     }
                 }
+                if (decision.adoptCached) {
+                    naming?.cancel()
+                    return@LaunchedEffect
+                }
                 refreshInFlight = true
                 try {
-                    // A Synoptic backoff earned at the previous site must not blank this one's actuals.
-                    fetchClient.send(
-                        FetchRequest(FetchRequest.Kind.FORECAST, cfg.displaySource, repo.latitude, repo.longitude, "location_change", "location_change", userLocationChange = true),
-                    )
-                    repo.loadCached()?.let { publishIfCurrent(repo, it, "location_change") }
-                    dataStatus = DataStatus.Live(System.currentTimeMillis())
-                    dataUpdateCount++
-                    LocationChangePaintPolicy.log(LocationChangePaintPolicy.Action.CLEARED, label, write = weatherDao::log)
-                    if (ownsBanner()) locationBanner = null
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    LocationChangePaintPolicy.log(LocationChangePaintPolicy.Action.RENDER_ERROR, label, "${e::class.simpleName}: ${e.message}", write = weatherDao::log)
-                    val phrase = DesktopLocationChangeFeedback.placePhrase(place)
-                    if (dataStatus is DataStatus.FetchingLocation) {
-                        dataStatus = DataStatus.Error("Couldn\u2019t get weather for $phrase \u2014 check the network, then Refresh")
+                    val ok = kotlinx.coroutines.withTimeoutOrNull(LOCATION_REFRESH_WAIT_MS) {
+                        locationRefreshTicks.map {
+                            withContext(Dispatchers.IO) {
+                                DesktopLocationRefreshResult.since(weatherDao, repo.latitude, repo.longitude, pendingLocationPickedAtMs)
+                            }
+                        }.filterNotNull().first()
                     }
-                    if (ownsBanner()) {
-                        locationBanner = LocationBanner(token, DesktopLocationChangeFeedback.failedMessage(place), failed = true)
+                    if (ok == true) {
+                        repo.loadCached()?.let { publishIfCurrent(repo, it, "location_change") }
+                        dataStatus = DataStatus.Live(System.currentTimeMillis())
+                        dataUpdateCount++
+                        LocationChangePaintPolicy.log(LocationChangePaintPolicy.Action.CLEARED, label, write = weatherDao::log)
+                        if (ownsBanner()) locationBanner = null
+                    } else {
+                        val why = if (ok == null) "no_result_in_${LOCATION_REFRESH_WAIT_MS / 1000}s" else "daemon_fetch_failed"
+                        LocationChangePaintPolicy.log(LocationChangePaintPolicy.Action.RENDER_ERROR, label, why, write = weatherDao::log)
+                        val phrase = DesktopLocationChangeFeedback.placePhrase(place)
+                        if (dataStatus is DataStatus.FetchingLocation) {
+                            dataStatus = DataStatus.Error("Couldn\u2019t get weather for $phrase \u2014 check the network, then Refresh")
+                        }
+                        if (ownsBanner()) {
+                            locationBanner = LocationBanner(token, DesktopLocationChangeFeedback.failedMessage(place), failed = true)
+                        }
                     }
                 } finally {
                     refreshInFlight = false

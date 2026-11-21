@@ -134,6 +134,20 @@ class ForecastHorizonPlanRoboTest {
         assertEquals(mapOf(OPEN_METEO to ForecastParts.BOTH), plan())
     }
 
+    /**
+     * A location change no longer forces (plans/261121-location-change-honours-fresh-cache.md): a site
+     * with nothing drawable has no hourly fetched there within a day, and even the longest cadence
+     * (low battery, 24 h) makes that due, so the unforced sync fetches it.
+     */
+    @Test
+    fun `a site last fetched over a day ago is due even at low battery`() {
+        allFresh()
+        fetchedAgo(NWS, 25)
+        assertEquals(mapOf(NWS to ForecastParts.BOTH), plan(ctx(battery = 20, screenOn = false)))
+        fetchedAgo(NWS, 23)
+        assertEquals(emptyMap<WeatherSource, ForecastParts>(), plan(ctx(battery = 20, screenOn = false)))
+    }
+
     @Test
     fun `a source not on screen follows the same rule as the displayed one`() {
         allFresh()

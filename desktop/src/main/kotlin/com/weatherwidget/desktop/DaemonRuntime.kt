@@ -922,6 +922,8 @@ internal class DaemonRuntime(
                 LaunchRefreshAction.NONE
             } else if (reason == SOURCE_LIST_EDIT_REASON) {
                 sourceListEditLaunchAction(cachePresent = cached != null)
+            } else if (reason == LOCATION_CHANGE_REASON) {
+                locationChangeLaunchAction(weatherDao, config, cached, lastObservationFetch, now)
             } else {
                 determineLaunchRefreshAction(
                     cachePresent = cached != null,
@@ -961,6 +963,13 @@ internal class DaemonRuntime(
             // A source switch is a click: the popup says what it started (user, 2026-11-01).
             val announcesSwitch = reason == SOURCE_CYCLE_REASON && launchRefreshAction == LaunchRefreshAction.FULL_FORECAST
             if (announcesSwitch) notifySwitchRefresh(SwitchRefreshSignal.QUEUED)
+            // A picker move: the window waits on this outcome ([DesktopLocationRefreshResult]).
+            fun announceLocation(ok: Boolean) {
+                if (reason == LOCATION_CHANGE_REASON) {
+                    DesktopLocationRefreshResult.record(weatherDao, displaySource.id, config.lat, config.lon, launchRefreshAction, ok)
+                }
+            }
+            if (launchRefreshAction == LaunchRefreshAction.NONE) announceLocation(ok = true)
             if (launchRefreshAction != LaunchRefreshAction.NONE) {
                 val fetched = launchRefreshJobs.fetchOnce(LaunchRefreshJobs.key(config)) {
                     var attempt = 0
@@ -971,6 +980,8 @@ internal class DaemonRuntime(
                                     Log.i(TAG, "Refreshing full forecast from network...")
                                     // Publish first; the 7-day observation window follows below.
                                     activeRepo.refreshWithOutcome(
+                                        // A Synoptic backoff earned at the previous site must not blank this one's actuals.
+                                        userLocationChange = reason == LOCATION_CHANGE_REASON,
                                         deferObservationWindow = true,
                                         reason = "launch:$reason",
                                     ).snapshot
@@ -992,6 +1003,7 @@ internal class DaemonRuntime(
                             notifyDataUpdated()
                             Log.i(TAG, "[$reason] refresh successful. DataStatus updated to Live.")
                             if (announcesSwitch) announceSwitchResult(displaySource.id, ok = true)
+                            announceLocation(ok = true)
                             break
                         } catch (e: CancellationException) {
                             Log.i(TAG, "Refresh cancelled.")
@@ -1020,6 +1032,7 @@ internal class DaemonRuntime(
                                 onForecastFetchFailed(displaySource.id, e, trigger = "launch:$reason", wakeLoop = true)
                             }
                             if (announcesSwitch) announceSwitchResult(displaySource.id, ok = false)
+                            announceLocation(ok = false)
                             if (!stillDisplayed()) {
                                 logDetached("failed")
                                 break

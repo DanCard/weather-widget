@@ -22,7 +22,6 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.experimental.categories.Category
@@ -36,8 +35,8 @@ import org.robolectric.annotation.Config
  * Mountain View with MV's rows 15 min old kept Warsaw's graph under "Getting weather for Mountain
  * View…" for the 60 s a forced refetch of all six sources took.
  *
- * Both directions: with no row for today the sync must keep today's behaviour (no early paint,
- * force=true), or the "adopted" assertions would pass against a pipeline that never forces.
+ * With no row for today there is no early paint. Since 2026-11-21 no location change forces: the
+ * cadence fetches what is due at the new site (plans/261121-location-change-honours-fresh-cache.md).
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -133,11 +132,15 @@ class FullSyncPipelineLocationChangeCacheTest {
         coVerify(exactly = 0) { painter.finishLocationChangeBanner(any(), any(), any()) }
     }
 
+    /**
+     * 2026-11-21: no location change forces any more (an untargeted force refetches every visible
+     * source); the cadence fetches a site with nothing to draw because it has no recent marker there.
+     */
     @Test
-    fun `new site without today's row keeps the forced fetch`() = runBlocking {
+    fun `new site without today's row fetches unforced, by the cadence`() = runBlocking {
         val fetch = runBannerSync(cacheAdopted = false)
 
-        assertTrue(fetch.force)
+        assertFalse(fetch.force)
         // Forced syncs carry the cadence context too, so sources other than a forced target are
         // judged by the same cadence as a scheduled sync rather than the old rank thresholds.
         assertNotNull(fetch.context)
@@ -163,7 +166,7 @@ class FullSyncPipelineLocationChangeCacheTest {
         coVerify(exactly = 1) { painter.paintLocationChangeInterstitial("Mountain View", any(), any(), any()) }
         val force = slot<Boolean>()
         coVerify { weatherRepository.getWeatherData(any(), any(), capture(force), any(), any(), any(), any()) }
-        assertEquals(true, force.captured)
+        assertEquals(false, force.captured)
     }
 
     private fun forecastRow() = ForecastEntity(
