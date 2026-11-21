@@ -52,7 +52,8 @@ Examples include:
   view), sorted by high by default; a source with no row is listed last. Columns: short name, high, low,
   Now (today only: the widget header's rain % over `headerRainLookaheadHours`, by the header's own
   `HeaderContent.headerRainProbability`, 0 % printed), Day rain %,
-  peak hour, night rain, Total (8am–8pm hourly sum as on the widget; only when some row has one),
+  peak hour (every day chance's peak, with no threshold; the daily view's
+  `PEAK_HOUR_MIN_EXCLUSIVE_PERCENT` floor does not apply here), night rain, Total (8am–8pm hourly sum as on the widget; only when some row has one),
   noon cloud, 30-day
   high bias, and age since `lastConfirmedAt` (dimmed past 24 h). Hosts return every stored fetch and
   the runner stitches them (`HourlyForecastStitcher.stitchBySource`), the header's read, so a started

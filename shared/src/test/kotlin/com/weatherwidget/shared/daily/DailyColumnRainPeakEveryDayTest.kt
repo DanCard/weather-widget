@@ -88,4 +88,25 @@ class DailyColumnRainPeakEveryDayTest {
         assertEquals("12pm", matching.dailyRainPeakLabelText)
         assertNull("never an hour belonging to a different %", other.dailyRainPeakLabelText)
     }
+
+    /** Silurian Sat 2026-11-21: 5 % at 5pm. The daily label keeps its 10 % floor; the table's raw peak has none. */
+    @Test
+    fun `a 5 percent day hides the daily label's peak hour but keeps the raw peak for the table`() {
+        val tomorrow = today.plusDays(1)
+        val row = DailyForecast(
+            date = tomorrow.toString(), highTemp = 64f, lowTemp = 50f, condition = "Cloudy",
+            precipProbability = 50, source = source, hourlyDayPrecipMax = 5, hourlyNightPrecipMax = 65,
+            hourlyDayPrecipPeakAt = at(tomorrow, 17),
+        )
+        val c = DailyColumnBuilder.build(
+            date = tomorrow, label = "x", today = today, now = today.atTime(13, 11), forecast = row,
+            actual = null, snapshots = emptyList(), hourly = emptyList(), currentTemp = null,
+            displaySourceId = source, centerLat = lat, centerLon = lon, use24HourClock = false,
+        )
+        println("5% day: label peak=${c.dailyRainPeakLabelText} raw peakAt=${c.dayPrecipPeakAt} day=${c.dayPrecipProbability}")
+        assertEquals(5, c.dayPrecipProbability)
+        assertNull("the daily view's floor is 10 %", c.dailyRainPeakLabelText)
+        assertNull(c.dailyRainPeakAt)
+        assertEquals(at(tomorrow, 17), c.dayPrecipPeakAt)
+    }
 }

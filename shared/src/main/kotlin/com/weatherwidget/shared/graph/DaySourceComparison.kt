@@ -63,7 +63,7 @@ object DaySourceComparison {
         val low: Float?,
         val dayRainPercent: Int?,
         val nightRainPercent: Int?,
-        /** "2pm" when the widget draws the peak hour above the day %; else null. */
+        /** "2pm": when the day chance peaks, at any % (no daily-view floor); null when it has no hour. */
         val dayPeakLabel: String?,
         /** The instant [dayPeakLabel] names (sorts the Peak column); null whenever that label is. */
         val dayPeakAt: Long? = null,
@@ -387,8 +387,11 @@ object DaySourceComparison {
             low = low,
             dayRainPercent = column.dayPrecipProbability,
             nightRainPercent = column.nightPrecipProbability,
-            dayPeakLabel = column.dailyRainPeakLabelText,
-            dayPeakAt = column.dailyRainPeakAt,
+            // Every day peak, unlike the daily view's label (no % floor; user, 2026-11-20).
+            dayPeakLabel = column.dayPrecipPeakAt?.let {
+                DailyRainLabels.formatPeakHour(java.time.Instant.ofEpochMilli(it).atZone(zone).hour, use24HourClock)
+            },
+            dayPeakAt = column.dayPrecipPeakAt,
             amountMm = amount,
             noonCloudPercent = column.cloudCoverRatio?.let { (it * 100f).roundToInt() },
             highBias = highBias,

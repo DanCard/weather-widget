@@ -139,7 +139,7 @@ class DaySourceComparisonTest {
     }
 
     @Test
-    fun `rain uses the widget's stored hourly max over the provider daily chance, with the peak hour above 10 percent`() {
+    fun `rain uses the widget's stored hourly max over the provider daily chance, with the peak hour above 0 percent`() {
         val peak = tomorrow.atTime(14, 0).atZone(zone).toInstant().toEpochMilli()
         val rows = build(
             listOf(WeatherSource.OPEN_METEO, WeatherSource.GOOGLE_WEATHER),
@@ -155,8 +155,10 @@ class DaySourceComparisonTest {
         assertEquals("the Peak column sorts on the instant the label names", peak, meteo.dayPeakAt)
         val google = rows.first { it.source == WeatherSource.GOOGLE_WEATHER }
         assertEquals(10, google.dayRainPercent)
-        assertNull("10% is not above the peak-hour gate", google.dayPeakLabel)
-        assertNull("no label, no peak to sort on", google.dayPeakAt)
+        // The daily view hides a 10% day's hour (PEAK_HOUR_MIN_EXCLUSIVE_PERCENT); the table does not
+        // (user, 2026-11-20).
+        assertEquals("2pm", google.dayPeakLabel)
+        assertEquals(peak, google.dayPeakAt)
     }
 
     /** plans/261113-today-rain-peak-never-hidden.md: a past date's Peak cell replays the frozen hour. */

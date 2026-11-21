@@ -109,6 +109,54 @@ abstract class DaySourceComparisonHostContract {
     }
 
     /**
+     * Desktop 2026-11-20, Saturday: Silurian's day peaked at 5 % at 5pm (its 65 % fell overnight) and
+     * the Peak cell was blank, held to the daily view's 10 % floor. The table has no threshold: every
+     * day chance names its peak hour, a dry day's being its first hour (8am).
+     */
+    @Test
+    fun `the Peak cell names every day chance's peak hour, with no threshold`() = runBlocking {
+        val fetched = NOW_MS - HOUR
+        val fivePm = DAY.atTime(17, 0).atZone(ZONE).toInstant().toEpochMilli()
+        forecast(
+            ForecastSeed("SILURIAN", 64f, 50f, fetchedAt = fetched, precipProbability = 50, dayMax = 5, nightMax = 65, peakAt = fivePm),
+        )
+        forecast(
+            ForecastSeed(
+                "NWS", 63f, 49f, fetchedAt = fetched, precipProbability = 0, dayMax = 0, nightMax = 0,
+                peakAt = DAY.atTime(8, 0).atZone(ZONE).toInstant().toEpochMilli(),
+            ),
+        )
+        for (h in 8..23) {
+            val at = DAY.atTime(h, 0).atZone(ZONE).toInstant().toEpochMilli()
+            seed.hourly(
+                HourlyForecast(
+                    at, 60f, "Cloudy", precipProbability = when { h < 17 -> 0; h < 20 -> 5; else -> 65 },
+                    source = "SILURIAN", fetchedAt = fetched, locationLat = LAT, locationLon = LON,
+                ),
+            )
+            seed.hourly(
+                HourlyForecast(
+                    at, 60f, "Cloudy", precipProbability = 0,
+                    source = "NWS", fetchedAt = fetched, locationLat = LAT, locationLon = LON,
+                ),
+            )
+        }
+
+        val rows = DaySourceComparison.load(host, DAY, LAT, LON, NOW, ZONE, use24HourClock = false)
+        println("DaySourceComparisonHostContract low-peak rows: " + rows.joinToString { "${it.source.id} day=${it.dayRainPercent} peak=${it.dayPeakLabel}" })
+
+        val silurian = rows.first { it.source == WeatherSource.SILURIAN }
+        assertEquals(5, silurian.dayRainPercent)
+        assertEquals(65, silurian.nightRainPercent)
+        assertEquals("5 % is under the daily view's floor but still has a peak here", "5pm", silurian.dayPeakLabel)
+        assertEquals(fivePm, silurian.dayPeakAt)
+        val nws = rows.first { it.source == WeatherSource.NWS }
+        assertEquals(0, nws.dayRainPercent)
+        assertEquals("no threshold: a 0 % plateau peaks at its first hour", "8am", nws.dayPeakLabel)
+        assertEquals(DAY.atTime(8, 0).atZone(ZONE).toInstant().toEpochMilli(), nws.dayPeakAt)
+    }
+
+    /**
      * Desktop 2026-11-20: Tomorrow.io's 10:42 fetch hindcast 0 % for the started 10am hour its 09:02
      * fetch had at 47 %, so the newest row per hour read 0 % while the header (stitched) read 13 %. The
      * host must hand over every fetch, and Now must follow the header's stitched rule.
