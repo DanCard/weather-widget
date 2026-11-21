@@ -1,14 +1,18 @@
 package com.weatherwidget.data.remote
 
+import com.weatherwidget.shared.util.Log
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
+import io.ktor.client.statement.bodyAsText
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
+
+private const val TAG = "NominatimApi"
 
 class NominatimApi
     @Inject
@@ -17,8 +21,11 @@ class NominatimApi
         private val json: Json,
     ) {
         suspend fun search(query: String): List<GeocodeResult> {
-            if (query.isBlank()) return emptyList()
-            val response: String =
+            if (query.isBlank()) {
+                Log.d(TAG, "search skipped: blank query len=${query.length}")
+                return emptyList()
+            }
+            val httpResponse =
                 httpClient.get("$BASE_URL/search") {
                     header("User-Agent", HttpUserAgent.VALUE)
                     header("Accept", "application/json")
@@ -27,9 +34,16 @@ class NominatimApi
                     parameter("limit", "5")
                     parameter("addressdetails", "1")
                     parameter("accept-language", LANGUAGE)
-                }.body()
-
-            return json.decodeFromString<List<NominatimPlace>>(response).mapNotNull { it.toResult() }
+                }
+            val response: String = httpResponse.bodyAsText()
+            val results = json.decodeFromString<List<NominatimPlace>>(response).mapNotNull { it.toResult() }
+            val escapedQuery = query.replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
+            Log.d(
+                TAG,
+                "search q=\"$escapedQuery\" len=${query.length} status=${httpResponse.status.value} " +
+                    "bytes=${response.length} results=${results.size} url=${httpResponse.call.request.url}",
+            )
+            return results
         }
 
         suspend fun reverse(

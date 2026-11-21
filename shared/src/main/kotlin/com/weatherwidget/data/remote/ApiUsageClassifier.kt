@@ -31,6 +31,7 @@ object ApiUsageClassifier {
         host.contains("openweathermap.org") -> "OPEN_WEATHER_MAP"
         host.contains("weatherapi.com") -> "WEATHER_API"
         host == "weather.googleapis.com" -> "GOOGLE_WEATHER"
+        host == "maps.googleapis.com" -> GOOGLE_GEOCODING
         host.contains("synopticdata.com") -> "SYNOPTIC"
         // The radar view's NWS mosaics (opengeo.ncep.noaa.gov) count as NWS.
         host.endsWith("ncep.noaa.gov") -> "NWS"
@@ -70,9 +71,13 @@ object ApiUsageClassifier {
         }
 
     const val RAINVIEWER = "RAINVIEWER"
+    const val GOOGLE_GEOCODING = "GOOGLE_GEOCODING"
 
     /** Usage rows for ids that are not a [com.weatherwidget.data.model.WeatherSource]. */
-    val NON_SOURCE_NAMES = mapOf(RAINVIEWER to "RainViewer")
+    val NON_SOURCE_NAMES = mapOf(
+        RAINVIEWER to "RainViewer",
+        GOOGLE_GEOCODING to "Google Geocoding",
+    )
 
     /**
      * The radar view (`shared.radar`): `radar/list` for a feed's frame list, `radar/frame` for a
@@ -91,7 +96,8 @@ object ApiUsageClassifier {
     private val GRID_LATITUDES = Regex("""(^|&)latitude=[^&]*(,|%2C)""", RegexOption.IGNORE_CASE)
 
     /** The zone whose midnight starts [source]'s quota day; null when the provider publishes none. */
-    fun quotaZone(source: String): ZoneId? = if (source == "GOOGLE_WEATHER") GoogleQuota.ZONE else null
+    fun quotaZone(source: String): ZoneId? =
+        if (source == "GOOGLE_WEATHER" || source == GOOGLE_GEOCODING) GoogleQuota.ZONE else null
 
     /**
      * The `date` key for a request to [source] at [now]: that day's UTC-midnight epoch ms, the day

@@ -19,6 +19,11 @@ class ApiUsageClassifierTest {
             ApiUsageClassifier.Key("GOOGLE_WEATHER", "forecast/hours"),
             ApiUsageClassifier.classify("weather.googleapis.com", "/v1/forecast/hours:lookup"),
         )
+        assertEquals(
+            ApiUsageClassifier.Key(ApiUsageClassifier.GOOGLE_GEOCODING, "maps/api/geocode/json"),
+            ApiUsageClassifier.classify("maps.googleapis.com", "/maps/api/geocode/json"),
+        )
+        assertEquals(GoogleQuota.ZONE, ApiUsageClassifier.quotaZone(ApiUsageClassifier.GOOGLE_GEOCODING))
         assertEquals("currentConditions", ApiUsageClassifier.endpointForPath("/v1/currentConditions:lookup"))
         assertEquals("history/hours", ApiUsageClassifier.endpointForPath("/v1/history/hours:lookup"))
     }

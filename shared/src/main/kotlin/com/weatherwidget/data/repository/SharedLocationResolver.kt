@@ -1,20 +1,57 @@
 package com.weatherwidget.data.repository
 
+import com.weatherwidget.data.remote.GoogleGeocodingApi
 import com.weatherwidget.data.remote.NominatimApi
 import com.weatherwidget.data.remote.IpGeolocationApi
 import com.weatherwidget.data.model.ResolvedLocation
 import com.weatherwidget.data.remote.GeocodeResult
+import com.weatherwidget.shared.util.Log
+import kotlinx.coroutines.CancellationException
+
+private const val TAG = "SharedLocationResolver"
 
 class SharedLocationResolver(
     private val nominatimApi: NominatimApi,
     private val ipGeolocationApi: IpGeolocationApi,
+    private val googleGeocodingApi: GoogleGeocodingApi? = null,
 ) {
     /**
      * Forward-geocode a free-text query. Throws on network/HTTP failure so callers can tell
      * "offline" apart from a genuine empty result instead of blaming the user's spelling.
+     *
+     * When [googleGeocodingApi] is configured, tries Google Geocoding first on the normalized query;
+     * if Google returns no results or fails (e.g. quota/auth), falls back to Nominatim using
+     * [AddressQueryCleaner.candidateQueries] (normalized -> unit-stripped -> city/ZIP fallback).
      */
-    suspend fun searchText(query: String): List<ResolvedLocation> =
-        nominatimApi.search(query).map { it.toResolved(source = "Nominatim") }
+    suspend fun searchText(query: String): List<ResolvedLocation> {
+        val candidates = AddressQueryCleaner.candidateQueries(query)
+        if (candidates.isEmpty()) return emptyList()
+
+        if (googleGeocodingApi != null && googleGeocodingApi.isConfigured()) {
+            try {
+                val googleResults = googleGeocodingApi.search(candidates.first())
+                if (googleResults.isNotEmpty()) {
+                    return googleResults.map { it.toResolved(source = "Google") }
+                }
+                Log.d(TAG, "Google Geocoding returned 0 results; falling back to Nominatim")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "Google Geocoding failed (${e::class.simpleName}: ${e.message}); falling back to Nominatim")
+            }
+        }
+
+        for ((index, candidate) in candidates.withIndex()) {
+            val results = nominatimApi.search(candidate)
+            if (results.isNotEmpty()) {
+                if (index > 0) {
+                    Log.d(TAG, "searchText fallback[$index] matched q=\"$candidate\" results=${results.size}")
+                }
+                return results.map { it.toResolved(source = "Nominatim") }
+            }
+        }
+        return emptyList()
+    }
 
     suspend fun fromCoordinates(
         lat: Double,

@@ -194,6 +194,13 @@ internal fun runDesktopUiApplication() = application {
             com.weatherwidget.data.repository.SharedLocationResolver(
                 nominatimApi = NominatimApi(desktopClients.httpClient, desktopClients.json),
                 ipGeolocationApi = IpGeolocationApi(desktopClients.httpClient, desktopClients.json),
+                googleGeocodingApi = com.weatherwidget.data.remote.GoogleGeocodingApi(
+                    httpClient = desktopClients.httpClient,
+                    json = desktopClients.json,
+                ) {
+                    config?.settings?.apiKeys?.get(WeatherSource.GOOGLE_WEATHER.id)?.takeIf { it.isNotBlank() }
+                        ?: DesktopApiKeys.DEFAULTS[WeatherSource.GOOGLE_WEATHER.id].orEmpty()
+                },
             )
         }
         val locationResolver = remember {

@@ -14,14 +14,23 @@ import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.R
 import com.weatherwidget.data.model.ResolvedLocation
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.remote.IpGeolocationApi
+import com.weatherwidget.data.remote.NominatimApi
 import com.weatherwidget.data.repository.SharedLocationResolver
 import com.weatherwidget.util.LocationMode
 import com.weatherwidget.util.SharedPreferencesUtil
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.widget.ActiveLocationResolver
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.respond
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.headersOf
 import io.mockk.coEvery
 import io.mockk.mockk
+import kotlinx.serialization.json.Json
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -579,6 +588,67 @@ class ConfigActivityRobolectricTest {
             assertNotNull(adapter)
             assertEquals(1, adapter.count)
         }
+    }
+
+    @Test
+    fun `pasting multiline address with unit number flattens input and resolves`() {
+        val intent = Intent(context, ConfigActivity::class.java).apply {
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+        }
+        val scenario = ActivityScenario.launch<ConfigActivity>(intent)
+
+        val json = Json { ignoreUnknownKeys = true }
+        val scottsdale = """
+            [{"display_name":"7900, East Princess Drive, Scottsdale, Maricopa County, Arizona, 85255, United States",
+              "lat":"33.6441650","lon":"-111.9096590",
+              "address":{"house_number":"7900","road":"East Princess Drive","city":"Scottsdale","state":"Arizona",
+                "ISO3166-2-lvl4":"US-AZ","postcode":"85255","country":"United States","country_code":"us"}}]
+        """.trimIndent()
+        val client = HttpClient(MockEngine) {
+            engine {
+                addHandler { request ->
+                    val q = request.url.parameters["q"].orEmpty()
+                    val body = if (q == "7900 East Princess Drive, Scottsdale, 85255 AZ") scottsdale else "[]"
+                    respond(
+                        content = body,
+                        status = HttpStatusCode.OK,
+                        headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                    )
+                }
+            }
+        }
+        val realResolver = SharedLocationResolver(
+            nominatimApi = NominatimApi(client, json),
+            ipGeolocationApi = IpGeolocationApi(client, json),
+        )
+
+        scenario.onActivity { activity ->
+            activity.sharedLocationResolver = realResolver
+            val searchInput = activity.findViewById<android.widget.AutoCompleteTextView>(R.id.location_search_input)
+            val searchBtn = activity.findViewById<Button>(R.id.search_location_button)
+
+            searchInput.setText("7900 East Princess Drive\nScottsdale, 85255 AZ\nUnit 1182.1")
+            assertEquals(
+                "7900 East Princess Drive, Scottsdale, 85255 AZ, Unit 1182.1",
+                searchInput.text.toString(),
+            )
+
+            searchBtn.performClick()
+        }
+
+        val deadline = System.currentTimeMillis() + 5_000L
+        var dialog: androidx.appcompat.app.AlertDialog? = null
+        while (dialog == null && System.currentTimeMillis() < deadline) {
+            shadowOf(context.mainLooper).idle()
+            dialog = ShadowDialog.getLatestDialog() as? androidx.appcompat.app.AlertDialog
+            if (dialog == null) Thread.sleep(20)
+        }
+
+        assertNotNull("Expected confirmation dialog for fallback match", dialog)
+        val listView = dialog!!.listView
+        assertEquals(1, listView.adapter.count)
+        val item = listView.adapter.getItem(0) as ResolvedLocation
+        assertEquals("7900 East Princess Drive, Scottsdale, AZ 85255", item.label)
     }
 
     private fun bindWidget(id: Int, lat: Double, lon: Double) {

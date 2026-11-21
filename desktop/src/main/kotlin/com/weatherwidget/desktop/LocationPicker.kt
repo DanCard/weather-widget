@@ -2,7 +2,9 @@ package com.weatherwidget.desktop
 
 import com.weatherwidget.data.model.RecentLocation
 import com.weatherwidget.data.model.ResolvedLocation
+import com.weatherwidget.data.repository.AddressQueryCleaner
 import com.weatherwidget.shared.util.RecentLocationsHelper
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.rememberScrollState
@@ -18,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -34,6 +37,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material3.TextButton
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
@@ -43,15 +48,21 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.weatherwidget.desktop.theme.WeatherDarkColorScheme
 import com.weatherwidget.desktop.theme.WeatherTypography
+import com.weatherwidget.shared.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.swing.SwingUtilities
+
+private const val TAG = "LocationPicker"
 
 @Composable
 fun LocationPicker(
@@ -71,10 +82,12 @@ fun LocationPicker(
     val acquisitionLog = remember { mutableStateListOf<String>() }
 
     fun appendLog(message: String) {
+        Log.i(TAG, message)
         acquisitionLog.add(message)
     }
 
     fun appendLogFromBackground(message: String) {
+        Log.i(TAG, message)
         SwingUtilities.invokeLater {
             acquisitionLog.add(message)
         }
@@ -163,7 +176,7 @@ fun LocationPicker(
                             OutlinedTextField(
                                 value = query,
                                 onValueChange = {
-                                    query = it
+                                    query = AddressQueryCleaner.flattenMultilineInput(it)
                                     searchFocused = true
                                 },
                                 modifier = Modifier
@@ -221,44 +234,81 @@ fun LocationPicker(
 
                     LaunchedEffect(status) {
                         if (status == "Searching...") {
+                            val escaped = query.replace("\n", "\\n").replace("\r", "\\r")
+                            appendLog("Searching for \"$escaped\" (len=${query.length})...")
                             results = runCatching { withContext(Dispatchers.IO) { resolver.searchText(query) } }
                                 .getOrElse { e ->
-                                    status = "Search failed: ${e.message ?: e.javaClass.simpleName}"
+                                    val msg = "Search failed: ${e.message ?: e.javaClass.simpleName}"
+                                    appendLog(msg)
+                                    status = msg
                                     return@LaunchedEffect
                                 }
+                            val summary = results.joinToString(" | ") { "${it.label} (${it.lat}, ${it.lon}, ${it.source})" }
+                            appendLog("Search returned ${results.size} result(s): $summary")
                             status = if (results.isEmpty()) "No results" else ""
                         }
                     }
 
                     if (results.isNotEmpty()) {
-                        // Plain text rows read as output, not as a choice: say so, and give each match
-                        // a visible button so the required next step is unmistakable.
-                        Text(
-                            if (results.size == 1) "One match — confirm it:" else "Choose one of these ${results.size} matches:",
-                            style = MaterialTheme.typography.titleMedium,
-                        )
+                        // Highlighted card so incoming matches stand out unmistakably against the
+                        // dark surface (parity with Android's modal AlertDialog confirmation).
                         Column(
-                            verticalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.14f),
+                                    shape = MaterialTheme.shapes.medium,
+                                )
+                                .border(
+                                    width = 2.dp,
+                                    color = MaterialTheme.colorScheme.secondary,
+                                    shape = MaterialTheme.shapes.medium,
+                                )
+                                .padding(12.dp),
                         ) {
+                            Text(
+                                if (results.size == 1) "One match — confirm it:" else "Choose one of these ${results.size} matches:",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.secondary,
+                            )
                             results.forEach { result ->
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .border(1.dp, MaterialTheme.colorScheme.outline, MaterialTheme.shapes.small)
+                                        .background(
+                                            color = MaterialTheme.colorScheme.surface,
+                                            shape = MaterialTheme.shapes.small,
+                                        )
+                                        .border(
+                                            width = 1.dp,
+                                            color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.55f),
+                                            shape = MaterialTheme.shapes.small,
+                                        )
                                         .clickable { selectLocation(result) }
-                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                                 ) {
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text(result.label, style = MaterialTheme.typography.bodyMedium)
+                                        Text(
+                                            result.label,
+                                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                        )
                                         Text(
                                             "${result.lat}, ${result.lon}",
                                             style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         )
                                     }
-                                    Button(onClick = { selectLocation(result) }) {
+                                    Button(
+                                        onClick = { selectLocation(result) },
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.tertiary,
+                                            contentColor = MaterialTheme.colorScheme.onTertiary,
+                                        ),
+                                    ) {
                                         Text("Use")
                                     }
                                 }
@@ -348,15 +398,32 @@ fun LocationPicker(
                 }
 
                 HorizontalDivider()
-                Text("Location log", style = MaterialTheme.typography.titleSmall)
-                LazyColumn(
+                val clipboardManager = LocalClipboardManager.current
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text("Location log", style = MaterialTheme.typography.titleSmall)
+                    TextButton(
+                        onClick = {
+                            clipboardManager.setText(AnnotatedString(acquisitionLog.joinToString("\n")))
+                        },
+                        enabled = acquisitionLog.isNotEmpty(),
+                    ) {
+                        Text("Copy log")
+                    }
+                }
+                SelectionContainer(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f)
                         .heightIn(min = 90.dp),
                 ) {
-                    items(acquisitionLog) { line ->
-                        Text(line, style = MaterialTheme.typography.bodySmall)
+                    LazyColumn(modifier = Modifier.fillMaxSize()) {
+                        items(acquisitionLog) { line ->
+                            Text(line, style = MaterialTheme.typography.bodySmall)
+                        }
                     }
                 }
             }

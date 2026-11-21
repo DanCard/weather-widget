@@ -193,6 +193,17 @@ class ConfigActivity : AppCompatActivity() {
         val useCoordinatesButton = findViewById<Button>(R.id.use_coordinates_button)
 
         setupRecentLocationsAutocomplete(searchInput)
+        // Flatten pasted multi-line addresses ("7900 East Princess Drive\nScottsdale, 85255 AZ\nUnit 1182.1")
+        // into comma-separated segments before singleLine strips or truncates the newlines.
+        val multilinePasteFilter = android.text.InputFilter { source, start, end, _, _, _ ->
+            val slice = source.subSequence(start, end).toString()
+            if (slice.contains('\n') || slice.contains('\r')) {
+                com.weatherwidget.data.repository.AddressQueryCleaner.flattenMultilineInput(slice)
+            } else {
+                null
+            }
+        }
+        searchInput.filters = searchInput.filters + multilinePasteFilter
 
         findViewById<TextView>(R.id.current_location_label).text =
             LocationUpdater.describeCurrentLocation(this)

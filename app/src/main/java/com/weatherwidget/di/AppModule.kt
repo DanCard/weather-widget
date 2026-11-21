@@ -457,10 +457,22 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideGoogleGeocodingApi(
+        httpClient: HttpClient,
+        json: Json,
+        widgetStateManager: WidgetStateManager,
+    ): com.weatherwidget.data.remote.GoogleGeocodingApi =
+        com.weatherwidget.data.remote.GoogleGeocodingApi(httpClient, json) {
+            BuiltInApiKeys.effectiveKey(WeatherSource.GOOGLE_WEATHER, widgetStateManager).orEmpty()
+        }
+
+    @Provides
+    @Singleton
     fun provideSharedLocationResolver(
         nominatimApi: NominatimApi,
         ipGeolocationApi: IpGeolocationApi,
-    ): SharedLocationResolver = SharedLocationResolver(nominatimApi, ipGeolocationApi)
+        googleGeocodingApi: com.weatherwidget.data.remote.GoogleGeocodingApi,
+    ): SharedLocationResolver = SharedLocationResolver(nominatimApi, ipGeolocationApi, googleGeocodingApi)
 
     @Provides
     @Singleton

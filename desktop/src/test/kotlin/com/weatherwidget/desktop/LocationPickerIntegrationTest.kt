@@ -14,11 +14,20 @@ import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.unit.dp
 import com.weatherwidget.data.model.RecentLocation
 import com.weatherwidget.data.model.ResolvedLocation
+import com.weatherwidget.data.remote.IpGeolocationApi
+import com.weatherwidget.data.remote.NominatimApi
 import com.weatherwidget.data.repository.SharedLocationResolver
 import com.weatherwidget.test.category.LongDuration
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.respond
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.headersOf
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Rule
@@ -182,5 +191,66 @@ class LocationPickerIntegrationTest {
         // Verify search results are displayed
         composeTestRule.onNodeWithText("One match — confirm it:").assertIsDisplayed()
         composeTestRule.onNodeWithText("Lviv, Ukraine").assertIsDisplayed()
+    }
+
+    @Test
+    fun `pasting multiline address with unit number resolves through real SharedLocationResolver`() {
+        val mockPhone = mockk<PhoneLocator>()
+        val mockTimezone = mockk<TimezoneLocator>()
+        coEvery { mockPhone.locate(any()) } returns null
+        coEvery { mockTimezone.locate() } returns null
+        every { mockPhone.isAvailable() } returns false
+
+        val json = Json { ignoreUnknownKeys = true }
+        val scottsdale = """
+            [{"display_name":"7900, East Princess Drive, Scottsdale, Maricopa County, Arizona, 85255, United States",
+              "lat":"33.6441650","lon":"-111.9096590",
+              "address":{"house_number":"7900","road":"East Princess Drive","city":"Scottsdale","state":"Arizona",
+                "ISO3166-2-lvl4":"US-AZ","postcode":"85255","country":"United States","country_code":"us"}}]
+        """.trimIndent()
+        val client = HttpClient(MockEngine) {
+            engine {
+                addHandler { request ->
+                    val q = request.url.parameters["q"].orEmpty()
+                    val body = if (q == "7900 East Princess Drive, Scottsdale, 85255 AZ") scottsdale else "[]"
+                    respond(
+                        content = body,
+                        status = HttpStatusCode.OK,
+                        headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                    )
+                }
+            }
+        }
+        val realShared = SharedLocationResolver(
+            nominatimApi = NominatimApi(client, json),
+            ipGeolocationApi = IpGeolocationApi(client, json),
+        )
+        val resolver = LocationResolver(mockPhone, mockTimezone, realShared)
+
+        var selectedLocation: ResolvedLocation? = null
+        composeTestRule.setContent {
+            Box(modifier = Modifier.size(width = 560.dp, height = 680.dp)) {
+                LocationPicker(
+                    resolver = resolver,
+                    allowAutoSelect = false,
+                    onLocationSelected = { selectedLocation = it },
+                )
+            }
+        }
+
+        val searchNode = composeTestRule.onNodeWithText("Address, ZIP, or city")
+        searchNode.performTextInput("7900 East Princess Drive\nScottsdale, 85255 AZ\nUnit 1182.1")
+        composeTestRule.onNodeWithText("Search").performClick()
+
+        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+            composeTestRule.onAllNodesWithText("7900 East Princess Drive, Scottsdale, AZ 85255")
+                .fetchSemanticsNodes()
+                .isNotEmpty()
+        }
+
+        composeTestRule.onNodeWithText("7900 East Princess Drive, Scottsdale, AZ 85255").performClick()
+        assertNotNull(selectedLocation)
+        assertEquals(33.644165, selectedLocation?.lat ?: 0.0, 0.0001)
+        assertEquals(-111.909659, selectedLocation?.lon ?: 0.0, 0.0001)
     }
 }
