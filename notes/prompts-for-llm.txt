@@ -1,3 +1,5 @@
+I feel like we should rename forecast history files to forecast comparison.  What do you think?
+
 I previously asked for fold-4 type of display to add an extra column.
 Today it looks too busy.
 Should we:
