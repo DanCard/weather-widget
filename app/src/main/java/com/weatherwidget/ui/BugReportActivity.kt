@@ -1,9 +1,9 @@
 package com.weatherwidget.ui
 
+import android.content.ClipData
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.content.pm.PackageManager
 import android.appwidget.AppWidgetManager
 import android.os.BatteryManager
@@ -17,22 +17,39 @@ import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.FileProvider
 import androidx.lifecycle.lifecycleScope
 import com.weatherwidget.R
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.ForecastDao
+import com.weatherwidget.data.local.WeatherDatabase
+import com.weatherwidget.data.local.log
+import com.weatherwidget.data.local.logException
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WidgetStateManager
+import com.weatherwidget.widget.handlers.HeaderFitPersistLog
+import com.weatherwidget.shared.util.BugReportFormat
+import com.weatherwidget.shared.util.BugReportLogs
+import com.weatherwidget.shared.util.BugReportZip
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
+import java.time.ZoneId
+import java.time.ZonedDateTime
 import java.util.Locale
 import javax.inject.Inject
 
 @AndroidEntryPoint
 class BugReportActivity : AppCompatActivity() {
+
+    companion object {
+        private const val TAG = "BugReportActivity"
+        internal const val BUG_REPORT_RECIPIENT = "daniecarde55@gmail.com"
+        internal const val BUG_REPORT_DIR = "bug_reports"
+    }
 
     @Inject
     lateinit var appLogDao: AppLogDao
@@ -118,7 +135,7 @@ class BugReportActivity : AppCompatActivity() {
             append("Device: ${Build.MANUFACTURER} ${Build.MODEL} (${Build.BRAND})\n")
             append("OS version: Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})\n")
             append("Locale: ${Locale.getDefault()}\n")
-            append("${com.weatherwidget.shared.util.BugReportFormat.timezoneLine()}\n")
+            append("${BugReportFormat.timezoneLine()}\n")
             append("${BugReportDeviceDiagnostics.launcherLine(this@BugReportActivity)}\n")
             append("GPS Mode: $locationMode\n\n")
 
@@ -142,8 +159,9 @@ class BugReportActivity : AppCompatActivity() {
                     val source = widgetStateManager.getCurrentDisplaySource(id).name
                     val view = widgetStateManager.getViewMode(id).name
                     append("- Widget #$id: API=$source | View=$view | Coordinates=$locStr\n")
-                    append("  ${BugReportDeviceDiagnostics.widgetSizeLine(this@BugReportActivity, appWidgetManager, id)}\n")
-                    val headerFits = com.weatherwidget.widget.handlers.HeaderFitPersistLog.latestLines(id)
+                    BugReportDeviceDiagnostics.widgetSizeLine(this@BugReportActivity, appWidgetManager, id)
+                        .lines().forEach { append("  $it\n") }
+                    val headerFits = HeaderFitPersistLog.latestShortLines(id)
                     if (headerFits.isEmpty()) {
                         append("  header: not rendered since app process start\n")
                     } else {
@@ -176,10 +194,48 @@ class BugReportActivity : AppCompatActivity() {
             }
             append("\n")
 
-            append("--- INCLUDED DATA ---\n")
-            append("System Logs (300 lines): ${if (includeLogsCheckbox.isChecked) "Included" else "Excluded"}\n")
-            append("Widget Config & Metadata: ${if (includeMetadataCheckbox.isChecked) "Included" else "Excluded"}\n")
+            append("--- ATTACHED ZIP ---\n")
+            append("${BugReportZip.SUMMARY}: this summary + full header lines\n")
+            if (includeLogsCheckbox.isChecked) {
+                append("${BugReportZip.LOGS}: all logs 2 h + key events 72 h\n")
+                append("widget-<id>.png: each widget as last sent\n")
+            } else {
+                append("Logs and widget images: excluded\n")
+            }
+            if (includeMetadataCheckbox.isChecked) {
+                append("${BugReportZip.DATABASE}: database copy (locations, history)\n")
+            } else {
+                append("Database copy: excluded\n")
+            }
         }
+    }
+
+    /** Rows for `logs.tsv` and the "Recent taps" lines ([BugReportLogs.select]). */
+    private suspend fun loadReportLogs(nowMs: Long): List<BugReportLogs.Selected> {
+        val rows = appLogDao.getBugReportLogs(
+            recentSince = nowMs - BugReportLogs.RECENT_WINDOW_MS,
+            keySince = nowMs - BugReportLogs.KEY_EVENT_WINDOW_MS,
+            keyLevels = BugReportLogs.KEY_EVENT_LEVELS,
+            keyTags = BugReportLogs.KEY_EVENT_TAGS,
+        ).map { BugReportLogs.Row(it.timestamp, it.level, it.tag, it.message) }
+        return BugReportLogs.select(rows, nowMs)
+    }
+
+    /** The email body / `summary.txt` head: description, version, recent taps, then [generatePreviewText]. */
+    private fun summaryText(
+        description: String,
+        version: Pair<String, Long>,
+        taps: List<String>,
+        metadata: String,
+    ): String = buildString {
+        append("Weather Widget bug report\n\n")
+        append("--- DESCRIPTION ---\n").append(description).append("\n\n")
+        append("--- VERSION ---\n")
+        append("${version.first} (code ${version.second})\n\n")
+        append("--- RECENT TAPS ---\n")
+        if (taps.isEmpty()) append("none in the last 2 h\n") else taps.forEach { append("$it\n") }
+        append("\n")
+        append(metadata)
     }
 
     private fun getDatabaseSizeMb(): Double {
@@ -204,71 +260,109 @@ class BugReportActivity : AppCompatActivity() {
         }
 
         sendButton.isEnabled = false
+        val includeLogs = includeLogsCheckbox.isChecked
+        val includeMetadata = includeMetadataCheckbox.isChecked
 
         lifecycleScope.launch(ioDispatcher) {
-            // Get App Version Details
+            val zone = ZoneId.systemDefault()
+            val now = ZonedDateTime.now(zone)
+            val nowMs = now.toInstant().toEpochMilli()
             val appVersion = getAppVersionDetails()
-
-            // Gather metadata preview
             val metadataText = generatePreviewText()
 
-            // Gather recent app logs if checked
-            val logsText = if (includeLogsCheckbox.isChecked) {
-                val recentLogs = appLogDao.getRecentLogs(300)
-                if (recentLogs.isEmpty()) {
-                    getString(R.string.bug_report_no_logs)
-                } else {
-                    val full = recentLogs.joinToString("\n") { log ->
-                        "${log.getFormattedTime()} ${log.level}/${log.tag}: ${log.message}"
-                    }
-                    if (full.length > 100_000) {
-                        full.substring(0, 100_000) + "\n...(truncated for size)"
-                    } else {
-                        full
-                    }
+            val logs = if (includeLogs) loadReportLogs(nowMs) else emptyList()
+            val taps = BugReportLogs.tapLines(logs, zone)
+            val summary = summaryText(description, appVersion, taps, metadataText)
+
+            val appWidgetManager = AppWidgetManager.getInstance(this@BugReportActivity)
+            val widgetIds = appWidgetManager.getAppWidgetIds(
+                ComponentName(this@BugReportActivity, WeatherWidgetProvider::class.java),
+            )
+            // View inflation for the images must happen on the main thread.
+            val images = if (includeLogs) {
+                withContext(Dispatchers.Main) {
+                    widgetIds.associateWith { WidgetImageCapture.capture(this@BugReportActivity, appWidgetManager, it) }
                 }
             } else {
-                getString(R.string.bug_report_logs_excluded)
+                emptyMap()
+            }
+            val headerDetail = buildString {
+                widgetIds.forEach { id ->
+                    HeaderFitPersistLog.latestLines(id).values.forEach { append("widget=$id $it\n") }
+                    images[id]?.let { append("widget=$id ${it.note}\n") }
+                }
             }
 
-            // Build full Markdown report
-            val fullReport = buildString {
-                append("> **[TIP]** Please attach a screenshot of the widget if you are reporting a visual issue!\n\n")
-                append("# Weather Widget Bug Report\n\n")
-                append("## Description of the Bug\n")
-                append(description)
-                append("\n\n")
+            val reportDir = File(cacheDir, BUG_REPORT_DIR).apply { mkdirs() }
+            reportDir.listFiles()?.forEach { it.delete() }
+            val dbCopy = if (includeMetadata) {
+                BugReportDatabaseCopy.write(WeatherDatabase.getDatabase(this@BugReportActivity), File(reportDir, "db-copy.tmp"))
+            } else {
+                null
+            }
+            val entries = buildList {
+                add(BugReportZip.Entry.Bytes(BugReportZip.SUMMARY, (summary + "\n--- HEADER DETAIL ---\n" + headerDetail).toByteArray()))
+                if (includeLogs) {
+                    add(BugReportZip.Entry.Bytes(BugReportZip.LOGS, BugReportLogs.tsv(logs, zone).toByteArray()))
+                    images.forEach { (id, result) ->
+                        result.png?.let { add(BugReportZip.Entry.Bytes(BugReportZip.widgetImageName(id), it)) }
+                    }
+                }
+                dbCopy?.let { add(BugReportZip.Entry.FromFile(BugReportZip.DATABASE, it)) }
+            }
+            val zipFile = File(reportDir, BugReportZip.fileName(now))
+            val written = try {
+                zipFile.outputStream().use { BugReportZip.write(it, entries) }
+            } catch (e: Exception) {
+                appLogDao.logException(TAG, "Could not write bug report zip", e)
+                null
+            } finally {
+                dbCopy?.delete()
+            }
+            appLogDao.log(
+                BugReportLogs.BUILT_TAG,
+                BugReportLogs.builtLine(
+                    zipBytes = if (written != null) zipFile.length() else 0,
+                    logs = logs,
+                    images = images.values.count { it.png != null },
+                    db = dbCopy != null,
+                    entries = written,
+                ) + " widgets=${widgetIds.size}",
+                "INFO",
+            )
 
-                append("## Application Version\n")
-                append("- Version Name: ${appVersion.first}\n")
-                append("- Version Code: ${appVersion.second}\n\n")
-
-                append("## Diagnostics Metadata\n")
-                append("```\n")
-                append(metadataText)
-                append("```\n\n")
-
-                if (includeLogsCheckbox.isChecked) {
-                    append("## Application Logs (Recent 300 Lines)\n")
-                    append("```\n")
-                    append(logsText)
-                    append("\n```\n")
+            // A zip that can't be shared still leaves a text-only report, never a crash.
+            val zipUri = written?.let {
+                try {
+                    FileProvider.getUriForFile(this@BugReportActivity, "$packageName.bugreports", zipFile)
+                } catch (e: IllegalArgumentException) {
+                    appLogDao.logException(TAG, "Could not share bug report zip ${zipFile.path}", e)
+                    null
                 }
             }
 
             withContext(Dispatchers.Main) {
                 sendButton.isEnabled = true
-
-                val sendIntent = Intent(Intent.ACTION_SENDTO).apply {
-                    data = Uri.parse("mailto:")
-                    putExtra(Intent.EXTRA_EMAIL, arrayOf("daniecarde55@gmail.com"))
-                    putExtra(Intent.EXTRA_SUBJECT, getString(R.string.bug_report_email_subject))
-                    putExtra(Intent.EXTRA_TEXT, fullReport)
+                val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                    putExtra(Intent.EXTRA_EMAIL, arrayOf(BUG_REPORT_RECIPIENT))
+                    putExtra(Intent.EXTRA_SUBJECT, BugReportFormat.subject(description, appVersion.second.toString()))
+                    putExtra(Intent.EXTRA_TEXT, summary)
+                    if (zipUri != null) {
+                        type = "application/zip"
+                        putExtra(Intent.EXTRA_STREAM, zipUri)
+                        clipData = ClipData.newRawUri(zipFile.name, zipUri)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    } else {
+                        type = "text/plain"
+                    }
                 }
-
                 try {
-                    startActivity(Intent.createChooser(sendIntent, getString(R.string.bug_report_send)))
+                    startActivity(
+                        Intent.createChooser(sendIntent, getString(R.string.bug_report_send))
+                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION),
+                    )
                 } catch (e: Exception) {
+                    Log.e(TAG, "Could not start bug report share", e)
                     Toast.makeText(this@BugReportActivity, getString(R.string.bug_report_share_failed), Toast.LENGTH_SHORT).show()
                 }
             }

@@ -38,6 +38,25 @@ interface AppLogDao {
     @Query("SELECT * FROM app_logs ORDER BY timestamp DESC, id DESC LIMIT :limit")
     suspend fun getRecentLogs(limit: Int): List<AppLogEntity>
 
+    /**
+     * Bug-report rows ([com.weatherwidget.shared.util.BugReportLogs]): everything at or after
+     * [recentSince], plus rows of [keyLevels] or [keyTags] at or after [keySince]. Oldest first.
+     */
+    @Query(
+        """
+        SELECT * FROM app_logs
+        WHERE timestamp >= :recentSince
+           OR (timestamp >= :keySince AND (level IN (:keyLevels) OR tag IN (:keyTags)))
+        ORDER BY timestamp ASC, id ASC
+        """,
+    )
+    suspend fun getBugReportLogs(
+        recentSince: Long,
+        keySince: Long,
+        keyLevels: List<String>,
+        keyTags: List<String>,
+    ): List<AppLogEntity>
+
     @Query("SELECT * FROM app_logs WHERE tag = :tag ORDER BY timestamp DESC, id DESC LIMIT :limit")
     suspend fun getLogsByTag(tag: String, limit: Int): List<AppLogEntity>
 

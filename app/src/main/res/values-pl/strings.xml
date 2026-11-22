@@ -374,7 +374,6 @@
 
     <!-- Bug report sharing -->
     <string name="bug_report_share_failed">Nie udało się uruchomić udostępniania</string>
-    <string name="bug_report_email_subject">Zgłoszenie błędu Widżetu Pogody</string>
     <string name="blend_tab">Mieszanie</string>
     <string name="observations_tab">Obserwacje</string>
     <string name="blend_no_points">Brak dostępnego punktu mieszania.</string>
@@ -454,8 +453,6 @@
     <string name="watermark_server_error">%1$s Błąd serwera</string>
     <string name="blend_stations_count">%1$d stacji</string>
     <string name="obs_no_fetch_logs">Nie znaleziono dzienników pobierania bieżącej obserwacji dla %1$s.</string>
-    <string name="bug_report_no_logs">Nie znaleziono ostatnich dzienników w bazie danych.</string>
-    <string name="bug_report_logs_excluded">Dzienniki wykluczone przez użytkownika.</string>
     <string name="cloud_data_unavailable">Dane o chmurach niedostępne</string>
     <string name="cloud_data_missing_for_one">Brak danych o chmurach przez %1$d z %2$d godz.</string>
     <string name="cloud_data_missing_for_many">Brak danych o chmurach przez %1$d z %2$d godz.</string>

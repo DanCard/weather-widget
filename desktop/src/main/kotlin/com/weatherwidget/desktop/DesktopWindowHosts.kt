@@ -224,7 +224,7 @@ internal fun SettingsWindowHost(
             onRefreshData = onRefreshData,
             onViewAppLogs = onViewAppLogs,
             locationResolver = locationResolver,
-            onSubmitBugReport = { openInBrowser(buildBugReportMailto(latestConfig.value)) },
+            onSubmitBugReport = { DesktopBugReport.buildAndOpenDraft(latestConfig.value, weatherDao) },
         )
     }
 }

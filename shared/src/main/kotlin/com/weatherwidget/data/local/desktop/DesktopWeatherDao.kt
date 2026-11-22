@@ -1694,6 +1694,57 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
         return null
     }
 
+    /**
+     * Bug-report rows ([com.weatherwidget.shared.util.BugReportLogs]): everything at or after
+     * [recentSince], plus rows of [keyLevels] or [keyTags] at or after [keySince]. Oldest first.
+     * Same rule as Android's `AppLogDao.getBugReportLogs`.
+     */
+    fun getBugReportLogs(
+        recentSince: Long,
+        keySince: Long,
+        keyLevels: List<String>,
+        keyTags: List<String>,
+    ): List<DesktopLogEntity> {
+        val levelMarks = keyLevels.joinToString(",") { "?" }.ifEmpty { "NULL" }
+        val tagMarks = keyTags.joinToString(",") { "?" }.ifEmpty { "NULL" }
+        val sql = "SELECT timestamp, level, tag, message FROM app_logs " +
+            "WHERE timestamp >= ? OR (timestamp >= ? AND (level IN ($levelMarks) OR tag IN ($tagMarks))) " +
+            "ORDER BY timestamp ASC"
+        val result = mutableListOf<DesktopLogEntity>()
+        db.getConnection().use { conn ->
+            conn.prepareStatement(sql).use { stmt ->
+                var i = 1
+                stmt.setLong(i++, recentSince)
+                stmt.setLong(i++, keySince)
+                keyLevels.forEach { stmt.setString(i++, it) }
+                keyTags.forEach { stmt.setString(i++, it) }
+                val rs = stmt.executeQuery()
+                while (rs.next()) {
+                    result.add(
+                        DesktopLogEntity(
+                            timestamp = rs.getLong("timestamp"),
+                            level = rs.getString("level"),
+                            tag = rs.getString("tag"),
+                            message = rs.getString("message"),
+                        ),
+                    )
+                }
+            }
+        }
+        return result
+    }
+
+    /** A self-contained copy of the database at [target] (`VACUUM INTO`), for a bug-report zip. */
+    fun copyDatabaseTo(target: java.io.File) {
+        target.delete()
+        db.getConnection().use { conn ->
+            conn.prepareStatement("VACUUM INTO ?").use { stmt ->
+                stmt.setString(1, target.absolutePath)
+                stmt.execute()
+            }
+        }
+    }
+
     fun getRecentLogs(limit: Int = 200): List<DesktopLogEntity> {
         val result = mutableListOf<DesktopLogEntity>()
         db.getConnection().use { conn ->

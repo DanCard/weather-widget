@@ -374,7 +374,6 @@
 
     <!-- Bug report sharing -->
     <string name="bug_report_share_failed">无法启动分享</string>
-    <string name="bug_report_email_subject">天气小部件错误报告</string>
     <string name="blend_tab">混合</string>
     <string name="observations_tab">观测</string>
     <string name="blend_no_points">暂无混合数据点。</string>
@@ -454,8 +453,6 @@
     <string name="watermark_server_error">%1$s 服务器错误</string>
     <string name="blend_stations_count">%1$d 个站点</string>
     <string name="obs_no_fetch_logs">未找到 %1$s 的当前观测获取日志。</string>
-    <string name="bug_report_no_logs">数据库中未找到最近的日志。</string>
-    <string name="bug_report_logs_excluded">日志已被用户排除。</string>
     <string name="cloud_data_unavailable">云数据不可用</string>
     <string name="cloud_data_missing_for_one">%2$d 小时中缺少 %1$d 小时的云数据</string>
     <string name="cloud_data_missing_for_many">%2$d 小时中缺少 %1$d 小时的云数据</string>

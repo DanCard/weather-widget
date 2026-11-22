@@ -374,7 +374,6 @@
 
     <!-- Bug report sharing -->
     <string name="bug_report_share_failed">Paylaşım başlatılamadı</string>
-    <string name="bug_report_email_subject">Hava Durumu Widget\'ı hata raporu</string>
     <string name="blend_tab">Karışım</string>
     <string name="observations_tab">Gözlemler</string>
     <string name="blend_no_points">Henüz karışım noktası yok.</string>
@@ -454,8 +453,6 @@
     <string name="watermark_server_error">%1$s Sunucu hatası</string>
     <string name="blend_stations_count">%1$d istasyon</string>
     <string name="obs_no_fetch_logs">%1$s için geçerli gözlem alma günlüğü bulunamadı.</string>
-    <string name="bug_report_no_logs">Veritabanında son günlük bulunamadı.</string>
-    <string name="bug_report_logs_excluded">Günlükler kullanıcı tarafından hariç tutuldu.</string>
     <string name="cloud_data_unavailable">Bulut verileri kullanılamıyor</string>
     <string name="cloud_data_missing_for_one">%2$d saatin %1$d\'inde bulut verisi eksik</string>
     <string name="cloud_data_missing_for_many">%2$d saatin %1$d\'inde bulut verisi eksik</string>

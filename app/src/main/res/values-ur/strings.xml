@@ -374,7 +374,6 @@
 
     <!-- Bug report sharing -->
     <string name="bug_report_share_failed">شیئرنگ شروع نہیں ہو سکی</string>
-    <string name="bug_report_email_subject">موسمی ویجٹ بگ رپورٹ</string>
     <string name="blend_tab">امتزاج</string>
     <string name="observations_tab">مشاہدات</string>
     <string name="blend_no_points">ابھی کوئی مخلوط پوائنٹ دستیاب نہیں۔</string>
@@ -454,8 +453,6 @@
     <string name="watermark_server_error">%1$s سرور خرابی</string>
     <string name="blend_stations_count">%1$d اسٹیشن</string>
     <string name="obs_no_fetch_logs">%1$s کے لیے موجودہ مشاہدے حاصل کرنے کے لاگز نہیں ملے۔</string>
-    <string name="bug_report_no_logs">ڈیٹا بیس میں حالیہ لاگز نہیں ملے۔</string>
-    <string name="bug_report_logs_excluded">لاگز صارف کے ذریعے خارج کر دیے گئے۔</string>
     <string name="cloud_data_unavailable">بادل کا ڈیٹا دستیاب نہیں</string>
     <string name="cloud_data_missing_for_one">%2$d میں سے %1$d گھنٹے کا بادل ڈیٹا غائب</string>
     <string name="cloud_data_missing_for_many">%2$d میں سے %1$d گھنٹے کا بادل ڈیٹا غائب</string>

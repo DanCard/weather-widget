@@ -374,7 +374,6 @@
 
     <!-- Bug report sharing -->
     <string name="bug_report_share_failed">Teilen konnte nicht gestartet werden</string>
-    <string name="bug_report_email_subject">Wetter-Widget-Fehlerbericht</string>
     <string name="blend_tab">Mischung</string>
     <string name="observations_tab">Beobachtungen</string>
     <string name="blend_no_points">Noch kein gemischter Punkt verfügbar.</string>
@@ -454,8 +453,6 @@
     <string name="watermark_server_error">%1$s Serverfehler</string>
     <string name="blend_stations_count">%1$d Stationen</string>
     <string name="obs_no_fetch_logs">Keine Abrufprotokolle der aktuellen Beobachtung für %1$s gefunden.</string>
-    <string name="bug_report_no_logs">Keine aktuellen Protokolle in der Datenbank gefunden.</string>
-    <string name="bug_report_logs_excluded">Protokolle vom Benutzer ausgeschlossen.</string>
     <string name="cloud_data_unavailable">Wolkendaten nicht verfügbar</string>
     <string name="cloud_data_missing_for_one">Wolkendaten fehlen für %1$d von %2$d Std.</string>
     <string name="cloud_data_missing_for_many">Wolkendaten fehlen für %1$d von %2$d Std.</string>

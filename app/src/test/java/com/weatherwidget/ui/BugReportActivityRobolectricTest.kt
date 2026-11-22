@@ -46,6 +46,11 @@ class BugReportActivityRobolectricTest {
         database = TestDatabase.create()
         WeatherDatabase.setDatabaseForTesting(database)
 
+        // FileProvider caches each authority's roots statically; Robolectric gives every test a new
+        // cache dir, so a stale root would reject this test's zip path.
+        androidx.core.content.FileProvider::class.java.getDeclaredField("sCache").apply { isAccessible = true }
+            .let { (it.get(null) as MutableMap<*, *>).clear() }
+        com.weatherwidget.widget.WidgetViewsHistory.resetForTest()
         WidgetStateManager.setPrefsNameOverrideForTesting(null)
         clearTestPrefs("weather_widget_prefs")
         clearTestPrefs("widget_state_prefs")
@@ -185,41 +190,136 @@ class BugReportActivityRobolectricTest {
         }
     }
 
+    /** Clicks Send and returns the chooser's target intent plus the zip's entries (name -> bytes). */
+    private fun sendAndReadZip(
+        activity: BugReportActivity,
+        description: String,
+    ): Pair<Intent, Map<String, ByteArray>> {
+        activity.findViewById<EditText>(R.id.bug_report_description).setText(description)
+        activity.findViewById<Button>(R.id.bug_report_send_button).performClick()
+        shadowOf(context.mainLooper).idle()
+
+        val chooser = shadowOf(activity).nextStartedActivity
+        assertNotNull("An intent should be started", chooser)
+        assertEquals(Intent.ACTION_CHOOSER, chooser.action)
+        val target = chooser.getParcelableExtra<Intent>(Intent.EXTRA_INTENT)!!
+        val uri = target.getParcelableExtra<android.net.Uri>(Intent.EXTRA_STREAM)
+        assertNotNull("The zip must be attached", uri)
+        assertEquals("${context.packageName}.bugreports", uri!!.authority)
+        // Read the shared file itself: the content-resolver path closes a ParcelFileDescriptor,
+        // which Robolectric can't do in JVMs without `--add-opens java.base/java.io`.
+        val zipFile = java.io.File(java.io.File(context.cacheDir, BugReportActivity.BUG_REPORT_DIR), uri.lastPathSegment!!)
+        assertTrue("attached uri must name the written zip: $zipFile", zipFile.isFile)
+        val entries = linkedMapOf<String, ByteArray>()
+        java.util.zip.ZipInputStream(zipFile.inputStream()).use { zip ->
+            while (true) {
+                val e = zip.nextEntry ?: break
+                entries[e.name] = zip.readBytes()
+            }
+        }
+        println("BugReportActivityRobolectricTest zip entries: ${entries.mapValues { it.value.size }}")
+        return target to entries
+    }
+
     @Test
-    fun `sending bug report with description fires send intent`() {
+    fun `sending bug report attaches a zip with summary logs widget images and database`() {
+        // Real Room rows across 80 h: routine and key-event tags inside and outside each window.
+        val now = System.currentTimeMillis()
+        val hour = 60 * 60 * 1000L
+        kotlinx.coroutines.runBlocking {
+            val dao = database.appLogDao()
+            dao.insert(com.weatherwidget.data.local.AppLogEntity(timestamp = now - 80 * hour, tag = "SYNC_CANCELLED", message = "too old", level = "INFO"))
+            dao.insert(com.weatherwidget.data.local.AppLogEntity(timestamp = now - 30 * hour, tag = "SNAPSHOT_SKIP", message = "old routine"))
+            dao.insert(com.weatherwidget.data.local.AppLogEntity(timestamp = now - 30 * hour, tag = "FETCH_METEO_FAIL", message = "old warn\twith tab", level = "WARN"))
+            dao.insert(com.weatherwidget.data.local.AppLogEntity(timestamp = now - 5 * hour, tag = "CONFIG", message = "old config"))
+            dao.insert(com.weatherwidget.data.local.AppLogEntity(timestamp = now - 1 * hour, tag = "SNAPSHOT_SKIP", message = "recent routine"))
+            dao.insert(com.weatherwidget.data.local.AppLogEntity(timestamp = now - 60_000, tag = "INTERACTION_E2E", message = "action=ACTION_SHOW_TOAST widget=12"))
+        }
+        // A widget the app has actually pushed, so the report can draw it.
+        val appWidgetManager = android.appwidget.AppWidgetManager.getInstance(context)
+        val widgetId = shadowOf(appWidgetManager).createWidget(com.weatherwidget.widget.WeatherWidgetProvider::class.java, R.layout.widget_weather)
+        appWidgetManager.updateAppWidgetOptions(
+            widgetId,
+            android.os.Bundle().apply {
+                putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 320)
+                putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 180)
+                putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 180)
+                putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 320)
+            },
+        )
+        // As the renderers push it: the graph is a bitmap on R.id.graph_view. A capture that inflates
+        // with the activity's AppCompat inflater fails here (AppCompatImageView isn't remotable).
+        val views = android.widget.RemoteViews(context.packageName, R.layout.widget_weather).apply {
+            setImageViewBitmap(R.id.graph_view, android.graphics.Bitmap.createBitmap(40, 20, android.graphics.Bitmap.Config.ARGB_8888))
+        }
+        kotlinx.coroutines.runBlocking {
+            com.weatherwidget.widget.WidgetPushDispatcher.push(appWidgetManager, widgetId, views, partialPush = false, caller = "DAILY", appLogDao = database.appLogDao())
+        }
+
         val intent = Intent(context, BugReportActivity::class.java)
         ActivityScenario.launch<BugReportActivity>(intent).onActivity { activity ->
             activity.ioDispatcher = testDispatcher
             activity.loadPreview()
             shadowOf(context.mainLooper).idle()
 
-            val descriptionEdit = activity.findViewById<EditText>(R.id.bug_report_description)
-            descriptionEdit.setText("App crashes when rotating device.")
+            val (target, entries) = sendAndReadZip(activity, "App crashes when rotating device.")
 
-            val sendButton = activity.findViewById<Button>(R.id.bug_report_send_button)
-            sendButton.performClick()
+            assertEquals(Intent.ACTION_SEND, target.action)
+            assertEquals("application/zip", target.type)
+            assertEquals("daniecarde55@gmail.com", target.getStringArrayExtra(Intent.EXTRA_EMAIL)?.firstOrNull())
+            val subject = target.getStringExtra(Intent.EXTRA_SUBJECT) ?: ""
+            assertTrue("Subject carries the description: $subject", subject.startsWith("Weather widget bug report: App crashes when rotating dev"))
+            val body = target.getStringExtra(Intent.EXTRA_TEXT) ?: ""
+            assertTrue("Body has the description", body.contains("App crashes when rotating device."))
+            assertTrue("Body lists recent taps", body.contains("INTERACTION_E2E action=ACTION_SHOW_TOAST widget=12"))
+            assertTrue("Body lists the zip contents", body.contains("--- ATTACHED ZIP ---"))
 
+            assertEquals(
+                listOf("summary.txt", "logs.tsv", "widget-$widgetId.png", "weather_database.db"),
+                entries.keys.toList(),
+            )
+
+            val tsv = entries.getValue("logs.tsv").decodeToString().trimEnd('\n').lines()
+            println("BugReportActivityRobolectricTest logs.tsv:\n${tsv.joinToString("\n")}")
+            assertEquals(com.weatherwidget.shared.util.BugReportLogs.TSV_HEADER, tsv.first())
+            val messages = tsv.drop(1).map { it.split('\t')[5] }
+            assertTrue("old WARN kept as key event, tab escaped", messages.contains("old warn\\twith tab"))
+            assertTrue("old CONFIG kept as key event", messages.contains("old config"))
+            assertTrue("recent routine kept", messages.contains("recent routine"))
+            assertTrue("old routine dropped", messages.none { it == "old routine" })
+            assertTrue("rows past 72 h dropped", messages.none { it == "too old" })
+            assertEquals("key", tsv.first { it.endsWith("old config") }.split('\t')[2])
+            assertEquals("recent", tsv.first { it.endsWith("recent routine") }.split('\t')[2])
+
+            val png = entries.getValue("widget-$widgetId.png")
+            val bitmap = android.graphics.BitmapFactory.decodeByteArray(png, 0, png.size)
+            val density = context.resources.displayMetrics.density
+            assertEquals("image is the widget's width in px", (320 * density).toInt(), bitmap.width)
+            assertEquals("image is the widget's height in px", (180 * density).toInt(), bitmap.height)
+
+            // The database copy opens with real SQLite and holds the seeded rows.
+            val dbFile = java.io.File(context.cacheDir, "check.db").apply { writeBytes(entries.getValue("weather_database.db")) }
+            android.database.sqlite.SQLiteDatabase.openDatabase(dbFile.path, null, android.database.sqlite.SQLiteDatabase.OPEN_READONLY).use { db ->
+                db.rawQuery("SELECT COUNT(*) FROM app_logs WHERE message = 'old config'", null).use { c ->
+                    c.moveToFirst()
+                    assertEquals(1, c.getInt(0))
+                }
+            }
+            assertTrue("summary.txt carries header detail", entries.getValue("summary.txt").decodeToString().contains("--- HEADER DETAIL ---"))
+        }
+    }
+
+    @Test
+    fun `unchecking boxes leaves only the summary in the zip`() {
+        val intent = Intent(context, BugReportActivity::class.java)
+        ActivityScenario.launch<BugReportActivity>(intent).onActivity { activity ->
+            activity.ioDispatcher = testDispatcher
+            activity.findViewById<CheckBox>(R.id.bug_report_include_logs_checkbox).isChecked = false
+            activity.findViewById<CheckBox>(R.id.bug_report_include_metadata_checkbox).isChecked = false
             shadowOf(context.mainLooper).idle()
 
-            // Verify a chooser intent was started
-            val shadowActivity = shadowOf(activity)
-            val nextIntent = shadowActivity.nextStartedActivity
-            assertNotNull("An intent should be started", nextIntent)
-            assertEquals(Intent.ACTION_CHOOSER, nextIntent.action)
-
-            val targetIntent = nextIntent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT)
-            assertNotNull("Chooser target intent should not be null", targetIntent)
-            assertEquals(Intent.ACTION_SENDTO, targetIntent?.action)
-            assertEquals("mailto:", targetIntent?.data?.toString())
-            val emails = targetIntent?.getStringArrayExtra(Intent.EXTRA_EMAIL)
-            assertNotNull("Emails extra should not be null", emails)
-            assertEquals("daniecarde55@gmail.com", emails?.firstOrNull())
-            assertEquals("Weather widget bug report", targetIntent?.getStringExtra(Intent.EXTRA_SUBJECT))
-            
-            val bodyText = targetIntent?.getStringExtra(Intent.EXTRA_TEXT) ?: ""
-            assertTrue("Body should contain screenshot tip", bodyText.contains("Please attach a screenshot"))
-            assertTrue("Body should contain description", bodyText.contains("App crashes when rotating device."))
-            assertTrue("Body should contain App version details", bodyText.contains("## Application Version"))
+            val (_, entries) = sendAndReadZip(activity, "Small issue")
+            assertEquals(listOf("summary.txt"), entries.keys.toList())
         }
     }
 
@@ -240,8 +340,8 @@ class BugReportActivityRobolectricTest {
             val previewText = activity.findViewById<TextView>(R.id.bug_report_diagnostics_preview_text).text.toString()
             println("BugReportActivityRobolectricTest header preview:\n$previewText")
             assertTrue(
-                "Widget section should carry the latest header decision",
-                previewText.contains("  header: view=daily widthDp=140") && previewText.contains("placement=HIDDEN"),
+                "Widget section should carry the latest header decision in short form",
+                previewText.contains("  header: daily 140dp buttons=HIDDEN"),
             )
         }
     }

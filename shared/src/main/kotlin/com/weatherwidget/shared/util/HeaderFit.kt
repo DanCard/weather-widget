@@ -34,6 +34,16 @@ object HeaderFit {
     fun logLine(view: String, widthDp: Float, scale: Float, plan: Plan, measured: Measured): String =
         "view=$view widthDp=${"%.0f".format(widthDp)} scale=${"%.2f".format(scale)} $plan $measured"
 
+    /**
+     * The bug-report summary's one-line form: `daily 384dp buttons=SHOWN 3 +home`, short enough not
+     * to be wrapped by mail clients. [logLine] carries the widths that explain it.
+     */
+    fun shortLine(view: String, widthDp: Float, plan: Plan): String =
+        "$view ${"%.0f".format(java.util.Locale.US, widthDp)}dp buttons=${plan.placement}" +
+            (if (plan.placement == ButtonPlacement.SHOWN) " ${plan.buttons}" else "") +
+            (if (plan.homeShown) " +home" else "") +
+            (if (plan.monthsShown) " +months" else "")
+
     /** Whether action buttons are shown (right-anchored before the right cluster) or hidden. */
     enum class ButtonPlacement { SHOWN, HIDDEN }
 

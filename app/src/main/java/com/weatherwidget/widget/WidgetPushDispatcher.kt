@@ -176,6 +176,7 @@ object WidgetPushDispatcher {
         placeholderTree.clear()
         loggedThisProcess.clear()
         lastCompleteBodyPushElapsedMs.clear()
+        WidgetViewsHistory.resetForTest()
         elapsedRealtimeProvider = SystemClock::elapsedRealtime
     }
 
@@ -203,6 +204,7 @@ object WidgetPushDispatcher {
         placeholderTree.remove(appWidgetId)
         lastCompleteBodyPushElapsedMs.remove(appWidgetId)
         loggedThisProcess.remove("any-$appWidgetId")
+        WidgetViewsHistory.forget(appWidgetId)
     }
 
     /**
@@ -263,10 +265,12 @@ object WidgetPushDispatcher {
         }
         if (effectivePartial) {
             appWidgetManager.partiallyUpdateAppWidget(appWidgetId, views)
+            WidgetViewsHistory.recordPartial(appWidgetId, views, bodyComplete)
         } else {
             appWidgetManager.updateAppWidget(appWidgetId, views)
             fullPushedThisProcess.add(appWidgetId)
             markTree(appWidgetId, caller)
+            WidgetViewsHistory.recordFull(appWidgetId, views, caller)
         }
         if (bodyComplete) {
             lastCompleteBodyPushElapsedMs[appWidgetId] = currentElapsedMs

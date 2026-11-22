@@ -374,7 +374,6 @@
 
     <!-- Bug report sharing -->
     <string name="bug_report_share_failed">Не удалось открыть окно отправки</string>
-    <string name="bug_report_email_subject">Отчёт об ошибке Виджета погоды</string>
     <string name="blend_tab">Смешение</string>
     <string name="observations_tab">Наблюдения</string>
     <string name="blend_no_points">Точка смешения пока недоступна.</string>
@@ -454,8 +453,6 @@
     <string name="watermark_server_error">%1$s Ошибка сервера</string>
     <string name="blend_stations_count">%1$d станций</string>
     <string name="obs_no_fetch_logs">Журналы получения текущих наблюдений для %1$s не найдены.</string>
-    <string name="bug_report_no_logs">В базе данных не найдено недавних журналов.</string>
-    <string name="bug_report_logs_excluded">Журналы исключены пользователем.</string>
     <string name="cloud_data_unavailable">Данные об облачности недоступны</string>
     <string name="cloud_data_missing_for_one">Нет данных об облачности за %1$d из %2$d ч</string>
     <string name="cloud_data_missing_for_many">Нет данных об облачности за %1$d из %2$d ч</string>

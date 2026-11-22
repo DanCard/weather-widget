@@ -359,7 +359,6 @@
     <string name="move_down">Bajar</string>
 
     <string name="bug_report_share_failed">No se pudo iniciar el envío</string>
-    <string name="bug_report_email_subject">Informe de error de Weather Widget</string>
     <string name="blend_tab">Mezcla</string>
     <string name="observations_tab">Observaciones</string>
     <string name="blend_no_points">Aún no hay ningún punto mezclado disponible.</string>
@@ -439,8 +438,6 @@
     <string name="watermark_server_error">Error del servidor %1$s</string>
     <string name="blend_stations_count">%1$d estaciones</string>
     <string name="obs_no_fetch_logs">No se encontraron registros de obtención de la observación actual para %1$s.</string>
-    <string name="bug_report_no_logs">No se encontraron registros recientes en la base de datos.</string>
-    <string name="bug_report_logs_excluded">Registros excluidos por el usuario.</string>
     <string name="cloud_data_unavailable">Datos de nubes no disponibles</string>
     <string name="cloud_data_missing_for_one">Faltan datos de nubes en %1$d de %2$d h</string>
     <string name="cloud_data_missing_for_many">Faltan datos de nubes en %1$d de %2$d h</string>

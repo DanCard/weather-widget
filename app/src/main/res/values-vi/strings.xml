@@ -374,7 +374,6 @@
 
     <!-- Bug report sharing -->
     <string name="bug_report_share_failed">Không khởi động được tính năng chia sẻ</string>
-    <string name="bug_report_email_subject">Báo cáo lỗi Tiện ích Thời tiết</string>
     <string name="blend_tab">Pha trộn</string>
     <string name="observations_tab">Quan trắc</string>
     <string name="blend_no_points">Chưa có điểm pha trộn nào.</string>
@@ -454,8 +453,6 @@
     <string name="watermark_server_error">%1$s Lỗi máy chủ</string>
     <string name="blend_stations_count">%1$d trạm</string>
     <string name="obs_no_fetch_logs">Không tìm thấy nhật ký tải quan sát hiện tại cho %1$s.</string>
-    <string name="bug_report_no_logs">Không tìm thấy nhật ký gần đây trong cơ sở dữ liệu.</string>
-    <string name="bug_report_logs_excluded">Nhật ký bị người dùng loại trừ.</string>
     <string name="cloud_data_unavailable">Không có dữ liệu mây</string>
     <string name="cloud_data_missing_for_one">Thiếu dữ liệu mây %1$d trong %2$d giờ</string>
     <string name="cloud_data_missing_for_many">Thiếu dữ liệu mây %1$d trong %2$d giờ</string>

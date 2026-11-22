@@ -71,8 +71,9 @@ object BugReportDeviceDiagnostics {
     }
 
     /**
-     * One widget's size as the launcher reported it and as the renderer resolved it, e.g.
-     * `size=384x220dp cols=8 rows=3 host=portrait(source) options=min:384x150,max:420x220 sizes=[384x220]`.
+     * One widget's size as the renderer resolved it and as the launcher reported it, as two lines
+     * (kept short for mail clients): `size=384x220dp cols=8 rows=3 host=portrait(source)` and
+     * `options=min:384x150,max:420x220 sizes=[384x220]`.
      */
     fun widgetSizeLine(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int): String =
         runCatching {
@@ -91,7 +92,7 @@ object BugReportDeviceDiagnostics {
             }
             val dims = WidgetSizeCalculator.getWidgetSize(context, appWidgetManager, appWidgetId)
             "size=${dims.widthDp}x${dims.heightDp}dp cols=${dims.cols} rows=${dims.rows} " +
-                "host=${orientationName(dims.hostOrientation)}(${dims.orientationSource}) " +
+                "host=${orientationName(dims.hostOrientation)}(${dims.orientationSource})\n" +
                 "options=min:${minW}x$minH,max:${maxW}x$maxH$sizes"
         }.getOrElse {
             Log.w(TAG, "Could not read size for widget $appWidgetId", it)

@@ -50,21 +50,35 @@ When an emulator widget looks wrong but the app logged a good paint, run
 screenshot, the launcher's live view tree, and a bugreport for every running emulator under
 `captures/`; use `-s SERIAL` for one target.
 
-In-app bug reports (Settings → Submit Bug Report on both platforms) email
-daniecarde55@gmail.com with subject "Weather widget bug report". Beyond the last 300 `app_logs`
-rows, the Android report carries what an emulator needs to replay a layout report:
-`--- DISPLAY ---` (pixels, density dpi, screen dp, font scale), the launcher package, and per widget
-its view, resolved `size=WxHdp cols rows` and the launcher's raw min/max options. Create a matching
-AVD from the pixels and density, then resize the widget to the reported dp. The shared
-`BugReportFormat.timezoneLine` gives the device zone, since log times are device-local; use that
-offset rather than the host's `'localtime'` when querying a pulled database.
+In-app bug reports (Settings → Submit Bug Report on both platforms) go to daniecarde55@gmail.com,
+subject `Weather widget bug report: <description start> (<version>)`. The mail body is a short
+summary (description, version, recent taps, device, `--- DISPLAY ---` pixels/dpi/dp/font scale,
+launcher, and per widget its view, `size=WxHdp`, launcher min/max options and `header:` decision).
+The evidence is the attached `weather-widget-report-<stamp>.zip` (shared `BugReportZip`):
+
+- `summary.txt`: the body plus full `HEADER_FIT` lines and image notes.
+- `logs.tsv`: every `app_logs` row of the last 2 h plus key events from the full 72 h
+  (`BugReportLogs`: WARN/ERROR and `KEY_EVENT_TAGS`), oldest first, one row per line, column
+  `part` = `recent`/`key`. Load it with `sqlite3 :memory: '.mode tabs' '.import logs.tsv logs'`.
+- `widget-<id>.png` (Android): each widget as the app last pushed it, replayed from
+  `WidgetViewsHistory` (last full RemoteViews + partials since); `window-<n>.png` on desktop.
+- `weather_database.db`: a `VACUUM INTO` copy; open it directly instead of
+  `backup_databases.py` for a phone that is not on adb. Android attaches it only with the
+  metadata checkbox; API keys live in preferences and are never attached.
+
+Android sends with `ACTION_SEND` + `FileProvider` (`${applicationId}.bugreports`, `cache/bug_reports/`);
+desktop writes the zip to `~/Downloads`, opens the mail draft naming it, and opens the folder
+(`mailto:` can't attach). Each build logs `BUG_REPORT_BUILT`. Replay a layout report on an AVD
+matching the pixels and density, resized to the reported dp. Log times are device-local:
+use the summary's `Timezone:` offset, not the host's `'localtime'`, when querying the attached DB.
+Plan: `plans/261121-bug-report-attachments.md`.
 
 Header buttons: every header render logs `HEADER_FIT` (width, measured pieces, plan) to logcat.
 The shared `HeaderFitChangeLog` persists a line only for the first render of each widget and view
 in a process and whenever its buttons change (shown/hidden, count, home, months). Android writes it
-to `app_logs` at INFO; desktop logs it on the same rule. Because that row can scroll out of the
-300-row tail, the Android report also lists each widget's latest decision as `header: view=…`
-lines (or `not rendered since app process start`).
+to `app_logs` at INFO (a key event, so it reaches `logs.tsv` for 72 h); desktop logs it on the same
+rule. The report also lists each widget's latest decision (`header: daily 384dp buttons=SHOWN 3`,
+or `not rendered since app process start`).
 
 `adb` warnings can corrupt redirected PNG output on some setups. Convert before viewing:
 

@@ -410,7 +410,6 @@
 
     <!-- Bug report sharing -->
     <string name="bug_report_share_failed">Failed to start sharing intent</string>
-    <string name="bug_report_email_subject">Weather widget bug report</string>
     <string name="obs_actuals_source_label">Actuals source</string>
     <string name="station_name_tomorrow_five_minute_history" translatable="false">Tmrw: 5-minute history</string>
     <string name="actual_cloud_cover_data_from">Actual cloud cover data from %1$s</string>
@@ -469,8 +468,6 @@
     <string name="watermark_server_error">%1$s Server Error</string>
     <string name="blend_stations_count">%1$d stations</string>
     <string name="obs_no_fetch_logs">No current observation fetch logs found for %1$s.</string>
-    <string name="bug_report_no_logs">No recent logs found in database.</string>
-    <string name="bug_report_logs_excluded">Logs excluded by user.</string>
     <string name="cloud_data_unavailable">Cloud data unavailable</string>
     <string name="cloud_data_missing_for_one">Cloud data missing for %1$d of %2$d hr</string>
     <string name="cloud_data_missing_for_many">Cloud data missing for %1$d of %2$d hrs</string>

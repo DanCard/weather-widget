@@ -107,6 +107,10 @@ class HardcodedUserFacingStringTest {
                 "Personal Weather Stations" to "SettingsSection canonical title (English, localized on Android via strings.xml)",
                 "Support Development" to "SettingsSection canonical title (English, localized on Android via strings.xml)",
                 "Weather Data Sources" to "SettingsSection canonical title (English, localized on Android via strings.xml)",
+                "Weather widget bug report" to
+                    "BugReportFormat.SUBJECT_PREFIX: fixed so the developer's inbox search finds every report, whatever the locale",
+                "epoch_ms\\tlocal_time\\tpart\\tlevel\\ttag\\tmessage" to
+                    "BugReportLogs.TSV_HEADER: machine-read column names of the attached logs.tsv",
             )
     }
 

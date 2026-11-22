@@ -35,7 +35,6 @@ class CrossPlatformDuplicateLogTagsTest {
             "GOOGLE_REQUEST" to ADAPTER, // OkHttp interceptor vs desktop HTTP client
             "SOURCE_FETCH_GATE" to ADAPTER, // SourceFetchGate loaders
             "SOURCE_VIEW_PROBABILITY" to ADAPTER, // SourceViewProbability, daily log per platform store
-            "TIMEZONE_CHANGE" to ADAPTER, // broadcast vs daemon clock check
             "DOMINANT_TEMP_WATCH" to ADAPTER, // DominantTempWatch, prefs vs file store
         )
 

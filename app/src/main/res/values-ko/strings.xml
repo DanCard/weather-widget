@@ -374,7 +374,6 @@
 
     <!-- Bug report sharing -->
     <string name="bug_report_share_failed">공유를 시작하지 못했습니다</string>
-    <string name="bug_report_email_subject">날씨 위젯 버그 신고</string>
     <string name="blend_tab">혼합</string>
     <string name="observations_tab">관측</string>
     <string name="blend_no_points">아직 혼합 지점이 없습니다.</string>
@@ -454,8 +453,6 @@
     <string name="watermark_server_error">%1$s 서버 오류</string>
     <string name="blend_stations_count">%1$d개소</string>
     <string name="obs_no_fetch_logs">%1$s의 현재 관측 가져오기 로그를 찾을 수 없습니다.</string>
-    <string name="bug_report_no_logs">데이터베이스에서 최근 로그를 찾을 수 없습니다.</string>
-    <string name="bug_report_logs_excluded">사용자가 로그를 제외했습니다.</string>
     <string name="cloud_data_unavailable">구름 데이터를 사용할 수 없음</string>
     <string name="cloud_data_missing_for_one">%2$d시간 중 %1$d시간의 구름 데이터 없음</string>
     <string name="cloud_data_missing_for_many">%2$d시간 중 %1$d시간의 구름 데이터 없음</string>

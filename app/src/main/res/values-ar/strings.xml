@@ -374,7 +374,6 @@
 
     <!-- Bug report sharing -->
     <string name="bug_report_share_failed">فشل بدء المشاركة</string>
-    <string name="bug_report_email_subject">تقرير خطأ أداة الطقس</string>
     <string name="blend_tab">المزج</string>
     <string name="observations_tab">الأرصاد</string>
     <string name="blend_no_points">لا توجد نقطة مزج متاحة بعد.</string>
@@ -454,8 +453,6 @@
     <string name="watermark_server_error">%1$s خطأ في الخادم</string>
     <string name="blend_stations_count">%1$d محطات</string>
     <string name="obs_no_fetch_logs">لم يتم العثور على سجلات جلب الملاحظة الحالية لـ %1$s.</string>
-    <string name="bug_report_no_logs">لم يتم العثور على سجلات حديثة في قاعدة البيانات.</string>
-    <string name="bug_report_logs_excluded">السجلات مستبعدة بواسطة المستخدم.</string>
     <string name="cloud_data_unavailable">بيانات السحب غير متاحة</string>
     <string name="cloud_data_missing_for_one">بيانات السحب مفقودة لـ %1$d من %2$d ساعة</string>
     <string name="cloud_data_missing_for_many">بيانات السحب مفقودة لـ %1$d من %2$d ساعة</string>

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Bug-report zips only (BugReportActivity), shared read-only with the chosen mail app. -->
+<paths>
+    <cache-path name="bug_reports" path="bug_reports/" />
+</paths>

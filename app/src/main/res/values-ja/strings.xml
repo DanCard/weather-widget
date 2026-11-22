@@ -374,7 +374,6 @@
 
     <!-- Bug report sharing -->
     <string name="bug_report_share_failed">共有を開始できませんでした</string>
-    <string name="bug_report_email_subject">天気ウィジェットのバグ報告</string>
     <string name="blend_tab">ブレンド</string>
     <string name="observations_tab">観測</string>
     <string name="blend_no_points">ブレンド地点はまだありません。</string>
@@ -454,8 +453,6 @@
     <string name="watermark_server_error">%1$s サーバーエラー</string>
     <string name="blend_stations_count">%1$d 地点</string>
     <string name="obs_no_fetch_logs">%1$s の現在の観測取得ログが見つかりません。</string>
-    <string name="bug_report_no_logs">データベースに最近のログが見つかりません。</string>
-    <string name="bug_report_logs_excluded">ログはユーザーにより除外されました。</string>
     <string name="cloud_data_unavailable">雲データを利用できません</string>
     <string name="cloud_data_missing_for_one">%2$d 時間中 %1$d 時間の雲データがありません</string>
     <string name="cloud_data_missing_for_many">%2$d 時間中 %1$d 時間の雲データがありません</string>

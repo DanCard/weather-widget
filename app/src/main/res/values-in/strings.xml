@@ -374,7 +374,6 @@
 
     <!-- Bug report sharing -->
     <string name="bug_report_share_failed">Gagal memulai berbagi</string>
-    <string name="bug_report_email_subject">Laporan bug Widget Cuaca</string>
     <string name="blend_tab">Campuran</string>
     <string name="observations_tab">Observasi</string>
     <string name="blend_no_points">Belum ada titik campuran yang tersedia.</string>
@@ -454,8 +453,6 @@
     <string name="watermark_server_error">%1$s Kesalahan server</string>
     <string name="blend_stations_count">%1$d stasiun</string>
     <string name="obs_no_fetch_logs">Tidak ada log pengambilan observasi saat ini untuk %1$s.</string>
-    <string name="bug_report_no_logs">Tidak ada log terbaru ditemukan di database.</string>
-    <string name="bug_report_logs_excluded">Log dikecualikan oleh pengguna.</string>
     <string name="cloud_data_unavailable">Data awan tidak tersedia</string>
     <string name="cloud_data_missing_for_one">Data awan hilang untuk %1$d dari %2$d jam</string>
     <string name="cloud_data_missing_for_many">Data awan hilang untuk %1$d dari %2$d jam</string>

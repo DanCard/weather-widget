@@ -374,7 +374,6 @@
 
     <!-- Bug report sharing -->
     <string name="bug_report_share_failed">साझाकरण शुरू नहीं हो सका</string>
-    <string name="bug_report_email_subject">मौसम विजेट बग रिपोर्ट</string>
     <string name="blend_tab">मिश्रण</string>
     <string name="observations_tab">अवलोकन</string>
     <string name="blend_no_points">अभी तक कोई मिश्रित बिंदु उपलब्ध नहीं है।</string>
@@ -454,8 +453,6 @@
     <string name="watermark_server_error">%1$s सर्वर त्रुटि</string>
     <string name="blend_stations_count">%1$d स्टेशन</string>
     <string name="obs_no_fetch_logs">%1$s के लिए वर्तमान अवलोकन प्राप्त करने के लॉग नहीं मिले।</string>
-    <string name="bug_report_no_logs">डेटाबेस में हाल के लॉग नहीं मिले।</string>
-    <string name="bug_report_logs_excluded">उपयोगकर्ता द्वारा लॉग बाहर रखे गए।</string>
     <string name="cloud_data_unavailable">बादल डेटा अनुपलब्ध</string>
     <string name="cloud_data_missing_for_one">%2$d में से %1$d घंटे का बादल डेटा गायब</string>
     <string name="cloud_data_missing_for_many">%2$d में से %1$d घंटे का बादल डेटा गायब</string>

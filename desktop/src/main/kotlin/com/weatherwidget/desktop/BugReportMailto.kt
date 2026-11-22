@@ -19,11 +19,27 @@ private const val TAG = "BugReportMailto"
  * Deliberately excludes API keys from the diagnostic dump -- they're sensitive even in a bug
  * report, and the daemon already redacts them in app logs (see DesktopWeatherDao log writers).
  */
-fun buildBugReportMailto(config: DesktopConfig): String {
-    val subject = "Weather Widget desktop — bug report"
-    val body = buildString {
+fun buildBugReportMailto(config: DesktopConfig, attachment: java.io.File? = null): String {
+    val subject = BugReportFormat.subject("", "desktop")
+    val body = bugReportBody(config, attachment)
+    val encodedSubject = URLEncoder.encode(subject, "UTF-8").replace("+", "%20")
+    val encodedBody = URLEncoder.encode(body, "UTF-8").replace("+", "%20")
+    return "mailto:$BUG_REPORT_RECIPIENT?subject=$encodedSubject&body=$encodedBody"
+}
+
+/**
+ * The mail body and `summary.txt`. With [attachment], the first lines ask the user to attach the
+ * zip: `mailto:` can't carry files, so the zip is written to Downloads ([DesktopBugReport]).
+ */
+internal fun bugReportBody(config: DesktopConfig, attachment: java.io.File? = null): String =
+    buildString {
         appendLine("Weather Widget desktop bug report")
         appendLine()
+        if (attachment != null) {
+            appendLine("Please attach this file before sending:")
+            appendLine(attachment.absolutePath)
+            appendLine()
+        }
         appendLine("Please describe what happened:")
         appendLine("…")
         appendLine()
@@ -49,10 +65,6 @@ fun buildBugReportMailto(config: DesktopConfig): String {
         appendLine("  zoomFactor: ${config.zoomFactor}")
         appendLine("  apiKeys: ${if (config.settings.apiKeys.isEmpty()) "(none)" else config.settings.apiKeys.keys.joinToString(", ") { "$it=(redacted)" }}")
     }
-    val encodedSubject = URLEncoder.encode(subject, "UTF-8").replace("+", "%20")
-    val encodedBody = URLEncoder.encode(body, "UTF-8").replace("+", "%20")
-    return "mailto:$BUG_REPORT_RECIPIENT?subject=$encodedSubject&body=$encodedBody"
-}
 
 /**
  * Each screen's size and HiDPI scale, e.g. `Display: 2560x1440 @1.25x`. Rendering is sized in

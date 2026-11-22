@@ -374,7 +374,6 @@
 
     <!-- Bug report sharing -->
     <string name="bug_report_share_failed">শেয়ার শুরু করা যায়নি</string>
-    <string name="bug_report_email_subject">আবহাওয়া উইজেট বাগ রিপোর্ট</string>
     <string name="blend_tab">মিশ্রণ</string>
     <string name="observations_tab">পর্যবেক্ষণ</string>
     <string name="blend_no_points">এখনও কোনো মিশ্রিত পয়েন্ট নেই।</string>
@@ -454,8 +453,6 @@
     <string name="watermark_server_error">%1$s সার্ভার ত্রুটি</string>
     <string name="blend_stations_count">%1$d স্টেশন</string>
     <string name="obs_no_fetch_logs">%1$s-এর জন্য বর্তমান পর্যবেক্ষণ আনার কোনো লগ পাওয়া যায়নি।</string>
-    <string name="bug_report_no_logs">ডেটাবেসে সাম্প্রতিক কোনো লগ পাওয়া যায়নি।</string>
-    <string name="bug_report_logs_excluded">ব্যবহারকারী লগ বাদ দিয়েছেন।</string>
     <string name="cloud_data_unavailable">মেঘের তথ্য উপলব্ধ নেই</string>
     <string name="cloud_data_missing_for_one">%2$dটির মধ্যে %1$d ঘণ্টার মেঘের তথ্য অনুপস্থিত</string>
     <string name="cloud_data_missing_for_many">%2$dটির মধ্যে %1$d ঘণ্টার মেঘের তথ্য অনুপস্থিত</string>

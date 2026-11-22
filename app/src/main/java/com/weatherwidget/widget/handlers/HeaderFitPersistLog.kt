@@ -25,10 +25,18 @@ import kotlinx.coroutines.launch
 internal object HeaderFitPersistLog {
     private val changes = HeaderFitChangeLog()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val latest = java.util.concurrent.ConcurrentHashMap<Int, java.util.concurrent.ConcurrentHashMap<String, String>>()
+    /** One view's latest decision: the full [HeaderFit.logLine] and its [HeaderFit.shortLine]. */
+    data class Latest(val line: String, val short: String)
+
+    private val latest = java.util.concurrent.ConcurrentHashMap<Int, java.util.concurrent.ConcurrentHashMap<String, Latest>>()
 
     /** This process's most recent header decision per view for [appWidgetId], e.g. `daily -> view=daily widthDp=…`. */
-    fun latestLines(appWidgetId: Int): Map<String, String> = latest[appWidgetId]?.toSortedMap().orEmpty()
+    fun latestLines(appWidgetId: Int): Map<String, String> =
+        latest[appWidgetId]?.toSortedMap()?.mapValues { it.value.line }.orEmpty()
+
+    /** As [latestLines], in [HeaderFit.shortLine] form for the email body. */
+    fun latestShortLines(appWidgetId: Int): Map<String, String> =
+        latest[appWidgetId]?.toSortedMap()?.mapValues { it.value.short }.orEmpty()
 
     fun record(
         context: Context,
@@ -40,7 +48,8 @@ internal object HeaderFitPersistLog {
         measured: HeaderFit.Measured,
     ) {
         val fitLine = HeaderFit.logLine(view, widthDp, headerScale, fit, measured)
-        latest.getOrPut(appWidgetId) { java.util.concurrent.ConcurrentHashMap() }[view] = fitLine
+        latest.getOrPut(appWidgetId) { java.util.concurrent.ConcurrentHashMap() }[view] =
+            Latest(fitLine, HeaderFit.shortLine(view, widthDp, fit))
         val line = "widget=$appWidgetId $fitLine"
         if (!changes.changed("$appWidgetId/$view", fit)) {
             Log.d(HeaderFit.LOG_TAG, line)
