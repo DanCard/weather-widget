@@ -381,6 +381,8 @@ object CloudCoverViewHandler {
         val headerResult = HourlyHeaderBinder.bindHourlyHeader(
             context = context,
             views = views,
+            appWidgetId = appWidgetId,
+            view = "cloud",
             iconRes = iconRes,
             formattedTemp = formattedTemp,
             isPrecipVisible = isPrecipVisible,

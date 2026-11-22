@@ -1,17 +1,20 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.shared.util.BugReportFormat
+import com.weatherwidget.shared.util.Log
+import java.awt.GraphicsEnvironment
 import java.net.URLEncoder
 import java.util.Locale
 
-private const val BUG_REPORT_RECIPIENT = "weather-widget-bugs@example.invalid"
+/** Same inbox as Android's `BugReportActivity`, so reports from both platforms land together. */
+internal const val BUG_REPORT_RECIPIENT = "daniecarde55@gmail.com"
 private const val TAG = "BugReportMailto"
 
 /**
  * Phase 4 item 5: builds a `mailto:` URI pre-populated with desktop-app diagnostic info, mirroring
  * (at a much smaller scope) what Android's `BugReportActivity` collects. The user's mail client
  * opens with subject/body pre-filled; they can edit and send, or copy the body into another
- * channel. Recipient is a placeholder -- a real address would live in local.properties or a build
- * constant; left as `example.invalid` so we never auto-send to a wrong inbox.
+ * channel. Nothing is sent automatically: the user still reviews and sends from their mail client.
  *
  * Deliberately excludes API keys from the diagnostic dump -- they're sensitive even in a bug
  * report, and the daemon already redacts them in app logs (see DesktopWeatherDao log writers).
@@ -29,6 +32,8 @@ fun buildBugReportMailto(config: DesktopConfig): String {
         appendLine("OS: ${System.getProperty("os.name")} ${System.getProperty("os.version")} (${System.getProperty("os.arch")})")
         appendLine("JVM: ${System.getProperty("java.vm.name")} ${System.getProperty("java.version")}")
         appendLine("Locale: ${Locale.getDefault()}")
+        appendLine(BugReportFormat.timezoneLine())
+        appendLine(displayLine())
         appendLine()
         appendLine("Config:")
         appendLine("  location: ${config.label} (${formatCoord(config.lat)}, ${formatCoord(config.lon)})")
@@ -48,5 +53,27 @@ fun buildBugReportMailto(config: DesktopConfig): String {
     val encodedBody = URLEncoder.encode(body, "UTF-8").replace("+", "%20")
     return "mailto:$BUG_REPORT_RECIPIENT?subject=$encodedSubject&body=$encodedBody"
 }
+
+/**
+ * Each screen's size and HiDPI scale, e.g. `Display: 2560x1440 @1.25x`. Rendering is sized in
+ * scaled pixels, so the scale is what a reproduction must match. Headless hosts report `headless`.
+ */
+internal fun displayLine(): String =
+    try {
+        if (GraphicsEnvironment.isHeadless()) {
+            "Display: headless"
+        } else {
+            val screens = GraphicsEnvironment.getLocalGraphicsEnvironment().screenDevices.joinToString(", ") { device ->
+                val config = device.defaultConfiguration
+                val mode = device.displayMode
+                val scale = config.defaultTransform.scaleX
+                "${mode.width}x${mode.height} @${String.format(Locale.US, "%.2f", scale)}x"
+            }
+            "Display: $screens"
+        }
+    } catch (e: Exception) {
+        Log.w(TAG, "Could not read display info", e)
+        "Display: unavailable (${e.javaClass.simpleName})"
+    }
 
 private fun formatCoord(value: Double): String = com.weatherwidget.shared.util.formatCoord(value)

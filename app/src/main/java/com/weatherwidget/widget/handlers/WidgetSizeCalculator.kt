@@ -179,6 +179,9 @@ object WidgetSizeCalculator {
         val screenOrientation: Int,
     )
 
+    /** Package of the default home-screen app (the widget host), or null when none resolves. */
+    fun resolveHomePackage(context: Context): String? = resolveHomeActivity(context).packageName
+
     @Suppress("DEPRECATION")
     private fun resolveHomeActivity(context: Context): HomeActivity {
         val homeIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)

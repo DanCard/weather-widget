@@ -85,6 +85,65 @@ class BugReportActivityRobolectricTest {
     }
 
     @Test
+    @Config(sdk = [35], qualifiers = "w384dp-h832dp-xxhdpi")
+    fun `diagnostics preview reports display density timezone launcher and power state`() {
+        val intent = Intent(context, BugReportActivity::class.java)
+        ActivityScenario.launch<BugReportActivity>(intent).onActivity { activity ->
+            activity.ioDispatcher = testDispatcher
+            activity.loadPreview()
+            shadowOf(context.mainLooper).idle()
+
+            val previewText = activity.findViewById<TextView>(R.id.bug_report_diagnostics_preview_text).text.toString()
+            println("BugReportActivityRobolectricTest preview:\n$previewText")
+
+            assertTrue("Preview should contain display section", previewText.contains("--- DISPLAY ---"))
+            assertTrue("Density should come from the device qualifier", previewText.contains("Density: 480 dpi (scale 3.00)"))
+            assertTrue("Screen dp should come from the device qualifier", previewText.contains("Screen dp: 384x832"))
+            assertTrue("Preview should report font scale", previewText.contains("Font scale: 1.00"))
+            assertTrue("Preview should report the timezone", previewText.contains("Timezone: "))
+            assertTrue("Preview should report the launcher", previewText.contains("Launcher: "))
+            assertTrue("Preview should report battery optimization", previewText.contains("Battery optimization exempt: "))
+            assertTrue("Preview should report location permissions", previewText.contains("Location permission: fine="))
+        }
+    }
+
+    @Test
+    fun `diagnostics preview reports each widget's launcher-given size and view`() {
+        val appWidgetManager = android.appwidget.AppWidgetManager.getInstance(context)
+        val shadowManager = shadowOf(appWidgetManager)
+        val provider = android.content.ComponentName(context, com.weatherwidget.widget.WeatherWidgetProvider::class.java)
+        val widgetId = shadowManager.createWidget(com.weatherwidget.widget.WeatherWidgetProvider::class.java, R.layout.widget_weather)
+        appWidgetManager.updateAppWidgetOptions(
+            widgetId,
+            android.os.Bundle().apply {
+                putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 384)
+                putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 150)
+                putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 420)
+                putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 220)
+            },
+        )
+        assertTrue("Test widget must be bound to the provider", appWidgetManager.getAppWidgetIds(provider).contains(widgetId))
+
+        val intent = Intent(context, BugReportActivity::class.java)
+        ActivityScenario.launch<BugReportActivity>(intent).onActivity { activity ->
+            activity.ioDispatcher = testDispatcher
+            activity.loadPreview()
+            shadowOf(context.mainLooper).idle()
+
+            val previewText = activity.findViewById<TextView>(R.id.bug_report_diagnostics_preview_text).text.toString()
+            println("BugReportActivityRobolectricTest widget preview:\n$previewText")
+
+            assertTrue("Widget line should name its view", previewText.contains("- Widget #$widgetId: API=") && previewText.contains("| View="))
+            assertTrue("Widget size should be the portrait host size (minW x maxH)", previewText.contains("size=384x220dp"))
+            assertTrue("Widget options should be echoed", previewText.contains("options=min:384x150,max:420x220"))
+            assertTrue(
+                "A widget not yet rendered in this process says so instead of guessing",
+                previewText.contains("header: not rendered since app process start"),
+            )
+        }
+    }
+
+    @Test
     fun `checkbox toggles change metadata presence in diagnostics preview`() {
         val intent = Intent(context, BugReportActivity::class.java)
         ActivityScenario.launch<BugReportActivity>(intent).onActivity { activity ->
@@ -161,6 +220,29 @@ class BugReportActivityRobolectricTest {
             assertTrue("Body should contain screenshot tip", bodyText.contains("Please attach a screenshot"))
             assertTrue("Body should contain description", bodyText.contains("App crashes when rotating device."))
             assertTrue("Body should contain App version details", bodyText.contains("## Application Version"))
+        }
+    }
+
+    @Test
+    fun `diagnostics preview reports each widget's latest header decision`() {
+        val appWidgetManager = android.appwidget.AppWidgetManager.getInstance(context)
+        val widgetId = shadowOf(appWidgetManager).createWidget(com.weatherwidget.widget.WeatherWidgetProvider::class.java, R.layout.widget_weather)
+        val measured = com.weatherwidget.shared.util.HeaderFit.Measured(width = 420f, rightCluster = 150f, gap = 12f, baseButtons = 3, buttonWidth = 100f)
+        val hidden = com.weatherwidget.shared.util.HeaderFit.Plan(placement = com.weatherwidget.shared.util.HeaderFit.ButtonPlacement.HIDDEN)
+        com.weatherwidget.widget.handlers.HeaderFitPersistLog.record(context, widgetId, "daily", 140f, 1f, hidden, measured)
+
+        val intent = Intent(context, BugReportActivity::class.java)
+        ActivityScenario.launch<BugReportActivity>(intent).onActivity { activity ->
+            activity.ioDispatcher = testDispatcher
+            activity.loadPreview()
+            shadowOf(context.mainLooper).idle()
+
+            val previewText = activity.findViewById<TextView>(R.id.bug_report_diagnostics_preview_text).text.toString()
+            println("BugReportActivityRobolectricTest header preview:\n$previewText")
+            assertTrue(
+                "Widget section should carry the latest header decision",
+                previewText.contains("  header: view=daily widthDp=140") && previewText.contains("placement=HIDDEN"),
+            )
         }
     }
 }

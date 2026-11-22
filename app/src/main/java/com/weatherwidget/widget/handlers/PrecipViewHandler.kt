@@ -323,6 +323,8 @@ object PrecipViewHandler {
         val headerResult = HourlyHeaderBinder.bindHourlyHeader(
             context = context,
             views = views,
+            appWidgetId = appWidgetId,
+            view = "precip",
             iconRes = iconRes,
             formattedTemp = formattedTemp,
             isPrecipVisible = isPrecipVisible,

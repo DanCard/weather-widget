@@ -118,12 +118,20 @@ class BugReportActivity : AppCompatActivity() {
             append("Device: ${Build.MANUFACTURER} ${Build.MODEL} (${Build.BRAND})\n")
             append("OS version: Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})\n")
             append("Locale: ${Locale.getDefault()}\n")
+            append("${com.weatherwidget.shared.util.BugReportFormat.timezoneLine()}\n")
+            append("${BugReportDeviceDiagnostics.launcherLine(this@BugReportActivity)}\n")
             append("GPS Mode: $locationMode\n\n")
+
+            append("--- DISPLAY ---\n")
+            BugReportDeviceDiagnostics.displayLines(this@BugReportActivity).forEach { append("$it\n") }
+            append("\n")
 
             append("--- BATTERY & POWER ---\n")
             append("Battery Level: $batteryLevel%\n")
             append("Charging Status: ${if (isCharging) "Charging" else "On Battery"}\n")
-            append("Screen State: ${if (isScreenInteractive) "Interactive" else "Screen Off"}\n\n")
+            append("Screen State: ${if (isScreenInteractive) "Interactive" else "Screen Off"}\n")
+            BugReportDeviceDiagnostics.powerAndPermissionLines(this@BugReportActivity).forEach { append("$it\n") }
+            append("\n")
 
             append("--- ACTIVE WIDGETS ---\n")
             append("Count: ${widgetIds.size}\n")
@@ -132,7 +140,15 @@ class BugReportActivity : AppCompatActivity() {
                     val loc = widgetStateManager.getWidgetLocation(id)
                     val locStr = if (loc != null) "${String.format(Locale.US, "%.4f", loc.first)}, ${String.format(Locale.US, "%.4f", loc.second)}" else "Not Set"
                     val source = widgetStateManager.getCurrentDisplaySource(id).name
-                    append("- Widget #$id: API=$source | Coordinates=$locStr\n")
+                    val view = widgetStateManager.getViewMode(id).name
+                    append("- Widget #$id: API=$source | View=$view | Coordinates=$locStr\n")
+                    append("  ${BugReportDeviceDiagnostics.widgetSizeLine(this@BugReportActivity, appWidgetManager, id)}\n")
+                    val headerFits = com.weatherwidget.widget.handlers.HeaderFitPersistLog.latestLines(id)
+                    if (headerFits.isEmpty()) {
+                        append("  header: not rendered since app process start\n")
+                    } else {
+                        headerFits.values.forEach { append("  header: $it\n") }
+                    }
                 }
             } else {
                 append("[Widget metadata excluded]\n")

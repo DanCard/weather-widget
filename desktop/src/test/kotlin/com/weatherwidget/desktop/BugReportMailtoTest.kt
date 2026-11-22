@@ -34,6 +34,10 @@ apiKeys = mapOf(
         val mailto = buildBugReportMailto(sampleConfig)
 
         assertTrue("must start with mailto:", mailto.startsWith("mailto:"))
+        assertTrue(
+            "must address the same inbox as Android's bug report",
+            mailto.startsWith("mailto:daniecarde55@gmail.com?"),
+        )
         assertTrue("must include subject param", mailto.contains("subject="))
         assertTrue("must include body param", mailto.contains("body="))
         // Subject/body values are URL-encoded; "+" is a valid encoding for space but we replaced
@@ -54,6 +58,10 @@ apiKeys = mapOf(
         assertTrue("body must include weatherSource", decodedBody.contains("weatherSource: NWS"))
         assertTrue("body must include visibleSources", decodedBody.contains("visibleSources: [NWS, OPEN_METEO]"))
         assertTrue("body must include OS line", decodedBody.contains("OS:"))
+        // Timezone + display let a reader line up log times and replay the window scale.
+        assertTrue("body must include timezone line", decodedBody.contains("Timezone: "))
+        assertTrue("body must include display line", decodedBody.contains("Display: "))
+        println("BugReportMailtoTest diagnostic body:\n$decodedBody")
 
         // Redacts API keys at the key-name level so a support engineer knows which providers were
         // configured without seeing the secret.

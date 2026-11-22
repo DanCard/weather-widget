@@ -36,6 +36,7 @@ import com.weatherwidget.shared.util.HeaderButton
 import com.weatherwidget.shared.util.HeaderButtons
 import com.weatherwidget.shared.util.HeaderButtonZone
 import com.weatherwidget.shared.util.HeaderFit
+import com.weatherwidget.shared.util.HeaderFitChangeLog
 import com.weatherwidget.shared.util.HeaderTapRouting
 import com.weatherwidget.shared.util.Log
 import com.weatherwidget.shared.util.PreferredSourceHome
@@ -493,14 +494,15 @@ private const val CAPTION_MARGIN_DP = 3f
 private const val PRECIP_MARGIN_DP = 6f
 private const val DELTA_CAPTION = "from yest"
 
-/** [HeaderFit.LOG_TAG] once per plan change (recomposition and resizes repeat the same plan). */
+/**
+ * [HeaderFit.LOG_TAG] when a view's header buttons change, by the same rule as Android
+ * ([HeaderFitChangeLog]); recomposition and resizes repeat the same plan.
+ */
 private object HeaderFitLog {
-    @Volatile private var last: String? = null
+    private val changes = HeaderFitChangeLog()
 
     fun changed(view: String, scale: Float, plan: HeaderFit.Plan, measured: HeaderFit.Measured) {
-        val key = "view=$view $plan"
-        if (key == last) return
-        last = key
+        if (!changes.changed(view, plan)) return
         Log.i(HeaderFit.LOG_TAG, HeaderFit.logLine(view, measured.width, scale, plan, measured))
     }
 }

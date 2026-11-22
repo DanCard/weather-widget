@@ -57,7 +57,7 @@ internal object TemperatureViewBinder {
             centerTime = centerTime,
             today = LocalDateTime.now().toLocalDate(),
         )
-        Log.d(HeaderFit.LOG_TAG, HeaderFit.logLine("hourly", state.widthDp.toFloat(), headerScale, fit, measured))
+        HeaderFitPersistLog.record(context, appWidgetId, "temperature", state.widthDp.toFloat(), headerScale, fit, measured)
         // Width only, never the source shown: a source tap must not resize the buttons.
         val buttonScale = HeaderWidthChecker.buttonScale(state.widthDp, fit, context.resources.displayMetrics.density)
 

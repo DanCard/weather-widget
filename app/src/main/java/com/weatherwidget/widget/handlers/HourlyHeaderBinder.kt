@@ -22,6 +22,9 @@ internal object HourlyHeaderBinder {
     fun bindHourlyHeader(
         context: Context,
         views: RemoteViews,
+        appWidgetId: Int,
+        /** [HeaderFit.LOG_TAG] view name: `cloud` or `precip`. */
+        view: String,
         iconRes: Int,
         formattedTemp: String?,
         isPrecipVisible: Boolean,
@@ -68,7 +71,7 @@ internal object HourlyHeaderBinder {
             allApiSourceLabels = allApiSourceLabels,
         )
         val fit = HeaderFit.resolve(measured)
-        android.util.Log.d(HeaderFit.LOG_TAG, HeaderFit.logLine("hourly", widthDp.toFloat(), headerScale, fit, measured))
+        HeaderFitPersistLog.record(context, appWidgetId, view, widthDp.toFloat(), headerScale, fit, measured)
 
         HeaderRemoteViewsBinder.bindApiSource(
             context = context,
