@@ -11,6 +11,7 @@ import com.weatherwidget.shared.util.ClimateNormalsRun
 internal class DesktopClimateNormalsHost(
     private val weatherDao: DesktopWeatherDao,
     private val fetch: suspend (start: String, end: String) -> List<DailyForecast>,
+    private val onCached: suspend (locationKey: String) -> Unit,
 ) : ClimateNormalsRun.Host {
     override suspend fun cached(locationKey: String) = weatherDao.getClimateNormals(locationKey)
 
@@ -20,4 +21,6 @@ internal class DesktopClimateNormalsHost(
         weatherDao.upsertClimateNormals(locationKey, monthlyHigh, monthlyLow)
 
     override suspend fun log(tag: String, message: String, level: String) = weatherDao.log(tag, message, level)
+
+    override suspend fun onNormalsCached(locationKey: String) = onCached(locationKey)
 }

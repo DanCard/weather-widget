@@ -642,7 +642,8 @@ class DesktopWeatherRepository(
 
             // Best-effort: ensure climate normals are cached for the future-day fallback. One network
             // fetch per location, then served from cache; never fails the main refresh.
-            ensureClimateNormals()
+            // Climate normals are not warmed here: the daemon's launch refresh settles them in
+            // parallel with its fetch and paint (ensureClimateNormals), so no refresh waits on the archive.
 
             // Same retention policy as Android (RetentionPolicy); the permanent backfill markers stay.
             weatherDao.applyRetention(now, protectedLogTags = PERMANENT_LOG_MARKERS)
@@ -1226,14 +1227,20 @@ class DesktopWeatherRepository(
      * normals. Compute is shared with Android via [ClimateNormals].
      */
     /**
-     * The rule is `:shared` [ClimateNormalsRun] (same as Android); this is its desktop host.
-     * @return true only if normals were just (re)fetched and cached, so callers can reload state.
+     * `:shared` [ClimateNormalsRun.ensureForSite] (same rule as Android) with this repository's host.
+     * [onCached] is the repaint when normals were newly cached: the daemon must publish *and* notify
+     * the UI process, which reloads only on that notification.
+     * @return true only if normals were just (re)fetched and cached.
      */
-    suspend fun ensureClimateNormals(): Boolean = ClimateNormalsRun.warm(
-        DesktopClimateNormalsHost(weatherDao, weatherService::fetchHistoricalDailyTemps),
+    suspend fun ensureClimateNormals(
+        reason: String,
+        onCached: suspend () -> Unit,
+    ): Boolean = ClimateNormalsRun.ensureForSite(
+        DesktopClimateNormalsHost(weatherDao, weatherService::fetchHistoricalDailyTemps) { onCached() },
         latitude,
         longitude,
-    ).fetched
+        reason,
+    )
 
     /**
      * Appends climate-normal gap rows (isClimateNormal=true) for future dates not already covered by

@@ -20,23 +20,28 @@ internal class ClimateNormalsRepository(
     private val climateNormalDao: ClimateNormalDao,
     private val openMeteoApi: OpenMeteoApi,
     private val appLogDao: AppLogDao,
+    /** The repaint when normals were newly cached (see [ClimateNormalsRun.Host.onNormalsCached]). */
+    private val onCached: suspend () -> Unit,
 ) {
     private fun host(latitude: Double, longitude: Double) =
-        RoomClimateNormalsHost(climateNormalDao, appLogDao) { start, end ->
-            openMeteoApi.getHistoricalDailyTemps(latitude, longitude, start, end)
-        }
+        RoomClimateNormalsHost(
+            climateNormalDao,
+            appLogDao,
+            fetch = { start, end -> openMeteoApi.getHistoricalDailyTemps(latitude, longitude, start, end) },
+            onCached = { onCached() },
+        )
 
     suspend fun getHistoricalNormalsByMonthDay(
         latitude: Double,
         longitude: Double,
     ): Map<MonthDay, Pair<Float, Float>> = ClimateNormalsRun.run(host(latitude, longitude), latitude, longitude).byMonthDay
 
-    suspend fun warmBestEffort(
+    /** `:shared` [ClimateNormalsRun.ensureForSite]: true when normals were newly cached. */
+    suspend fun ensureForSite(
         latitude: Double,
         longitude: Double,
-    ) {
-        ClimateNormalsRun.warm(host(latitude, longitude), latitude, longitude)
-    }
+        reason: String,
+    ): Boolean = ClimateNormalsRun.ensureForSite(host(latitude, longitude), latitude, longitude, reason)
 }
 
 /**
@@ -47,6 +52,7 @@ internal class RoomClimateNormalsHost(
     private val climateNormalDao: ClimateNormalDao,
     private val appLogDao: AppLogDao,
     private val fetch: suspend (start: String, end: String) -> List<DailyForecast>,
+    private val onCached: suspend (locationKey: String) -> Unit,
 ) : ClimateNormalsRun.Host {
     override suspend fun cached(locationKey: String): Pair<Map<Int, Float>, Map<Int, Float>> {
         val rows = climateNormalDao.getNormalsForLocation(locationKey)
@@ -73,4 +79,6 @@ internal class RoomClimateNormalsHost(
     }
 
     override suspend fun log(tag: String, message: String, level: String) = appLogDao.log(tag, message, level)
+
+    override suspend fun onNormalsCached(locationKey: String) = onCached(locationKey)
 }

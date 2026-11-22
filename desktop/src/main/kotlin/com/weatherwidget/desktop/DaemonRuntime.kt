@@ -960,6 +960,27 @@ internal class DaemonRuntime(
                 "reason=$reason source=${displaySource.id} outcome=$outcome published=false",
                 "INFO",
             )
+            // `:shared` ClimateNormalsRun.ensureForSite, in parallel with the refresh below and never
+            // before its paint: every launch/resume/location/source refresh, whatever the action.
+            // Newly cached normals were missing from whatever is on screen, so they reload, publish,
+            // AND notify the UI process (it reloads only on notifyDataUpdated) — only while this
+            // refresh's site and source are still displayed. Publishing without notifying left a
+            // returning site's fallback days blank (2026-11-22,
+            // plans/261122-climate-normals-warm-and-repaint-shared.md).
+            daemonScope.launch {
+                try {
+                    activeRepo.ensureClimateNormals(reason = "launch:$reason") {
+                        if (stillDisplayed()) {
+                            activeRepo.loadCached()?.let { panelPublisher.publishForecastState(it) }
+                            notifyDataUpdated()
+                        }
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e(TAG, "[$reason] ensureClimateNormals failed: ${e.message}", e)
+                }
+            }
             // A source switch is a click: the popup says what it started (user, 2026-11-01).
             val announcesSwitch = reason == SOURCE_CYCLE_REASON && launchRefreshAction == LaunchRefreshAction.FULL_FORECAST
             if (announcesSwitch) notifySwitchRefresh(SwitchRefreshSignal.QUEUED)
@@ -1085,20 +1106,6 @@ internal class DaemonRuntime(
                 }
             }
 
-            // Best-effort, action-independent: populate climate normals for the future-day fallback.
-            // Cheap (DB-read early-return) once cached, so safe to run on every launch/resume even
-            // when the forecast wasn't stale enough to trigger a full refresh.
-            try {
-                if (activeRepo.ensureClimateNormals()) {
-                    // Newly populated → reload so future-day gap bars appear without waiting for the
-                    // next refresh cycle.
-                    activeRepo.loadCached()?.let { panelPublisher.publishForecastState(it) }
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e(TAG, "[$reason] ensureClimateNormals failed: ${e.message}")
-            }
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             Log.e(TAG, "[$reason] Initialization failure: ${e.message}")

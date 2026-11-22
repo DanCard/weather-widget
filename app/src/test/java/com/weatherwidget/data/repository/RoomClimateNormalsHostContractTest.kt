@@ -18,7 +18,7 @@ class RoomClimateNormalsHostContractTest : ClimateNormalsHostContract() {
 
     override fun open(): ClimateNormalsRun.Host {
         val db = TestDatabase.create().also { databases.add(it) }
-        return RoomClimateNormalsHost(db.climateNormalDao(), db.appLogDao(), NO_FETCH)
+        return RoomClimateNormalsHost(db.climateNormalDao(), db.appLogDao(), NO_FETCH, NO_REPAINT)
     }
 
     @After

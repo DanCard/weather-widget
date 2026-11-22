@@ -18,7 +18,7 @@ class DesktopClimateNormalsHostContractTest : ClimateNormalsHostContract() {
     override fun open(): ClimateNormalsRun.Host {
         val path = Files.createTempFile("weather_contract", ".db").also { paths.add(it) }
         val db = DesktopWeatherDatabase(path).apply { initialize() }
-        return DesktopClimateNormalsHost(DesktopWeatherDao(db), NO_FETCH)
+        return DesktopClimateNormalsHost(DesktopWeatherDao(db), NO_FETCH, NO_REPAINT)
     }
 
     @After

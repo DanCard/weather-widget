@@ -46,6 +46,10 @@ class WeatherRepository
             )
         }
 
+        /** [ForecastRepository.settleClimateNormals]: run in parallel with a sync, never before its paint. */
+        suspend fun settleClimateNormals(latitude: Double, longitude: Double, reason: String): Boolean =
+            forecastRepository.settleClimateNormals(latitude, longitude, reason)
+
         suspend fun refreshCurrentTemperature(
             latitude: Double,
             longitude: Double,

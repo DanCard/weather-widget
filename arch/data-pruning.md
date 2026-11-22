@@ -22,7 +22,7 @@ The authoritative durations are in
 | `api_usage_stats`, desktop `network_usage` | 90 days |
 | `source_view_days` | 30 days |
 | `app_logs` | 72 hours plus row caps; permanent desktop backfill markers are exempt |
-| `climate_normals` | Current location only |
+| `climate_normals` | Current location only; re-fetched when a site settles ([cadence](forecast-and-observation-cadence.md#climate-normals-future-day-fallback)) |
 
 Android runs retention through `WeatherRetentionManager`; desktop runs it through
 `DesktopWeatherDao.applyRetention()`. Saved configuration and API keys are preferences/configuration,

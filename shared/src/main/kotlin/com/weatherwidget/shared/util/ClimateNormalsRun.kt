@@ -1,5 +1,7 @@
 package com.weatherwidget.shared.util
 
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.time.MonthDay
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -10,6 +12,14 @@ import kotlin.coroutines.cancellation.CancellationException
  * among the user's sources (user, 2026-10-23): normals are site data, not a source's forecast. Was
  * Android's `ClimateNormalsRepository` and desktop's `ensureClimateNormals`; desktop swallowed
  * cancellation (audit plans/261023-duplicate-logic-audit-different-names.md §2).
+ *
+ * **When** to warm and **what follows a new cache** are this object's too ([ensureForSite]): every
+ * site settle — Android's every network-allowed sync, desktop's launch/resume/location/source refresh —
+ * runs it **in parallel with** the fetch and paint, never before them, and a newly cached site asks its
+ * host to repaint. Desktop's launch path cached normals without telling its separate UI process, and
+ * Android warmed only after a network fetch, so a return to a site with a fresh forecast (whose normals
+ * retention had dropped) drew no fallback days; Android's first fix made the paint wait on the archive
+ * (plans/261122-climate-normals-warm-and-repaint-shared.md).
  */
 object ClimateNormalsRun {
     interface Host {
@@ -23,6 +33,13 @@ object ClimateNormalsRun {
         suspend fun store(locationKey: String, monthlyHigh: Map<Int, Float>, monthlyLow: Map<Int, Float>)
 
         suspend fun log(tag: String, message: String, level: String)
+
+        /**
+         * Normals were just cached for [locationKey]: whatever is on screen was drawn without the
+         * fallback days, so repaint (desktop: publish + notify the UI process; Android: mark stored
+         * data changed so the paint that follows rereads it). Never called on a cache hit.
+         */
+        suspend fun onNormalsCached(locationKey: String)
     }
 
     data class Result(val byMonthDay: Map<MonthDay, Pair<Float, Float>>, val fetched: Boolean)
@@ -44,6 +61,33 @@ object ClimateNormalsRun {
         host.store(key, monthlyHigh, monthlyLow)
         host.log("CLIMATE_CACHED", "key=$key months=${monthlyHigh.size}", "INFO")
         return Result(ClimateNormals.expandMonthlyToDaily(monthlyHigh, monthlyLow), fetched = true)
+    }
+
+    /** One archive fetch at a time per process: two parallel settles must not both fetch and repaint. */
+    private val singleFlight = Mutex()
+
+    /**
+     * The one entry point both platforms call when a site settles, **in parallel with** the paint:
+     * [warm], then, when it newly cached the site's normals, [Host.onNormalsCached] and
+     * `CLIMATE_REPAINT`. Cache-first, so a settled site costs one read; a slow or failing archive
+     * costs only background time, since nothing waits on it. Single-flight, so the second of two
+     * concurrent calls finds the first's cache. A failing repaint hook is logged
+     * (`CLIMATE_REPAINT_FAIL`), never thrown. Returns whether normals were newly cached.
+     */
+    suspend fun ensureForSite(host: Host, latitude: Double, longitude: Double, reason: String): Boolean {
+        val fetched = singleFlight.withLock { warm(host, latitude, longitude).fetched }
+        if (!fetched) return false
+        val key = ClimateNormals.locationKey(latitude, longitude)
+        try {
+            host.onNormalsCached(key)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            host.log("CLIMATE_REPAINT_FAIL", "key=$key reason=$reason error=${e::class.simpleName}:${e.message}", "WARN")
+            return true
+        }
+        host.log("CLIMATE_REPAINT", "key=$key reason=$reason", "INFO")
+        return true
     }
 
     /** Best-effort: a failure is logged (`CLIMATE_WARM_FAIL`), never thrown; cancellation still propagates. */

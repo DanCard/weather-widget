@@ -57,5 +57,8 @@ abstract class ClimateNormalsHostContract {
 
         /** The contract never fetches. */
         val NO_FETCH: suspend (String, String) -> Nothing = { _, _ -> error("ClimateNormalsHostContract does not fetch") }
+
+        /** The repaint hook is platform UI, not the database; the contract never caches through the run. */
+        val NO_REPAINT: suspend (String) -> Unit = { error("ClimateNormalsHostContract does not repaint") }
     }
 }

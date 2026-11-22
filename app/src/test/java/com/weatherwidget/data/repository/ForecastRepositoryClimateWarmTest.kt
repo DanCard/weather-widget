@@ -15,6 +15,7 @@ import com.weatherwidget.widget.WidgetStateManager
 import io.mockk.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.experimental.categories.Category
@@ -37,7 +38,7 @@ class ForecastRepositoryClimateWarmTest {
 
         var propagated = false
         try {
-            repository.getWeatherData(TestData.LAT, TestData.LON, forceRefresh = true)
+            repository.settleClimateNormals(TestData.LAT, TestData.LON, reason = "test")
         } catch (_: CancellationException) {
             propagated = true
         }
@@ -46,7 +47,7 @@ class ForecastRepositoryClimateWarmTest {
     }
 
     @Test
-    fun `climate normal warm logs ordinary failure and completes weather fetch`() = runTest {
+    fun `climate normal settle logs ordinary failure and never fails the sync`() = runTest {
         val climateNormalDao = emptyClimateNormalDao()
         val openMeteoApi = mockk<OpenMeteoApi>()
         coEvery {
@@ -55,9 +56,8 @@ class ForecastRepositoryClimateWarmTest {
         val appLogDao = mockk<AppLogDao>(relaxed = true)
         val repository = repository(climateNormalDao, appLogDao, openMeteoApi)
 
-        val result = repository.getWeatherData(TestData.LAT, TestData.LON, forceRefresh = true)
-
-        assertTrue(result.isSuccess)
+        assertFalse(repository.settleClimateNormals(TestData.LAT, TestData.LON, reason = "test"))
+        assertTrue(repository.getWeatherData(TestData.LAT, TestData.LON, forceRefresh = true).isSuccess)
         coVerify {
             appLogDao.insert(
                 match {

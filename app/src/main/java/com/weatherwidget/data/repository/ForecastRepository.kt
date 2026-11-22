@@ -195,7 +195,23 @@ class ForecastRepository
             climateNormalDao = climateNormalDao,
             openMeteoApi = openMeteoApi,
             appLogDao = appLogDao,
+            // Newly cached normals arrive after the sync's own paint: redraw from the database.
+            onCached = {
+                com.weatherwidget.shared.util.StoredDataVersion.process.bump("climate_normals")
+                com.weatherwidget.widget.WidgetWorkScheduler.enqueueUiRepaint(context, reason = "climate_normals")
+            },
         )
+
+        /**
+         * `:shared` [com.weatherwidget.shared.util.ClimateNormalsRun.ensureForSite] for this site.
+         * FullSyncPipeline runs it in parallel with every network-allowed sync's fetch and paint: a
+         * return to a site whose normals retention dropped (current site only) drew no fallback days
+         * until the next forecast fetch, and must not make the paint wait on the archive either.
+         * Newly cached → a paint-only repaint is enqueued
+         * (plans/261122-climate-normals-warm-and-repaint-shared.md).
+         */
+        suspend fun settleClimateNormals(latitude: Double, longitude: Double, reason: String): Boolean =
+            climateNormalsRepository.ensureForSite(latitude, longitude, reason)
 
         private var lastFetchTime: Long
             get() = FetchMetadata.getLastFullFetchTime(context)
@@ -391,10 +407,8 @@ class ForecastRepository
             )
             // Retired observation products are cleaned up by each observation write
             // (ObservationWriteRun, shared with desktop), per api written.
-            climateNormalsRepository.warmBestEffort(
-                latitude,
-                longitude,
-            )
+            // Climate normals are not warmed here: FullSyncPipeline settles them in parallel with
+            // this fetch and its paint ([settleClimateNormals]), so the paint never waits on the archive.
             cleanOldData()
             val totalFetchTime =
                 System.currentTimeMillis() - fetchStartTime

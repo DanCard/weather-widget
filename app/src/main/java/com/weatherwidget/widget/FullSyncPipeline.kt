@@ -17,6 +17,7 @@ import com.weatherwidget.data.local.logException
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.concurrent.TimeUnit
@@ -129,35 +130,46 @@ internal class FullSyncPipeline(
                 wakeAtMs = device.wakeAtMs,
             )
 
-            val result = weatherRepository.getWeatherData(
-                latitude = location.first,
-                longitude = location.second,
-                // A location change no longer forces a fetch past the battery budget. It does not
-                // need to: `isStale` derives its last-fetch time from the *location-scoped* forecast
-                // rows, so a site with no rows is due immediately and gets fetched on this very run.
-                // What the bypass actually did was let a jittering fix force a fetch every sync, and
-                // it was tolerable only while the handoff policy made location changes rare. With
-                // promotion immediate (plans/260828-remove-the-location-handoff-policy.md), one
-                // budget governs fetch cost and nothing governs what the user is shown.
-                forceRefresh = forceFetch && !input.uiOnlyRefresh,
-                networkAllowed = WidgetRefreshPolicy.isNetworkAllowedForWorker(input.uiOnlyRefresh),
-                targetSourceId = input.targetSourceId,
-                fetchContext = fetchContext,
-                requestedAtMs = input.requestedAtMs,
-            )
+            val networkAllowed = WidgetRefreshPolicy.isNetworkAllowedForWorker(input.uiOnlyRefresh)
+            // Climate normals settle in parallel with the fetch and paint, never before them: the
+            // paint draws what is cached now, and newly cached normals enqueue their own paint-only
+            // repaint (`:shared` ClimateNormalsRun.ensureForSite). The scope ends after both, so the
+            // worker does not finish under a running settle.
+            // plans/261122-climate-normals-warm-and-repaint-shared.md
+            return kotlinx.coroutines.coroutineScope {
+                if (networkAllowed) {
+                    launch { weatherRepository.settleClimateNormals(location.first, location.second, reason = "sync") }
+                }
+                val result = weatherRepository.getWeatherData(
+                    latitude = location.first,
+                    longitude = location.second,
+                    // A location change no longer forces a fetch past the battery budget. It does not
+                    // need to: `isStale` derives its last-fetch time from the *location-scoped* forecast
+                    // rows, so a site with no rows is due immediately and gets fetched on this very run.
+                    // What the bypass actually did was let a jittering fix force a fetch every sync, and
+                    // it was tolerable only while the handoff policy made location changes rare. With
+                    // promotion immediate (plans/260828-remove-the-location-handoff-policy.md), one
+                    // budget governs fetch cost and nothing governs what the user is shown.
+                    forceRefresh = forceFetch && !input.uiOnlyRefresh,
+                    networkAllowed = networkAllowed,
+                    targetSourceId = input.targetSourceId,
+                    fetchContext = fetchContext,
+                    requestedAtMs = input.requestedAtMs,
+                )
 
-            return result.fold(
-                onSuccess = { weatherList ->
-                    onFetchSuccess(weatherList, input, device, location, activeSourceList, bannerPlace, startMs)
-                },
-                onFailure = { e ->
-                    appLogDao.log("SYNC_FAILURE", "Repository failed: ${e.message}", "ERROR")
-                    SyncDoneNotice.announce(context, widgetStateManager, input, syncOk = false)
-                    painter.renderPendingLocationFetchFailure("sync_failure")
-                    bannerPlace?.let { painter.finishLocationChangeBanner(it, succeeded = false, reason = "sync_failure") }
-                    ListenableWorker.Result.retry()
-                },
-            )
+                result.fold(
+                    onSuccess = { weatherList ->
+                        onFetchSuccess(weatherList, input, device, location, activeSourceList, bannerPlace, startMs)
+                    },
+                    onFailure = { e ->
+                        appLogDao.log("SYNC_FAILURE", "Repository failed: ${e.message}", "ERROR")
+                        SyncDoneNotice.announce(context, widgetStateManager, input, syncOk = false)
+                        painter.renderPendingLocationFetchFailure("sync_failure")
+                        bannerPlace?.let { painter.finishLocationChangeBanner(it, succeeded = false, reason = "sync_failure") }
+                        ListenableWorker.Result.retry()
+                    },
+                )
+            }
         } catch (e: CancellationException) {
             appLogDao.log("SYNC_CANCELLED", "Worker cancelled. stopReason=$stopReason msg=${e.message}", "INFO")
             throw e
