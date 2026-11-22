@@ -1,0 +1,1 @@
+All sources table gains a "Now" header rain column, daily peak hours, and a Set API order button; header rain % stays consistent across views and defaults to a 1-hour lookahead; today's icon reflects current rain and cloud cover; Google Geocoding and multiline address paste in the location picker; smarter location-change refreshes; and richer bug report attachments.
