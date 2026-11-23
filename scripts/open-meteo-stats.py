@@ -22,8 +22,10 @@ import shutil
 import sqlite3
 import statistics
 import subprocess
+import sys
 import tempfile
 from collections import Counter, defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 
 PACKAGE = "com.weatherwidget"
@@ -414,6 +416,117 @@ def parse_since(args):
     return datetime.now() - timedelta(days=args.days)
 
 
+def summary_row(label, db_stats, text_stats):
+    """Computes one summary table row dict for a platform."""
+    fc_calls, fc_errs = (0, 0)
+    if db_stats and db_stats["usage"]:
+        fc_calls, fc_errs = db_stats["usage"].get("forecast", (0, 0))
+    # For older desktop logs before HttpSend error accounting, fall back to status_fail when usage err=0.
+    errs = fc_errs if fc_errs > 0 else (db_stats["status_fail"] if db_stats else 0)
+    total_attempts = fc_calls + (errs if fc_errs == 0 and errs > 0 else 0)
+    err_pct = f"{(100.0 * errs / total_attempts):.1f}%" if total_attempts > 0 else "-"
+
+    clean_ms = text_stats["clean_ok_ms"] if text_stats else []
+    med_ms = f"{int(statistics.median(clean_ms))}ms" if clean_ms else "-"
+
+    fb_db = len(db_stats["http_fallback"]) if db_stats else 0
+    fb_txt = len(text_stats["fallback_ok_ms"]) if text_stats else 0
+    fb_count = max(fb_db, fb_txt)
+
+    sched = sum(db_stats["retry_scheduled"].values()) if db_stats else 0
+    fired = db_stats["retry_fired"] if db_stats else 0
+    phase_n = len(db_stats["phase_fails"]) if db_stats and db_stats["phase_fails"] else (
+        len(text_stats["phase_fails"]) if text_stats else 0
+    )
+
+    rec_secs = []
+    if db_stats:
+        for ep in db_stats["episodes"]:
+            if ep["recovered_ms"] is not None:
+                dt = (ep["recovered_ms"] - ep["start_ms"]) / 1000.0
+                # Exclude multi-hour overnight gaps when computing median retry recovery.
+                if dt <= 3600.0:
+                    rec_secs.append(dt)
+    med_rec = f"{statistics.median(rec_secs):.1f}s" if rec_secs else "-"
+
+    return {
+        "label": label,
+        "calls": total_attempts,
+        "errs": errs,
+        "err_pct": err_pct,
+        "med_ms": med_ms,
+        "fb": fb_count,
+        "sched": sched,
+        "fired": fired,
+        "phase_n": phase_n,
+        "rec_secs": rec_secs,
+        "med_rec": med_rec,
+    }
+
+
+def print_summary_table(results):
+    if not results:
+        return
+    rows = [summary_row(label, db_s, txt_s) for label, db_s, txt_s, _ in results]
+    tot_calls = sum(r["calls"] for r in rows)
+    tot_errs = sum(r["errs"] for r in rows)
+    tot_fb = sum(r["fb"] for r in rows)
+    tot_sched = sum(r["sched"] for r in rows)
+    tot_fired = sum(r["fired"] for r in rows)
+    tot_phase = sum(r["phase_n"] for r in rows)
+    all_rec = [s for r in rows for s in r["rec_secs"]]
+    tot_row = {
+        "label": "TOTAL",
+        "calls": tot_calls,
+        "errs": tot_errs,
+        "err_pct": f"{(100.0 * tot_errs / tot_calls):.1f}%" if tot_calls > 0 else "-",
+        "med_ms": "-",
+        "fb": tot_fb,
+        "sched": tot_sched,
+        "fired": tot_fired,
+        "phase_n": tot_phase,
+        "med_rec": f"{statistics.median(all_rec):.1f}s" if all_rec else "-",
+    }
+
+    name_w = max(len("Platform"), max(len(r["label"]) for r in rows))
+    hdr = (
+        f"{'Platform':<{name_w}}  {'Calls':>6}  {'Errs':>5}  {'Err%':>6}  "
+        f"{'Med OK':>7}  {'HTTP FB':>7}  {'Retries':>9}  {'PhaseFail':>9}  {'Med Recov':>9}"
+    )
+    sep = "-" * len(hdr)
+    print()
+    print(hdr)
+    print(sep)
+    for r in rows:
+        ret_str = f"{r['fired']}/{r['sched']}" if (r["fired"] or r["sched"]) else "0"
+        print(
+            f"{r['label']:<{name_w}}  {r['calls']:>6}  {r['errs']:>5}  {r['err_pct']:>6}  "
+            f"{r['med_ms']:>7}  {r['fb']:>7}  {ret_str:>9}  {r['phase_n']:>9}  {r['med_rec']:>9}"
+        )
+    print(sep)
+    tot_ret = f"{tot_row['fired']}/{tot_row['sched']}" if (tot_row["fired"] or tot_row["sched"]) else "0"
+    print(
+        f"{tot_row['label']:<{name_w}}  {tot_row['calls']:>6}  {tot_row['errs']:>5}  {tot_row['err_pct']:>6}  "
+        f"{tot_row['med_ms']:>7}  {tot_row['fb']:>7}  {tot_ret:>9}  {tot_row['phase_n']:>9}  {tot_row['med_rec']:>9}"
+    )
+
+
+def fetch_desktop(since_dt, since_ms):
+    db_stats = analyze_db(DESKTOP_DB, since_ms) if os.path.exists(DESKTOP_DB) else None
+    text_stats = analyze_text_lines(read_desktop_console_lines(since_dt))
+    return ("Desktop", db_stats, text_stats, "console logs")
+
+
+def fetch_device(serial, since_ms):
+    label = device_label(serial)
+    with tempfile.TemporaryDirectory(prefix="om-stats-") as tmp:
+        db_path = pull_device_db(serial, tmp)
+        db_stats = analyze_db(db_path, since_ms) if db_path else None
+        logcat_lines = pull_device_logcat(serial)
+        text_stats = analyze_text_lines(logcat_lines) if logcat_lines else None
+        return (label, db_stats, text_stats, "logcat buffer")
+
+
 def main():
     p = argparse.ArgumentParser(description="Open-Meteo timeout, fallback, phase, and retry stats.")
     p.add_argument("--days", type=float, default=7.0, help="Lookback window in days (default: 7)")
@@ -422,29 +535,40 @@ def main():
     p.add_argument("--no-devices", action="store_true", help="Skip adb-attached Android devices")
     p.add_argument("--serial", help="Only query a single adb device serial")
     p.add_argument("--episodes", type=int, default=10, help="Max recent episodes per platform (default: 10)")
+    p.add_argument("--summary-only", action="store_true", help="Print only the summary table")
     args = p.parse_args()
 
     since_dt = parse_since(args)
     since_ms = int(since_dt.timestamp() * 1000)
-    print(f"Open-Meteo stats since {since_dt.strftime('%Y-%m-%d %H:%M:%S')} (local)")
+    print(f"Open-Meteo stats since {since_dt.strftime('%Y-%m-%d %H:%M:%S')} (local)", flush=True)
 
-    if not args.no_desktop:
-        db_stats = analyze_db(DESKTOP_DB, since_ms) if os.path.exists(DESKTOP_DB) else None
-        text_stats = analyze_text_lines(read_desktop_console_lines(since_dt))
-        print_report("Desktop", db_stats, text_stats, "console logs", args.episodes)
+    serials = [] if args.no_devices else connected_devices(args.serial)
+    results = []
 
-    if not args.no_devices:
-        serials = connected_devices(args.serial)
-        if not serials:
-            print("\n== Android devices\n   (no connected adb devices)")
-        for serial in serials:
-            label = device_label(serial)
-            with tempfile.TemporaryDirectory(prefix="om-stats-") as tmp:
-                db_path = pull_device_db(serial, tmp)
-                db_stats = analyze_db(db_path, since_ms) if db_path else None
-                logcat_lines = pull_device_logcat(serial)
-                text_stats = analyze_text_lines(logcat_lines) if logcat_lines else None
-                print_report(label, db_stats, text_stats, "logcat buffer", args.episodes)
+    with ThreadPoolExecutor(max_workers=max(1, 1 + len(serials))) as pool:
+        futures = []
+        if not args.no_desktop:
+            futures.append((0, pool.submit(fetch_desktop, since_dt, since_ms)))
+        for idx, serial in enumerate(serials, start=1):
+            futures.append((idx, pool.submit(fetch_device, serial, since_ms)))
+
+        order_by_future = {fut: order for order, fut in futures}
+        ordered_results = []
+        for fut in as_completed(order_by_future):
+            res = fut.result()
+            ordered_results.append((order_by_future[fut], res))
+            if not args.summary_only:
+                label, db_stats, text_stats, text_label = res
+                print_report(label, db_stats, text_stats, text_label, args.episodes)
+                sys.stdout.flush()
+
+        ordered_results.sort(key=lambda item: item[0])
+        results = [res for _, res in ordered_results]
+
+    if not args.summary_only and not args.no_devices and not serials:
+        print("\n== Android devices\n   (no connected adb devices)")
+
+    print_summary_table(results)
 
 
 if __name__ == "__main__":
