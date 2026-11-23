@@ -191,13 +191,16 @@ Shared-module `Log` output goes to logcat on Android and only to the console log
 - `W/OpenMeteoApi: getForecast: failed ms=` / `D/OpenMeteoApi: getForecast: Raw response length= ms=`:
   each forecast call's outcome and duration.
 - `W/HTTP_PHASE_FAIL: host= scheme= remoteIp= protocol= dnsMs= connectMs= tlsMs= reqHeadersMs= ttfbMs= totalMs= reused= error=`:
-  emitted by the OkHttp `EventListener` (`DesktopHttpPhaseListener` / `AndroidHttpPhaseListener`) only when a
+  emitted by the shared OkHttp `EventListener` (`HttpPhaseEventListener` in `:shared`) only when a
   call fails or times out (zero logs on success), showing which phase stalled (`-1` = phase did not complete).
-  Desktop also queues it to `app_logs`. See [plans/261123-open-meteo-retry-tuning-and-phase-logging.md](../plans/261123-open-meteo-retry-tuning-and-phase-logging.md).
+  Persisted to `app_logs` on both Android and desktop via `AppLog`. See
+  [plans/261123-unify-shared-applog-and-http-telemetry.md](../plans/261123-unify-shared-applog-and-http-telemetry.md).
 
-`app_logs` keeps the per-source outcome: `CURRENT_TEMP_STATUS source= ok=false
-class=HttpRequestTimeoutException`, `OPEN_METEO_HTTP_FALLBACK`, `HTTP_PHASE_FAIL` (desktop), `REFRESH_FAIL`,
-and `SOURCE_RETRY` (`scheduled` with `delaySec=`, `fire`, `recovered`).
+`app_logs` keeps the per-source outcome on both platforms: `FORECAST_FETCH` (`ok=true|false ms=…`),
+`OPEN_METEO_HTTP_FALLBACK`, `HTTP_PHASE_FAIL`, `SOURCE_RETRY` (`scheduled` with `delaySec=`, `fire`,
+`recovered`), plus desktop's `CURRENT_TEMP_STATUS` and `REFRESH_FAIL`. Both platforms record `api_usage_stats`
+via the shared `WeatherHttpClientDefaults.installApiUsageInterceptor` (`HttpSend`), so transport timeouts
+increment `errorCount` on both.
 
 ### Debug-build adb hooks
 

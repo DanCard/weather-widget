@@ -2943,8 +2943,19 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
 
     /** One request into `api_usage_stats`; [date] is `ApiUsageClassifier.usageDayMs` (as on Android). */
     fun logApiCall(date: Long, apiSource: String, endpoint: String, status: Int) {
-        val error = if (com.weatherwidget.data.remote.ApiUsageClassifier.isError(status)) 1 else 0
-        val refused = if (com.weatherwidget.data.remote.ApiUsageClassifier.isQuotaRefusal(status)) 1 else 0
+        logApiCall(
+            date = date,
+            apiSource = apiSource,
+            endpoint = endpoint,
+            isError = com.weatherwidget.data.remote.ApiUsageClassifier.isError(status),
+            isQuotaRefusal = com.weatherwidget.data.remote.ApiUsageClassifier.isQuotaRefusal(status),
+        )
+    }
+
+    /** Records one classified API attempt (response or thrown transport error) into `api_usage_stats`. */
+    fun logApiCall(date: Long, apiSource: String, endpoint: String, isError: Boolean, isQuotaRefusal: Boolean = false) {
+        val error = if (isError) 1 else 0
+        val refused = if (isQuotaRefusal) 1 else 0
         db.getConnection().use { conn ->
             conn.prepareStatement(
                 "INSERT INTO api_usage_stats (date, apiSource, endpoint, callCount, errorCount, quotaRefusedCount) " +

@@ -1,15 +1,20 @@
 package com.weatherwidget.data.remote
 
 import com.weatherwidget.shared.util.Log
+import io.ktor.client.HttpClient
 import io.ktor.client.HttpClientConfig
 import io.ktor.client.network.sockets.ConnectTimeoutException
 import io.ktor.client.network.sockets.SocketTimeoutException
 import io.ktor.client.plugins.HttpRequestRetry
 import io.ktor.client.plugins.HttpRequestTimeoutException
+import io.ktor.client.plugins.HttpSend
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.plugin
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
+import java.time.Instant
+import java.time.ZoneId
 
 /**
  * The client behavior every platform's weather [io.ktor.client.HttpClient] shares: JSON negotiation,
@@ -68,6 +73,40 @@ object WeatherHttpClientDefaults {
                 exponentialDelay(base = 2.0, maxDelayMs = MAX_RETRY_DELAY_MS)
                 retryDelay?.let { delay(it) }
             }
+        }
+    }
+
+    /**
+     * Installs the shared [HttpSend] API-usage and error accounting interceptor on [client].
+     * Using [HttpSend] (rather than `ResponseObserver`) ensures thrown transport errors and timeouts
+     * increment `errorCount` on both Android and desktop identically.
+     */
+    fun installApiUsageInterceptor(
+        client: HttpClient,
+        onCall: suspend (date: Long, source: String, endpoint: String, isError: Boolean, isQuotaRefusal: Boolean) -> Unit,
+    ) {
+        client.plugin(HttpSend).intercept { request ->
+            val key = ApiUsageClassifier.classify(
+                request.url.host,
+                request.url.build().encodedPath,
+                request.url.build().encodedQuery,
+            ) ?: return@intercept execute(request)
+            val date = ApiUsageClassifier.usageDayMs(key.source, Instant.now(), ZoneId.systemDefault())
+            val call = try {
+                execute(request)
+            } catch (e: Throwable) {
+                onCall(date, key.source, key.endpoint, true, false)
+                throw e
+            }
+            val status = call.response.status.value
+            onCall(
+                date,
+                key.source,
+                key.endpoint,
+                ApiUsageClassifier.isError(status),
+                ApiUsageClassifier.isQuotaRefusal(status),
+            )
+            call
         }
     }
 }

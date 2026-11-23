@@ -1,6 +1,7 @@
 package com.weatherwidget.data.remote
 
 import com.weatherwidget.shared.config.ForecastHorizon
+import com.weatherwidget.shared.util.AppLog
 import com.weatherwidget.shared.util.Log
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.ForecastParts
@@ -38,7 +39,6 @@ class OpenMeteoApi(
     private val httpClient: HttpClient,
     private val json: Json,
     private val httpFallbackDelayMs: Long = DEFAULT_HTTP_FALLBACK_DELAY_MS,
-    private val onAppLog: suspend (tag: String, message: String, level: String) -> Unit = { _, _, _ -> },
 ) {
     @Inject
     constructor(
@@ -236,7 +236,7 @@ class OpenMeteoApi(
                 val host = httpsUrl.substringAfter("https://").substringBefore("/")
                 val msg = "host=$host httpsMs=$httpsMs httpMs=$httpMs cause=$causeName"
                 Log.w(HTTP_FALLBACK_LOG_TAG, msg)
-                onAppLog(HTTP_FALLBACK_LOG_TAG, msg, "WARN")
+                AppLog.w(HTTP_FALLBACK_LOG_TAG, msg)
                 body
             }
         }

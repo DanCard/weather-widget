@@ -65,6 +65,9 @@ fun runDaemon(reopenUi: Boolean = false) {
 
     val weatherDb = DesktopWeatherDatabase(DesktopDbPaths.defaultDbPath()).apply { initialize() }
     val weatherDao = DesktopWeatherDao(weatherDb)
+    com.weatherwidget.shared.util.AppLog.install { tag, message, level ->
+        DesktopAppLogQueue.write("app_log") { weatherDao.log(tag, message, level) }
+    }
 
     // Daemon launch is a wake-equivalent transition: login autostart races the network stack just
     // like resume-from-suspend does. Anchors the UI's network-warm-up grace window (WAKE_EVENT is

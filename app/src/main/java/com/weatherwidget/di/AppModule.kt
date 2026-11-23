@@ -134,30 +134,19 @@ object AppModule {
             engine {
                 config {
                     dns(fallbackDns)
-                    eventListenerFactory { AndroidHttpPhaseListener() }
+                    eventListenerFactory { com.weatherwidget.data.remote.HttpPhaseEventListener() }
                 }
             }
             WeatherHttpClientDefaults.install(this, json)
         }.apply {
-            plugin(HttpSend).intercept { request ->
-                val key = ApiUsageClassifier.classify(request.url.host, request.url.build().encodedPath, request.url.build().encodedQuery)
-                    ?: return@intercept execute(request)
-                val date = ApiUsageClassifier.usageDayMs(key.source, java.time.Instant.now(), java.time.ZoneId.systemDefault())
-                val call = try {
-                    execute(request)
-                } catch (e: Throwable) {
-                    apiUsageDao.logCall(date, key.source, key.endpoint, isError = true)
-                    throw e
-                }
-                val status = call.response.status.value
+            WeatherHttpClientDefaults.installApiUsageInterceptor(this) { date, source, endpoint, isError, isQuotaRefusal ->
                 apiUsageDao.logCall(
                     date,
-                    key.source,
-                    key.endpoint,
-                    isError = ApiUsageClassifier.isError(status),
-                    isQuotaRefusal = ApiUsageClassifier.isQuotaRefusal(status),
+                    source,
+                    endpoint,
+                    isError = isError,
+                    isQuotaRefusal = isQuotaRefusal,
                 )
-                call
             }
         }
     }
@@ -188,6 +177,13 @@ object AppModule {
             CurrentTemperatureResolver.dbLogger = { tag, message, level ->
                 // Persistence boundary: VERBOSE = high-frequency render/poll trace, ephemeral sinks
                 // (logcat) only — never persisted, so the queryable DB log stays sparse. DEBUG+ persist.
+                if (level != "VERBOSE") {
+                    scope.launch {
+                        dao.log(tag, message, level)
+                    }
+                }
+            }
+            com.weatherwidget.shared.util.AppLog.install { tag, message, level ->
                 if (level != "VERBOSE") {
                     scope.launch {
                         dao.log(tag, message, level)
@@ -373,12 +369,7 @@ object AppModule {
     fun provideOpenMeteoApi(
         httpClient: HttpClient,
         json: Json,
-        appLogDao: AppLogDao,
-    ): OpenMeteoApi = OpenMeteoApi(
-        httpClient,
-        json,
-        onAppLog = { tag, msg, level -> appLogDao.log(tag, msg, level) },
-    )
+    ): OpenMeteoApi = OpenMeteoApi(httpClient, json)
 
     @Provides
     @Singleton

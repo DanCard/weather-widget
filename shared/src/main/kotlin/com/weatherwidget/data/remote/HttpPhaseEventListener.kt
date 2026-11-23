@@ -1,7 +1,7 @@
-package com.weatherwidget.di
+package com.weatherwidget.data.remote
 
-import android.util.Log
-import com.weatherwidget.data.remote.HttpPhaseTiming
+import com.weatherwidget.shared.util.AppLog
+import com.weatherwidget.shared.util.Log
 import okhttp3.Call
 import okhttp3.Connection
 import okhttp3.EventListener
@@ -15,10 +15,13 @@ import java.net.InetSocketAddress
 import java.net.Proxy
 
 /**
- * Per-call OkHttp [EventListener] on Android that records phase timings and emits one
- * [HttpPhaseTiming.LOG_TAG] warning only when a call fails or times out (zero logs on success).
+ * Shared per-call OkHttp [EventListener] (Android `AppModule` + Desktop `DesktopHttpClient`).
+ * Records nanosecond phase timings and emits one [HttpPhaseTiming.LOG_TAG] warning to both [Log]
+ * and persistent [AppLog] only when a call fails or times out (zero logs on success).
  */
-internal class AndroidHttpPhaseListener : EventListener() {
+class HttpPhaseEventListener(
+    private val onPhaseFail: ((String) -> Unit)? = null,
+) : EventListener() {
     private var callStartNs = -1L
     private var dnsStartNs = -1L
     private var dnsMs = -1L
@@ -120,5 +123,7 @@ internal class AndroidHttpPhaseListener : EventListener() {
             error = "${ioe::class.simpleName}:${ioe.message ?: ""}".take(120),
         ).formatLine()
         Log.w(HttpPhaseTiming.LOG_TAG, line)
+        AppLog.w(HttpPhaseTiming.LOG_TAG, line)
+        onPhaseFail?.invoke(line)
     }
 }

@@ -146,6 +146,9 @@ class DesktopHttpClientStaleConnectionTest {
             println("${priority.name.first()}/$tag: $msg")
             if (tag == HttpPhaseTiming.LOG_TAG) synchronized(phaseLogs) { phaseLogs += msg }
         }
+        com.weatherwidget.shared.util.AppLog.install { tag, msg, level ->
+            DesktopAppLogQueue.write("test_app_log") { dao.log(tag, msg, level) }
+        }
 
         // 1. Healthy call emits zero HTTP_PHASE_FAIL lines.
         OneShotServer(connections = 1, closeAfterResponse = true).use { server ->
@@ -197,6 +200,7 @@ class DesktopHttpClientStaleConnectionTest {
             assertTrue(line, line.contains("ttfbMs=-1"))
             assertTrue(line, dbRow != null && dbRow.contains("host=127.0.0.1"))
         } finally {
+            com.weatherwidget.shared.util.AppLog.resetToDefault()
             synchronized(heldSockets) { heldSockets.forEach { runCatching { it.close() } } }
             silentServer.close()
             dbDir.toFile().deleteRecursively()

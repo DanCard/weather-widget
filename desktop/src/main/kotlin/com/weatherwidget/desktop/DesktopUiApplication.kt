@@ -131,6 +131,9 @@ internal fun runDesktopUiApplication() = application {
         val weatherDb = remember { DesktopWeatherDatabase(DesktopDbPaths.defaultDbPath()).apply { initialize() } }
         val weatherDao = remember { DesktopWeatherDao(weatherDb) }
         remember(weatherDao) {
+            com.weatherwidget.shared.util.AppLog.install { tag, message, level ->
+                DesktopAppLogQueue.write("app_log") { weatherDao.log(tag, message, level) }
+            }
             DesktopSourceViews.install(weatherDao)
             DesktopSourceSwitch.install(weatherDao)
             DesktopAppLogQueue.install(weatherDao)

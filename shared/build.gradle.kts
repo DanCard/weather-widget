@@ -12,10 +12,10 @@ kotlin {
 }
 
 dependencies {
-    // HTTP + JSON. Engine is supplied by each consumer (both use ktor-client-okhttp: Android in
-    // AppModule, desktop in DesktopHttpClient), so this module depends only on ktor-client-core.
-    // Shared timeouts/retries: WeatherHttpClientDefaults.
+    // HTTP + JSON. Both Android and desktop use ktor-client-okhttp; keeping it here lets :shared
+    // own WeatherHttpClientDefaults and HttpPhaseEventListener without duplicating them per platform.
     api(libs.ktor.client.core)
+    implementation(libs.ktor.client.okhttp)
     implementation(libs.ktor.client.content.negotiation)
     api(libs.ktor.serialization.json)
     api(libs.serialization.json)

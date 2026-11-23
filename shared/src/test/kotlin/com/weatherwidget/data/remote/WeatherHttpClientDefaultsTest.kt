@@ -100,4 +100,36 @@ class WeatherHttpClientDefaultsTest {
         assertTrue(WeatherHttpClientDefaults.isRetryable(SocketTimeoutException("x")))
         assertEquals(false, WeatherHttpClientDefaults.isRetryable(IllegalStateException("parse")))
     }
+
+    @Test
+    fun `installApiUsageInterceptor counts 200, 429 quota refusal, and thrown transport errors`() = runTest {
+        val recorded = mutableListOf<String>()
+        var step = 0
+        val engine = MockEngine {
+            when (step++) {
+                0 -> respond("ok", HttpStatusCode.OK)
+                1 -> respond("limited", HttpStatusCode.TooManyRequests)
+                else -> throw SocketTimeoutException("stalled")
+            }
+        }
+        val http = HttpClient(engine) {
+            WeatherHttpClientDefaults.install(this, json, retryDelay = {})
+        }.apply {
+            WeatherHttpClientDefaults.installApiUsageInterceptor(this) { _, source, endpoint, isError, isQuotaRefusal ->
+                recorded += "$source:$endpoint:err=$isError:quota=$isQuotaRefusal"
+            }
+        }
+
+        http.get("https://api.open-meteo.com/v1/forecast")
+        http.get("https://api.open-meteo.com/v1/forecast")
+        runCatching { http.get("https://api.open-meteo.com/v1/forecast") }
+
+        assertEquals(
+            listOf(
+                "OPEN_METEO:forecast:err=false:quota=false",
+                "OPEN_METEO:forecast:err=true:quota=true",
+            ) + List(WeatherHttpClientDefaults.MAX_RETRIES + 1) { "OPEN_METEO:forecast:err=true:quota=false" },
+            recorded,
+        )
+    }
 }

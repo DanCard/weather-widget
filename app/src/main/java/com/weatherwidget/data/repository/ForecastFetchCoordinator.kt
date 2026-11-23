@@ -465,37 +465,51 @@ internal class ForecastFetchCoordinator(
         latitude: Double,
         longitude: Double,
         block: suspend () -> T,
-    ): T? = try {
-        val result = block()
-        if (result != null) {
-            widgetStateManager.recordSourceFetchSuccess(source)
-            if (if (result is RawFetch) result.daily.isNotEmpty() else result !is Collection<*> || result.isNotEmpty()) {
-                FetchMetadata.setLastForecastSourceSuccessTime(
-                    context = context,
-                    sourceId = source.id,
-                    latitude = latitude,
-                    longitude = longitude,
-                    time = System.currentTimeMillis(),
-                )
+    ): T? {
+        val startMs = System.currentTimeMillis()
+        return try {
+            val result = block()
+            val elapsedMs = System.currentTimeMillis() - startMs
+            if (result != null) {
+                widgetStateManager.recordSourceFetchSuccess(source)
+                if (result is RawFetch) {
+                    com.weatherwidget.data.remote.ForecastFetchLog.logSuccess(source.id, elapsedMs)
+                }
+                if (if (result is RawFetch) result.daily.isNotEmpty() else result !is Collection<*> || result.isNotEmpty()) {
+                    FetchMetadata.setLastForecastSourceSuccessTime(
+                        context = context,
+                        sourceId = source.id,
+                        latitude = latitude,
+                        longitude = longitude,
+                        time = System.currentTimeMillis(),
+                    )
+                }
             }
+            result
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (exception: Exception) {
+            val elapsedMs = System.currentTimeMillis() - startMs
+            val errorCode = extractErrorCode(exception)
+            com.weatherwidget.data.remote.ForecastFetchLog.logFailure(
+                source.id,
+                elapsedMs,
+                errorCode,
+                exception.javaClass.simpleName,
+            )
+            widgetStateManager.recordSourceFetchFailure(
+                source,
+                errorCode = errorCode,
+                detail = ApiKeyRedaction.redact(exception.message ?: exception.javaClass.simpleName),
+            )
+            logFetchFailure(tag, source, exception)
+            // A source that timed out is tried again on its own, not hours later at its cadence — shown or not.
+            com.weatherwidget.shared.util.SourceRetry.onFailure(
+                com.weatherwidget.widget.AndroidSourceRetryHost(context, widgetStateManager, appLogDao),
+                source.id, errorCode, trigger = tag, nowMs = System.currentTimeMillis(),
+            )
+            null
         }
-        result
-    } catch (cancellation: CancellationException) {
-        throw cancellation
-    } catch (exception: Exception) {
-        val errorCode = extractErrorCode(exception)
-        widgetStateManager.recordSourceFetchFailure(
-            source,
-            errorCode = errorCode,
-            detail = ApiKeyRedaction.redact(exception.message ?: exception.javaClass.simpleName),
-        )
-        logFetchFailure(tag, source, exception)
-        // A source that timed out is tried again on its own, not hours later at its cadence — shown or not.
-        com.weatherwidget.shared.util.SourceRetry.onFailure(
-            com.weatherwidget.widget.AndroidSourceRetryHost(context, widgetStateManager, appLogDao),
-            source.id, errorCode, trigger = tag, nowMs = System.currentTimeMillis(),
-        )
-        null
     }
 
     private suspend fun logFetchFailure(

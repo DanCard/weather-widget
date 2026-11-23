@@ -490,37 +490,38 @@ class OpenMeteoApiTest {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun `HTTP fallback recovery emits OPEN_METEO_HTTP_FALLBACK to onAppLog`() =
+    fun `HTTP fallback recovery emits OPEN_METEO_HTTP_FALLBACK to AppLog`() =
         runTest {
             val appLogs = mutableListOf<Triple<String, String, String>>()
-            val client = HttpClient(MockEngine) {
-                engine {
-                    addHandler { request ->
-                        if (request.url.protocol == URLProtocol.HTTPS) {
-                            throw SocketTimeoutException("https stalled")
+            com.weatherwidget.shared.util.AppLog.install { tag, msg, level -> appLogs += Triple(tag, msg, level) }
+            try {
+                val client = HttpClient(MockEngine) {
+                    engine {
+                        addHandler { request ->
+                            if (request.url.protocol == URLProtocol.HTTPS) {
+                                throw SocketTimeoutException("https stalled")
+                            }
+                            respond(
+                                content = """{"daily":{"time":["2026-06-20"],"temperature_2m_max":[70.0],"temperature_2m_min":[50.0],"weather_code":[0]}}""",
+                                status = HttpStatusCode.OK,
+                                headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                            )
                         }
-                        respond(
-                            content = """{"daily":{"time":["2026-06-20"],"temperature_2m_max":[70.0],"temperature_2m_min":[50.0],"weather_code":[0]}}""",
-                            status = HttpStatusCode.OK,
-                            headers = headersOf(HttpHeaders.ContentType, "application/json"),
-                        )
                     }
+                    install(ContentNegotiation) { json(json) }
                 }
-                install(ContentNegotiation) { json(json) }
+
+                OpenMeteoApi(client, json).getForecast(37.42, -122.08)
+
+                assertEquals(OpenMeteoApi.DEFAULT_HTTP_FALLBACK_DELAY_MS, currentTime)
+                val (tag, msg, level) = appLogs.single()
+                assertEquals(OpenMeteoApi.HTTP_FALLBACK_LOG_TAG, tag)
+                assertEquals("WARN", level)
+                assertTrue(msg, msg.contains("host=api.open-meteo.com"))
+                assertTrue(msg, msg.contains("cause=SocketTimeoutException"))
+            } finally {
+                com.weatherwidget.shared.util.AppLog.resetToDefault()
             }
-
-            OpenMeteoApi(
-                client,
-                json,
-                onAppLog = { tag, msg, level -> appLogs += Triple(tag, msg, level) },
-            ).getForecast(37.42, -122.08)
-
-            assertEquals(OpenMeteoApi.DEFAULT_HTTP_FALLBACK_DELAY_MS, currentTime)
-            val (tag, msg, level) = appLogs.single()
-            assertEquals(OpenMeteoApi.HTTP_FALLBACK_LOG_TAG, tag)
-            assertEquals("WARN", level)
-            assertTrue(msg, msg.contains("host=api.open-meteo.com"))
-            assertTrue(msg, msg.contains("cause=SocketTimeoutException"))
         }
 
     @OptIn(ExperimentalCoroutinesApi::class)

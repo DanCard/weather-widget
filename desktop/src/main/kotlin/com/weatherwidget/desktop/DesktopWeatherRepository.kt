@@ -570,6 +570,7 @@ class DesktopWeatherRepository(
             level = "INFO",
         )
         // For the failure path: a failed fetch still runs the follow-ups that do not need its reply.
+        val fetchStartMs = System.currentTimeMillis()
         var stored = false
         var followUpsRan = false
         try {
@@ -657,6 +658,10 @@ class DesktopWeatherRepository(
                     (if (deferObservationWindow && ActualsFeedPolicy.hasDeferredHistoryWindow(displaySource, latitude, longitude)) " obsWindow=deferred" else ""),
             )
             weatherDao.log(CurrentTempStatusLog.TAG, CurrentTempStatusLog.ok(displaySource.id), "INFO")
+            com.weatherwidget.data.remote.ForecastFetchLog.logSuccess(
+                displaySource.id,
+                System.currentTimeMillis() - fetchStartMs,
+            )
 
             RefreshOutcome(
                 snapshot = loadCached(now) ?: rawFetchToSnapshot(result),
@@ -676,6 +681,12 @@ class DesktopWeatherRepository(
                 )
             } else {
                 weatherDao.log(CurrentTempStatusLog.TAG, CurrentTempStatusLog.failure(displaySource.id, e), "WARN")
+                com.weatherwidget.data.remote.ForecastFetchLog.logFailure(
+                    displaySource.id,
+                    System.currentTimeMillis() - fetchStartMs,
+                    com.weatherwidget.data.remote.FetchErrorCode.of(e),
+                    e::class.simpleName ?: "Exception",
+                )
                 if (!followUpsRan) runFollowUps(fetchParts, stored, now)
             }
             throw e
