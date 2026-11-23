@@ -45,6 +45,7 @@ import com.weatherwidget.util.NetworkRestrictionHelper
 import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -72,16 +73,29 @@ internal class ForecastFetchCoordinator(
     /** Snapshot-write clock; [ForecastRepository.clock] in production, pinned by tests. */
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
-    /** The cloud graph's frozen forecast curve: `:shared` [PriorDayCloudRun] owns the rule; this stores rows. */
-    private suspend fun fetchPriorDayCloudForecast(latitude: Double, longitude: Double) {
+    private val priorCloudScope = kotlinx.coroutines.CoroutineScope(
+        kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO,
+    )
+
+    /**
+     * The cloud graph's frozen forecast curve: `:shared` [PriorDayCloudRun] owns the rule; this stores rows.
+     * Launched off the critical path so Open-Meteo's forecast paint does not wait ~1.5 s on
+     * `previous-runs-api.open-meteo.com`, enqueuing a lightweight UI repaint only when rows are stored.
+     */
+    private fun launchPriorDayCloudForecast(latitude: Double, longitude: Double) {
         val dao = hourlyForecastHistoryDao ?: return
-        PriorDayCloudRun.run(
-            RoomPriorDayCloudHost(dao, appLogDao, latitude, longitude, lastPriorCloudFetch) { pastDays, nowMs ->
-                openMeteoApi.getPriorDayCloudForecast(latitude, longitude, pastDays, nowMs)
-            },
-            sourceId = WeatherSource.OPEN_METEO.id,
-            nowMs = System.currentTimeMillis(),
-        )
+        priorCloudScope.launch {
+            val stored = PriorDayCloudRun.run(
+                RoomPriorDayCloudHost(dao, appLogDao, latitude, longitude, lastPriorCloudFetch) { pastDays, nowMs ->
+                    openMeteoApi.getPriorDayCloudForecast(latitude, longitude, pastDays, nowMs)
+                },
+                sourceId = WeatherSource.OPEN_METEO.id,
+                nowMs = System.currentTimeMillis(),
+            )
+            if (stored) {
+                com.weatherwidget.widget.WidgetWorkScheduler.enqueueUiRepaint(context, reason = "prior_day_cloud")
+            }
+        }
     }
 
     private val lastPriorCloudFetch = PriorDayCloudRun.LastAttempt()
@@ -346,7 +360,7 @@ internal class ForecastFetchCoordinator(
 
     /** This site's [SourceFetchTable.FollowUpJobs]: each one the `:shared` runner's Room host. */
     private fun followUpJobs(latitude: Double, longitude: Double) = SourceFetchTable.FollowUpJobs(
-        priorDayCloud = { fetchPriorDayCloudForecast(latitude, longitude) },
+        priorDayCloud = { launchPriorDayCloudForecast(latitude, longitude) },
         weatherApiHistory = {
             weatherApiHistoryBackfiller.backfillIfNeeded(latitude, longitude)
                 .let { if (it.status == WeatherApiHistoryRun.Status.FETCHED) it.storedHours else 0 }

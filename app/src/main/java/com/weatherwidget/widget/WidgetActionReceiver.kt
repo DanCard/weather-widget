@@ -39,7 +39,10 @@ class WidgetActionReceiver : BaseWidgetActionReceiver() {
                 com.weatherwidget.data.repository.DailyActualsStore.clearCache()
             }
 
-            if (userInitiated) WidgetTimedRepaintGate.gate.interactionStarted()
+            if (userInitiated) {
+                WidgetTimedRepaintGate.gate.interactionStarted()
+                WidgetBackfillDeferral.deferPendingOnInteraction(context)
+            }
             scope.launch {
                 try {
                     WidgetRefreshCoordinator.refresh(

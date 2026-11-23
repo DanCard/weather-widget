@@ -195,11 +195,18 @@ The recovered reports join the API rows as `api=NWS isWebFallback=1` for times t
 keeps its own time (`plans/261117-today-fog-stale-forecast-and-nws-metar-history-fill.md`). Until then the
 fallback returned only the newest report, so a stale nearest station left its hours to a farther one. Logs, identical on both platforms: one `NWS_DAILY_BACKFILL_RESULT
 reason=… need=… rows=…` line per run plus the per-station `NWS_DAILY_BACKFILL_*` lines.
-Android's render-detected observation gap runs the same runner's recent pass (every station, the last
-72 h, `OBS_HOURLY_BACKFILL_*`). A fill that never reached NWS — station lookup failed or every station
-failed, not an answered-but-empty one — retries on the shared `ObservationBackfillRetryPolicy`
-(10 s → 1 m → 4 m): Android as delayed worker requests, desktop as coroutine delays after the wake,
-stopping if the location or source changes (`OBS_HOURLY_BACKFILL_RETRY` on both).
+Android's render-detected observation gap runs the same runner's recent pass (`OBS_HOURLY_BACKFILL_*`),
+sized to the actual gap (`HourlyBackfillWindow`: `ceil(gapMin / 60) + 2` h, clamped to `3..72` h; empty sites
+keep 72 h). While `ENQUEUED` (never `RUNNING`), each widget interaction pushes its start out by 20 s up to a
+90 s cap (`BackfillDeferralPolicy`, logged `OBS_HOURLY_BACKFILL_DEFERRED`), and it yields at start if a
+user-initiated forecast sync is active. On targeted user-initiated Android forecast syncs (`forceRefresh` with
+a `targetSourceId`), `FullSyncPipeline` paints the widget immediately from cached actuals (`paint_first`)
+and runs observation backfills + `recomputeActuals` afterward, enqueuing a follow-up UI repaint only if
+actuals changed. `PriorDayCloudRun` runs asynchronously off the forecast-paint critical path on both
+platforms (enqueuing a UI repaint on Android only when new rows are stored). A fill that never reached NWS —
+station lookup failed or every station failed, not an answered-but-empty one — retries on the shared
+`ObservationBackfillRetryPolicy` (10 s → 1 m → 4 m): Android as delayed worker requests, desktop as coroutine
+delays after the wake, stopping if the location or source changes (`OBS_HOURLY_BACKFILL_RETRY` on both).
 
 Interpolating a current temperature from cached hourly rows is a UI operation, not a network fetch.
 Repaints can therefore be more frequent than observation requests without changing provider usage.

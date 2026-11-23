@@ -332,6 +332,7 @@ abstract class BaseWidgetActionReceiver : BroadcastReceiver() {
         }
         WidgetActionJobRegistry.track(appWidgetId, job)
         WidgetTimedRepaintGate.gate.interactionStarted()
+        WidgetBackfillDeferral.deferPendingOnInteraction(context)
         job.invokeOnCompletion { WidgetTimedRepaintGate.gate.interactionEnded() }
         job.start()
     }

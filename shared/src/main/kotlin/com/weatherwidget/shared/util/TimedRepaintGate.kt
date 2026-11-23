@@ -34,6 +34,11 @@ class TimedRepaintGate(private val clock: () -> Long) {
     /** An instantaneous interaction, such as a desktop click, with no end to report. */
     fun interactionObserved() = synchronized(lock) { lastInteractionMs = clock() }
 
+    /** Current `(activeInteractions, lastInteractionMs)` for companion deferral policies. */
+    fun interactionSnapshot(): Pair<Int, Long?> = synchronized(lock) {
+        activeInteractions to lastInteractionMs
+    }
+
     /**
      * True to repaint now, false when the caller should defer. A trigger refused for
      * [MAX_DEFER_MS] runs anyway, so a busy user cannot hold repaints off indefinitely.

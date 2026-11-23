@@ -34,10 +34,10 @@ object PriorDayCloudRun {
         var ms = 0L
     }
 
-    /** Runs when [sourceId] is being fetched and is the one source with a previous-runs product. */
-    suspend fun run(host: Host, sourceId: String, nowMs: Long) {
-        if (sourceId != WeatherSource.OPEN_METEO.id) return
-        if (nowMs - host.lastAttemptMs < INTERVAL_MS) return
+    /** Runs when [sourceId] is being fetched and is the one source with a previous-runs product. Returns true when rows were stored. */
+    suspend fun run(host: Host, sourceId: String, nowMs: Long): Boolean {
+        if (sourceId != WeatherSource.OPEN_METEO.id) return false
+        if (nowMs - host.lastAttemptMs < INTERVAL_MS) return false
         // The attempt, not the success: an empty or failing product would otherwise retry every fetch.
         host.lastAttemptMs = nowMs
         try {
@@ -48,14 +48,16 @@ object PriorDayCloudRun {
                 // nothing for a week and nothing said so (2026-08-27).
                 val variable = com.weatherwidget.data.remote.OpenMeteoApi.PREVIOUS_RUNS_VARIABLE
                 host.log("PRIOR_CLOUD_EMPTY", "no usable hours from $variable; frozen forecast curve falls back to live values", "WARN")
-                return
+                return false
             }
             host.store(byHour, nowMs)
             host.log("PRIOR_CLOUD", "stored hours=${byHour.size} pastDays=$PAST_DAYS", "INFO")
+            return true
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             host.log("PRIOR_CLOUD_FAIL", "cloud graph falls back to live values: ${e.javaClass.simpleName}", "WARN")
+            return false
         }
     }
 }

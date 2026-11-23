@@ -529,14 +529,19 @@ internal suspend fun maybeEnqueueHourlyObservationBackfill(
     // flow, which already tolerates a several-second wait.
     val backfillReason =
         "temperature_graph_sparse_history widget=$appWidgetId reason=${decision.reason}"
+    val lookbackHours = com.weatherwidget.shared.observations.HourlyBackfillWindow.lookbackHours(
+        decision.reason,
+        WeatherWidgetWorker.DEFAULT_OBSERVATION_BACKFILL_HOURS,
+    )
     val enqueue = WidgetWorkScheduler.enqueueRequiredObservationBackfill(
         context = context,
         latitude = lat,
         longitude = lon,
-        lookbackHours = WeatherWidgetWorker.DEFAULT_OBSERVATION_BACKFILL_HOURS,
+        lookbackHours = lookbackHours,
         reason = backfillReason,
         initialDelayMs = delayMs,
     )
+    com.weatherwidget.widget.WidgetBackfillDeferral.recordEnqueued(lat, lon, lookbackHours, backfillReason)
     stateManager.markMissingActualsRefreshRequested(appWidgetId, sourceKey)
     // Log what WorkManager DID, not the request that was built. Under KEEP the built request is
     // discarded whenever one is already pending, so logging `request.id` unconditionally reported a
@@ -545,7 +550,7 @@ internal suspend fun maybeEnqueueHourlyObservationBackfill(
     database.appLogDao().log(
         "OBS_HOURLY_BACKFILL_REQ",
         "widget=$appWidgetId $sourceLog reason=${decision.reason} gate=${gate.reason} " +
-            "graphStart=$graphStart graphEnd=$graphEnd delayMs=$delayMs " +
+            "lookbackHours=$lookbackHours graphStart=$graphStart graphEnd=$graphEnd delayMs=$delayMs " +
             "outcome=${enqueue.outcome.logValue} (${enqueue.detail}) requestId=${enqueue.request.id}",
         "INFO",
     )

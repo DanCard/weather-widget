@@ -443,7 +443,7 @@ object WidgetWorkScheduler {
         }
     }
 
-    private fun buildObservationBackfillRequest(
+    internal fun buildObservationBackfillRequest(
         latitude: Double,
         longitude: Double,
         lookbackHours: Long,

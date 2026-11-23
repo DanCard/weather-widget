@@ -329,6 +329,18 @@ class WeatherWidgetWorker
                     if ((result?.rows ?: 0) > 0) painter.refreshWidgetsFromCache()
                     return@handleWorkerExceptions Result.success()
                 }
+                if (WidgetBackfillDeferral.yieldIfBusy(
+                        context = context,
+                        appLogDao = appLogDao,
+                        latitude = input.backfillLat,
+                        longitude = input.backfillLon,
+                        lookbackHours = input.backfillHours,
+                        reason = input.backfillReason,
+                        attempt = input.backfillAttempt,
+                    )
+                ) {
+                    return@handleWorkerExceptions Result.success()
+                }
                 appLogDao.log(
                     "OBS_HOURLY_BACKFILL_RUN",
                     "reason=${input.backfillReason} lat=${input.backfillLat} lon=${input.backfillLon} lookbackHours=${input.backfillHours}",
@@ -342,7 +354,11 @@ class WeatherWidgetWorker
                 widgetStateManager.markObservationBackfillAttempted(
                     com.weatherwidget.widget.handlers.observationBackfillSiteKey(input.backfillLat, input.backfillLon),
                 )
-                val result = weatherRepository.backfillRecentNwsObservations(input.backfillLat, input.backfillLon, input.backfillHours)
+                val result = try {
+                    weatherRepository.backfillRecentNwsObservations(input.backfillLat, input.backfillLon, input.backfillHours)
+                } finally {
+                    WidgetBackfillDeferral.policy.onBackfillFinished()
+                }
                 appLogDao.log(
                     "OBS_HOURLY_BACKFILL_RESULT",
                     "reason=${input.backfillReason} attempt=${input.backfillAttempt} stations=${result.stationsTried} " +

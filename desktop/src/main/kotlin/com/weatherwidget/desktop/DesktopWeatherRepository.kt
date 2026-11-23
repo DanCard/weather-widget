@@ -61,6 +61,7 @@ import com.weatherwidget.shared.nowcast.NowcastStore
 import com.weatherwidget.shared.util.SpatialInterpolator
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -693,6 +694,10 @@ class DesktopWeatherRepository(
         }
     }
 
+    private val priorCloudScope = kotlinx.coroutines.CoroutineScope(
+        kotlinx.coroutines.SupervisorJob() + Dispatchers.IO,
+    )
+
     /**
      * `:shared` [SourceFetchTable.runFollowUps] for this repository's source (none for a source with no
      * fetch, such as GENERIC_GAP). Returns the WeatherAPI history hours stored.
@@ -704,7 +709,9 @@ class DesktopWeatherRepository(
             parts,
             stored,
             SourceFetchTable.FollowUpJobs(
-                priorDayCloud = { maybeFetchPriorDayCloudForecast(now) },
+                priorDayCloud = {
+                    priorCloudScope.launch { maybeFetchPriorDayCloudForecast(now) }
+                },
                 weatherApiHistory = { backfillWeatherApiHistoryIfNeeded(now) },
                 nwsStationActuals = { fillNwsStationActualsIfNeeded(now) },
                 log = { tag, message, level -> weatherDao.log(tag, message, level) },
