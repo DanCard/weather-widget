@@ -231,13 +231,18 @@ internal class DaemonRuntime(
         isCharging: Boolean,
         screenOn: Boolean,
         cadenceDue: Set<String>,
-    ): List<String> {
+    ): List<Pair<String, Int>> {
         val ordered = listOf(config.displaySource) + config.effectiveSources.filter { it != config.displaySource }
-        return ordered.filter { sourceId ->
-            if (!sourceRetryState.isDue(sourceId, nowMs)) return@filter false
+        return ordered.mapNotNull { sourceId ->
+            if (!sourceRetryState.isDue(sourceId, nowMs)) return@mapNotNull null
+            val attempt = sourceRetryState.pending(sourceId)?.attempt ?: 1
             sourceRetryState.consume(sourceId)
-            if (sourceId in cadenceDue) return@filter false
-            SourceRetry.shouldFire(isCharging, screenOn, sourceId) { tag, message, lvl -> weatherDao.log(tag, message, lvl) }
+            if (sourceId in cadenceDue) return@mapNotNull null
+            if (SourceRetry.shouldFire(isCharging, screenOn, sourceId) { tag, message, lvl -> weatherDao.log(tag, message, lvl) }) {
+                sourceId to attempt
+            } else {
+                null
+            }
         }
     }
 
@@ -246,15 +251,16 @@ internal class DaemonRuntime(
      * launch refresh for the same source/site is never duplicated. Returns `true` if any failed.
      */
     private suspend fun runDueSourceRetries(
-        retrySources: List<String>,
+        retrySources: List<Pair<String, Int>>,
         config: DesktopConfig,
         activeRepo: DesktopWeatherRepository,
         wakeLoopOnFailure: Boolean,
     ): Boolean {
         var anyFailed = false
-        for (retrySource in retrySources) {
+        for ((retrySource, attempt) in retrySources) {
             val isActive = retrySource == config.displaySource
             val key = LaunchRefreshJobs.key(retrySource, config.lat, config.lon)
+            val startMs = System.currentTimeMillis()
             try {
                 if (isActive) {
                     val result = launchRefreshJobs.fetchOnce(key) {
@@ -265,6 +271,9 @@ internal class DaemonRuntime(
                         panelPublisher.publishForecastState(result)
                         dataStatusState.value = DataStatus.Live(System.currentTimeMillis())
                         notifyDataUpdated()
+                    }
+                    SourceRetry.logRecovered(retrySource, attempt, System.currentTimeMillis() - startMs) { tag, msg, lvl ->
+                        weatherDao.log(tag, msg, lvl)
                     }
                     Log.i(TAG, "Active source forecast retry successful.")
                 } else {
@@ -284,7 +293,12 @@ internal class DaemonRuntime(
                             retryService.close()
                         }
                     }
-                    if (ran != null) notifyDataUpdated()
+                    if (ran != null) {
+                        SourceRetry.logRecovered(retrySource, attempt, System.currentTimeMillis() - startMs) { tag, msg, lvl ->
+                            weatherDao.log(tag, msg, lvl)
+                        }
+                        notifyDataUpdated()
+                    }
                 }
             } catch (e: CancellationException) {
                 throw e

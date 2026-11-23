@@ -45,6 +45,10 @@ internal class FullSyncPipeline(
             val startMs = SystemClock.elapsedRealtime()
 
             // A source retry armed with the screen on may come due in a pocket on battery: skip it there.
+            val retrySourceId = input.targetSourceId?.takeIf { input.currentTempReason == com.weatherwidget.shared.util.SourceRetry.REASON }
+            val retryAttempt = retrySourceId?.let { id ->
+                widgetStateManager.getSourceRetry(com.weatherwidget.data.model.WeatherSource.fromId(id))?.attempt ?: 1
+            }
             if (input.currentTempReason == com.weatherwidget.shared.util.SourceRetry.REASON &&
                 !com.weatherwidget.shared.util.SourceRetry.shouldFire(
                     device.isCharging, device.isScreenInteractive, input.targetSourceId ?: "?",
@@ -159,7 +163,7 @@ internal class FullSyncPipeline(
 
                 result.fold(
                     onSuccess = { weatherList ->
-                        onFetchSuccess(weatherList, input, device, location, activeSourceList, bannerPlace, startMs)
+                        onFetchSuccess(weatherList, input, device, location, activeSourceList, bannerPlace, startMs, retryAttempt ?: 1)
                     },
                     onFailure = { e ->
                         appLogDao.log("SYNC_FAILURE", "Repository failed: ${e.message}", "ERROR")
@@ -197,8 +201,19 @@ internal class FullSyncPipeline(
         activeSourceList: List<String>,
         bannerPlace: String?,
         startMs: Long,
+        retryAttempt: Int = 1,
     ): ListenableWorker.Result {
         val load = loadAndBackfill(weatherList, input, location)
+        if (input.currentTempReason == com.weatherwidget.shared.util.SourceRetry.REASON) {
+            val targetId = input.targetSourceId
+            if (targetId != null && widgetStateManager.getSourceRetry(com.weatherwidget.data.model.WeatherSource.fromId(targetId)) == null) {
+                com.weatherwidget.shared.util.SourceRetry.logRecovered(
+                    sourceId = targetId,
+                    attempt = retryAttempt,
+                    elapsedMs = load.afterWeatherMs - startMs,
+                ) { tag, message, level -> appLogDao.log(tag, message, level) }
+            }
+        }
         val actuals = recomputeActuals(weatherList, input, location, activeSourceList, load)
         val afterUpdateMs = paintAll(weatherList, input, location, bannerPlace, load, actuals)
         logSyncPerf(input, startMs, load, actuals, afterUpdateMs)

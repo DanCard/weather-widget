@@ -351,18 +351,19 @@ refresh counts only its own user refreshes (observations scope); the forecast fe
    - `HttpRequestRetry`: `maxRetries = 2` with `exponentialDelay(base = 2.0, maxDelayMs = 2_000)` on `ConnectTimeoutException`, `SocketTimeoutException`, `HttpRequestTimeoutException`, and `IOException` (logged under `HttpRetry`).
    - Endpoint overrides: `RadarRepository` uses `20_000` ms; `RainGridRepository` uses `45_000` ms with `noRetry()`.
 2. **Open-Meteo short-window endpoints (`OpenMeteoApi` `getForecast`, `getCurrent`, `getPriorDayCloudForecast`):**
-   - **Initial HTTPS attempt:** `connectTimeoutMillis = 4_000`, `socketTimeoutMillis = 6_000`, `requestTimeoutMillis = 8_000` with `noRetry()` so a stalled TLS/HTTPS attempt fails over in 8 s instead of burning 15–17 s.
-   - **Delayed HTTP fallback (`getWithHttpFallback`):** on `HttpRequestTimeoutException`, `ConnectTimeoutException`, `SocketTimeoutException`, `SSLException`, or `IOException`, logs `https failed, retrying over http in 2000ms`, waits `2_000` ms (`DEFAULT_HTTP_FALLBACK_DELAY_MS`), and retries over `http://` (`connect=5_000`, `socket=6_000`, `request=12_000` ms, with normal `HttpRequestRetry`, scoped on Android to `api.open-meteo.com` and `previous-runs-api.open-meteo.com` in `app/src/main/res/xml/network_security_config.xml`).
+   - **Initial HTTPS attempt:** `connectTimeoutMillis = 3_000`, `socketTimeoutMillis = 4_000`, `requestTimeoutMillis = 5_000` with `noRetry()` so a stalled TLS/HTTPS attempt fails over in 4–5 s instead of burning 15–17 s.
+   - **Delayed HTTP fallback (`getWithHttpFallback`):** on `HttpRequestTimeoutException`, `ConnectTimeoutException`, `SocketTimeoutException`, `SSLException`, or `IOException`, logs `https failed after …ms, retrying over http in 250ms`, waits `250` ms (`DEFAULT_HTTP_FALLBACK_DELAY_MS`), and retries over `http://` (`connect=3_000`, `socket=4_000`, `request=9_000` ms, with normal `HttpRequestRetry`, scoped on Android to `api.open-meteo.com` and `previous-runs-api.open-meteo.com` in `app/src/main/res/xml/network_security_config.xml`). When the HTTP fallback succeeds, logs `OPEN_METEO_HTTP_FALLBACK host=… httpsMs=… httpMs=… cause=…` to `app_logs`.
    - **Per call, never sticky:** the HTTP retry happens once, for that call only; the next call starts over with HTTPS. `CancellationException` is rethrown immediately, and `getHistoricalDailyTemps` remains HTTPS-only. If both HTTPS and HTTP fail, the failure hands off to `SourceRetry` below.
 
 ### Failed-fetch retry (`SourceRetry`, shared)
 
 A forecast fetch of any enabled source, shown on screen or not, that fails with a transient code
 (`TIMEOUT`, `DNS_ERROR`, `CONN_REFUSED`, `SOCKET_ERROR`, `SSL_ERROR`, `HTTP_5xx`) arms a retry of that
-source after 1, 2, 5 and 10 minutes (`SourceRetry.DELAYS_MS`, 4 per failure streak). A retry counts as
-due only within `SourceRetry.DUE_GRACE_MS` of its time, never the forecast cadence's 2 min grace, which
-made the 1- and 2-min retries due on arming
-([plans/261117-source-retry-due-grace.md](../plans/261117-source-retry-due-grace.md)); a success ends the streak, and a failure
+source after 20 s, 1, 2, 5 and 10 minutes (`SourceRetry.DELAYS_MS`, 5 per failure streak). A retry counts as
+due only within `SourceRetry.DUE_GRACE_MS` (2 s) of its time, never the forecast cadence's 2 min grace, which
+made the short retries due on arming
+([plans/261117-source-retry-due-grace.md](../plans/261117-source-retry-due-grace.md)); a success ends the streak
+and logs `SOURCE_RETRY recovered source=… attempt=…/5 elapsedMs=…`, and a failure
 more than an hour after the last retry starts a fresh one. Quotas, rate limits, 4xx and `NO_COVERAGE`
 are not retried here. On battery with the screen off a retry is neither armed nor run
 (`reason=battery_screen_off`, `fire_skip`); a skipped retry ends its chain. Without it, a tap-stale

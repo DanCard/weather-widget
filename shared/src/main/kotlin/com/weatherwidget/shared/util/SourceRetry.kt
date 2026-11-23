@@ -19,8 +19,8 @@ object SourceRetry {
     /** The reason a retry fetch runs under (silent: no notice is owed for it). */
     const val REASON = "source_retry"
 
-    /** The wait before each retry of a failure streak: 1, 2, 5, 10 min — 18 min in all. */
-    val DELAYS_MS: List<Long> = listOf(1L, 2L, 5L, 10L).map { it * 60_000L }
+    /** The wait before each retry of a failure streak: 20 s, 1, 2, 5, 10 min — 18 min 20 s in all. */
+    val DELAYS_MS: List<Long> = listOf(20_000L, 60_000L, 2 * 60_000L, 5 * 60_000L, 10 * 60_000L)
 
     /** Retries per failure streak. */
     val MAX_RETRIES: Int = DELAYS_MS.size
@@ -35,7 +35,7 @@ object SourceRetry {
      * armed, firing them back to back into the same stall (2026-11-17 00:43:57, 59 ms after arming).
      * plans/261117-source-retry-due-grace.md
      */
-    const val DUE_GRACE_MS = 5_000L
+    const val DUE_GRACE_MS = 2_000L
 
     /** Shortest loop sleep toward an armed retry; the cadence floor (1 min) would make a near retry late. */
     const val MIN_SLEEP_MS = 1_000L
@@ -107,7 +107,7 @@ object SourceRetry {
         host.arm(sourceId, retry)
         host.log(
             LOG_TAG,
-            "scheduled source=$sourceId code=$errorCode trigger=$trigger attempt=${retry.attempt}/$MAX_RETRIES delayMin=${delayMs / 60_000L} at=${retry.atMs}",
+            "scheduled source=$sourceId code=$errorCode trigger=$trigger attempt=${retry.attempt}/$MAX_RETRIES delaySec=${delayMs / 1_000L} at=${retry.atMs}",
             "INFO",
         )
         return retry.atMs
@@ -121,6 +121,16 @@ object SourceRetry {
         val run = mayRun(isCharging, isScreenOn)
         log(LOG_TAG, "${if (run) "fire" else "fire_skip"} source=$sourceId charging=$isCharging screenOn=$isScreenOn" + if (run) "" else " reason=battery_screen_off", "INFO")
         return run
+    }
+
+    /** Records that a scheduled [REASON] retry succeeded. */
+    suspend fun logRecovered(
+        sourceId: String,
+        attempt: Int,
+        elapsedMs: Long,
+        log: suspend (String, String, String) -> Unit,
+    ) {
+        log(LOG_TAG, "recovered source=$sourceId attempt=$attempt/$MAX_RETRIES elapsedMs=$elapsedMs", "INFO")
     }
 
     private val TRANSIENT_CODES = setOf("TIMEOUT", "DNS_ERROR", "CONN_REFUSED", "SOCKET_ERROR", "SSL_ERROR")

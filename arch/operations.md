@@ -186,17 +186,18 @@ Shared-module `Log` output goes to logcat on Android and only to the console log
 (`~/.local/state/weather-widget/autostart-*.log`) on desktop, never to `app_logs`. In it:
 
 - `W/HttpRetry: retryOnException host= path= cause=`: one transport failure that Ktor retried.
-- `W/OpenMeteoApi: https failed, retrying over http in 2000ms: ...`: HTTPS attempt failed over to the
+- `W/OpenMeteoApi: https failed after …ms, retrying over http in 250ms: ...`: HTTPS attempt failed over to the
   delayed `http://` retry.
 - `W/OpenMeteoApi: getForecast: failed ms=` / `D/OpenMeteoApi: getForecast: Raw response length= ms=`:
   each forecast call's outcome and duration.
-- `W/OpenMeteoApi: OPEN_METEO_TIMEOUT_PROBE forecastMs= probe= probeMs=`: after a forecast timeout,
-  one light request (`current=temperature_2m`, no retry, 5 s cap) to the same host. `probe=ok` quickly
-  means the server is slow on the full request; a slow or failed probe points at the network path. See
-  [plans/261116-desktop-okhttp-engine.md](../plans/261116-desktop-okhttp-engine.md).
+- `W/HTTP_PHASE_FAIL: host= scheme= remoteIp= protocol= dnsMs= connectMs= tlsMs= reqHeadersMs= ttfbMs= totalMs= reused= error=`:
+  emitted by the OkHttp `EventListener` (`DesktopHttpPhaseListener` / `AndroidHttpPhaseListener`) only when a
+  call fails or times out (zero logs on success), showing which phase stalled (`-1` = phase did not complete).
+  Desktop also queues it to `app_logs`. See [plans/261123-open-meteo-retry-tuning-and-phase-logging.md](../plans/261123-open-meteo-retry-tuning-and-phase-logging.md).
 
 `app_logs` keeps the per-source outcome: `CURRENT_TEMP_STATUS source= ok=false
-class=HttpRequestTimeoutException`, `REFRESH_FAIL`, and `SOURCE_RETRY`.
+class=HttpRequestTimeoutException`, `OPEN_METEO_HTTP_FALLBACK`, `HTTP_PHASE_FAIL` (desktop), `REFRESH_FAIL`,
+and `SOURCE_RETRY` (`scheduled` with `delaySec=`, `fire`, `recovered`).
 
 ### Debug-build adb hooks
 

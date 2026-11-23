@@ -97,7 +97,15 @@ class DesktopWeatherService(
     private val effectiveKeys: Map<String, String> =
         DesktopApiKeys.DEFAULTS + apiKeys.filterValues { it.isNotBlank() }
 
-    private val openMeteo = OpenMeteoApi(httpClient, json)
+    private val openMeteo = OpenMeteoApi(
+        httpClient,
+        json,
+        onAppLog = { tag, msg, level ->
+            weatherDao?.let { dao ->
+                DesktopAppLogQueue.write("open_meteo_event") { dao.log(tag, msg, level) }
+            }
+        },
+    )
     private val nwsApi = injectedNwsApi ?: NwsApi(httpClient, json)
     private val tomorrowIo = TomorrowIoApi(httpClient, json) { effectiveKeys[WeatherSource.TOMORROW_IO.id] }
     private val weatherApi = WeatherApi(httpClient, json) { effectiveKeys[WeatherSource.WEATHER_API.id] }

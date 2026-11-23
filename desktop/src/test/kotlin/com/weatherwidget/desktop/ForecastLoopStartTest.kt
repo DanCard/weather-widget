@@ -332,10 +332,10 @@ class ForecastLoopStartTest {
     /**
      * The real chain on SQLite: a TIMEOUT through [SourceRetry.onFailure] arms rows via
      * [DesktopSourceRetryHost], the settle reads them through [DesktopSourceRetryState] with its default
-     * grace, and each retry fails again. Attempts 1 and 2 must fire ~1 and ~2 min after their arming.
+     * grace, and each retry fails again. Attempts 1, 2 and 3 must fire ~20 s, ~1 min and ~2 min after arming.
      */
     @Test
-    fun `retry chain on SQLite keeps its 1 and 2 min spacing during settle`() = runTest {
+    fun `retry chain on SQLite keeps its 20 s, 1 min and 2 min spacing during settle`() = runTest {
         val dir = Files.createTempDirectory("forecast-loop-retry-spacing")
         val db = DesktopWeatherDatabase(dir.resolve("weather.db")).apply { initialize() }
         try {
@@ -368,10 +368,11 @@ class ForecastLoopStartTest {
             advanceTimeBy(settle - 1)
             runCurrent()
             println("firedAt=$firedAt pending=${retryState.pending(sourceId)}")
-            assertEquals(2, firedAt.size)
-            assertTrue("attempt 1 at ${firedAt[0]}", firedAt[0] >= 55_000L)
-            assertTrue("attempt 2 at ${firedAt[1]}", firedAt[1] - firedAt[0] >= 115_000L)
-            assertEquals(3, retryState.pending(sourceId)?.attempt)
+            assertEquals(3, firedAt.size)
+            assertTrue("attempt 1 at ${firedAt[0]}", firedAt[0] >= 18_000L)
+            assertTrue("attempt 2 at ${firedAt[1]}", firedAt[1] - firedAt[0] >= 58_000L)
+            assertTrue("attempt 3 at ${firedAt[2]}", firedAt[2] - firedAt[1] >= 118_000L)
+            assertEquals(4, retryState.pending(sourceId)?.attempt)
             assertEquals("settle", wait.await())
         } finally {
             dir.toFile().deleteRecursively()

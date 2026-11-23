@@ -134,6 +134,7 @@ object AppModule {
             engine {
                 config {
                     dns(fallbackDns)
+                    eventListenerFactory { AndroidHttpPhaseListener() }
                 }
             }
             WeatherHttpClientDefaults.install(this, json)
@@ -372,7 +373,12 @@ object AppModule {
     fun provideOpenMeteoApi(
         httpClient: HttpClient,
         json: Json,
-    ): OpenMeteoApi = OpenMeteoApi(httpClient, json)
+        appLogDao: AppLogDao,
+    ): OpenMeteoApi = OpenMeteoApi(
+        httpClient,
+        json,
+        onAppLog = { tag, msg, level -> appLogDao.log(tag, msg, level) },
+    )
 
     @Provides
     @Singleton

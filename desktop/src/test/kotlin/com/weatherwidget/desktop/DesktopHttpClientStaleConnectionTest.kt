@@ -1,7 +1,12 @@
 package com.weatherwidget.desktop
 
+import com.weatherwidget.data.local.desktop.DesktopWeatherDao
+import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
+import com.weatherwidget.data.remote.HttpPhaseTiming
 import com.weatherwidget.shared.util.Log
 import com.weatherwidget.test.category.MediumDuration
+import io.ktor.client.plugins.retry
+import io.ktor.client.plugins.timeout
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.runBlocking
@@ -17,6 +22,7 @@ import java.io.InputStreamReader
 import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
+import java.nio.file.Files
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -127,6 +133,73 @@ class DesktopHttpClientStaleConnectionTest {
             assertEquals(0, idleAfterKeepAlive)
             assertEquals("the later fetch must use a new connection", 2, server.accepted.get())
             client.close()
+        }
+    }
+
+    @Test
+    fun `stalled socket emits HTTP_PHASE_FAIL to console and real SQLite app_logs, while healthy call emits none`() = runBlocking {
+        val dbDir = Files.createTempDirectory("desktop-http-phase-test")
+        val db = DesktopWeatherDatabase(dbDir.resolve("weather.db")).apply { initialize() }
+        val dao = DesktopWeatherDao(db)
+        val phaseLogs = mutableListOf<String>()
+        Log.install { priority, tag, msg, _ ->
+            println("${priority.name.first()}/$tag: $msg")
+            if (tag == HttpPhaseTiming.LOG_TAG) synchronized(phaseLogs) { phaseLogs += msg }
+        }
+
+        // 1. Healthy call emits zero HTTP_PHASE_FAIL lines.
+        OneShotServer(connections = 1, closeAfterResponse = true).use { server ->
+            val client = DesktopHttpClient.newWeatherClient(json, weatherDao = dao, isForeground = false)
+            assertEquals("ok1", client.get(server.url).bodyAsText())
+            client.close()
+        }
+        assertTrue("healthy call must not emit HTTP_PHASE_FAIL: $phaseLogs", phaseLogs.isEmpty())
+
+        // 2. Accept a TCP connection and hold it silently so OkHttp hits socket timeout waiting for TTFB.
+        val silentServer = ServerSocket(0, 50, InetAddress.getLoopbackAddress())
+        val heldSockets = mutableListOf<Socket>()
+        thread(isDaemon = true, name = "silent-stall-server") {
+            runCatching {
+                val s = silentServer.accept()
+                synchronized(heldSockets) { heldSockets += s }
+                Thread.sleep(5_000)
+            }
+        }
+        try {
+            val client = DesktopHttpClient.newWeatherClient(json, weatherDao = dao, isForeground = false)
+            val failed = runCatching {
+                client.get("http://127.0.0.1:${silentServer.localPort}/v1/forecast") {
+                    retry { noRetry() }
+                    timeout {
+                        connectTimeoutMillis = 1_000
+                        socketTimeoutMillis = 300
+                        requestTimeoutMillis = 2_000
+                    }
+                }.bodyAsText()
+            }.exceptionOrNull()
+            assertTrue("expected timeout failure, got $failed", failed != null)
+            client.close()
+
+            // Drain the async app-log queue by waiting briefly for the row to land in SQLite.
+            val deadline = System.currentTimeMillis() + 3_000
+            var dbRow: String? = null
+            while (dbRow == null && System.currentTimeMillis() < deadline) {
+                dbRow = dao.getRecentLogs(50).firstOrNull { it.tag == HttpPhaseTiming.LOG_TAG }?.message
+                if (dbRow == null) Thread.sleep(25)
+            }
+
+            println("phaseLogs=$phaseLogs dbRow=$dbRow")
+            assertEquals(1, phaseLogs.size)
+            val line = phaseLogs.single()
+            assertTrue(line, line.contains("host=127.0.0.1"))
+            assertTrue(line, line.contains("scheme=http"))
+            assertTrue(line, line.contains("remoteIp=127.0.0.1"))
+            assertTrue(line, line.contains("ttfbMs=-1"))
+            assertTrue(line, dbRow != null && dbRow.contains("host=127.0.0.1"))
+        } finally {
+            synchronized(heldSockets) { heldSockets.forEach { runCatching { it.close() } } }
+            silentServer.close()
+            dbDir.toFile().deleteRecursively()
         }
     }
 }
