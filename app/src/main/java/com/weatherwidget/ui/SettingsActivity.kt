@@ -165,9 +165,8 @@ class SettingsActivity : AppCompatActivity() {
             // Every visible source not fetched or refreshed in the last 10 minutes; the rest are left to
             // their cadence (plans/261113-settings-refresh-skips-fresh-sources.md).
             val nowMs = System.currentTimeMillis()
-            val partition = SettingsRefreshPartitionLoader.load(
-                this, widgetStateManager, ActiveLocationResolver.current(this), nowMs,
-            )
+            val location = ActiveLocationResolver.current(this)
+            val partition = SettingsRefreshPartitionLoader.load(this, widgetStateManager, location, nowMs)
             lifecycleScope.launch {
                 WeatherDatabase.getDatabase(this@SettingsActivity).appLogDao()
                     .log(SettingsRefreshAllSources.TAG, partition.logLine(), "INFO")
@@ -182,7 +181,9 @@ class SettingsActivity : AppCompatActivity() {
                 }
                 return@setOnClickListener
             }
-            partition.fetch.forEach { FetchMetadata.setLastUserRefreshTime(this, nowMs, it) }
+            partition.fetch.forEach {
+                FetchMetadata.setLastUserRefreshTime(this, nowMs, SettingsRefreshPartitionLoader.userRefreshKey(it, location))
+            }
             val primaryFetched = widgetStateManager.getPrimarySource().id in partition.fetch
 
             val forecastRefreshWork =

@@ -4,13 +4,23 @@ import android.content.Context
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.FetchMetadata
 import com.weatherwidget.shared.util.SettingsRefreshAllSources
+import com.weatherwidget.shared.util.UserRefreshStampKey
 
 /**
  * Android's inputs to [SettingsRefreshAllSources.partition] for Settings → Refresh data: the visible
  * sources, displayed first; last fetch = the later of the LONG-fetch marker and the last successful
- * check at this site (as [ViewingForecastRefresher]); last user refresh = [FetchMetadata]'s per-source mark.
+ * check at this site (as [ViewingForecastRefresher]); last user refresh = [FetchMetadata]'s mark for the
+ * source at this site ([userRefreshKey]).
  */
 object SettingsRefreshPartitionLoader {
+    /**
+     * The [FetchMetadata] user-refresh key for [id] at [location]: per site, as the last fetch is.
+     * A site-blind mark let Refresh data at one site skip every source at the next
+     * (plans/261122-user-refresh-stamps-per-site.md).
+     */
+    fun userRefreshKey(id: String, location: Pair<Double, Double>?): String =
+        UserRefreshStampKey.of(id, location?.first, location?.second)
+
     /**
      * [sourceId]'s last forecast fetch or successful check at [location]; null when none or no site.
      * Every forecast refresh throttle reads this ([com.weatherwidget.shared.util.UserRefreshThrottle]).
@@ -34,7 +44,7 @@ object SettingsRefreshPartitionLoader {
         return SettingsRefreshAllSources.partition(
             order,
             lastFetchMs = { id -> lastFetchMs(context, stateManager, id, location) },
-            lastUserRefreshMs = { id -> FetchMetadata.getLastUserRefreshTime(context, id).takeIf { it > 0L } },
+            lastUserRefreshMs = { id -> FetchMetadata.getLastUserRefreshTime(context, userRefreshKey(id, location)).takeIf { it > 0L } },
             nowMs = nowMs,
         )
     }

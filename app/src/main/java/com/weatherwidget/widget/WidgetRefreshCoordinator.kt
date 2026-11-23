@@ -39,8 +39,10 @@ internal object WidgetRefreshCoordinator {
             val stateManager = WidgetStateManager(context)
             val displaySource = requestedWidgetId?.let { stateManager.getCurrentDisplaySource(it) } ?: stateManager.getPrimarySource()
             val sourceId = displaySource.id
-            val lastUserRefreshMs = FetchMetadata.getLastUserRefreshTime(context, sourceId)
-            val lastFetchMs = SettingsRefreshPartitionLoader.lastFetchMs(context, stateManager, sourceId, ActiveLocationResolver.current(context))
+            val location = ActiveLocationResolver.current(context)
+            val stampKey = SettingsRefreshPartitionLoader.userRefreshKey(sourceId, location)
+            val lastUserRefreshMs = FetchMetadata.getLastUserRefreshTime(context, stampKey)
+            val lastFetchMs = SettingsRefreshPartitionLoader.lastFetchMs(context, stateManager, sourceId, location)
             when (val decision = UserRefreshThrottle.check(lastUserRefreshMs, nowMs, lastFetchMs)) {
                 is UserRefreshThrottle.Decision.Throttled -> {
                     WeatherDatabase.getDatabase(context).appLogDao().log(
@@ -56,7 +58,7 @@ internal object WidgetRefreshCoordinator {
                     )
                 }
                 is UserRefreshThrottle.Decision.Allowed -> {
-                    FetchMetadata.setLastUserRefreshTime(context, nowMs, sourceId)
+                    FetchMetadata.setLastUserRefreshTime(context, nowMs, stampKey)
                     val pending = WidgetWorkScheduler.pendingOneTimeSync(context)
                     WidgetWorkScheduler.enqueueRequiredImmediateSync(
                         context = context,

@@ -1188,7 +1188,8 @@ class ForecastComparisonActivity : AppCompatActivity() {
             return
         }
         val nowMs = System.currentTimeMillis()
-        val lastRefresh = FetchMetadata.getLastUserRefreshTime(this, source.id)
+        val stampKey = com.weatherwidget.widget.SettingsRefreshPartitionLoader.userRefreshKey(source.id, targetLat to targetLon)
+        val lastRefresh = FetchMetadata.getLastUserRefreshTime(this, stampKey)
         val lastFetch = com.weatherwidget.widget.SettingsRefreshPartitionLoader.lastFetchMs(
             this, WidgetStateManager(this), source.id, targetLat to targetLon,
         )
@@ -1207,7 +1208,7 @@ class ForecastComparisonActivity : AppCompatActivity() {
                 return
             }
             is UserRefreshThrottle.Decision.Allowed -> {
-                FetchMetadata.setLastUserRefreshTime(this, nowMs, source.id)
+                FetchMetadata.setLastUserRefreshTime(this, nowMs, stampKey)
             }
         }
         lifecycleScope.launch {

@@ -299,10 +299,12 @@ forecast refreshes at most once every 10 minutes on both platforms (`UserRefresh
 refused when the source was refreshed by the user **or fetched by anything** (popup open, viewing refresh,
 cadence, Settings → Refresh data) within 10 minutes. The fetch time is the later of the LONG-fetch marker and
 the last successful check at the site on Android, the site's `FORECAST_LONG_FETCH` marker on desktop
-(`DesktopWeatherDao.getLastSuccessfulFetch(source, lat, lon)`). Freshness is always the displayed site's: a
-fetch at the previous location never makes a source look fresh after a move, so Settings → Refresh data,
+(`DesktopWeatherDao.getLastSuccessfulFetch(source, lat, lon)`). The user-refresh time is per site too
+(`UserRefreshStampKey`: source at the `LocationMatch`-quantized site). Freshness is always the displayed
+site's: a fetch or a user refresh at the previous location never makes a source look fresh after a move, so Settings → Refresh data,
 the launch check and the viewing refresh fetch what is stale at the new site
-(`plans/261121-desktop-location-change-freshness-and-config-clobber.md`). The Observations
+(`plans/261121-desktop-location-change-freshness-and-config-clobber.md`,
+`plans/261122-user-refresh-stamps-per-site.md`). The Observations
 refresh counts only its own user refreshes (observations scope); the forecast fetch time does not apply.
 
 - **Throttled (< 10 minutes since the source's last user refresh or fetch)**:
@@ -318,7 +320,8 @@ refresh counts only its own user refreshes (observations scope); the forecast fe
   (`KEY_SKIP_SOURCES`) and left to its normal cadence. When every source is fresh nothing is queued and the
   notice reads "Already up to date" (`REFRESH_TOAST … none=ALL_FRESH`).
 - **Allowed (≥ 10 minutes or first user refresh for that source)**:
-  - Last user refresh timestamp for that source is recorded (`FetchMetadata` per source on Android, `lastUserRefreshMsBySource` on Desktop).
+  - Last user refresh timestamp for that source at this site is recorded under its `UserRefreshStampKey`
+    (`FetchMetadata` prefs on Android, in-memory `lastUserRefreshMsByKey` on Desktop).
   - Immediate forced forecast sync and history gap fill are enqueued.
   - A three-second notice names the source and says the refresh is queued; another says how it ended
     ("NWS refreshed"). A failure names the fetched source, why, and when it is retried

@@ -4,6 +4,7 @@ import com.weatherwidget.data.local.desktop.DesktopWeatherDao
 import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.ForecastHorizonCadence
+import com.weatherwidget.shared.util.UserRefreshStampKey
 import com.weatherwidget.test.category.ShortDuration
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -81,6 +82,39 @@ class DesktopSiteFreshnessTest {
 
         assertTrue("just fetched here: nothing to do", atOldSite.allFresh)
         assertEquals(listOf(google, "NWS"), atNewSite.fetch)
+    }
+
+    /**
+     * 2026-11-22: Refresh data at Scottsdale stamped six sources at 08:59:44; at 09:01:31 the user
+     * moved to Mountain View, where the move fetched NWS only; at 09:01:51 Refresh data skipped all
+     * six as fresh (126 s) and said "Already up to date". The stamp map is keyed exactly as
+     * [DesktopUiApplication] writes it. Fails on the old source-only stamp key.
+     * plans/261122-user-refresh-stamps-per-site.md
+     */
+    @Test
+    fun `refresh data at the old site does not make the new site fresh`() = runTest {
+        val others = listOf(google, "OPEN_METEO")
+        val cfgAt = { site: Pair<Double, Double> ->
+            config(site).copy(settings = DesktopSettings(weatherSource = "NWS", visibleSources = listOf("NWS") + others))
+        }
+        val stamps = mutableMapOf<String, Long>()
+        val clickAtOld = System.currentTimeMillis()
+        // The Scottsdale click: the partition fetches the others, stamping each as the UI does.
+        fetchedAt("NWS", scottsdale)
+        val clicked = desktopSettingsRefreshPartition(dao, cfgAt(scottsdale), { stamps[it] }, clickAtOld)
+        assertEquals(others, clicked.fetch)
+        clicked.fetch.forEach { stamps[UserRefreshStampKey.of(it, scottsdale.first, scottsdale.second)] = clickAtOld }
+        fetchedAt("NWS", mountainView)
+
+        val atNewSite = desktopSettingsRefreshPartition(dao, cfgAt(mountainView), { stamps[it] }, clickAtOld + 126_000L)
+        val atOldSite = desktopSettingsRefreshPartition(dao, cfgAt(scottsdale), { stamps[it] }, clickAtOld + 126_000L)
+        println("stamps: $stamps")
+        println("new site: ${atNewSite.logLine()}")
+        println("old site: ${atOldSite.logLine()}")
+
+        assertEquals(others, atNewSite.fetch)
+        assertEquals(setOf("NWS"), atNewSite.fresh.keys)
+        assertTrue("everything is fresh where it was just refreshed", atOldSite.allFresh)
     }
 
     @Test

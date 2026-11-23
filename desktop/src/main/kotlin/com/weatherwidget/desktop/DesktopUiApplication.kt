@@ -5,6 +5,7 @@ import com.weatherwidget.data.remote.weathernext.WeatherNextDomain
 import com.weatherwidget.shared.rainmap.WeatherNextLoop
 import com.weatherwidget.shared.util.DayTap
 import com.weatherwidget.shared.util.SettingsRefreshAllSources
+import com.weatherwidget.shared.util.UserRefreshStampKey
 import com.weatherwidget.shared.util.WeatherSourceOrdering
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -188,7 +189,9 @@ internal fun runDesktopUiApplication() = application {
         // Owned here rather than in either child window: full refresh work runs on uiScope and
         // survives closing Settings or Stations/Observations.
         var refreshInFlight by remember { mutableStateOf(false) }
-        val lastUserRefreshMsBySource = remember { mutableStateMapOf<String, Long>() }
+        // Keyed by UserRefreshStampKey (source at the site), not the bare source id:
+        // plans/261122-user-refresh-stamps-per-site.md.
+        val lastUserRefreshMsByKey = remember { mutableStateMapOf<String, Long>() }
         val desktopClients = remember { DesktopClients(weatherDao) }
         // Held as a top-level remember so SettingsWindow can call friendlyName() directly for the
         // reverse-geocoded location label, without going through the higher-level LocationResolver
@@ -993,15 +996,15 @@ internal fun runDesktopUiApplication() = application {
             // Settings → Refresh data: every usable source not fetched or refreshed in the last 10
             // minutes, partitioned once here (plans/261113-settings-refresh-skips-fresh-sources.md).
             val settingsPartition = currentConfig?.takeIf { origin == "settings" }?.let { cfg ->
-                desktopSettingsRefreshPartition(weatherDao, cfg, { lastUserRefreshMsBySource[it] }, nowMs).also { weatherDao.log(SettingsRefreshAllSources.TAG, it.logLine(), "INFO") }
+                desktopSettingsRefreshPartition(weatherDao, cfg, { lastUserRefreshMsByKey[it] }, nowMs).also { weatherDao.log(SettingsRefreshAllSources.TAG, it.logLine(), "INFO") }
             }
             if (settingsPartition != null) {
                 if (settingsPartition.allFresh) {
                     refreshNotice.show(RefreshNotice.NotQueued(RefreshNotice.Reason.ALL_FRESH), surface, origin)
                     return
                 }
-                settingsPartition.fetch.forEach { lastUserRefreshMsBySource[it] = nowMs }
-            } else when (val decision = UserRefreshThrottle.check(lastUserRefreshMsBySource[sourceId], nowMs, currentConfig?.let { weatherDao.getLastSuccessfulFetch(sourceId, it.lat, it.lon) })) {
+                settingsPartition.fetch.forEach { lastUserRefreshMsByKey[UserRefreshStampKey.of(it, currentConfig?.lat, currentConfig?.lon)] = nowMs }
+            } else when (val decision = UserRefreshThrottle.check(lastUserRefreshMsByKey[UserRefreshStampKey.of(sourceId, currentConfig?.lat, currentConfig?.lon)], nowMs, currentConfig?.let { weatherDao.getLastSuccessfulFetch(sourceId, it.lat, it.lon) })) {
                 is UserRefreshThrottle.Decision.Throttled -> {
                     weatherDao.log(
                         "REFRESH_CLICK",
@@ -1021,7 +1024,7 @@ internal fun runDesktopUiApplication() = application {
                     return
                 }
                 is UserRefreshThrottle.Decision.Allowed -> {
-                    lastUserRefreshMsBySource[sourceId] = nowMs
+                    lastUserRefreshMsByKey[UserRefreshStampKey.of(sourceId, currentConfig?.lat, currentConfig?.lon)] = nowMs
                 }
             }
 
@@ -1132,9 +1135,9 @@ internal fun runDesktopUiApplication() = application {
             }
 
             val currentSource = WeatherSource.fromDisplaySource(currentConfig?.displaySource ?: "")
-            val obsKey = "${currentSource.id}:observations"
+            val obsKey = UserRefreshStampKey.of("${currentSource.id}:observations", currentConfig?.lat, currentConfig?.lon)
             val nowMs = System.currentTimeMillis()
-            val lastRefresh = lastUserRefreshMsBySource[obsKey]
+            val lastRefresh = lastUserRefreshMsByKey[obsKey]
             // Observations only: the forecast fetch time does not apply.
             when (val decision = UserRefreshThrottle.check(lastRefresh, nowMs, lastFetchMs = null)) {
                 is UserRefreshThrottle.Decision.Throttled -> {
@@ -1156,7 +1159,7 @@ internal fun runDesktopUiApplication() = application {
                     return
                 }
                 is UserRefreshThrottle.Decision.Allowed -> {
-                    lastUserRefreshMsBySource[obsKey] = nowMs
+                    lastUserRefreshMsByKey[obsKey] = nowMs
                 }
             }
 
@@ -1214,7 +1217,8 @@ internal fun runDesktopUiApplication() = application {
             }
 
             val nowMs = System.currentTimeMillis()
-            val lastRefresh = lastUserRefreshMsBySource[source.id]
+            val stampKey = UserRefreshStampKey.of(source.id, cfg.lat, cfg.lon)
+            val lastRefresh = lastUserRefreshMsByKey[stampKey]
             when (val decision = UserRefreshThrottle.check(lastRefresh, nowMs, weatherDao.getLastSuccessfulFetch(source.id, cfg.lat, cfg.lon))) {
                 is UserRefreshThrottle.Decision.Throttled -> {
                     weatherDao.log(
@@ -1235,7 +1239,7 @@ internal fun runDesktopUiApplication() = application {
                     return
                 }
                 is UserRefreshThrottle.Decision.Allowed -> {
-                    lastUserRefreshMsBySource[source.id] = nowMs
+                    lastUserRefreshMsByKey[stampKey] = nowMs
                 }
             }
 

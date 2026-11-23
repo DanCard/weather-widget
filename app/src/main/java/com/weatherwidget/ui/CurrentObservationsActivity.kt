@@ -432,7 +432,7 @@ class CurrentObservationsActivity : AppCompatActivity() {
             }
 
             val source = currentSource
-            val obsKey = "${source.id}:observations"
+            val obsKey = com.weatherwidget.widget.SettingsRefreshPartitionLoader.userRefreshKey("${source.id}:observations", location)
             val nowMs = System.currentTimeMillis()
             val lastRefresh = FetchMetadata.getLastUserRefreshTime(this@CurrentObservationsActivity, obsKey)
             when (val decision = UserRefreshThrottle.check(lastRefresh, nowMs, lastFetchMs = null)) {
