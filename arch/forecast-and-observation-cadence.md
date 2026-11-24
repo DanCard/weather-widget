@@ -281,16 +281,19 @@ Normals are site data, kept for the current site only ([retention](data-pruning.
 site after a visit elsewhere has none even when its forecast is fresh. `:shared`
 `ClimateNormalsRun.ensureForSite` owns when they are warmed and what follows, on both platforms:
 
-- **When:** whenever a site settles, **in parallel with** that run's fetch and paint, never before them:
-  - Android: every network-allowed `FullSyncPipeline` run, as a child coroutine, so the worker
-    finishes after it;
-  - desktop: every daemon launch refresh (launch, resume, location change, source change), whatever
-    the forecast action.
+- **When:** on **every routine refresh** (full syncs and current-conditions runs) and every site change,
+  **in parallel with** that run's fetch and paint, never before them:
+  - Android: every network-allowed `FullSyncPipeline` run and every non-blocked `handleCurrentTempOnlyWork`
+    run, as a child coroutine, so the worker finishes after it (non-primary and observation-backfill runs
+    stay excluded);
+  - desktop: every daemon launch refresh (launch, resume, location change, source change) and every
+    current-conditions tick (observation loop and catch-up).
 
-  Neither a forecast fetch nor a sync calls it by itself, and nothing waits on the archive.
-- **Cost:** cache-first, so a settled site costs one database read. It is single-flight per process,
-  so two parallel settles fetch the Open-Meteo archive once. A failed fetch (`CLIMATE_WARM_FAIL`) is
-  retried at the next settle, with no cooldown.
+  Neither a forecast fetch nor a sync waits on the archive.
+- **Cost & retry:** cache-first, so a settled site costs one database read. Single-flight per process
+  keeps overlapping settles to one Open-Meteo archive request. A failed fetch (`CLIMATE_WARM_FAIL`) is
+  retried on the next routine refresh (following the cadence tables above, with no dedicated timer,
+  backoff, or cooldown).
 - **After:** newly cached normals call the host's `onNormalsCached` and log
   `CLIMATE_REPAINT key=… reason=…`. A failing hook logs `CLIMATE_REPAINT_FAIL`.
   - **Desktop:** reloads, publishes, and notifies the UI process, only while that refresh's site and

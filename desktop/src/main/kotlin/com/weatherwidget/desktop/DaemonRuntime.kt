@@ -36,6 +36,22 @@ import java.nio.file.Path
 import java.nio.file.StandardWatchEventKinds
 import kotlin.system.exitProcess
 
+/**
+ * Repaint hook for desktop's climate-normals settles: reloads cached data, publishes to the panel,
+ * and notifies the UI process only while the settled site/source is still displayed.
+ */
+internal fun climateNormalsCachedHook(
+    stillDisplayed: () -> Boolean,
+    loadCached: suspend () -> ForecastSnapshot?,
+    publish: (ForecastSnapshot) -> Unit,
+    notifyDataUpdated: () -> Unit,
+): suspend () -> Unit = {
+    if (stillDisplayed()) {
+        loadCached()?.let(publish)
+        notifyDataUpdated()
+    }
+}
+
 private const val TAG = "DaemonProcess"
 private const val OBS_LOOP_PLAN_TAG = "OBS_LOOP_PLAN"
 
@@ -419,6 +435,36 @@ internal class DaemonRuntime(
         },
         paint = paint,
     )
+
+    /**
+     * `:shared` `ClimateNormalsRun.ensureForSite`, in parallel with a launch or current-conditions
+     * refresh and never before its paint (plans/261122-climate-normals-warm-and-repaint-shared.md,
+     * plans/261122-climate-normals-retry-on-routine-refresh.md). Newly cached normals reload, publish,
+     * and notify the UI process only while the settled site/source is still displayed.
+     */
+    private fun launchClimateNormalsSettle(
+        activeRepo: DesktopWeatherRepository,
+        reason: String,
+        stillDisplayed: () -> Boolean,
+    ) {
+        daemonScope.launch {
+            try {
+                activeRepo.ensureClimateNormals(
+                    reason = reason,
+                    onCached = climateNormalsCachedHook(
+                        stillDisplayed = stillDisplayed,
+                        loadCached = { activeRepo.loadCached() },
+                        publish = { panelPublisher.publishForecastState(it) },
+                        notifyDataUpdated = ::notifyDataUpdated,
+                    ),
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "[$reason] ensureClimateNormals failed: ${e.message}", e)
+            }
+        }
+    }
 
     /** The tail, against whatever the daemon displays when it comes due. */
     private suspend fun runPostSyncTail(sourceIds: Set<String>) {
@@ -1077,27 +1123,7 @@ internal class DaemonRuntime(
                 "reason=$reason source=${displaySource.id} outcome=$outcome published=false",
                 "INFO",
             )
-            // `:shared` ClimateNormalsRun.ensureForSite, in parallel with the refresh below and never
-            // before its paint: every launch/resume/location/source refresh, whatever the action.
-            // Newly cached normals were missing from whatever is on screen, so they reload, publish,
-            // AND notify the UI process (it reloads only on notifyDataUpdated) — only while this
-            // refresh's site and source are still displayed. Publishing without notifying left a
-            // returning site's fallback days blank (2026-11-22,
-            // plans/261122-climate-normals-warm-and-repaint-shared.md).
-            daemonScope.launch {
-                try {
-                    activeRepo.ensureClimateNormals(reason = "launch:$reason") {
-                        if (stillDisplayed()) {
-                            activeRepo.loadCached()?.let { panelPublisher.publishForecastState(it) }
-                            notifyDataUpdated()
-                        }
-                    }
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    Log.e(TAG, "[$reason] ensureClimateNormals failed: ${e.message}", e)
-                }
-            }
+            launchClimateNormalsSettle(activeRepo, reason = "launch:$reason", stillDisplayed = ::stillDisplayed)
             // A source switch is a click: the popup says what it started (user, 2026-11-01).
             val announcesSwitch = reason == SOURCE_CYCLE_REASON && launchRefreshAction == LaunchRefreshAction.FULL_FORECAST
             if (announcesSwitch) notifySwitchRefresh(SwitchRefreshSignal.QUEUED)
@@ -1344,6 +1370,11 @@ internal class DaemonRuntime(
 
         daemonScope.launch {
             val src = WeatherSource.fromDisplaySource(activeConfig.displaySource).id
+            launchClimateNormalsSettle(
+                activeRepo = activeRepo,
+                reason = "current_temp:catchup:$reason",
+                stillDisplayed = { launchRefreshPublishes(activeConfig, currentConfig) },
+            )
             try {
                 val result = launchRefreshJobs.fetchOnce(LaunchRefreshJobs.observationKey(activeConfig)) {
                     activeRepo.refreshObservations()
@@ -1547,6 +1578,12 @@ internal class DaemonRuntime(
                     }
 
                     val src = WeatherSource.fromDisplaySource(config.displaySource).id
+                    val tickReason = if (isCharging) "charging_loop" else "obs_loop"
+                    launchClimateNormalsSettle(
+                        activeRepo = newRepo,
+                        reason = "current_temp:$tickReason",
+                        stillDisplayed = { launchRefreshPublishes(config, currentConfig) },
+                    )
                     try {
                         Log.i(TAG, "Temp actuals loop refresh starting for ${config.displaySource} (charging=$isCharging, level=$level%)...")
                         // Charging: every visible source's feed, each once (Android's charging loop; the

@@ -14,12 +14,13 @@ import kotlin.coroutines.cancellation.CancellationException
  * cancellation (audit plans/261023-duplicate-logic-audit-different-names.md §2).
  *
  * **When** to warm and **what follows a new cache** are this object's too ([ensureForSite]): every
- * site settle — Android's every network-allowed sync, desktop's launch/resume/location/source refresh —
- * runs it **in parallel with** the fetch and paint, never before them, and a newly cached site asks its
- * host to repaint. Desktop's launch path cached normals without telling its separate UI process, and
- * Android warmed only after a network fetch, so a return to a site with a fresh forecast (whose normals
- * retention had dropped) drew no fallback days; Android's first fix made the paint wait on the archive
- * (plans/261122-climate-normals-warm-and-repaint-shared.md).
+ * routine refresh (full syncs and current-conditions runs) plus every site change runs it **in
+ * parallel with** the fetch and paint, never before them, and a newly cached site asks its host to
+ * repaint. A failed fetch is retried at the next routine refresh — no dedicated timer, backoff, or
+ * cooldown, because the refresh cadence is the retry cadence, a cached site costs one database read,
+ * and single-flight keeps overlapping settles to one archive request
+ * (plans/261122-climate-normals-warm-and-repaint-shared.md,
+ * plans/261122-climate-normals-retry-on-routine-refresh.md).
  */
 object ClimateNormalsRun {
     interface Host {

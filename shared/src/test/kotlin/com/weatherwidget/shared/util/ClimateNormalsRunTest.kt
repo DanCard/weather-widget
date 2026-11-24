@@ -149,4 +149,35 @@ class ClimateNormalsRunTest {
         assertEquals(1, repaints)
         assertEquals(listOf(true, false), results.sortedDescending())
     }
+
+    @Test
+    fun failedSettleFollowedBySuccessFetchesTwiceAndRepaintsOnce() = runBlocking {
+        var attempt = 0
+        var cache: Pair<Map<Int, Float>, Map<Int, Float>> = emptyMap<Int, Float>() to emptyMap()
+        var fetches = 0
+        var repaints = 0
+        val logs = mutableListOf<String>()
+        val host = object : ClimateNormalsRun.Host {
+            override suspend fun cached(locationKey: String) = cache
+            override suspend fun fetchDailyTemps(start: String, end: String): List<DailyForecast> {
+                fetches++
+                if (attempt++ == 0) throw java.io.IOException("resume timeout")
+                return (1..12).map { m -> DailyForecast("2025-%02d-15".format(m), 70f, 50f, "Clear") }
+            }
+            override suspend fun store(locationKey: String, monthlyHigh: Map<Int, Float>, monthlyLow: Map<Int, Float>) {
+                cache = monthlyHigh to monthlyLow
+            }
+            override suspend fun log(tag: String, message: String, level: String) { logs += "$tag/$level" }
+            override suspend fun onNormalsCached(locationKey: String) { repaints++ }
+        }
+
+        assertFalse(ClimateNormalsRun.ensureForSite(host, 37.4, -122.0, "launch:resume"))
+        assertEquals(1, fetches)
+        assertEquals(0, repaints)
+
+        assertTrue(ClimateNormalsRun.ensureForSite(host, 37.4, -122.0, "current_temp:charging_loop"))
+        assertEquals(2, fetches)
+        assertEquals(1, repaints)
+        assertEquals(listOf("CLIMATE_WARM_FAIL/WARN", "CLIMATE_CACHED/INFO", "CLIMATE_REPAINT/INFO"), logs)
+    }
 }

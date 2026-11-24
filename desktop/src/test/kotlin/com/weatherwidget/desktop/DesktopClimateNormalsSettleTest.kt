@@ -113,6 +113,61 @@ class DesktopClimateNormalsSettleTest {
         coVerify(exactly = 1) { archive.fetchHistoricalDailyTemps(any(), any()) }
     }
 
+    @Test
+    fun `a failed launch settle retries on the next current-temp tick and repaints with today+7 fallback`() = runBlocking {
+        var calls = 0
+        val flakyArchive = mockk<WeatherApiClient>(relaxed = true).also {
+            coEvery { it.fetchHistoricalDailyTemps(any(), any()) } answers {
+                if (calls++ == 0) throw java.io.IOException("resume timeout")
+                (1..12).map { m -> DailyForecast("2025-%02d-15".format(m), 69f, 47f, "Clear") }
+            }
+        }
+        val scottsdale = DesktopWeatherRepository(flakyArchive, dao, SCOTTSDALE_LAT, SCOTTSDALE_LON, "NWS")
+        seedNwsWeek(SCOTTSDALE_LAT, SCOTTSDALE_LON)
+
+        var repaints = 0
+        var repainted: List<DailyForecast> = emptyList()
+        val onCached: suspend () -> Unit = {
+            repaints++
+            repainted = scottsdale.loadCached()!!.raw.daily
+        }
+
+        // Launch settle times out: no repaint, no fallback rows.
+        assertFalse(scottsdale.ensureClimateNormals("launch:resume", onCached))
+        assertEquals(0, repaints)
+
+        // Next current-temp tick succeeds: one repaint, today + 7 filled.
+        assertTrue(scottsdale.ensureClimateNormals("current_temp:charging_loop", onCached))
+        assertEquals(1, repaints)
+        assertTrue(today.plusDays(7) in fallbackDays(repainted))
+        assertTrue(
+            dao.getRecentLogs(50).any { it.tag == "CLIMATE_REPAINT" && it.message.contains("reason=current_temp:charging_loop") },
+        )
+    }
+
+    @Test
+    fun `climateNormalsCachedHook publishes and notifies only while stillDisplayed is true`() = runBlocking {
+        var displayed = false
+        var published = 0
+        var notified = 0
+        val snapshot = mockk<com.weatherwidget.data.model.ForecastSnapshot>(relaxed = true)
+        val hook = climateNormalsCachedHook(
+            stillDisplayed = { displayed },
+            loadCached = { snapshot },
+            publish = { published++ },
+            notifyDataUpdated = { notified++ },
+        )
+
+        hook()
+        assertEquals(0, published)
+        assertEquals(0, notified)
+
+        displayed = true
+        hook()
+        assertEquals(1, published)
+        assertEquals(1, notified)
+    }
+
     private companion object {
         const val SCOTTSDALE_LAT = 33.6451828
         const val SCOTTSDALE_LON = -111.9112613

@@ -1,5 +1,7 @@
 package com.weatherwidget.widget
 
+import kotlinx.coroutines.launch
+
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
@@ -429,7 +431,7 @@ class WeatherWidgetWorker
                         null
                     }
                 val targetSource = targetSourceId?.let(WeatherSource::fromId)
-                val outcome = if (!CurrentTempFetchPolicy.shouldFetchNow(
+                val location = if (CurrentTempFetchPolicy.shouldFetchNow(
                         isCharging = device.isCharging,
                         isScreenInteractive = device.isScreenInteractive,
                         isOpportunisticContext = input.opportunisticCurrentTemp,
@@ -438,80 +440,94 @@ class WeatherWidgetWorker
                         watchArmed = widgetStateManager.notifyOnDominantTempChange(),
                     )
                 ) {
-                    appLogDao.log(
-                        "CURR_FETCH_SKIP",
-                        "reason=${input.currentTempReason} policy_blocked charging=${device.isCharging} battery=${device.batteryLevel} " +
-                            "cutoff=${CurrentTempFetchPolicy.OPPORTUNISTIC_MIN_BATTERY_PERCENT} " +
-                            "interactive=${device.isScreenInteractive} opportunistic=${input.opportunisticCurrentTemp}",
-                        "INFO",
-                    )
-                    CurrentFetchOutcome.POLICY_BLOCKED
-                } else {
-                    val location = ActiveLocationResolver.resolve(context, widgetStateManager, WeatherDatabase.getDatabase(context).forecastDao())
+                    ActiveLocationResolver.resolve(context, widgetStateManager, WeatherDatabase.getDatabase(context).forecastDao())
                         ?: return painter.renderNoLocationAndFinish("current_temp_only")
-                    fetchCurrentTemp(input, targetSource, location)
-                }
-                val resultMessage = outcome.resultMessage
-                val fetchDurationMs = outcome.fetchDurationMs
-                val attemptedSourceCount = outcome.attemptedSourceCount
-                val nowcastFetched = outcome.nowcastFetched
-
-                // The current-temp loop is where fresh observations actually land, so the watch is
-                // evaluated here too — waiting for the next full sync could delay the alert by hours.
-                // `location` is scoped to the fetch branch above; a policy-blocked run had no fetch
-                // and so has nothing new to compare.
-                outcome.fetchedLocation?.let { (lat, lon) ->
-                    try {
-                        com.weatherwidget.notify.DominantTempChangeNotifier.check(
-                            context = context,
-                            repository = weatherRepository,
-                            stateManager = widgetStateManager,
-                            appLogDao = appLogDao,
-                            lat = lat,
-                            lon = lon,
-                            origin = "current_temp_only",
-                        )
-                    } catch (e: kotlinx.coroutines.CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        appLogDao.logException("DOMINANT_TEMP_WATCH", "check failed (current_temp_only)", e)
-                    }
-                }
-
-                val skipRepaint = !nowcastFetched && CurrentTempFetchPolicy.shouldSkipPostRunRepaint(
-                    policyBlocked = resultMessage == "skipped_policy_blocked",
-                    fetchFailed = resultMessage.startsWith("fetch_failure"),
-                    attemptedSourceCount = attemptedSourceCount,
-                )
-                val cacheRefreshDurationMs = if (skipRepaint) {
-                    appLogDao.log(
-                        "CURR_PAINT_SKIP",
-                        "reason=${input.currentTempReason} result=$resultMessage attemptedSources=$attemptedSourceCount",
-                        "INFO",
-                    )
-                    0L
                 } else {
-                    val cacheRefreshStartMs = SystemClock.elapsedRealtime()
-                    painter.refreshWidgetsFromCache()
-                    SystemClock.elapsedRealtime() - cacheRefreshStartMs
+                    null
                 }
+                // Settle climate normals in parallel with the current-temp fetch and paint, never
+                // before them: a failed archive call is retried on the next routine refresh
+                // (plans/261122-climate-normals-retry-on-routine-refresh.md).
+                kotlinx.coroutines.coroutineScope {
+                    if (location != null) {
+                        launch {
+                            weatherRepository.settleClimateNormals(location.first, location.second, reason = "current_temp")
+                        }
+                    }
+                    val outcome = if (location == null) {
+                        appLogDao.log(
+                            "CURR_FETCH_SKIP",
+                            "reason=${input.currentTempReason} policy_blocked charging=${device.isCharging} battery=${device.batteryLevel} " +
+                                "cutoff=${CurrentTempFetchPolicy.OPPORTUNISTIC_MIN_BATTERY_PERCENT} " +
+                                "interactive=${device.isScreenInteractive} opportunistic=${input.opportunisticCurrentTemp}",
+                            "INFO",
+                        )
+                        CurrentFetchOutcome.POLICY_BLOCKED
+                    } else {
+                        fetchCurrentTemp(input, targetSource, location)
+                    }
+                    val resultMessage = outcome.resultMessage
+                    val fetchDurationMs = outcome.fetchDurationMs
+                    val attemptedSourceCount = outcome.attemptedSourceCount
+                    val nowcastFetched = outcome.nowcastFetched
 
-                WidgetLoopScheduler.manageCurrentTempLoopAfterRun(context, appLogDao, device, ignoreRunningWorkId = id)
+                    // The current-temp loop is where fresh observations actually land, so the watch is
+                    // evaluated here too — waiting for the next full sync could delay the alert by hours.
+                    // `location` is scoped to the fetch branch above; a policy-blocked run had no fetch
+                    // and so has nothing new to compare.
+                    outcome.fetchedLocation?.let { (lat, lon) ->
+                        try {
+                            com.weatherwidget.notify.DominantTempChangeNotifier.check(
+                                context = context,
+                                repository = weatherRepository,
+                                stateManager = widgetStateManager,
+                                appLogDao = appLogDao,
+                                lat = lat,
+                                lon = lon,
+                                origin = "current_temp_only",
+                            )
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            appLogDao.logException("DOMINANT_TEMP_WATCH", "check failed (current_temp_only)", e)
+                        }
+                    }
 
-                val totalDurationMs = SystemClock.elapsedRealtime() - startMs
-                if (totalDurationMs > 500) {
+                    val skipRepaint = !nowcastFetched && CurrentTempFetchPolicy.shouldSkipPostRunRepaint(
+                        policyBlocked = resultMessage == "skipped_policy_blocked",
+                        fetchFailed = resultMessage.startsWith("fetch_failure"),
+                        attemptedSourceCount = attemptedSourceCount,
+                    )
+                    val cacheRefreshDurationMs = if (skipRepaint) {
+                        appLogDao.log(
+                            "CURR_PAINT_SKIP",
+                            "reason=${input.currentTempReason} result=$resultMessage attemptedSources=$attemptedSourceCount",
+                            "INFO",
+                        )
+                        0L
+                    } else {
+                        val cacheRefreshStartMs = SystemClock.elapsedRealtime()
+                        painter.refreshWidgetsFromCache()
+                        SystemClock.elapsedRealtime() - cacheRefreshStartMs
+                    }
+
+                    WidgetLoopScheduler.manageCurrentTempLoopAfterRun(context, appLogDao, device, ignoreRunningWorkId = id)
+
+                    val totalDurationMs = SystemClock.elapsedRealtime() - startMs
+                    if (totalDurationMs > 500) {
+                        appLogDao.log(
+                            "SYNC_PERF_CURRENT",
+                            "reason=${input.currentTempReason} total=${totalDurationMs}ms fetch=${fetchDurationMs}ms widgets=${cacheRefreshDurationMs}ms",
+                            "INFO",
+                        )
+                    }
+
                     appLogDao.log(
-                        "SYNC_PERF_CURRENT",
-                        "reason=${input.currentTempReason} total=${totalDurationMs}ms fetch=${fetchDurationMs}ms widgets=${cacheRefreshDurationMs}ms",
+                        "CURR_FETCH_WORK_RESULT",
+                        "id=$id reason=${input.currentTempReason} result=$resultMessage",
                         "INFO",
                     )
                 }
-
-                appLogDao.log(
-                    "CURR_FETCH_WORK_RESULT",
-                    "id=$id reason=${input.currentTempReason} result=$resultMessage",
-                    "INFO",
-                )
                 Result.success()
             } catch (e: kotlinx.coroutines.CancellationException) {
                 val durationMs = SystemClock.elapsedRealtime() - startMs
