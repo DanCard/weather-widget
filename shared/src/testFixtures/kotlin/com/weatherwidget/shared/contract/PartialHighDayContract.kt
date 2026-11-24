@@ -125,6 +125,35 @@ abstract class PartialHighDayContract {
     }
 
     @Test
+    fun `a cut-off last day whose available hourly forecast exceeds the climate normal shows the forecast high normally`() = runBlocking {
+        val platform = open()
+        // Climate normal high (50.3°–62.3°) sits below the morning hourly max on lastDay.
+        val coolMonthlyHigh = (1..12).associateWith { 45.3f + it * 0.1f }
+        val coolMonthlyLow = (1..12).associateWith { 35.6f + it * 0.1f }
+        platform.storeNormals(LAT, LON, coolMonthlyHigh, coolMonthlyLow)
+        val morning = today.atTime(8, 35)
+        val fixture = fetchAndPersist(platform, morning)
+        val slots = lastDayLocalSlots(fixture)
+        assertTrue("an 08:35 fetch stops in the morning of today+5: ${slots.map { it.hour }}", slots.maxOf { it.hour } in 5..14)
+
+        val stored = platform.rawDaily(LAT, LON, owm, lastDay).first()
+        assertNull("DB still stores null high for a LOW_ONLY day", stored.high)
+
+        val hourlyMax = slots.maxOf { OwmForecastFixture.diurnal(it) }.toFloat()
+        val normalHigh = ClimateNormals.expandMonthlyToDaily(coolMonthlyHigh, coolMonthlyLow)
+            .getValue(MonthDay.from(lastDay)).first
+        assertTrue("precondition: hourly max ($hourlyMax) > climate normal ($normalHigh)", hourlyMax > normalHigh)
+
+        val shown = platform.shownDay(LAT, LON, owm, lastDay, morning.plusMinutes(1))
+        println("shown $lastDay (hourlyMax=$hourlyMax > normal=$normalHigh): $shown")
+        assertNotNull("today+5 is drawn", shown)
+        assertEquals(hourlyMax, shown!!.high!!, 0.01f)
+        assertFalse("uses forecast high normally (not green top half)", shown.highIsClimateNormal)
+        assertFalse("not a whole climate day", shown.climateDay)
+        assertEquals("normal forecast high prints whole degrees", TempUtils.formatDayTemp(hourlyMax, false, wholeDegrees = true), shown.highLabel)
+    }
+
+    @Test
     fun `an evening fetch that reaches the afternoon replaces the cut-off row with a real high`() = runBlocking {
         val platform = open()
         platform.storeNormals(LAT, LON, monthlyHigh, monthlyLow)

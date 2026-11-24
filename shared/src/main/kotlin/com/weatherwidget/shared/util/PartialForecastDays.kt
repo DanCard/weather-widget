@@ -117,42 +117,69 @@ object PartialForecastDays {
 
     /**
      * A future day missing a value, given the climate normal for its date:
-     * - a real low and no high (NWS's last day; OpenWeatherMap's cut-off last day, `OwmDailyCoverage`)
-     *   keeps the low and takes the normal's high, [FutureValues.highIsClimateNormal] — its bar's top
-     *   half is drawn green (user, 2026-11-24);
+     * - a real low and no high (NWS's last day; OpenWeatherMap's cut-off last day, `OwmDailyCoverage`):
+     *   if the source's already-available hourly forecast for that date reaches warmer than the
+     *   climate normal's high ([hourlyHigh] > normal.first), the normal is guaranteed too low — use
+     *   [hourlyHigh] as a normal forecast high (`highIsClimateNormal = false`, climbing as later
+     *   fetches arrive). Otherwise keep the low and take the normal's high, [FutureValues.highIsClimateNormal],
+     *   whose bar's top half is drawn green (user, 2026-11-24);
      * - any other partial day takes both values from the normal, [FutureValues.isClimateOverlay];
      * - no normal yet: unchanged (a low-only day draws its low alone until the normals are cached).
      * plans/261124-partial-high-days-shared-row-choice-claude.md
      */
-    fun fillPartial(high: Float?, low: Float?, normal: Pair<Float, Float>?): FutureValues = when {
+    fun fillPartial(
+        high: Float?,
+        low: Float?,
+        normal: Pair<Float, Float>?,
+        hourlyHigh: Float? = null,
+    ): FutureValues = when {
         high != null && low != null || normal == null ->
             FutureValues(high, low, isClimateOverlay = false, highIsClimateNormal = false)
         high == null && low != null ->
-            FutureValues(normal.first, low, isClimateOverlay = false, highIsClimateNormal = true)
+            if (hourlyHigh != null && hourlyHigh > normal.first) {
+                FutureValues(hourlyHigh, low, isClimateOverlay = false, highIsClimateNormal = false)
+            } else {
+                FutureValues(normal.first, low, isClimateOverlay = false, highIsClimateNormal = true)
+            }
         else ->
             FutureValues(normal.first, normal.second, isClimateOverlay = true, highIsClimateNormal = false)
     }
 
     /**
-     * Every future day of [daily] through [fillPartial] with the normal for its date. Both platforms
-     * run this over the rows the daily view shows before building columns (was desktop's repository
-     * and Android's `DailyFutureDayResolver`, 2026-10-23; the resolver was deleted 2026-11-24).
+     * Every future day of [daily] through [fillPartial] with the normal for its date (and the
+     * same source's available [hourly] max for that date). Both platforms run this over the rows
+     * the daily view shows before building columns (was desktop's repository and Android's
+     * `DailyFutureDayResolver`, 2026-10-23; the resolver was deleted 2026-11-24).
      */
     fun fillPartialFutureDays(
         daily: List<com.weatherwidget.data.model.DailyForecast>,
         normals: Map<java.time.MonthDay, Pair<Float, Float>>,
         today: LocalDate,
-    ): List<com.weatherwidget.data.model.DailyForecast> =
-        daily.map { day ->
+        hourly: List<com.weatherwidget.data.model.HourlyForecast> = emptyList(),
+        zoneId: java.time.ZoneId = java.time.ZoneId.systemDefault(),
+    ): List<com.weatherwidget.data.model.DailyForecast> {
+        val hourlyMaxByDateAndSource: Map<Pair<LocalDate, String?>, Float> = buildMap {
+            for (h in hourly) {
+                val d = java.time.Instant.ofEpochMilli(h.dateTime).atZone(zoneId).toLocalDate()
+                if (!d.isAfter(today)) continue
+                val key = d to h.source
+                val prev = get(key)
+                if (prev == null || h.temperature > prev) put(key, h.temperature)
+            }
+        }
+        return daily.map { day ->
             val date = LocalDate.parse(day.date)
             if (!date.isAfter(today) || day.isClimateNormal) return@map day
-            val values = fillPartial(day.highTemp, day.lowTemp, normals[java.time.MonthDay.from(date)])
+            val hourlyHigh = hourlyMaxByDateAndSource[date to day.source]
+            val values = fillPartial(day.highTemp, day.lowTemp, normals[java.time.MonthDay.from(date)], hourlyHigh)
             when {
                 values.isClimateOverlay -> day.copy(highTemp = values.high, lowTemp = values.low, isClimateNormal = true)
                 values.highIsClimateNormal -> day.copy(highTemp = values.high, highIsClimateNormal = true)
+                values.high != day.highTemp -> day.copy(highTemp = values.high, highIsClimateNormal = false)
                 else -> day
             }
         }
+    }
 
     /**
      * Whether a future day has something to draw once [fillPartialFutureDays] ran: a low, with the

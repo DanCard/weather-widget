@@ -312,8 +312,11 @@ One shared rule per step, both platforms (`plans/261124-partial-high-days-shared
   when it has a low; otherwise a complete `GENERIC_GAP` (climate-normal) row; otherwise the source's
   row as it is.
 - **Partial future rows** (`PartialForecastDays.fillPartialFutureDays`, at read time, never stored):
-  - a real low and no high keeps the low and takes the normal's high, `highIsClimateNormal`. Its bar's
-    top half is green (`AdaptiveBarStrokes` `climateTopHalf`, `WeatherColors.CLIMATE_NORMAL_GREEN`),
+  - a real low and no high keeps the low and checks the same source's available hourly forecast for
+    that date: if the hourly max is already warmer than the climate normal's high (`hourlyHigh > normal.first`),
+    it uses `hourlyHigh` as a normal forecast high (`highIsClimateNormal = false`, climbing as later
+    fetches arrive). Otherwise it takes the normal's high, `highIsClimateNormal`, whose bar's top
+    half is green (`AdaptiveBarStrokes` `climateTopHalf`, `WeatherColors.CLIMATE_NORMAL_GREEN`),
     with the sky's clear/cloud/rain shares scaled into the bottom half. This covers every source,
     including NWS's last, low-only day (before 2026-11-24 drawn low-only);
   - a high and no low takes both values from the normal (`isClimateNormal`);

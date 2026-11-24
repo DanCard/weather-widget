@@ -140,6 +140,52 @@ class PartialForecastDaysTest {
     }
 
     @Test
+    fun `a low-only future day whose hourly forecast exceeds the climate normal uses the hourly high normally`() {
+        val zone = java.time.ZoneId.systemDefault()
+        val day5 = today.plusDays(5)
+        val normals = mapOf(java.time.MonthDay.from(day5) to (69.4f to 47.0f))
+        val owmDay = com.weatherwidget.data.model.DailyForecast(
+            date = day5.toString(), highTemp = null, lowTemp = 54f, condition = "Clouds", source = "OPEN_WEATHER_MAP",
+        )
+        fun hour(h: Int, temp: Float, source: String) = com.weatherwidget.data.model.HourlyForecast(
+            dateTime = day5.atTime(h, 0).atZone(zone).toInstant().toEpochMilli(),
+            temperature = temp,
+            condition = "Clear",
+            source = source,
+        )
+
+        // OWM 11 AM is 71.0° > 69.4° normal → promoted to normal forecast high (not green).
+        val warmer = PartialForecastDays.fillPartialFutureDays(
+            daily = listOf(owmDay),
+            normals = normals,
+            today = today,
+            hourly = listOf(hour(8, 55.7f, "OPEN_WEATHER_MAP"), hour(11, 71.0f, "OPEN_WEATHER_MAP")),
+            zoneId = zone,
+        ).single()
+        assertEquals(71.0f, warmer.highTemp!!, 0.01f)
+        assertEquals(54f, warmer.lowTemp!!, 0.01f)
+        assertFalse(warmer.highIsClimateNormal)
+        assertFalse(warmer.isClimateNormal)
+
+        // Cooler hourly (65.0° <= 69.4° normal), or another source's warmer hourly → stays green normal.
+        val cooler = PartialForecastDays.fillPartialFutureDays(
+            daily = listOf(owmDay),
+            normals = normals,
+            today = today,
+            hourly = listOf(hour(11, 65.0f, "OPEN_WEATHER_MAP"), hour(11, 80.0f, "NWS")),
+            zoneId = zone,
+        ).single()
+        assertEquals(69.4f, cooler.highTemp!!, 0.01f)
+        assertTrue(cooler.highIsClimateNormal)
+
+        // Without normals cached, hourlyHigh does not promote a partial day's high.
+        assertEquals(
+            PartialForecastDays.FutureValues(null, 54f, isClimateOverlay = false, highIsClimateNormal = false),
+            PartialForecastDays.fillPartial(null, 54f, normal = null, hourlyHigh = 71.0f),
+        )
+    }
+
+    @Test
     fun `a future day draws once it has a low`() {
         assertTrue(PartialForecastDays.isDrawableFuture(58f))
         assertFalse("a high alone waits for the normal to fill its low", PartialForecastDays.isDrawableFuture(null))

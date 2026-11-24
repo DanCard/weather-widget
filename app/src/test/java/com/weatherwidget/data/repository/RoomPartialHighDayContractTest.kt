@@ -64,13 +64,20 @@ class RoomPartialHighDayContractTest : PartialHighDayContract() {
                 val weatherList = store.getCachedDataBySource(lat, lon, source)
                 val weatherByDate = DailyViewHandler.buildWeatherByDate(weatherList, source, today)
                 val normals = gapFiller.cachedNormalsByMonthDay(lat, lon)
+                val hourly = db.hourlyForecastDao().getHourlyForecastsBySource(
+                    nowMs - 72L * 3_600_000L,
+                    nowMs + 168L * 3_600_000L,
+                    lat,
+                    lon,
+                    source.id,
+                )
                 println("android weatherByDate: ${weatherByDate.toSortedMap().map { (d, e) -> "$d ${e.source} ${e.highTemp}/${e.lowTemp}" }}")
 
                 val graph = DailyViewLogic.prepareGraphDayInputs(
                     GraphDayRequest(
                         now = now, centerDate = today, today = today, weatherByDate = weatherByDate,
                         forecastSnapshots = emptyMap(), numColumns = 10, displaySource = source,
-                        skipYesterday = false, skipHistory = false, hourlyForecasts = emptyList(),
+                        skipYesterday = false, skipHistory = false, hourlyForecasts = hourly,
                         climateNormals = normals, todayLabel = "Today", centerLat = lat, centerLon = lon,
                         showFuturePriorBar = false, rainLookaheadHours = 3,
                     ),
@@ -80,7 +87,7 @@ class RoomPartialHighDayContractTest : PartialHighDayContract() {
                 if (day.solidLineHigh == null && day.solidLineLow == null) return null
                 val text = DailyViewLogic.prepareTextDays(
                     now = now, centerDate = today, today = today, weatherByDate = weatherByDate,
-                    hourlyForecasts = emptyList(), numColumns = 8, displaySource = source,
+                    hourlyForecasts = hourly, numColumns = 8, displaySource = source,
                     climateNormals = normals, todayLabel = "Today", centerLat = lat, centerLon = lon,
                 ).first { it.date == date }
                 println("android text $date: hasData=${text.hasData} ${text.highLabel}/${text.lowLabel}")

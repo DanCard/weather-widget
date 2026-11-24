@@ -94,6 +94,7 @@ object DailyViewLogic {
         forecastSnapshots: Map<LocalDate, List<ForecastEntity>>,
         displaySource: WeatherSource,
         climateNormals: Map<java.time.MonthDay, Pair<Float, Float>>,
+        sharedHourly: List<com.weatherwidget.data.model.HourlyForecast>,
     ): Map<LocalDate, com.weatherwidget.data.model.DailyForecast> =
         com.weatherwidget.shared.util.PartialForecastDays.fillPartialFutureDays(
             daily = weatherByDate.keys.filter { !it.isBefore(today) }.sorted().mapNotNull { date ->
@@ -106,6 +107,7 @@ object DailyViewLogic {
             },
             normals = climateNormals,
             today = today,
+            hourly = sharedHourly,
         ).associateBy { LocalDate.parse(it.date) }
 
     /**
@@ -244,7 +246,7 @@ object DailyViewLogic {
         val firstRainDayIndex = displayedSummaries.indexOfFirst { it != null }
 
         val sharedHourly = hourlyForecasts.map { it.toHourlyForecast() }
-        val shownRows = shownDailyRows("prepareTextDays", today, weatherByDate, forecastSnapshots.orEmpty(), displaySource, climateNormals)
+        val shownRows = shownDailyRows("prepareTextDays", today, weatherByDate, forecastSnapshots.orEmpty(), displaySource, climateNormals, sharedHourly)
         val resolvedCurrentTemp = currentTemp
 
         return daySlots.mapIndexed { index, (dayIndex, date, isVisible) ->
@@ -461,7 +463,7 @@ object DailyViewLogic {
         val zone = java.time.ZoneId.systemDefault()
         val sharedHourly = hourlyForecasts.map { it.toHourlyForecast() }
 
-        val shownRows = shownDailyRows("prepareGraphDays", today, weatherByDate, forecastSnapshots, displaySource, request.climateNormals)
+        val shownRows = shownDailyRows("prepareGraphDays", today, weatherByDate, forecastSnapshots, displaySource, request.climateNormals, sharedHourly)
 
         dayOffsets.forEach { offset ->
             val date = centerDate.plusDays(offset)

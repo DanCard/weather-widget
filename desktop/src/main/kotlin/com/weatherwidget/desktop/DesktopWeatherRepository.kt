@@ -297,7 +297,7 @@ class DesktopWeatherRepository(
             sourceId = displaySource.id,
             raw = RawFetch(
                 hourly = hourly,
-                daily = appendClimateNormalGaps(daily, now),
+                daily = appendClimateNormalGaps(daily, hourly, now),
                 rawObservations = observations,
                 dailyActuals = actuals,
                 dailySnapshots = snapshots,
@@ -1330,13 +1330,17 @@ class DesktopWeatherRepository(
         return ClimateNormals.expandMonthlyToDaily(monthlyHigh, monthlyLow)
     }
 
-    private fun appendClimateNormalGaps(daily: List<DailyForecast>, now: Long): List<DailyForecast> {
+    private fun appendClimateNormalGaps(
+        daily: List<DailyForecast>,
+        hourly: List<HourlyForecast>,
+        now: Long,
+    ): List<DailyForecast> {
         val (monthlyHigh, monthlyLow) = weatherDao.getClimateNormals(ClimateNormals.locationKey(latitude, longitude))
         if (monthlyHigh.isEmpty() || monthlyLow.isEmpty()) return daily
 
         val normals = ClimateNormals.expandMonthlyToDaily(monthlyHigh, monthlyLow)
         val today = Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault()).toLocalDate()
-        val filled = PartialForecastDays.fillPartialFutureDays(daily, normals, today)
+        val filled = PartialForecastDays.fillPartialFutureDays(daily, normals, today, hourly)
         val existing = filled.map { LocalDate.parse(it.date) }.toSet()
         val gaps = ClimateNormals.fillGaps(existing, normals, today, GAP_HORIZON_DAYS)
             .filter { DailyColumnSource.allowsClimateNormal(it.date, today) }
