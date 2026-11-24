@@ -15,6 +15,9 @@ import com.weatherwidget.shared.util.WeatherConditionResolver
  *  - Otherwise the noon cloud % alone: gold 100 − cloud, grey cloud.
  *  - No noon cloud % → the icon's sky ([WeatherConditionResolver.skyCloudRatio]; the icon is then
  *    the provider's condition word); none either → all grey, "unknown".
+ * A climate-normal high ([climateTopHalf]) takes the top half in [WeatherColors.CLIMATE_NORMAL_GREEN]; the
+ * sky's shares fill the bottom half in the same proportions (user, 2026-11-24;
+ * plans/261124-partial-high-days-shared-row-choice-claude.md).
  * The icon never decides anything else. Each colour edge is a short blend of [BLEND_STEPS] solid
  * strokes, not a shader — Samsung launchers flattened the gradient shader (6deaeece).
  */
@@ -54,6 +57,7 @@ object AdaptiveBarStrokes {
      * @param dayRainPercent the daytime rain chance (a snapshot bar: [priorBarRainPercent]); null = none.
      * @param clearArgb the clear share's colour: gold, or a snapshot bar's own yellow / blue.
      * @param inkRadius half the stroke width (the round cap reaches this far past each end).
+     * @param climateTopHalf the high is the climate normal's: the top half is green, the sky below.
      */
     fun plan(
         noonCloudRatio: Float?,
@@ -63,13 +67,18 @@ object AdaptiveBarStrokes {
         lowY: Float,
         inkRadius: Float,
         clearArgb: Int = WeatherColors.FORECAST_SUNNY,
+        climateTopHalf: Boolean = false,
     ): Plan {
         val sky = sky(noonCloudRatio, fallbackIconName, dayRainPercent)
-        val segments = listOf(
-            clearArgb to sky.clear,
-            WeatherColors.FORECAST_CLOUDY to sky.cloud,
-            WeatherColors.FORECAST_RAINY to sky.rain,
-        ).filter { it.second > 0f }
+        val skyScale = if (climateTopHalf) 0.5f else 1f
+        val segments = (
+            listOfNotNull(if (climateTopHalf) WeatherColors.CLIMATE_NORMAL_GREEN to 0.5f else null) +
+                listOf(
+                    clearArgb to sky.clear * skyScale,
+                    WeatherColors.FORECAST_CLOUDY to sky.cloud * skyScale,
+                    WeatherColors.FORECAST_RAINY to sky.rain * skyScale,
+                )
+            ).filter { it.second > 0f }
         if (segments.size == 1 || lowY - highY <= 1f) {
             return Plan(listOf(Stroke(segments.maxBy { it.second }.first, null)), sky)
         }

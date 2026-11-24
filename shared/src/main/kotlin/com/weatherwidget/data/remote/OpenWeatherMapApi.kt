@@ -205,8 +205,20 @@ class OpenWeatherMapApi(
 
     private fun buildDailyForecasts(periods: List<OwmPeriod>): List<DailyForecast> {
         val groupedByDate = periods.groupBy { it.localDate }
-        return groupedByDate.map { (date, dayPeriods) ->
-            val highTemp = dayPeriods.maxOf { it.temp }
+        val firstDate = periods.minByOrNull { it.dtMs }?.localDate
+        return groupedByDate.mapNotNull { (date, dayPeriods) ->
+            // A later date the 40-slot window cuts off before the afternoon has no real high
+            // (OwmDailyCoverage). Today is left to the today-row rules.
+            val coverage = if (date == firstDate) {
+                OwmDailyCoverage.Coverage.FULL
+            } else {
+                OwmDailyCoverage.classify(dayPeriods.maxOf { it.hourOfDay })
+            }
+            if (coverage != OwmDailyCoverage.Coverage.FULL) {
+                Log.d(TAG, "OWM_PARTIAL_DAY date=$date maxHour=${dayPeriods.maxOf { it.hourOfDay }} action=$coverage")
+            }
+            if (coverage == OwmDailyCoverage.Coverage.OMIT) return@mapNotNull null
+            val highTemp = if (coverage == OwmDailyCoverage.Coverage.LOW_ONLY) null else dayPeriods.maxOf { it.temp }
             val lowTemp = dayPeriods.minOf { it.temp }
             val precipProbability = dayPeriods.mapNotNull { it.popPercent }.maxOrNull()
             val precipAmountMm = dayPeriods.sumOf { it.precipMm.toDouble() }.toFloat()

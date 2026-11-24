@@ -84,32 +84,65 @@ class PartialForecastDaysTest {
     }
 
     @Test
-    fun `terminal low-only NWS day is only the last NWS future day`() {
-        val last = today.plusDays(7)
-        assertTrue(PartialForecastDays.isTerminalLowOnlyNwsFutureDay("NWS", null, 58f, last, today, last))
-        assertFalse(PartialForecastDays.isTerminalLowOnlyNwsFutureDay("NWS", null, 58f, today.plusDays(3), today, last))
-        assertFalse(PartialForecastDays.isTerminalLowOnlyNwsFutureDay("OPEN_METEO", null, 58f, last, today, last))
-        assertFalse(PartialForecastDays.isTerminalLowOnlyNwsFutureDay("NWS", 80f, 58f, last, today, last))
+    fun `a low-only future day keeps its low and takes the normal's high`() {
+        // Was the NWS-only terminal exemption (drawn low alone) or a whole climate day; now every
+        // source's low-only day: plans/261124-partial-high-days-shared-row-choice-claude.md
+        assertEquals(
+            PartialForecastDays.FutureValues(75f, 58f, isClimateOverlay = false, highIsClimateNormal = true),
+            PartialForecastDays.fillPartial(null, 58f, normal = 75f to 55f),
+        )
     }
 
     @Test
-    fun `a partial future day takes the climate normal, unless it is the terminal NWS day`() {
+    fun `a high-only future day takes both values from the normal`() {
         assertEquals(
-            PartialForecastDays.FutureValues(75f, 55f, isClimateOverlay = true),
-            PartialForecastDays.futureFromNormals(null, 58f, isTerminalLowOnlyNws = false, normal = 75f to 55f),
+            PartialForecastDays.FutureValues(75f, 55f, isClimateOverlay = true, highIsClimateNormal = false),
+            PartialForecastDays.fillPartial(80f, null, normal = 75f to 55f),
+        )
+    }
+
+    @Test
+    fun `a complete day, or a partial one with no normal yet, is unchanged`() {
+        assertEquals(
+            PartialForecastDays.FutureValues(80f, 60f, isClimateOverlay = false, highIsClimateNormal = false),
+            PartialForecastDays.fillPartial(80f, 60f, normal = 75f to 55f),
         )
         assertEquals(
-            PartialForecastDays.FutureValues(null, 58f, isClimateOverlay = false),
-            PartialForecastDays.futureFromNormals(null, 58f, isTerminalLowOnlyNws = true, normal = 75f to 55f),
+            PartialForecastDays.FutureValues(null, 58f, isClimateOverlay = false, highIsClimateNormal = false),
+            PartialForecastDays.fillPartial(null, 58f, normal = null),
         )
-        assertEquals(
-            PartialForecastDays.FutureValues(80f, 60f, isClimateOverlay = false),
-            PartialForecastDays.futureFromNormals(80f, 60f, isTerminalLowOnlyNws = false, normal = 75f to 55f),
+    }
+
+    @Test
+    fun `fillPartialFutureDays flags a low-only day of any source and leaves today alone`() {
+        val normals = mapOf(
+            java.time.MonthDay.from(today) to (70f to 50f),
+            java.time.MonthDay.from(today.plusDays(3)) to (73f to 53f),
+            java.time.MonthDay.from(today.plusDays(5)) to (75f to 55f),
         )
-        assertEquals(
-            PartialForecastDays.FutureValues(null, 58f, isClimateOverlay = false),
-            PartialForecastDays.futureFromNormals(null, 58f, isTerminalLowOnlyNws = false, normal = null),
+        fun day(offset: Long, high: Float?, low: Float?, source: String) = com.weatherwidget.data.model.DailyForecast(
+            date = today.plusDays(offset).toString(), highTemp = high, lowTemp = low, condition = "Clouds", source = source,
         )
+        val filled = PartialForecastDays.fillPartialFutureDays(
+            listOf(
+                day(0, null, 51f, "OPEN_WEATHER_MAP"),
+                day(3, null, 54f, "NWS"),
+                day(5, null, 54.4f, "OPEN_WEATHER_MAP"),
+            ),
+            normals,
+            today,
+        )
+        println("filled: ${filled.map { "${it.date} ${it.highTemp}/${it.lowTemp} highNormal=${it.highIsClimateNormal}" }}")
+        assertNull("today is left to the today-row rules", filled[0].highTemp)
+        assertFalse(filled[0].highIsClimateNormal)
+        assertEquals(listOf(73f to 54f, 75f to 54.4f), filled.drop(1).map { it.highTemp to it.lowTemp })
+        assertTrue(filled.drop(1).all { it.highIsClimateNormal && !it.isClimateNormal })
+    }
+
+    @Test
+    fun `a future day draws once it has a low`() {
+        assertTrue(PartialForecastDays.isDrawableFuture(58f))
+        assertFalse("a high alone waits for the normal to fill its low", PartialForecastDays.isDrawableFuture(null))
     }
 
     private data class SiteRow(val high: Float?, val low: Float?, val fetchedAt: Long, val lat: Double, val lon: Double)

@@ -59,7 +59,7 @@ private val COLOR_FORECAST_RAINY = Color(com.weatherwidget.shared.util.WeatherCo
 private val COLOR_OBSERVED = Color(com.weatherwidget.shared.util.WeatherColors.OBSERVED)
 private val COLOR_MERCURY = Color(com.weatherwidget.shared.util.WeatherColors.MERCURY)
 private val COLOR_LABEL_GRAY = Color(0xFFAAAAAA)
-private val COLOR_GAP_FALLBACK = Color(0xFF34C759)
+private val COLOR_GAP_FALLBACK = Color(com.weatherwidget.shared.util.WeatherColors.CLIMATE_NORMAL_GREEN)
 
 /** Base size of the desktop daily high temperature labels (+30%); see the `DESKTOP_TEMP_LABEL_BASE_SP * scale` call sites. */
 private const val DESKTOP_TEMP_LABEL_BASE_SP = 14f
@@ -367,6 +367,7 @@ fun DailyForecastGraph(
                     drawAdaptiveBar(
                         centerX, high, low, ::yAt, barWidth, day.cloudCoverRatio, day.iconName, day.dayPrecipProbability,
                         clearColor = COLOR_GAP_FALLBACK.takeIf { day.isClimateNormal },
+                        climateTopHalf = day.highIsClimateNormal,
                     )
                 }
             }
@@ -532,7 +533,7 @@ fun DailyForecastGraph(
                     )
                 else day.solidHigh ?: day.forecastHigh ?: day.snapshotHigh ?: day.ghostHigh
                 if (singleHigh != null) {
-                    val highLabelText = formatTemp(singleHigh, day)
+                    val highLabelText = formatHighTemp(singleHigh, day, useCelsius)
                     val highSize = tempFontSize(highLabelText, DESKTOP_TEMP_LABEL_BASE_SP * scale)
                     // Thermostat (observed) color whenever the printed number IS today's observed
                     // high — before 5pm too, when the day already ran hotter than forecast (shared
@@ -1026,6 +1027,8 @@ private fun DrawScope.drawAdaptiveBar(
     clearColor: Color? = null,
     /** Stand-in bar ([standInDash]); every stroke starts at highY, so their dashes line up. */
     pathEffect: PathEffect? = null,
+    /** The high is the climate normal's: green top half (shared AdaptiveBarStrokes). */
+    climateTopHalf: Boolean = false,
 ) {
     if (high == null || low == null) return
     val highY = yAt(high)
@@ -1033,6 +1036,7 @@ private fun DrawScope.drawAdaptiveBar(
     val plan = AdaptiveBarStrokes.plan(
         noonCloudRatio, iconName, dayRainPercent, highY, lowY, inkRadius = width / 2f,
         clearArgb = clearColor?.toArgb() ?: com.weatherwidget.shared.util.WeatherColors.FORECAST_SUNNY,
+        climateTopHalf = climateTopHalf,
     )
     for (stroke in plan.strokes) {
         fun line() = drawLine(
@@ -1301,6 +1305,12 @@ private fun DesktopDailyDay.lowForLabel(): Float? =
 private fun formatDayTemp(v: Float?, day: DesktopDailyDay, useCelsius: Boolean): String {
     if (v == null) return ""
     return com.weatherwidget.shared.util.TempUtils.formatDayTemp(v, useCelsius, wholeDegrees = day.printsWholeDegrees) ?: ""
+}
+
+/** [formatDayTemp] for a column's own high: a climate-normal high keeps its tenth ([DesktopDailyDay.printsWholeHighDegrees]). */
+private fun formatHighTemp(v: Float?, day: DesktopDailyDay, useCelsius: Boolean): String {
+    if (v == null) return ""
+    return com.weatherwidget.shared.util.TempUtils.formatDayTemp(v, useCelsius, wholeDegrees = day.printsWholeHighDegrees) ?: ""
 }
 
 /** Temp-label font size: wide 3+ digit temps (100°, 97.7°) draw a further 10% smaller. */

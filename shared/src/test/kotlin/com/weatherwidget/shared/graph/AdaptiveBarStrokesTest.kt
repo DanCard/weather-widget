@@ -116,4 +116,28 @@ class AdaptiveBarStrokesTest {
         assertEquals(grey, AdaptiveBarStrokes.lerpArgb(grey, gold, 0f))
         assertEquals(gold, AdaptiveBarStrokes.lerpArgb(grey, gold, 1f))
     }
+
+    /** The colour a platform paints at [y]: the last stroke, in draw order, that reaches it. */
+    private fun colourAt(plan: AdaptiveBarStrokes.Plan, y: Float): Int =
+        plan.strokes.last { it.clipBottomY == null || y < it.clipBottomY!! }.colorArgb
+
+    @Test
+    fun `a climate-normal high paints the top half green and the sky below it in proportion`() {
+        // Ink 95..305 (inkRadius 5): midpoint 200. Sky: noon cloud 50 %, rain 40 % -> clear .3, cloud .3,
+        // rain .4, halved below the green: edges at 200 (green|gold), 231.5 (gold|grey), 263 (grey|blue).
+        val plan = AdaptiveBarStrokes.plan(0.5f, null, 40, 100f, 300f, 5f, climateTopHalf = true)
+        println("climate top half strokes: ${plan.strokes.map { "%08X@%s".format(it.colorArgb, it.clipBottomY) }}")
+        val green = WeatherColors.CLIMATE_NORMAL_GREEN
+        listOf(100f to green, 190f to green, 212f to gold, 247f to grey, 290f to blue).forEach { (y, want) ->
+            assertEquals("colour at y=$y", "%08X".format(want), "%08X".format(colourAt(plan, y)))
+        }
+        assertSky(plan.sky, 0.3f, 0.3f, 0.4f)
+    }
+
+    @Test
+    fun `without a climate-normal high there is no green`() {
+        val plan = AdaptiveBarStrokes.plan(0.5f, null, 40, 100f, 300f, 5f)
+        assertTrue(plan.strokes.none { it.colorArgb == WeatherColors.CLIMATE_NORMAL_GREEN })
+        assertEquals("%08X".format(gold), "%08X".format(colourAt(plan, 120f)))
+    }
 }

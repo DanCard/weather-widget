@@ -1079,7 +1079,7 @@ private fun DailyForecastTextMode(
                 // A future provider forecast prints whole degrees, as Android's text mode (shared DailyColumn).
                 val wholeDegrees = day.printsWholeDegrees
                 Text(
-                    text = com.weatherwidget.shared.util.TempUtils.formatDayTemp(high, useCelsius, wholeDegrees) ?: "--",
+                    text = com.weatherwidget.shared.util.TempUtils.formatDayTemp(high, useCelsius, day.printsWholeHighDegrees) ?: "--",
                     style = MaterialTheme.typography.titleMedium.copy(fontSize = (MaterialTheme.typography.titleMedium.fontSize.value * 1.3f).sp),
                     color = Color.White,
                     maxLines = 1,

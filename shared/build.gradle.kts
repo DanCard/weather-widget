@@ -31,6 +31,8 @@ dependencies {
     testImplementation(libs.coroutines.test)
     // Host contract suites (abstract JUnit classes) run by each platform's test source set.
     testFixturesImplementation(libs.junit)
+    // OwmForecastFixture serves the real OpenWeatherMapApi from a MockEngine (PartialHighDayContract).
+    testFixturesImplementation(libs.ktor.client.mock)
 }
 
 // ---------------------------------------------------------------------------

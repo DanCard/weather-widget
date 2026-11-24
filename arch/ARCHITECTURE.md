@@ -149,6 +149,9 @@ Temperatures are stored at the provider's precision on every day; nothing rounds
 accuracy scores the raw difference. Display rounds: a daily column prints whole degrees only for a
 future provider forecast (`DailyColumn.printsWholeDegrees`, `TempUtils.formatDayTemp`); today, past
 days, climate normals and Forecast Comparison (graphs and the all-sources table) print the tenth.
+A future day's high taken from the climate normal (`DailyColumn.printsWholeHighDegrees`) also prints
+the tenth while its real low prints whole; which rows a future column shows and how normals complete
+them is in [climate normals in columns](forecast-and-observation-cadence.md#climate-normals-in-daily-columns).
 
 A daily column's left slot is the forecast from a day earlier (`:shared` `PriorDayForecast`,
 `PriorBarSlot`). Today and past columns always draw it in their triple bar. The left bar's anchors:

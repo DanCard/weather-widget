@@ -1336,7 +1336,7 @@ class DesktopWeatherRepository(
 
         val normals = ClimateNormals.expandMonthlyToDaily(monthlyHigh, monthlyLow)
         val today = Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault()).toLocalDate()
-        val filled = PartialForecastDays.fillPartialFutureDays(daily, weatherSource, normals, today)
+        val filled = PartialForecastDays.fillPartialFutureDays(daily, normals, today)
         val existing = filled.map { LocalDate.parse(it.date) }.toSet()
         val gaps = ClimateNormals.fillGaps(existing, normals, today, GAP_HORIZON_DAYS)
             .filter { DailyColumnSource.allowsClimateNormal(it.date, today) }

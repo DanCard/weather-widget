@@ -1,14 +1,13 @@
 package com.weatherwidget.shared.util
 
 import com.weatherwidget.data.local.LocationMatch
-import com.weatherwidget.data.model.WeatherSource
 import java.time.LocalDate
 
 /**
  * What a daily column does with a forecast row that has only a high or only a low. NWS produces
  * both shapes routinely: it stops reporting today's low in the evening, and its last day is often
  * low-only. Shared by Android (`DailyTodayResolver`, `DailyActualsEstimator`,
- * `DailyFutureDayResolver`) and desktop (`DesktopWeatherDao`, `DesktopDailyForecastModel`,
+ * `DailyViewLogic`) and desktop (`DesktopWeatherDao`, `DesktopDailyForecastModel`,
  * `DesktopWeatherRepository`). Desktop used to store such rows with low = high and repair any flat
  * day at read time instead. See plans/261002-share-nws-daily-pipeline-and-partial-days.md.
  */
@@ -108,62 +107,57 @@ object PartialForecastDays {
     ): Pair<Float?, Float?> =
         (dailyHigh ?: todayHourlyTemps.maxOrNull()) to (dailyLow ?: todayHourlyTemps.minOrNull())
 
+    /** A partial future day after [fillPartial]: its values and which of them came from the climate normal. */
+    data class FutureValues(
+        val high: Float?,
+        val low: Float?,
+        val isClimateOverlay: Boolean,
+        val highIsClimateNormal: Boolean,
+    )
+
     /**
-     * NWS's last forecast day reporting only an overnight low. It is real data, not a gap, so it is
-     * drawn as-is rather than replaced by climate normals.
+     * A future day missing a value, given the climate normal for its date:
+     * - a real low and no high (NWS's last day; OpenWeatherMap's cut-off last day, `OwmDailyCoverage`)
+     *   keeps the low and takes the normal's high, [FutureValues.highIsClimateNormal] — its bar's top
+     *   half is drawn green (user, 2026-11-24);
+     * - any other partial day takes both values from the normal, [FutureValues.isClimateOverlay];
+     * - no normal yet: unchanged (a low-only day draws its low alone until the normals are cached).
+     * plans/261124-partial-high-days-shared-row-choice-claude.md
      */
-    fun isTerminalLowOnlyNwsFutureDay(
-        source: String?,
-        high: Float?,
-        low: Float?,
-        date: LocalDate,
-        today: LocalDate,
-        lastNwsFutureDate: LocalDate?,
-    ): Boolean =
-        source == WeatherSource.NWS.id &&
-            date.isAfter(today) &&
-            high == null &&
-            low != null &&
-            date == lastNwsFutureDate
-
-    data class FutureValues(val high: Float?, val low: Float?, val isClimateOverlay: Boolean)
-
-    /** A partial future day takes both values from the climate normal for its date, when one exists. */
-    fun futureFromNormals(
-        high: Float?,
-        low: Float?,
-        isTerminalLowOnlyNws: Boolean,
-        normal: Pair<Float, Float>?,
-    ): FutureValues =
-        if (!isTerminalLowOnlyNws && (high == null || low == null) && normal != null) {
-            FutureValues(normal.first, normal.second, isClimateOverlay = true)
-        } else {
-            FutureValues(high, low, isClimateOverlay = false)
-        }
+    fun fillPartial(high: Float?, low: Float?, normal: Pair<Float, Float>?): FutureValues = when {
+        high != null && low != null || normal == null ->
+            FutureValues(high, low, isClimateOverlay = false, highIsClimateNormal = false)
+        high == null && low != null ->
+            FutureValues(normal.first, low, isClimateOverlay = false, highIsClimateNormal = true)
+        else ->
+            FutureValues(normal.first, normal.second, isClimateOverlay = true, highIsClimateNormal = false)
+    }
 
     /**
-     * A future day with only a high or only a low takes both from the climate normal for its date,
-     * marked climate — except NWS's terminal low-only day, which is real data. Both platforms run
-     * this over the rows the daily view shows before building columns (was desktop's repository and
-     * Android's `DailyFutureDayResolver`, 2026-10-23).
+     * Every future day of [daily] through [fillPartial] with the normal for its date. Both platforms
+     * run this over the rows the daily view shows before building columns (was desktop's repository
+     * and Android's `DailyFutureDayResolver`, 2026-10-23; the resolver was deleted 2026-11-24).
      */
     fun fillPartialFutureDays(
         daily: List<com.weatherwidget.data.model.DailyForecast>,
-        sourceId: String,
         normals: Map<java.time.MonthDay, Pair<Float, Float>>,
         today: LocalDate,
-    ): List<com.weatherwidget.data.model.DailyForecast> {
-        val lastNwsFutureDate = daily
-            .filter { !it.isClimateNormal && sourceId == WeatherSource.NWS.id }
-            .map { LocalDate.parse(it.date) }
-            .filter { it.isAfter(today) }
-            .maxOrNull()
-        return daily.map { day ->
+    ): List<com.weatherwidget.data.model.DailyForecast> =
+        daily.map { day ->
             val date = LocalDate.parse(day.date)
             if (!date.isAfter(today) || day.isClimateNormal) return@map day
-            val terminal = isTerminalLowOnlyNwsFutureDay(sourceId, day.highTemp, day.lowTemp, date, today, lastNwsFutureDate)
-            val values = futureFromNormals(day.highTemp, day.lowTemp, terminal, normals[java.time.MonthDay.from(date)])
-            if (values.isClimateOverlay) day.copy(highTemp = values.high, lowTemp = values.low, isClimateNormal = true) else day
+            val values = fillPartial(day.highTemp, day.lowTemp, normals[java.time.MonthDay.from(date)])
+            when {
+                values.isClimateOverlay -> day.copy(highTemp = values.high, lowTemp = values.low, isClimateNormal = true)
+                values.highIsClimateNormal -> day.copy(highTemp = values.high, highIsClimateNormal = true)
+                else -> day
+            }
         }
-    }
+
+    /**
+     * Whether a future day has something to draw once [fillPartialFutureDays] ran: a low, with the
+     * high real, from the normal, or (before the normals are cached) absent. A day with a high and no
+     * low only draws once the normal fills it.
+     */
+    fun isDrawableFuture(low: Float?): Boolean = low != null
 }

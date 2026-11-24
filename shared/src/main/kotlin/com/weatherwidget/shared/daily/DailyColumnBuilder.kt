@@ -72,6 +72,12 @@ data class DailyColumn(
     /** Signed offset from today (today=0, tomorrow=1, yesterday=-1); feeds the distance font term. */
     val daysFromToday: Int,
     val isClimateNormal: Boolean,
+    /**
+     * A future day with a real low whose high is the climate normal's
+     * ([com.weatherwidget.shared.util.PartialForecastDays.fillPartial]): the bar's top half is green
+     * ([com.weatherwidget.shared.graph.AdaptiveBarStrokes]) and the high prints its tenth.
+     */
+    val highIsClimateNormal: Boolean = false,
     /** Local hour-of-day (0–23) for the today column's high cutoff; null = legacy. */
     val nowHour: Int? = null,
     /** Today's low is settled ([com.weatherwidget.shared.util.TodayLowSettle]) — print the observed actual. */
@@ -104,6 +110,10 @@ data class DailyColumn(
      */
     val printsWholeDegrees: Boolean
         get() = !isToday && !isPast && !isClimateNormal && forecast?.source != WeatherSource.GENERIC_GAP.id
+
+    /** [printsWholeDegrees] for the high label: a climate-normal high keeps its tenth, as climate days do. */
+    val printsWholeHighDegrees: Boolean
+        get() = printsWholeDegrees && !highIsClimateNormal
 }
 
 /**
@@ -586,6 +596,7 @@ object DailyColumnBuilder {
             nightPrecipProbability = resolvedPrecip.nightPrecip,
             daysFromToday = java.time.temporal.ChronoUnit.DAYS.between(today, date).toInt(),
             isClimateNormal = forecast?.isClimateNormal == true,
+            highIsClimateNormal = !isToday && !isPast && forecast?.highIsClimateNormal == true,
             nowHour = if (isToday) now.hour else null,
             lowSettled = lowSettled,
             futurePriorBarDrawn = futurePriorBarDrawn,

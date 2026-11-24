@@ -229,6 +229,10 @@ object DailyForecastGraphRenderer {
         val actualsFromOtherSite: Boolean = false,
         /** Shared DailyColumn.printsWholeDegrees: a future provider forecast prints whole degrees. */
         val printsWholeDegrees: Boolean = false,
+        /** [printsWholeDegrees] for the high label (shared DailyColumn.printsWholeHighDegrees). */
+        val printsWholeHighDegrees: Boolean = printsWholeDegrees,
+        /** The high is the climate normal's: the bar's top half is green (shared AdaptiveBarStrokes). */
+        val highIsClimateNormal: Boolean = false,
     ) : CloudCoverDiagnosticRow
 
     fun renderGraph(

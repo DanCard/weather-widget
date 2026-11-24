@@ -497,8 +497,8 @@ class DailyViewLogicTest {
     // `prepareTextDays with missing forecast uses climate normals` was removed here: a future day
     // with NO row must no longer be fabricated from normals. Replaced by
     // `future day with NO row is not fabricated from climate normals in text mode`, which pins the
-    // inverted contract. The partial-row fill it was often confused with is still covered by
-    // `prepareTextDays still uses climate fallback for non terminal future low only day`.
+    // inverted contract. The partial-row fill it was often confused with is covered by
+    // `prepareTextDays fills a non-terminal low-only day's high from the normal and keeps its low`.
 
     @Test
     fun `prepareTextDays with no data still shows column`() {
@@ -580,7 +580,7 @@ class DailyViewLogicTest {
     }
 
     @Test
-    fun `prepareTextDays keeps terminal NWS low only future day without climate fallback`() {
+    fun `prepareTextDays fills the terminal NWS low-only day's high from the normal`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()
         val future = today.plusDays(5)
@@ -609,15 +609,16 @@ class DailyViewLogicTest {
             climateNormals = climateNormals,
         )
 
+        // No NWS exemption since 2026-11-24: plans/261124-partial-high-days-shared-row-choice-claude.md
         val partialDay = result.find { it.date == future }
         assertNotNull("Terminal NWS low-only future day should be present", partialDay)
         assertTrue("Terminal NWS low-only future day should count as data", partialDay!!.hasData)
-        assertNull("Missing high should remain null", partialDay.highLabel)
+        assertEquals("High comes from the climate normal", "80°", partialDay.highLabel)
         assertEquals("Low label should come from NWS data", "41°", partialDay.lowLabel)
     }
 
     @Test
-    fun `prepareTextDays still uses climate fallback for non terminal future low only day`() {
+    fun `prepareTextDays fills a non-terminal low-only day's high from the normal and keeps its low`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()
         val earlierFuture = today.plusDays(4)
@@ -650,12 +651,12 @@ class DailyViewLogicTest {
 
         val fallbackDay = result.find { it.date == earlierFuture }
         assertNotNull("Earlier future day should be present", fallbackDay)
-        assertEquals("Non-terminal low-only day should still use climate high", "78°", fallbackDay!!.highLabel)
-        assertEquals("Non-terminal low-only day should still use climate low", "60°", fallbackDay.lowLabel)
+        assertEquals("Low-only day takes the climate high", "78°", fallbackDay!!.highLabel)
+        assertEquals("Low-only day keeps its real low (was the normal's 60°)", "44°", fallbackDay.lowLabel)
     }
 
     @Test
-    fun `prepareGraphDays keeps terminal NWS low only future day without climate fallback`() {
+    fun `prepareGraphDays draws the terminal NWS low-only day with the normal's high on a green top half`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()
         val future = today.plusDays(7)
@@ -689,9 +690,11 @@ class DailyViewLogicTest {
 
         val partialDay = result.find { it.date == future }
         assertNotNull("Terminal NWS low-only future graph day should be present", partialDay)
-        assertNull("Missing high should remain null", partialDay!!.solidLineHigh)
+        assertEquals("High comes from the climate normal", 77f, partialDay!!.solidLineHigh)
         assertEquals("Low should come from NWS data", 39f, partialDay.solidLineLow)
-        assertFalse("Terminal low-only day should not become climate overlay", partialDay.isClimateNormal)
+        assertTrue("Green top half", partialDay.highIsClimateNormal)
+        assertFalse("Not a whole climate day", partialDay.isClimateNormal)
+        assertFalse("The climate high keeps its tenth", partialDay.printsWholeHighDegrees)
     }
 
     @Test

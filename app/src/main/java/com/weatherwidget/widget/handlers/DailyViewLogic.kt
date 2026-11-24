@@ -104,7 +104,6 @@ object DailyViewLogic {
                 }
                 row?.toDailyForecast(date)
             },
-            sourceId = displaySource.id,
             normals = climateNormals,
             today = today,
         ).associateBy { LocalDate.parse(it.date) }
@@ -201,17 +200,17 @@ object DailyViewLogic {
             val isToday = date == today
             val weather = if (isToday) todayWeather else weatherByDate[date]
             val isPast = date.isBefore(today)
-            val isTerminalLowOnlyNwsFuture = DailyFutureDayResolver.isTerminalLowOnlyNwsFutureDay(weather, date, today, weatherByDate)
+            // A future day draws once it has a low (shared PartialForecastDays.isDrawableFuture): complete,
+            // or low-only with the climate normal's high.
+            val isDrawableFuture = com.weatherwidget.shared.util.PartialForecastDays.isDrawableFuture(weather?.lowTemp)
 
             val hasData = if (!isToday && !isPast) {
-                (weather != null && weather.highTemp != null && weather.lowTemp != null) ||
-                    isTerminalLowOnlyNwsFuture ||
-                    dailyActuals.containsKey(date)
+                isDrawableFuture || dailyActuals.containsKey(date)
             } else {
                 (weather != null && (weather.highTemp != null || weather.lowTemp != null)) || dailyActuals.containsKey(date)
             }
 
-            Log.d(TAG, "prepareTextDays: index=$index date=$date weather=${weather != null} hasData=$hasData high=${weather?.highTemp} low=${weather?.lowTemp} terminalNws=$isTerminalLowOnlyNwsFuture")
+            Log.d(TAG, "prepareTextDays: index=$index date=$date weather=${weather != null} hasData=$hasData high=${weather?.highTemp} low=${weather?.lowTemp} drawableFuture=$isDrawableFuture")
 
             val isVisible = when {
                 numColumns >= 8 -> true
@@ -253,7 +252,9 @@ object DailyViewLogic {
             val isToday = date == today
             val weather = if (isToday) todayWeather else weatherByDate[date]
             val isPast = date.isBefore(today)
-            val isTerminalLowOnlyNwsFuture = DailyFutureDayResolver.isTerminalLowOnlyNwsFutureDay(weather, date, today, weatherByDate)
+            // A future day draws once it has a low (shared PartialForecastDays.isDrawableFuture): complete,
+            // or low-only with the climate normal's high.
+            val isDrawableFuture = com.weatherwidget.shared.util.PartialForecastDays.isDrawableFuture(weather?.lowTemp)
             val precip = if (isToday) todayPrecipProbability else weather?.precipProbability
             val useCelsius = stateManager?.useCelsius() ?: false
             val label =
@@ -288,11 +289,9 @@ object DailyViewLogic {
             val textHigh = com.weatherwidget.shared.daily.DailyColumnBuilder.textHigh(column)
             val textLow = com.weatherwidget.shared.daily.DailyColumnBuilder.textLow(column)
             // A future provider forecast prints whole degrees (shared DailyColumn.printsWholeDegrees).
-            val formatTemp = { v: Float? ->
-                com.weatherwidget.shared.util.TempUtils.formatDayTemp(v, useCelsius, column.printsWholeDegrees)
-            }
-            val highLabel = formatTemp(textHigh)
-            val lowLabel = formatTemp(textLow)
+            // A climate-normal high keeps its tenth (DailyColumn.printsWholeHighDegrees).
+            val highLabel = com.weatherwidget.shared.util.TempUtils.formatDayTemp(textHigh, useCelsius, column.printsWholeHighDegrees)
+            val lowLabel = com.weatherwidget.shared.util.TempUtils.formatDayTemp(textLow, useCelsius, column.printsWholeDegrees)
             val isTodayForecastFallback = isToday && column.solidHigh == null &&
                 dailyActuals[date]?.computedLowTemp == null && (textHigh != null || textLow != null)
             Log.v(
@@ -310,8 +309,7 @@ object DailyViewLogic {
                 dateStr = dateStr,
                 isVisible = isVisible,
                 hasData = if (!isToday && !isPast) {
-                    (weather != null && weather.highTemp != null && weather.lowTemp != null) ||
-                        isTerminalLowOnlyNwsFuture
+                    isDrawableFuture
                 } else {
                     (weather != null && (weather.highTemp != null || weather.lowTemp != null)) || dailyActuals.containsKey(date)
                 },
@@ -549,6 +547,8 @@ object DailyViewLogic {
                         isClimateNormal = column.isClimateNormal && shown?.source != WeatherSource.GENERIC_GAP.id,
                         isSourceGapFallback = shown?.source == WeatherSource.GENERIC_GAP.id,
                         printsWholeDegrees = column.printsWholeDegrees,
+                        printsWholeHighDegrees = column.printsWholeHighDegrees,
+                        highIsClimateNormal = column.highIsClimateNormal,
                         solidIsForecastFallback = column.solidIsForecastFallback,
                         dashedLineHigh = column.forecastHigh,
                         dashedLineLow = column.forecastLow,

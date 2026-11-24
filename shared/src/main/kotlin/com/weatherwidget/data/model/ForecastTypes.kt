@@ -71,6 +71,9 @@ data class DailyForecast(
     val precipProbability: Int? = null,
     val precipAmountMm: Float? = null,
     val isClimateNormal: Boolean = false,
+    // Read time only, never persisted: a future day with a real low and no real high took its high
+    // from the climate normal (PartialForecastDays.fillPartialFutureDays); its bar's top half is green.
+    val highIsClimateNormal: Boolean = false,
     // Source this row was produced for, and NWS's native 12-hour daytime/nighttime period rain
     // chances — used as a fallback by the shared daily rain-label selection
     // (DailyRainLabels.resolveDailyLabelPrecip) when hourly rows are missing, keeping desktop and

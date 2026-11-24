@@ -41,7 +41,7 @@ internal object DailyBarRenderer {
     internal val COLOR_OBSERVED_RED = WeatherConditionColors.OBSERVED
     internal val COLOR_MERCURY = WeatherColors.MERCURY
     internal val COLOR_TODAY_HIGHLIGHT = 0xFFFFFF00.toInt()
-    internal val COLOR_GAP_FALLBACK = 0xFF34C759.toInt()
+    internal val COLOR_GAP_FALLBACK = WeatherColors.CLIMATE_NORMAL_GREEN
 
     private inline fun debug(msg: () -> String) {
         if (Log.isLoggable(TAG, Log.VERBOSE)) {
@@ -157,6 +157,8 @@ internal object DailyBarRenderer {
                     // A source-gap stand-in keeps its own colour in the clear share, like desktop's climate normal.
                     clearArgb = if (day.isSourceGapFallback) paint.color else WeatherColors.FORECAST_SUNNY,
                     dashed = day.isPast && day.actualsFromOtherSite,
+                    // A climate-normal high: green top half (shared AdaptiveBarStrokes).
+                    climateTopHalf = day.highIsClimateNormal,
                 )
                 onBarDrawn?.invoke(
                     BarDrawnDebug(
@@ -320,7 +322,7 @@ internal object DailyBarRenderer {
         val highLabel = DailyTemperatureLabelRenderer.format(
             displayHigh,
             useCelsius = layout.useCelsius,
-            wholeDegrees = day.printsWholeDegrees,
+            wholeDegrees = day.printsWholeHighDegrees,
         )
         val labelBaseline = plan?.anchorBaseline ?: run {
             Log.w(
@@ -532,6 +534,8 @@ internal object DailyBarRenderer {
         dayPrecipProbability: Int? = day.rainData.dailyPrecipProbability,
         /** The clear share's colour: gold, or a snapshot bar's own yellow / blue. */
         clearArgb: Int = WeatherColors.FORECAST_SUNNY,
+        /** The high is the climate normal's: green top half (shared AdaptiveBarStrokes). */
+        climateTopHalf: Boolean = false,
     ) {
         @Suppress("NAME_SHADOWING")
         val paint = if (dashed) standInDashed(paint) else paint
@@ -549,6 +553,7 @@ internal object DailyBarRenderer {
             lowY = bottomY,
             inkRadius = paint.strokeWidth / 2f,
             clearArgb = clearArgb,
+            climateTopHalf = climateTopHalf,
         )
         for (stroke in plan.strokes) {
             val strokePaint = Paint(paint).apply {

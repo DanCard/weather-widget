@@ -8,6 +8,8 @@ package com.weatherwidget.shared.util
  */
 object WeatherColors {
     const val FORECAST_SUNNY: Int = 0xFFF4C542.toInt()   // Amber/gold
+    /** Climate-normal stand-in: a whole climate day's bar, and the top half of a climate-normal high. */
+    const val CLIMATE_NORMAL_GREEN: Int = 0xFF34C759.toInt()
     const val FORECAST_CLOUDY: Int = 0xFF8E99A4.toInt()  // Slate gray
     const val FORECAST_RAINY: Int = 0xFF5A8FBF.toInt()   // Steel blue
     const val FORECAST_NIGHT: Int = 0xFFBBBBBB.toInt()   // Muted silver

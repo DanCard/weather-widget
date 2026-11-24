@@ -378,4 +378,63 @@ class OpenWeatherMapApiTest {
         assertEquals(listOf(t * 1000 to 60f, (t + 21600) * 1000 to 66f), forecast.hourly.map { it.dateTime to it.temperature })
         assertEquals(listOf(66f to 60f), forecast.daily.map { it.highTemp to it.lowTemp })
     }
+
+    // --- Cut-off later days (OwmDailyCoverage). plans/261124-partial-high-days-shared-row-choice-claude.md
+
+    /** The desktop fetch that drew Sunday 2026-11-29's 57.5° high at the Scottsdale site: 08:35 MST. */
+    private val sundayFetch = com.weatherwidget.shared.contract.OwmForecastFixture(
+        fetchedAt = java.time.Instant.parse("2026-11-24T15:35:00Z"),
+        offsetSeconds = -7 * 3600,
+        pop = { at -> if (at.toLocalDate().toString() == "2026-11-29") 0.05 else 0.0 },
+    )
+
+    @Test
+    fun `a later day cut off before the afternoon keeps its low and rain chance but no high`() = runBlocking {
+        val daily = sundayFetch.api().getForecast(33.645, -111.911).daily.associateBy { it.date }
+        val sundaySlots = sundayFetch.slotTimes.map(sundayFetch::local).filter { it.toLocalDate().toString() == "2026-11-29" }
+        println("Sunday slots: ${sundaySlots.map { "${it.hour}h=${"%.1f".format(com.weatherwidget.shared.contract.OwmForecastFixture.diurnal(it))}" }}")
+        println("daily: ${daily.values.map { "${it.date} ${it.highTemp}/${it.lowTemp} pop=${it.precipProbability}" }}")
+
+        assertEquals("the window ends at 08:00 Sunday", 8, sundaySlots.maxOf { it.hour })
+        val sunday = daily.getValue("2026-11-29")
+        assertNull("no afternoon slot: no high (was the pre-dawn max)", sunday.highTemp)
+        assertEquals(sundaySlots.minOf { com.weatherwidget.shared.contract.OwmForecastFixture.diurnal(it) }.toFloat(), sunday.lowTemp!!, 0.01f)
+        assertEquals("the rain chance is kept as parsed (user, 2026-11-24)", 5, sunday.precipProbability)
+        assertTrue("earlier days are complete", (25..28).all { daily.getValue("2026-11-$it").highTemp != null })
+    }
+
+    @Test
+    fun `a reported high or low is the whole day's, for every slot alignment and cut-off`() = runBlocking {
+        // UTC-6, -7, -8 put the 3 h grid on local hours 0/3/…, 2/5/…, 1/4/… — the three alignments.
+        for (offsetHours in listOf(-6, -7, -8)) {
+            for (slots in 1..40) {
+                val fixture = com.weatherwidget.shared.contract.OwmForecastFixture(
+                    fetchedAt = java.time.Instant.parse("2026-11-24T15:35:00Z"),
+                    offsetSeconds = offsetHours * 3600,
+                    slots = slots,
+                )
+                val daily = fixture.api().getForecast(0.0, 0.0).daily
+                val firstDate = fixture.local(fixture.slotTimes.first()).toLocalDate().toString()
+                for (day in daily.filter { it.date != firstDate }) {
+                    // The day's full set of slots in this alignment: what an uncut window holds.
+                    val firstHour = fixture.slotTimes.map(fixture::local).first().hour % 3
+                    val full = (firstHour until 24 step 3).map {
+                        com.weatherwidget.shared.contract.OwmForecastFixture.diurnal(java.time.LocalDate.parse(day.date).atTime(it, 0))
+                    }
+                    val where = "offset=$offsetHours slots=$slots date=${day.date} ${day.highTemp}/${day.lowTemp}"
+                    day.highTemp?.let { assertEquals(where, full.max().toFloat(), it, 0.01f) }
+                    assertNotNull(where, day.lowTemp)
+                    assertEquals(where, full.min().toFloat(), day.lowTemp!!, 0.01f)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `coverage tiers by the day's latest local slot hour`() {
+        assertEquals(
+            listOf("OMIT", "OMIT", "LOW_ONLY", "LOW_ONLY", "LOW_ONLY", "FULL", "FULL"),
+            listOf(2, 4, 5, 7, 14, 15, 17).map { OwmDailyCoverage.classify(it).name },
+        )
+    }
 }

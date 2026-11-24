@@ -303,6 +303,29 @@ site after a visit elsewhere has none even when its forecast is fresh. `:shared`
 
 See `plans/261122-climate-normals-warm-and-repaint-shared.md`.
 
+#### Climate normals in daily columns
+
+One shared rule per step, both platforms (`plans/261124-partial-high-days-shared-row-choice-claude.md`):
+
+- **Row per date** (`DailyColumnSource.chooseRow`; Android `DailyViewHandler.buildWeatherByDate`):
+  today … today+2 show the display source's row only. Later dates show the display source's row
+  when it has a low; otherwise a complete `GENERIC_GAP` (climate-normal) row; otherwise the source's
+  row as it is.
+- **Partial future rows** (`PartialForecastDays.fillPartialFutureDays`, at read time, never stored):
+  - a real low and no high keeps the low and takes the normal's high, `highIsClimateNormal`. Its bar's
+    top half is green (`AdaptiveBarStrokes` `climateTopHalf`, `WeatherColors.CLIMATE_NORMAL_GREEN`),
+    with the sky's clear/cloud/rain shares scaled into the bottom half. This covers every source,
+    including NWS's last, low-only day (before 2026-11-24 drawn low-only);
+  - a high and no low takes both values from the normal (`isClimateNormal`);
+  - with no normals cached yet, a low-only day draws its low alone (`PartialForecastDays.isDrawableFuture`)
+    until the normals repaint it.
+- **OpenWeatherMap's last day** (`OwmDailyCoverage`): the free `/2.5/forecast` is 40 three-hour
+  slots from fetch time, so its last date is cut off at a different hour every fetch. Every date after
+  the batch's first is classified by its latest local slot hour: before 05:00 no row is stored (the
+  normal fills the date); 05:00–14:00 a low-only row (`highTemp` NULL, rain chance as parsed); 15:00 or
+  later a complete row. Daily reads take each date's newest row, so a later fetch that reaches the
+  afternoon replaces a low-only row (`OWM_PARTIAL_DAY date=… maxHour=… action=…`, `Log.d`).
+
 ### Interaction cache and the stored-data version
 
 Android's widget interaction path (`DailyInteractionRenderer`) reads its daily rows, actuals,

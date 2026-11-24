@@ -19,6 +19,32 @@ object DailyColumnSource {
     fun allowsClimateNormal(date: LocalDate, today: LocalDate): Boolean =
         date.isAfter(today.plusDays(CLIMATE_NORMAL_AFTER_DAYS))
 
+    /**
+     * The one stored row a date shows for [displaySourceId], among [rows] stored for that date
+     * (moved from Android's `DailyViewHandler.buildWeatherByDate`, 2026-11-24):
+     * - today … today+2: the display source's row only (null = renders missing);
+     * - later: the display source's row when it has a low — complete, or low-only (its high is then the
+     *   climate normal's, [PartialForecastDays.fillPartialFutureDays]); otherwise a complete
+     *   `GENERIC_GAP` row; otherwise the display source's row as it is; otherwise any gap row.
+     * A low-only row used to be swapped for the gap row here, so Android drew a whole climate day
+     * where desktop drew the real low (plans/261124-partial-high-days-shared-row-choice-claude.md).
+     */
+    fun <T> chooseRow(
+        rows: List<T>,
+        displaySourceId: String,
+        date: LocalDate,
+        today: LocalDate,
+        source: (T) -> String,
+        high: (T) -> Float?,
+        low: (T) -> Float?,
+    ): T? {
+        val preferred = rows.firstOrNull { source(it) == displaySourceId }
+        if (!allowsClimateNormal(date, today)) return preferred
+        if (preferred != null && low(preferred) != null) return preferred
+        val gaps = rows.filter { source(it) == WeatherSource.GENERIC_GAP.id }
+        return gaps.firstOrNull { high(it) != null && low(it) != null } ?: preferred ?: gaps.firstOrNull()
+    }
+
     fun mayDraw(rowSourceId: String?, displaySourceId: String, date: LocalDate, today: LocalDate): Boolean =
         rowSourceId == displaySourceId ||
             (rowSourceId == WeatherSource.GENERIC_GAP.id && allowsClimateNormal(date, today))
