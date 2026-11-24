@@ -125,6 +125,8 @@ class WeatherWidgetWorker
                 kotlinx.coroutines.withContext(syncDispatcherProvider()) {
                     if (input.observationBackfillMode) {
                         handleObservationBackfillWork(input)
+                    } else if (input.postSyncActuals) {
+                        handlePostSyncActualsWork(input)
                     } else if (input.currentTempOnly) {
                         handleCurrentTempOnlyWork(input, device).also {
                             // Bootstraps the due-time sync after an install/upgrade on a charger; a no-op once one is pending.
@@ -139,6 +141,22 @@ class WeatherWidgetWorker
                 }
             }
         }
+
+        /** The tail of a targeted forecast sync: `:shared` [com.weatherwidget.shared.util.TargetedForecastSyncRun.runTail]. */
+        private suspend fun handlePostSyncActualsWork(input: WorkInput): Result {
+            val location = ActiveLocationResolver.resolve(context, widgetStateManager, WeatherDatabase.getDatabase(context).forecastDao())
+            if (location == null) {
+                appLogDao.log(com.weatherwidget.shared.util.TargetedForecastSyncRun.TAG_RESULT, "skipped=no_location", "INFO")
+                return Result.success()
+            }
+            WidgetTargetedSync.run.runTail(targetedSyncHost(location), input.postSyncSourceIds)
+            return Result.success()
+        }
+
+        internal fun targetedSyncHost(location: Pair<Double, Double>) = AndroidTargetedSyncHost(
+            context, weatherRepository, widgetStateManager, appLogDao, hourlyForecastLoader, dataBundleLoader,
+            metarRefresher, synopticRefresher, location,
+        )
 
         private suspend fun withSyncWakeLock(block: suspend () -> Result): Result {
             val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
@@ -741,6 +759,10 @@ class WeatherWidgetWorker
             const val KEY_USER_INTERACTION = "current_temp_user_interaction"
             const val KEY_TARGET_SOURCE = "target_source"
             const val KEY_OBSERVATION_BACKFILL_ONLY = "observation_backfill_only"
+            /** The post-sync actuals tail of a targeted forecast sync (`:shared` TargetedForecastSyncRun.runTail). */
+            const val KEY_POST_SYNC_ACTUALS = "post_sync_actuals"
+            /** Comma-joined source ids the tail was requested for (TargetedForecastSyncRun.encodeSources). */
+            const val KEY_POST_SYNC_SOURCES = "post_sync_sources"
             const val KEY_OBSERVATION_BACKFILL_HOURS = "observation_backfill_hours"
             const val KEY_OBSERVATION_BACKFILL_REASON = "observation_backfill_reason"
             /** Retry number of an observation backfill (0 = first run); see [com.weatherwidget.shared.observations.ObservationBackfillRetryPolicy]. */

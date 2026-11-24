@@ -18,6 +18,9 @@ class BackfillDeferralPolicy(private val clock: () -> Long) {
         if (activeUserSyncs > 0) activeUserSyncs--
     }
 
+    /** A user-forced forecast sync is running now (also read by the post-sync actuals tail). */
+    fun userSyncActive(): Boolean = synchronized(lock) { activeUserSyncs > 0 }
+
     fun onBackfillFinished() = synchronized(lock) { firstDeferredMs = null }
 
     /**

@@ -207,8 +207,13 @@ internal class FullSyncPipeline(
         startMs: Long,
         retryAttempt: Int = 1,
     ): ListenableWorker.Result {
-        val paintFirst = !input.uiOnlyRefresh && input.forceRefresh && input.targetSourceId != null
-        val load = loadAndBackfill(weatherList, input, location, runBackfills = !paintFirst)
+        val targeted = com.weatherwidget.shared.util.TargetedForecastSyncRun.isTargeted(
+            forceRefresh = input.forceRefresh,
+            uiOnly = input.uiOnlyRefresh,
+            targetSourceId = input.targetSourceId,
+        )
+        // A targeted sync leaves the observation backfills to the post-sync tail (below).
+        val load = loadAndBackfill(weatherList, input, location, runBackfills = !targeted)
         if (input.currentTempReason == com.weatherwidget.shared.util.SourceRetry.REASON) {
             val targetId = input.targetSourceId
             if (targetId != null && widgetStateManager.getSourceRetry(com.weatherwidget.data.model.WeatherSource.fromId(targetId)) == null) {
@@ -219,37 +224,49 @@ internal class FullSyncPipeline(
                 ) { tag, message, level -> appLogDao.log(tag, message, level) }
             }
         }
-        val actuals = recomputeActuals(weatherList, input, location, activeSourceList, load, runRecompute = !input.uiOnlyRefresh && !paintFirst)
-        if (paintFirst) logStage("paint_first")
+        if (targeted) {
+            return onTargetedFetchSuccess(weatherList, input, device, location, activeSourceList, bannerPlace, startMs, load)
+        }
+        val actuals = recomputeActuals(weatherList, input, location, activeSourceList, load)
         val afterUpdateMs = paintAll(weatherList, input, location, bannerPlace, load, actuals)
         logSyncPerf(input, startMs, load, actuals, afterUpdateMs)
         scheduleAfterSync(input, device)
 
         SyncDoneNotice.announce(context, widgetStateManager, input, syncOk = true)
-        if (paintFirst) {
-            runPostPaintBackfillsAndActuals(weatherList, input, location, activeSourceList, load, actuals.dailyActuals)
-        }
         return ListenableWorker.Result.success()
     }
 
     /**
-     * Deferred half of a paint-first user-initiated sync: runs observation backfills and daily-actuals
-     * recompute after the widget already drew the new forecast, enqueuing a lightweight UI repaint
-     * only if any displayed actuals changed (plans/261123-fast-paint-first-forecast-sync-and-backfill-deferral.md).
+     * A user forced one source (`:shared` [com.weatherwidget.shared.util.TargetedForecastSyncRun]): the
+     * rain-chance freeze, the paint from cached actuals, and a debounced post-sync tail
+     * (`weather_widget_post_sync_actuals`) for the observation backfills and the actuals recompute. The
+     * worker returns right after the paint, so the next toggle on the sync queue starts at once
+     * (plans/261123-shared-targeted-sync-paint-then-tail.md).
      */
-    private suspend fun runPostPaintBackfillsAndActuals(
+    private suspend fun onTargetedFetchSuccess(
         weatherList: List<com.weatherwidget.data.local.ForecastEntity>,
         input: WorkInput,
+        device: DeviceContext,
         location: Pair<Double, Double>,
         activeSourceList: List<String>,
+        bannerPlace: String?,
+        startMs: Long,
         load: LoadPhase,
-        paintedActuals: DailyActualsBySource,
-    ) {
-        runBackfills(weatherList, input, location)
-        val updated = recomputeActuals(weatherList, input, location, activeSourceList, load, runRecompute = true)
-        if (updated.dailyActuals != paintedActuals) {
-            WidgetWorkScheduler.enqueueUiRepaint(context, reason = "post_fetch_actuals")
+    ): ListenableWorker.Result {
+        var painted: Pair<ActualsPhase, Long>? = null
+        val host = AndroidTargetedSyncHost(
+            context, weatherRepository, widgetStateManager, appLogDao, hourlyForecastLoader, dataBundleLoader,
+            metarRefresher, synopticRefresher, location,
+        ) {
+            val actuals = recomputeActuals(weatherList, input, location, activeSourceList, load, runRecompute = false)
+            painted = actuals to paintAll(weatherList, input, location, bannerPlace, load, actuals)
         }
+        WidgetTargetedSync.run.onFetched(host, requireNotNull(input.targetSourceId), stored = weatherList.isNotEmpty())
+        painted?.let { (actuals, afterUpdateMs) -> logSyncPerf(input, startMs, load, actuals, afterUpdateMs) }
+        scheduleAfterSync(input, device)
+
+        SyncDoneNotice.announce(context, widgetStateManager, input, syncOk = true)
+        return ListenableWorker.Result.success()
     }
 
     /** The paint of [onFetchSuccess] and its banner bookkeeping; returns when it finished. */

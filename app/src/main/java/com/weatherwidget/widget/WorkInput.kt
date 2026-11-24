@@ -38,6 +38,10 @@ internal data class WorkInput(
     val allSources: Boolean = false,
     /** See [WeatherWidgetWorker.KEY_SKIP_SOURCES]. */
     val skipSourceIds: Set<String> = emptySet(),
+    /** See [WeatherWidgetWorker.KEY_POST_SYNC_ACTUALS]. */
+    val postSyncActuals: Boolean = false,
+    /** See [WeatherWidgetWorker.KEY_POST_SYNC_SOURCES]. */
+    val postSyncSourceIds: Set<String> = emptySet(),
 ) {
     companion object {
         fun from(data: Data): WorkInput {
@@ -74,6 +78,10 @@ internal data class WorkInput(
                 userRefresh = data.getBoolean(WeatherWidgetWorker.KEY_USER_REFRESH, false),
                 allSources = data.getBoolean(WeatherWidgetWorker.KEY_ALL_SOURCES, false),
                 skipSourceIds = data.getStringArray(WeatherWidgetWorker.KEY_SKIP_SOURCES)?.toSet().orEmpty(),
+                postSyncActuals = data.getBoolean(WeatherWidgetWorker.KEY_POST_SYNC_ACTUALS, false),
+                postSyncSourceIds = com.weatherwidget.shared.util.TargetedForecastSyncRun.decodeSources(
+                    data.getString(WeatherWidgetWorker.KEY_POST_SYNC_SOURCES),
+                ),
             )
         }
     }

@@ -119,6 +119,12 @@ See `performance/261115-boot-first-paint-frozen-behind-startup-syncs.md`.
 
 ### Slow source switches and desktop SQLite lock stalls
 
+A switch that refetches is a targeted forecast sync ([cadence](forecast-and-observation-cadence.md#targeted-forecast-syncs)):
+`TARGETED_SYNC stage=painted` marks the paint, and the next toggle's `SYNC_START` should follow within about a
+second on Android. The observation fill and recompute come later as one `POST_SYNC_ACTUALS_RUN` /
+`POST_SYNC_ACTUALS_RESULT changed= ms=` pair per burst; `POST_SYNC_ACTUALS_DEFERRED reason=settling|busy`
+means it re-armed. A `SYNOPTIC_FETCH` or `recomputeActuals` inside a toggle's worker is a regression.
+
 A source switch (API button, daily home button) logs `SOURCE_SWITCH_E2E` on both platforms:
 `phase=critical … persistMs= paintMs= criticalMs=` as soon as the new source is painted, then
 `phase=done … refresh=<QUEUED|FRESH|DELEGATED|SKIPPED|FAILED> deferredMs=`, also stored in `app_logs`.

@@ -36,6 +36,10 @@ Examples include:
 - `WeatherApiHistoryRun` and `GoogleHistoryRun`: provider-specific history workflows.
 - `SourceFetchTable`: what each source's forecast fetch requests, and (`runFollowUps`) which of the
   history runners above ride that fetch, a failed one included.
+- `TargetedForecastSyncRun`: a forecast the user forced for one source — rain-chance freeze, paint, then a
+  debounced post-sync tail for observations and the actuals recompute. Hosts: Android
+  `AndroidTargetedSyncHost` (`weather_widget_post_sync_actuals` work), desktop `DesktopTargetedSyncHost`
+  (`DesktopPostSyncTail`); see [cadence](forecast-and-observation-cadence.md#targeted-forecast-syncs).
 - `SourceSwitchRunner`: a user's switch of the displayed source (API button, daily home button, and
   the Forecast Comparison and Current Observations screens' source pills). Persist then paint is the whole
   critical path; the view tally, the staleness check / refresh request and the `app_logs` row follow,

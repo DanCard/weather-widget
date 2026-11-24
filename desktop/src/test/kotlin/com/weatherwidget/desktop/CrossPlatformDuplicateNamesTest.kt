@@ -41,6 +41,8 @@ class CrossPlatformDuplicateNamesTest {
             "cachedNormalsByMonthDay" to ADAPTER, // climate_normals read
             "fetchCurrentConditions" to ADAPTER, // CurrentConditionsRun.Host fetch
             "blendRecomputeHost" to ADAPTER, // DailyBlendRecomputeRun.Host factory
+            "targetedSyncHost" to ADAPTER, // TargetedForecastSyncRun.Host factory
+            "dailyHistoryAfterFetch" to ADAPTER, // DailyHistoryRun.afterFetch at the site
             "getPowerState" to ADAPTER, // BatteryManager vs /sys/class/power_supply
             "isArmed" to ADAPTER, // DominantTempWatch prefs vs file store
             "setArmed" to ADAPTER,
@@ -55,6 +57,7 @@ class CrossPlatformDuplicateNamesTest {
             "drawOutlinedText" to DRAWING,
             "drawSeriesCurve" to DRAWING,
             "cancel" to GENERIC,
+            "schedule" to GENERIC, // PowerConnectedJobService's job vs DesktopPostSyncTail's timer
             "clearCache" to GENERIC,
             "columns" to GENERIC,
             "expire" to GENERIC,

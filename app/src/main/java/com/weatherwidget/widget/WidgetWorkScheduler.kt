@@ -66,6 +66,12 @@ object WidgetWorkScheduler {
     const val WORK_NAME_UI = "weather_widget_one_time_ui"
 
     /**
+     * The post-sync actuals tail of a targeted forecast sync (`:shared` TargetedForecastSyncRun): its own
+     * name, so it never holds the forecast sync queue. Never REPLACEd (a pending tail settles itself).
+     */
+    const val WORK_NAME_POST_SYNC_ACTUALS = "weather_widget_post_sync_actuals"
+
+    /**
      * The sync [PreUnplugFetchScheduler] arms before a predicted unplug; its own name, so no other sync
      * replaces it. The value predates the rename (alarm-driven pre-wake) so a check already enqueued
      * stays addressable.
@@ -603,6 +609,60 @@ object WidgetWorkScheduler {
                 "reason=$reason delayMs=$initialDelayMs id=${request.id}",
         )
         return ObservationBackfillEnqueue(request, outcome, detail)
+    }
+
+    /** Where the post-sync actuals tail stands: running, waiting (enqueued or blocked behind one), or none. */
+    internal suspend fun postSyncActualsState(context: Context): com.weatherwidget.shared.util.TargetedForecastSyncRun.TailState =
+        withContext(Dispatchers.IO) {
+            val infos = WorkManager.getInstance(context).getWorkInfosForUniqueWork(WORK_NAME_POST_SYNC_ACTUALS).get()
+            postSyncActualsState(infos.map { it.state })
+        }
+
+    @androidx.annotation.VisibleForTesting
+    internal fun postSyncActualsState(states: List<androidx.work.WorkInfo.State>): com.weatherwidget.shared.util.TargetedForecastSyncRun.TailState =
+        when {
+            states.any { it == androidx.work.WorkInfo.State.RUNNING } -> com.weatherwidget.shared.util.TargetedForecastSyncRun.TailState.RUNNING
+            states.any { !it.isFinished } -> com.weatherwidget.shared.util.TargetedForecastSyncRun.TailState.PENDING
+            else -> com.weatherwidget.shared.util.TargetedForecastSyncRun.TailState.NONE
+        }
+
+    /**
+     * Arms the tail as the shared runner decided. Never REPLACE (AGENTS.md rule 6): SCHEDULE is KEEP,
+     * KEEP_PENDING enqueues nothing, and APPEND_AFTER_RUNNING appends one successor (none when one is
+     * already waiting behind the running tail, which will serve the in-process requests too).
+     */
+    internal suspend fun enqueuePostSyncActuals(
+        context: Context,
+        enqueue: com.weatherwidget.shared.util.TargetedForecastSyncRun.Enqueue,
+        delayMs: Long,
+        sourceIds: Set<String>,
+    ) = withContext(Dispatchers.IO) {
+        val workManager = WorkManager.getInstance(context)
+        val policy = when (enqueue) {
+            com.weatherwidget.shared.util.TargetedForecastSyncRun.Enqueue.SCHEDULE -> ExistingWorkPolicy.KEEP
+            com.weatherwidget.shared.util.TargetedForecastSyncRun.Enqueue.KEEP_PENDING -> return@withContext
+            com.weatherwidget.shared.util.TargetedForecastSyncRun.Enqueue.APPEND_AFTER_RUNNING -> {
+                val states = workManager.getWorkInfosForUniqueWork(WORK_NAME_POST_SYNC_ACTUALS).get().map { it.state }
+                if (states.count { !it.isFinished && it != androidx.work.WorkInfo.State.RUNNING } > 0) return@withContext
+                ExistingWorkPolicy.APPEND_OR_REPLACE
+            }
+        }
+        val request = OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
+            .setInputData(
+                Data.Builder()
+                    .putBoolean(WeatherWidgetWorker.KEY_POST_SYNC_ACTUALS, true)
+                    .putString(
+                        WeatherWidgetWorker.KEY_POST_SYNC_SOURCES,
+                        com.weatherwidget.shared.util.TargetedForecastSyncRun.encodeSources(sourceIds),
+                    )
+                    .putString(WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON, com.weatherwidget.shared.util.TargetedForecastSyncRun.REPAINT_REASON)
+                    .tagTestModeEnqueue()
+                    .build(),
+            )
+            .setInitialDelay(delayMs, TimeUnit.MILLISECONDS)
+            .build()
+        workManager.enqueueUniqueWork(WORK_NAME_POST_SYNC_ACTUALS, policy, request)
+        Log.d(TAG, "Post-sync actuals enqueued enqueue=$enqueue policy=$policy delayMs=$delayMs id=${request.id}")
     }
 
     fun enqueueUiRepaint(

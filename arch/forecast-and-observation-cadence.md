@@ -199,10 +199,8 @@ Android's render-detected observation gap runs the same runner's recent pass (`O
 sized to the actual gap (`HourlyBackfillWindow`: `ceil(gapMin / 60) + 2` h, clamped to `3..72` h; empty sites
 keep 72 h). While `ENQUEUED` (never `RUNNING`), each widget interaction pushes its start out by 20 s up to a
 90 s cap (`BackfillDeferralPolicy`, logged `OBS_HOURLY_BACKFILL_DEFERRED`), and it yields at start if a
-user-initiated forecast sync is active. On targeted user-initiated Android forecast syncs (`forceRefresh` with
-a `targetSourceId`), `FullSyncPipeline` paints the widget immediately from cached actuals (`paint_first`)
-and runs observation backfills + `recomputeActuals` afterward, enqueuing a follow-up UI repaint only if
-actuals changed. `PriorDayCloudRun` runs asynchronously off the forecast-paint critical path on both
+user-initiated forecast sync is active. A targeted forecast sync defers its observation fill and actuals
+recompute to a debounced tail; see [Targeted forecast syncs](#targeted-forecast-syncs). `PriorDayCloudRun` runs asynchronously off the forecast-paint critical path on both
 platforms (enqueuing a UI repaint on Android only when new rows are stored). A fill that never reached NWS —
 station lookup failed or every station failed, not an answered-but-empty one — retries on the shared
 `ObservationBackfillRetryPolicy` (10 s → 1 m → 4 m): Android as delayed worker requests, desktop as coroutine
@@ -210,6 +208,34 @@ delays after the wake, stopping if the location or source changes (`OBS_HOURLY_B
 
 Interpolating a current temperature from cached hourly rows is a UI operation, not a network fetch.
 Repaints can therefore be more frequent than observation requests without changing provider usage.
+
+## Targeted forecast syncs
+
+A forecast fetch the user forced for **one** source paints first and does its slow work later, on both
+platforms, under `:shared` `TargetedForecastSyncRun` (`plans/261123-shared-targeted-sync-paint-then-tail.md`).
+Android: a forced, non-UI sync with a `targetSourceId` (toggle, viewing-stale tap, tap to refresh, source
+retry). Desktop: a `FORECAST` request without `observationWindow` (viewing-stale, single-source refresh), the
+source-switch launch refresh, and source retries. Settings "Refresh data" (every source; desktop's Refresh
+with the observation window) and routine syncs keep the inline order: backfills, recompute, paint.
+
+1. **Fast path:** fetch (with the source's `SourceFetchTable` follow-ups), then `DailyHistoryRun.afterFetch`
+   (the rain-chance freeze must see every fetch), then the paint from cached actuals, then a tail request
+   (`TARGETED_SYNC stage=painted|tail_scheduled`). On Android the worker returns here, so the next toggle on
+   the serial sync queue starts at once.
+2. **Tail** (`POST_SYNC_ACTUALS_RUN` / `_RESULT changed= ms=`): serves the requested sources plus every
+   visible one: the NWS history fill (`NwsGapFillRun.dailyForSources`), the observation feeds (Android:
+   METAR deep pull and Synoptic, both due-gated; desktop: `refreshObservations` over the served sources),
+   the daily-actuals recompute with its repairs and upkeep, then one repaint only if the displayed daily
+   actuals changed. A failed step logs `POST_SYNC_ACTUALS_FAIL` and the rest still run.
+3. **Debounce:** the tail runs 12 s after the newest request of a burst, never more than 60 s after the
+   burst's first, so `Google → Meteo → Silurian` costs one tail. Nothing is replaced or cancelled
+   (AGENTS.md rule 6): a pending tail is kept and re-arms itself for the rest of the 12 s when it comes due
+   early (`POST_SYNC_ACTUALS_DEFERRED reason=settling`); a request while one runs queues one more after it.
+4. **Yield:** a tail that comes due while a user-forced sync runs (or, on Android, within 5 s of a widget
+   interaction) re-arms 20 s later (`POST_SYNC_ACTUALS_DEFERRED reason=busy`), for at most 90 s.
+
+The timer is the only per-platform part: Android's `weather_widget_post_sync_actuals` unique work (`KEEP`,
+or `APPEND_OR_REPLACE` behind a running tail), desktop's `DesktopPostSyncTail` coroutine in the daemon.
 
 ## Targeted and early refreshes
 

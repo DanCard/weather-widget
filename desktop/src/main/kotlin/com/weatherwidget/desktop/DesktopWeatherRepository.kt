@@ -527,6 +527,8 @@ class DesktopWeatherRepository(
         horizon: ForecastHorizonCadence.Horizon? = null,
         /** The user's Refresh button: an unchanged daily row is written anyway ([DailyForecastWrite]). */
         userRefresh: Boolean = false,
+        /** See [refreshWithOutcome]. */
+        deferActuals: Boolean = false,
     ): ForecastSnapshot = refreshWithOutcome(
         now,
         userLocationChange,
@@ -534,6 +536,7 @@ class DesktopWeatherRepository(
         parts = parts,
         horizon = horizon,
         userRefresh = userRefresh,
+        deferActuals = deferActuals,
     ).snapshot
 
     /**
@@ -554,6 +557,12 @@ class DesktopWeatherRepository(
         parts: ForecastParts? = null,
         horizon: ForecastHorizonCadence.Horizon? = null,
         userRefresh: Boolean = false,
+        /**
+         * A targeted sync (`:shared` TargetedForecastSyncRun): skip [runPostFetchBackfills]. The runner
+         * then runs [dailyHistoryAfterFetch] before its paint, and the actuals recompute in its tail
+         * ([recomputeActualsTail]) (plans/261123-shared-targeted-sync-paint-then-tail.md).
+         */
+        deferActuals: Boolean = false,
     ): RefreshOutcome = withContext(Dispatchers.IO) {
         Log.i(TAG, "refresh() started source=$weatherSource")
         val fetchParts = parts ?: ForecastParts.BOTH
@@ -640,7 +649,7 @@ class DesktopWeatherRepository(
             followUpsRan = true
             val historyObsCount = runFollowUps(fetchParts, stored = true, now)
 
-            val extremesCount = runPostFetchBackfills(now)
+            val extremesCount = if (deferActuals) 0 else runPostFetchBackfills(now)
 
             // Best-effort: ensure climate normals are cached for the future-day fallback. One network
             // fetch per location, then served from cache; never fails the main refresh.
@@ -655,7 +664,7 @@ class DesktopWeatherRepository(
             weatherDao.log(
                 tag = "REFRESH",
                 message = "source=$weatherSource hourly=${result.hourly.size} daily=${result.daily.size} " +
-                    "obs=${result.rawObservations.size} historyObs=$historyObsCount extremes=$extremesCount" +
+                    "obs=${result.rawObservations.size} historyObs=$historyObsCount extremes=${if (deferActuals) "deferred" else extremesCount}" +
                     (if (deferObservationWindow && ActualsFeedPolicy.hasDeferredHistoryWindow(displaySource, latitude, longitude)) " obsWindow=deferred" else ""),
             )
             weatherDao.log(CurrentTempStatusLog.TAG, CurrentTempStatusLog.ok(displaySource.id), "INFO")
@@ -885,6 +894,31 @@ class DesktopWeatherRepository(
         repairUtcDatedPredictionsIfNeeded()
         dailyHistoryRun.upkeepIfDue(latitude, longitude, now, isCharging())
         return extremesCount
+    }
+
+    /** `:shared` DailyHistoryRun.afterFetch at this site: the targeted sync's step before its paint. */
+    suspend fun dailyHistoryAfterFetch(now: Long = currentTimeMillis()) = withContext(Dispatchers.IO) {
+        dailyHistoryRun.afterFetch(latitude, longitude, now)
+    }
+
+    /** The part of [runPostFetchBackfills] a targeted sync defers to its tail: recompute, repairs, upkeep. */
+    suspend fun recomputeActualsTail(now: Long = currentTimeMillis()): Int = withContext(Dispatchers.IO) {
+        val extremes = recomputeDailyExtremes(now)
+        repairUtcDatedPredictionsIfNeeded()
+        dailyHistoryRun.upkeepIfDue(latitude, longitude, now, isCharging())
+        extremes
+    }
+
+    /** The stored daily rows the recompute can touch, compared before and after a tail. */
+    suspend fun actualsSignature(now: Long = currentTimeMillis()): List<DailyHistory> = withContext(Dispatchers.IO) {
+        val today = Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault()).toLocalDate()
+        val dayMs = 86_400_000L
+        weatherDao.getExtremesInRange(
+            today.minusDays(DailyBlendRecomputeRun.MAX_DAYS_BACK).toEpochDay() * dayMs,
+            today.toEpochDay() * dayMs,
+            latitude,
+            longitude,
+        )
     }
 
     /**

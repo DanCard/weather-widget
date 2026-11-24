@@ -160,8 +160,14 @@ internal class DaemonRuntime(
         try {
             val changed = when (request.kind) {
                 FetchRequest.Kind.FORECAST -> {
+                    // A targeted sync unless it is the Refresh button's full run (observation window included).
+                    val targeted = !request.observationWindow
                     val snapshot = try {
-                        repo.refresh(reason = request.reason, userRefresh = request.userRefresh, userLocationChange = request.userLocationChange)
+                        if (targeted) {
+                            refreshTargeted(repo, request.reason, userRefresh = request.userRefresh, userLocationChange = request.userLocationChange)
+                        } else {
+                            repo.refresh(reason = request.reason, userRefresh = request.userRefresh, userLocationChange = request.userLocationChange)
+                        }
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
@@ -265,7 +271,7 @@ internal class DaemonRuntime(
                 if (isActive) {
                     val result = launchRefreshJobs.fetchOnce(key) {
                         Log.i(TAG, "Loop forecast retry starting for active source: $retrySource...")
-                        activeRepo.refresh(reason = SourceRetry.REASON)
+                        refreshTargeted(activeRepo, reason = SourceRetry.REASON)
                     } ?: continue
                     if (launchRefreshPublishes(config, currentConfig)) {
                         panelPublisher.publishForecastState(result)
@@ -285,10 +291,13 @@ internal class DaemonRuntime(
                             personalStationWeight = config.personalStationWeight(),
                         )
                         try {
-                            DesktopWeatherRepository(
-                                retryService, weatherDao, config.lat, config.lon, retrySource, config.personalStationWeight(),
-                                radarNowSampler = retryService.radarNowSampler,
-                            ).refresh(reason = SourceRetry.REASON)
+                            refreshTargeted(
+                                DesktopWeatherRepository(
+                                    retryService, weatherDao, config.lat, config.lon, retrySource, config.personalStationWeight(),
+                                    radarNowSampler = retryService.radarNowSampler,
+                                ),
+                                reason = SourceRetry.REASON,
+                            )
                         } finally {
                             retryService.close()
                         }
@@ -359,6 +368,93 @@ internal class DaemonRuntime(
     private val launchRefreshJobs = LaunchRefreshJobs(daemonScope)
     private var weatherService: DesktopWeatherService? = null
     private var repo: DesktopWeatherRepository? = null
+
+    /**
+     * `:shared` TargetedForecastSyncRun: a forecast the user forced for one source paints, then a
+     * debounced tail fills observations and recomputes actuals (plans/261123-shared-targeted-sync-paint-then-tail.md).
+     */
+    private val targetedSync = com.weatherwidget.shared.util.TargetedForecastSyncRun(System::currentTimeMillis)
+    private val activeTargetedSyncs = java.util.concurrent.atomic.AtomicInteger(0)
+    private val postSyncTail = DesktopPostSyncTail(daemonScope) { ids -> runPostSyncTail(ids) }
+
+    private fun targetedSyncHost(
+        activeRepo: DesktopWeatherRepository,
+        paint: suspend () -> Unit = {},
+    ): DesktopTargetedSyncHost = DesktopTargetedSyncHost(
+        repo = activeRepo,
+        weatherDao = weatherDao,
+        tail = postSyncTail,
+        visibleSources = { currentConfig?.effectiveSources?.toSet().orEmpty() },
+        userSyncActive = { activeTargetedSyncs.get() > 0 },
+        publish = {
+            val cfg = currentConfig
+            if (cfg != null && activeRepo.sourceId == cfg.displaySource &&
+                activeRepo.latitude == cfg.lat && activeRepo.longitude == cfg.lon
+            ) {
+                activeRepo.loadCached()?.let { panelPublisher.publishForecastState(it) }
+                notifyDataUpdated()
+            }
+        },
+        onWindowUnreachable = { served ->
+            // NWS never answered: retry on the shared schedule, as the launch refresh's deferred window does.
+            daemonScope.launch {
+                ObservationWindowRetry.run(
+                    firstOutcome = DesktopWeatherRepository.OBS_WINDOW_UNREACHABLE,
+                    refresh = { activeRepo.refreshObservationWindow(served, reason = "post_sync_retry") },
+                    stillCurrent = { repo === activeRepo },
+                    onStored = {
+                        activeRepo.loadCached()?.let { panelPublisher.publishForecastState(it) }
+                        notifyDataUpdated()
+                    },
+                    log = { tag, message, level -> weatherDao.log(tag, message, level) },
+                )
+            }
+        },
+        paint = paint,
+    )
+
+    /** The tail, against whatever the daemon displays when it comes due. */
+    private suspend fun runPostSyncTail(sourceIds: Set<String>) {
+        val activeRepo = repo
+        if (activeRepo == null) {
+            weatherDao.log(com.weatherwidget.shared.util.TargetedForecastSyncRun.TAG_RESULT, "skipped=no_repo", "INFO")
+            return
+        }
+        targetedSync.runTail(targetedSyncHost(activeRepo), sourceIds)
+    }
+
+    /**
+     * The fast path of a targeted forecast fetch: fetch without the actuals work, then the shared runner's
+     * afterFetch, load and tail request. Returns the snapshot for the caller to publish now; a fetch
+     * failure throws as [DesktopWeatherRepository.refreshWithOutcome] does.
+     */
+    private suspend fun refreshTargeted(
+        activeRepo: DesktopWeatherRepository,
+        reason: String,
+        userRefresh: Boolean = false,
+        userLocationChange: Boolean = false,
+        deferObservationWindow: Boolean = false,
+    ): ForecastSnapshot {
+        activeTargetedSyncs.incrementAndGet()
+        try {
+            val stored = activeRepo.refreshWithOutcome(
+                userLocationChange = userLocationChange,
+                deferObservationWindow = deferObservationWindow,
+                reason = reason,
+                userRefresh = userRefresh,
+                deferActuals = true,
+            ).snapshot
+            var painted = stored
+            targetedSync.onFetched(
+                targetedSyncHost(activeRepo, paint = { painted = activeRepo.loadCached() ?: stored }),
+                activeRepo.sourceId,
+                stored = true,
+            )
+            return painted
+        } finally {
+            activeTargetedSyncs.decrementAndGet()
+        }
+    }
     private var lastResumeKickMs = 0L
     private var lastNetworkKickMs = 0L
     private var lastObservationCatchUpKickMs = 0L
@@ -1011,7 +1107,11 @@ internal class DaemonRuntime(
                     while (true) {
                         try {
                             val result = when (launchRefreshAction) {
-                                LaunchRefreshAction.FULL_FORECAST -> {
+                                LaunchRefreshAction.FULL_FORECAST -> if (reason == SOURCE_CYCLE_REASON) {
+                                    // A source switch is a targeted sync: its window and actuals are the tail's.
+                                    Log.i(TAG, "Refreshing switched-to source from network (targeted)...")
+                                    refreshTargeted(activeRepo, reason = "launch:$reason", deferObservationWindow = true)
+                                } else {
                                     Log.i(TAG, "Refreshing full forecast from network...")
                                     // Publish first; the 7-day observation window follows below.
                                     activeRepo.refreshWithOutcome(
