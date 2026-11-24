@@ -178,6 +178,18 @@ class TargetedSyncPostActualsIntegrationTest {
     }
 
     @Test
+    fun `a failed targeted fetch still paints from cache but skips afterFetch and schedules no tail`() = runBlocking {
+        every { widgetStateManager.isSourceErrored(WeatherSource.OPEN_METEO) } returns true
+
+        val result = pipeline().run(targeted("viewing_forecast_stale", WeatherSource.OPEN_METEO.id), device(), stopReason = 0)
+        println("failed targeted order=$order result=$result")
+
+        assertTrue(result is androidx.work.ListenableWorker.Result.Success)
+        assertEquals("paint only, no afterFetch when the targeted source failed", listOf("paint"), order)
+        assertTrue("no tail scheduled for a failed targeted fetch", tailWork().none { !it.state.isFinished })
+    }
+
+    @Test
     fun `three toggles in a row leave one tail`() = runBlocking {
         for (source in listOf(WeatherSource.GOOGLE_WEATHER, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN)) {
             pipeline().run(targeted("toggle_api_stale", source.id), device(), stopReason = 0)

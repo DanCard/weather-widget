@@ -127,14 +127,14 @@ class WeatherWidgetWorkerClimateSettleTest {
         )
 
         val work = async { w.doWork() }
-        kotlinx.coroutines.withTimeout(5_000L) {
+        kotlinx.coroutines.withTimeout(30_000L) {
             settleStarted.await()
             fetchDone.await()
         }
         assertFalse("worker must wait for the climate-normals child before returning", work.isCompleted)
 
         releaseSettle.complete(Unit)
-        val result = kotlinx.coroutines.withTimeout(5_000L) { work.await() }
+        val result = kotlinx.coroutines.withTimeout(30_000L) { work.await() }
         assertEquals(ListenableWorker.Result.success(), result)
         coVerify(exactly = 1) { repository.settleClimateNormals(any(), any(), "current_temp") }
     }

@@ -259,7 +259,9 @@ internal class FullSyncPipeline(
             val actuals = recomputeActuals(weatherList, input, location, activeSourceList, load, runRecompute = false)
             painted = actuals to paintAll(weatherList, input, location, bannerPlace, load, actuals)
         }
-        WidgetTargetedSync.run.onFetched(host, requireNotNull(input.targetSourceId), stored = weatherList.isNotEmpty())
+        val targetId = requireNotNull(input.targetSourceId)
+        val stored = weatherList.isNotEmpty() && !widgetStateManager.isSourceErrored(WeatherSource.fromId(targetId))
+        WidgetTargetedSync.run.onFetched(host, targetId, stored = stored)
         painted?.let { (actuals, afterUpdateMs) -> logSyncPerf(input, startMs, load, actuals, afterUpdateMs) }
         scheduleAfterSync(input, device)
 
