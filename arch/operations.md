@@ -245,6 +245,30 @@ If launcher resize handles bounce back on an emulator, move the widget away from
 row/edge and retry. Verify whether `onAppWidgetOptionsChanged` fired before treating it as a renderer
 bug.
 
+### Desktop command-line hooks
+
+The desktop analogue of the adb hooks (`DesktopCli`): each command sends its requests to the running
+daemon over its fetch socket (`DaemonFetch`, `fetch-request.sock`) and exits. The daemon stores the rows
+and repaints the window, so the window need not be open. Neither command starts or restarts the daemon.
+
+```bash
+BIN=desktop/build/compose/binaries/main/app/weather-widget-desktop/bin/weather-widget-desktop  # or the installed one
+# Exactly Settings → Refresh data: sources not fetched in the last 10 min ("all sources fresh" otherwise).
+$BIN refresh
+# Every usable source, forced (billed), like Android FULL_SYNC: reason=debug_full_sync:cli.
+$BIN full-sync
+```
+
+Settings and the commands build their requests in one place (`DesktopRefreshRequests`). Freshness
+comes from stored fetch times only: the window's in-memory per-source refresh stamps are not visible to
+the command. Each request prints one line (`FORECAST NWS ok`, `OTHER_SOURCES OPEN_METEO,SILURIAN ok`, or
+`… failed: <error>`). `OTHER_SOURCES` reports `ok` even when one of its sources failed; those failures
+are logged per source (`SETTINGS_REFRESH … failed`). `app_logs` gets `CLI_REFRESH cmd=… requests=… ok=…`,
+and the daemon logs each request as `FETCH_REQUEST … origin=cli`.
+
+Exit codes: `0` ok (or nothing stale), `1` a fetch failed, `2` the daemon is not running, `3` no
+location configured. See `plans/261124-desktop-cli-refresh-hook.md`.
+
 ### ART VerifyError
 
 `java.lang.VerifyError: Verifier rejected class …` means ART refused the class's dex; the app process

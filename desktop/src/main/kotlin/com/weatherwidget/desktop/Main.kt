@@ -16,6 +16,12 @@ fun main(args: Array<String>) {
     // even startup logging from :shared is visible.
     Log.install(DesktopLogSink)
 
+    // Command-line hooks (`refresh`, `full-sync`) talk to the running daemon and exit. Checked before
+    // the daemon branch: any other argument starts a daemon, which first tells the running one to quit.
+    args.firstOrNull()?.takeIf { it in DesktopCli.COMMANDS }?.let { command ->
+        kotlin.system.exitProcess(runDesktopCli(command))
+    }
+
     // On Linux, prefer the system truststore over the bundled JRE's truststore if present.
     // The bundled JRE's cacerts is often outdated or incomplete compared to the system-wide store.
     val systemTrustStore = java.io.File("/etc/ssl/certs/java/cacerts")

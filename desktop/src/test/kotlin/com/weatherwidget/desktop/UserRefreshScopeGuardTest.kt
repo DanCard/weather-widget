@@ -17,7 +17,15 @@ import java.io.File
  */
 @Category(ShortDuration::class)
 class UserRefreshScopeGuardTest {
-    private val userRefreshCall = Regex("""userRefresh\s*=\s*true""")
+    // A user-refresh request is built inline or by DesktopRefreshRequests; both must sit in the runner.
+    private val userRefreshCall = Regex("""userRefresh\s*=\s*true|DesktopRefreshRequests\.\w+\(""")
+
+    /**
+     * Not window code: DesktopRefreshRequests only builds requests (its callers are checked), and
+     * DesktopCli is its own short-lived process with no window scope to cancel it
+     * (plans/261124-desktop-cli-refresh-hook.md).
+     */
+    private val notWindowCode = setOf("DesktopRefreshRequests.kt", "DesktopCli.kt")
 
     @Test
     fun `user refreshes run through the UserRefreshRunner`() {
@@ -29,7 +37,7 @@ class UserRefreshScopeGuardTest {
 
         var scanned = 0
         val offenders = mutableListOf<String>()
-        root!!.walkTopDown().filter { it.isFile && it.extension == "kt" }.forEach { file ->
+        root!!.walkTopDown().filter { it.isFile && it.extension == "kt" && it.name !in notWindowCode }.forEach { file ->
             val text = file.readText()
             scanned += UserRefreshCallSites.count(text, userRefreshCall)
             UserRefreshCallSites.uncovered(text, userRefreshCall).forEach { line ->
@@ -65,8 +73,11 @@ class UserRefreshScopeGuardTest {
             .map { (i, line) -> "${i + 1}: ${line.trim()}" }
         // One service, behind the repository the window reads its cache through; no other.
         assertEquals("DesktopWeatherService constructions", 1, Regex("""DesktopWeatherService\(""").findAll(text).count())
-        // Seven kinds of request; a rename must not make this pass vacuously.
-        assertTrue("expected the daemon fetch requests", Regex("""FetchRequest\(""").findAll(text).count() >= 7)
+        // Seven kinds of request, inline or built by DesktopRefreshRequests; a rename must not make this pass vacuously.
+        assertTrue(
+            "expected the daemon fetch requests",
+            Regex("""FetchRequest\(|DesktopRefreshRequests\.\w+\(""").findAll(text).count() >= 7,
+        )
         if (offenders.isNotEmpty()) fail("Fetch(es) in the window process:\n" + offenders.joinToString("\n"))
     }
 }

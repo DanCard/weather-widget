@@ -109,7 +109,7 @@ messages in tests; they are helpful and don't cause harm. See
 
 ## Runtime and release references
 
-- [Operations](arch/operations.md): device evidence, debug adb hooks, source toggles, worker
+- [Operations](arch/operations.md): device evidence, debug adb hooks, desktop command-line hooks, source toggles, worker
   recovery, desktop autostart/single-instance behavior, and releases.
 - [Forecast and observation cadence](arch/forecast-and-observation-cadence.md): forecast cadence,
   worker ticks, observations, and repaint behavior.

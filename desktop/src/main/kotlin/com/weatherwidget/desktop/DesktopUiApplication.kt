@@ -1048,9 +1048,10 @@ internal fun runDesktopUiApplication() = application {
                 // Popup/panel Refresh takes the targeted fast path + tail (like Android's
                 // widget_tap_to_refresh); Settings "Refresh data" keeps the inline observation window.
                 fetchClient.send(
-                    FetchRequest(
-                        FetchRequest.Kind.FORECAST, refreshedSourceId, cfgAtTap?.lat ?: 0.0, cfgAtTap?.lon ?: 0.0,
-                        origin, "user_refresh:$origin", userRefresh = true, observationWindow = origin == "settings",
+                    // Built with the command line's requests (DesktopRefreshRequests).
+                    DesktopRefreshRequests.displayedForecast(
+                        refreshedSourceId, cfgAtTap?.lat ?: 0.0, cfgAtTap?.lon ?: 0.0, origin,
+                        allSources = origin == "settings",
                     ),
                 )
                 repo.loadCached()
@@ -1082,10 +1083,7 @@ internal fun runDesktopUiApplication() = application {
                     if (cfg != null && otherIds.isNotEmpty()) {
                         val others = refreshRunner.start("user_refresh:settings_all_sources") {
                             fetchClient.send(
-                                FetchRequest(
-                                    FetchRequest.Kind.OTHER_SOURCES, cfg.displaySource, cfg.lat, cfg.lon,
-                                    origin, "user_refresh:settings", userRefresh = true, sourceIds = otherIds,
-                                ),
+                                DesktopRefreshRequests.otherSources(cfg.displaySource, cfg.lat, cfg.lon, origin, otherIds),
                             )
                             repo.loadCached()
                         }

@@ -324,7 +324,8 @@ One shared rule per step, both platforms (`plans/261124-partial-high-days-shared
   the batch's first is classified by its latest local slot hour: before 05:00 no row is stored (the
   normal fills the date); 05:00–14:00 a low-only row (`highTemp` NULL, rain chance as parsed); 15:00 or
   later a complete row. Daily reads take each date's newest row, so a later fetch that reaches the
-  afternoon replaces a low-only row (`OWM_PARTIAL_DAY date=… maxHour=… action=…`, `Log.d`).
+  afternoon replaces a low-only row. `OWM_PARTIAL_DAY date=… maxHour=… action=…` (`:shared` `Log.d`) goes
+  to logcat on Android and the console on desktop, not to `app_logs`.
 
 ### Interaction cache and the stored-data version
 
