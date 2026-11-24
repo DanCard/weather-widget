@@ -6,16 +6,55 @@ import android.content.Context
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
-import com.weatherwidget.data.local.logException
 import com.weatherwidget.data.local.toReading
-import com.weatherwidget.data.repository.MetarObservationSource
-import com.weatherwidget.data.repository.writeObservations
+import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.repository.MetarObservationSource
+import com.weatherwidget.data.repository.RoomObservationWriteHost
+import com.weatherwidget.shared.observations.ObservationWriteRun
+import com.weatherwidget.shared.observations.StationNetworkRefreshRun
 import com.weatherwidget.shared.util.MetarFetchPolicy
 import com.weatherwidget.shared.util.MetarFetchWindow
 
 /**
- * Fetches raw airport METARs when the current run is a cadence they belong to, and stores them.
+ * Android's [StationNetworkRefreshRun.Host] over Room and [MetarObservationSource]; pinned to
+ * desktop's SQLite host by `StationNetworkHostContract` (`:shared` testFixtures).
+ */
+internal class AndroidStationNetworkHost(
+    private val context: Context,
+    private val db: WeatherDatabase,
+    private val source: MetarObservationSource,
+    private val widgetStateManager: WidgetStateManager,
+    private val appLogDao: AppLogDao,
+    override val lat: Double,
+    override val lon: Double,
+) : StationNetworkRefreshRun.Host {
+    override suspend fun backgroundSources(): List<WeatherSource> =
+        SourceFetchGateLoader.backgroundSources(context, widgetStateManager, lat to lon)
+
+    override suspend fun displayedSourceIds(): Set<String> =
+        AppWidgetManager.getInstance(context)
+            .getAppWidgetIds(ComponentName(context, WeatherWidgetProvider::class.java))
+            .map { widgetStateManager.getCurrentDisplaySource(it).id }
+            .distinct()
+            .toSet()
+
+    override suspend fun newestStoredTimestampMs(api: String): Long? =
+        db.observationDao().getNewestTimestampForApi(api, lat, lon)
+
+    override suspend fun fetchMetar(hours: Int): List<ObservationReading> =
+        source.fetchObservations(lat, lon, hours = hours).map { it.toReading() }
+
+    override fun writeHost(): ObservationWriteRun.Host =
+        RoomObservationWriteHost(db.observationDao(), db.dailyHistoryDao(), appLogDao, lat, lon)
+
+    override suspend fun log(tag: String, message: String, level: String) {
+        appLogDao.log(tag, message, level)
+    }
+}
+
+/**
+ * Thin Android facade over `:shared` [StationNetworkRefreshRun] for METAR observations.
  *
  * METAR has no schedule of its own — [MetarFetchPolicy] derives its tier from what is visible and
  * what is displayed, and each caller declares which tiers ITS run covers:
@@ -24,17 +63,7 @@ import com.weatherwidget.shared.util.MetarFetchWindow
  * |---|---|---|
  * | current-temp branch | `PRIMARY` | `CurrentTempFetchPolicy` — 10 / 16 min charging, 45 min opportunistic above 65 % |
  * | non-primary branch | `NON_PRIMARY` | `NonPrimaryObservationPolicy` — 30 min, charging AND screen-on |
- * | full sync | **both** | the battery-aware main fetch (60–480 min), plus every user-initiated refresh and source toggle |
- *
- * The full sync accepts both tiers deliberately. Measured 2026-08-23 on emulator-5554: hitting
- * "refresh data" and toggling the displayed source BOTH log `SYNC_START force=true`, and the
- * scheduled data fetch is the only path that reliably runs at all. Restricting METAR to the two
- * current-temp loops left it never fetching in practice — `NonPrimaryObservationPolicy` returns null
- * unless charging AND screen-on, and its loop's only dependable kickstart is a plug-in event because
- * `ScreenOnReceiver` never fires ([[screenonreceiver_implicit_broadcasts_dead]]).
- *
- * Every caller invokes this from INSIDE its own already-gated fetch block, so charging, screen-state
- * and battery rules are inherited rather than re-implemented, and no new wakeup is introduced.
+ * | full sync / targeted tail | **both** | the battery-aware main fetch, plus every user-initiated refresh and source toggle |
  */
 internal class MetarObservationRefresher(
     private val context: Context,
@@ -42,14 +71,15 @@ internal class MetarObservationRefresher(
     private val widgetStateManager: WidgetStateManager,
     private val appLogDao: AppLogDao,
 ) {
-    /** The tier this location currently sits in, or NONE when nothing visible would read the rows. */
+    private val runner = StationNetworkRefreshRun()
+
     /**
      * [consumerSources] defaults to every enabled source; [refreshIfDue] passes only those still
      * fetched in the background ([SourceFetchGateLoader]), so a borrower on demand only no longer
      * keeps METAR fetched.
      */
     fun currentTier(
-        consumerSources: List<com.weatherwidget.data.model.WeatherSource> = widgetStateManager.getVisibleSourcesOrder(),
+        consumerSources: List<WeatherSource> = widgetStateManager.getVisibleSourcesOrder(),
     ): MetarFetchPolicy.Tier {
         val activeSourceIds = AppWidgetManager.getInstance(context)
             .getAppWidgetIds(ComponentName(context, WeatherWidgetProvider::class.java))
@@ -59,22 +89,18 @@ internal class MetarObservationRefresher(
         return MetarFetchPolicy.tierFor(consumerSources, activeSourceIds)
     }
 
-    /**
-     * Fetches and stores when [currentTier] is one of [acceptTiers]. Never throws: the displayed
-     * source has already fetched by the time this runs and must still paint, so a failure in the
-     * supplementary feed is logged and swallowed.
-     */
+    internal fun hostFor(latitude: Double, longitude: Double): StationNetworkRefreshRun.Host =
+        AndroidStationNetworkHost(
+            context = context,
+            db = WeatherDatabase.getDatabase(context),
+            source = source,
+            widgetStateManager = widgetStateManager,
+            appLogDao = appLogDao,
+            lat = latitude,
+            lon = longitude,
+        )
+
     companion object {
-        /**
-         * Deep pull for the full sync, which runs on the battery-aware 60–480 minute cadence.
-         *
-         * A daily high/low is a max/min over the whole day, so a 2-hour window yields an afternoon
-         * reading mislabelled as the day's low — measured 2026-08-23, Open-Meteo's borrowed low read
-         * 72.4 °F against NWS's 58.9 °F, purely because METAR coverage started at 16:47. The NWS
-         * path solves this with `backfillNwsObservationsIfNeeded`; this is the equivalent. Rows
-         * REPLACE on their primary key, so re-pulling the same day is idempotent and also self-heals
-         * gaps left by cycles that were skipped or offline.
-         */
         const val DEEP_HOURS = MetarFetchWindow.DEEP_HOURS
     }
 
@@ -83,35 +109,8 @@ internal class MetarObservationRefresher(
         latitude: Double,
         longitude: Double,
         reason: String,
-        /**
-         * Null (the frequent loops): the gap since the newest stored METAR row at this site, at least
-         * 2 h and the whole day when nothing is stored ([MetarFetchWindow]). A fixed 2 h left a sleep
-         * or offline gap as a hole until the next full sync (plans/261121-metar-gap-fetch-window.md).
-         */
         hours: Int? = null,
     ) {
-        val tier = currentTier(SourceFetchGateLoader.backgroundSources(context, widgetStateManager, latitude to longitude))
-        if (tier !in acceptTiers) return
-        try {
-            val hours = hours ?: run {
-                val newest = WeatherDatabase.getDatabase(context).observationDao()
-                    .getNewestTimestampForApi(WeatherSource.METAR.id, latitude, longitude)
-                MetarFetchWindow.hours(newest, System.currentTimeMillis())
-            }
-            val rows = source.fetchObservations(latitude, longitude, hours = hours)
-            if (rows.isEmpty()) return
-            val db = WeatherDatabase.getDatabase(context)
-            writeObservations(db.observationDao(), db.dailyHistoryDao(), appLogDao, latitude, longitude, rows.map { it.toReading() })
-            appLogDao.log(
-                "METAR_OBS_STORED",
-                "reason=$reason tier=${tier.name} hours=$hours rows=${rows.size} " +
-                    "stations=${rows.map { it.stationId }.distinct().joinToString("|")}",
-                "INFO",
-            )
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            appLogDao.logException("METAR_OBS_FAIL", "reason=$reason tier=${tier.name}", e)
-        }
+        runner.refreshIfDue(hostFor(latitude, longitude), acceptTiers, reason, hours)
     }
 }

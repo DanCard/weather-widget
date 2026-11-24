@@ -149,8 +149,7 @@ class WeatherWidgetWorker
         }
 
         internal fun targetedSyncHost(location: Pair<Double, Double>) = AndroidTargetedSyncHost(
-            context, weatherRepository, widgetStateManager, appLogDao, hourlyForecastLoader, dataBundleLoader,
-            metarRefresher, location,
+            context, weatherRepository, widgetStateManager, appLogDao, metarRefresher, location,
         )
 
         private suspend fun withSyncWakeLock(block: suspend () -> Result): Result {

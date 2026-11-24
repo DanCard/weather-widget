@@ -220,6 +220,14 @@ class DailyActualsStore @Inject constructor(
         return stored.result.bySource
     }
 
+    internal suspend fun getDailyHistoryInRange(
+        startDate: Long,
+        endDate: Long,
+        latitude: Double,
+        longitude: Double,
+    ): List<com.weatherwidget.data.model.DailyHistory> =
+        dailyHistoryDao.getExtremesInRange(startDate, endDate, latitude, longitude).map { it.toDailyHistory() }
+
     /** `:shared` [DailyBlendRecomputeRun] over this site's Room host. */
     internal fun blendRecomputeHost(latitude: Double, longitude: Double) = RoomDailyBlendRecomputeHost(
         lat = latitude,

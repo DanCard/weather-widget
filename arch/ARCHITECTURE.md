@@ -31,6 +31,10 @@ Examples include:
   newest), the Tomorrow.io fetch line, and retired-product cleanup per api written.
 - `DailyHistoryRun` and `NwsStationActualsRun`: history maintenance and station-derived actuals.
 - `NwsGapFillRun`: the need-gated 3-day NWS station-history fill (which days, which stations, when to stop).
+- `StationNetworkRefreshRun`: the METAR station-network observation refresh — tier gating (`MetarFetchPolicy`
+  over background sources), gap/deep window sizing (`MetarFetchWindow`), shared write (`ObservationWriteRun`),
+  and `METAR_OBS_STORED` / `METAR_OBS_FAIL` logs. Hosts: Android `AndroidStationNetworkHost` (wrapped by
+  `MetarObservationRefresher`), desktop `DesktopStationNetworkHost`.
 - `DailyBlendRecomputeRun`: the stored daily blend recompute — one whole local day at a time, 9 days back,
   unchanged days skipped by observation signature, existing rows read by their exact date key.
 - `WeatherApiHistoryRun` and `GoogleHistoryRun`: provider-specific history workflows.

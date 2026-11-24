@@ -40,7 +40,6 @@ class CrossPlatformDuplicateNamesTest {
             "toHourlyForecast" to ADAPTER, // entity/API row mapping into the shared model
             "cachedNormalsByMonthDay" to ADAPTER, // climate_normals read
             "fetchCurrentConditions" to ADAPTER, // CurrentConditionsRun.Host fetch
-            "blendRecomputeHost" to ADAPTER, // DailyBlendRecomputeRun.Host factory
             "targetedSyncHost" to ADAPTER, // TargetedForecastSyncRun.Host factory
             "dailyHistoryAfterFetch" to ADAPTER, // DailyHistoryRun.afterFetch at the site
             "getPowerState" to ADAPTER, // BatteryManager vs /sys/class/power_supply

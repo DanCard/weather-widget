@@ -254,8 +254,7 @@ internal class FullSyncPipeline(
     ): ListenableWorker.Result {
         var painted: Pair<ActualsPhase, Long>? = null
         val host = AndroidTargetedSyncHost(
-            context, weatherRepository, widgetStateManager, appLogDao, hourlyForecastLoader, dataBundleLoader,
-            metarRefresher, location,
+            context, weatherRepository, widgetStateManager, appLogDao, metarRefresher, location,
         ) {
             val actuals = recomputeActuals(weatherList, input, location, activeSourceList, load, runRecompute = false)
             painted = actuals to paintAll(weatherList, input, location, bannerPlace, load, actuals)

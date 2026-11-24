@@ -1,26 +1,42 @@
 package com.weatherwidget.shared.util
 
+import com.weatherwidget.data.model.DailyHistory
+import com.weatherwidget.shared.actuals.DailyBlendRecomputeRun
+import com.weatherwidget.shared.observations.NwsGapFillRun
+import com.weatherwidget.shared.observations.ObservationBackfillRetryPolicy
+import com.weatherwidget.shared.observations.StationNetworkRefreshRun
 import kotlinx.coroutines.CancellationException
+import java.time.Instant
+import java.time.ZoneId
 
 /**
- * A forecast fetch the user forced for ONE source (a toggle, a viewing-stale tap, a source retry):
- * the rule both platforms run (plans/261123-shared-targeted-sync-paint-then-tail.md).
+ * A forecast fetch the user forced for ONE source (a toggle, a viewing-stale tap, a source retry,
+ * or a popup/widget refresh): the rule both platforms run
+ * (plans/261123-shared-targeted-sync-paint-then-tail.md, plans/261123-targeted-sync-tail-parity.md).
  *
  * Fast path ([onFetched]): the rain-chance freeze ([Host.afterFetch], which must see every fetch while
  * its window is open), then the paint from what is cached, then the post-sync actuals "tail" is
  * requested. Nothing slow sits between the fetch and the paint, and the caller returns right after,
  * so Android's serial sync queue frees for the next toggle.
  *
- * Tail ([runTail]), debounced by [requestTail] so a burst of toggles costs one: observation history
- * for the served sources, the observation feeds, the daily-actuals recompute, and a repaint only when
- * the displayed actuals changed. It yields to a user sync or a fresh interaction, capped by
- * [MAX_YIELD_MS] so a busy user cannot starve it.
+ * Tail ([runTail]), debounced by [requestTail] so a burst of toggles costs one:
+ * 1. NWS history fill for served sources; on `unreachable`, re-arms the tail on
+ *    [ObservationBackfillRetryPolicy] delays (10 s → 1 m → 4 m).
+ * 2. [StationNetworkRefreshRun] (METAR, both tiers, deep 24 h window).
+ * 3. [DailyBlendRecomputeRun.range] over `today − MAX_DAYS_BACK .. today`.
+ * 4. Platform repairs + `DailyHistoryRun.upkeepIfDue`.
+ * 5. Repaint only when the `daily_history` rows in that window changed.
  *
- * The platforms supply only I/O and their timer ([Host.scheduleTail]). Nothing is ever replaced or
- * cancelled (AGENTS.md rule 6): a pending tail is kept, and when it comes due it re-arms itself for the
- * rest of [TAIL_DELAY_MS] if a newer request arrived meanwhile (capped by [MAX_PUSH_OUT_MS]).
+ * The tail yields to a user sync or a fresh interaction, capped by [MAX_YIELD_MS] so a busy user
+ * cannot starve it. Nothing is ever replaced or cancelled (AGENTS.md rule 6): a pending tail is kept,
+ * and when it comes due it re-arms itself for the rest of [TAIL_DELAY_MS] if a newer request arrived
+ * meanwhile (capped by [MAX_PUSH_OUT_MS]).
  */
-class TargetedForecastSyncRun(private val clock: () -> Long) {
+class TargetedForecastSyncRun(
+    private val clock: () -> Long,
+    private val wallClock: () -> Long = System::currentTimeMillis,
+    private val zone: () -> ZoneId = ZoneId::systemDefault,
+) {
 
     enum class TailState { NONE, PENDING, RUNNING }
 
@@ -52,16 +68,19 @@ class TargetedForecastSyncRun(private val clock: () -> Long) {
         suspend fun visibleSourceIds(): Set<String>
 
         /** The need-gated NWS history fill (`NwsGapFillRun.dailyForSources`) for [sourceIds]. */
-        suspend fun fillObservationHistory(sourceIds: Set<String>)
+        suspend fun fillObservationHistory(sourceIds: Set<String>): NwsGapFillRun.Result?
 
-        /** The observation feeds (METAR, Synoptic, …) behind [sourceIds], each behind its own due gate. */
-        suspend fun refreshObservationFeeds(sourceIds: Set<String>)
+        /** Host for [StationNetworkRefreshRun] at this site. */
+        fun stationNetworkHost(): StationNetworkRefreshRun.Host
 
-        /** A value equal before and after iff the displayed daily actuals did not change. */
-        suspend fun actualsSignature(): Any?
+        /** Host for [DailyBlendRecomputeRun] at this site. */
+        fun blendRecomputeHost(): DailyBlendRecomputeRun.Host
 
-        /** Daily-actuals recompute plus the daily-history repairs and upkeep. */
-        suspend fun recomputeActuals()
+        /** One-time platform repairs plus `DailyHistoryRun.upkeepIfDue`. */
+        suspend fun repairsAndUpkeep(nowMs: Long)
+
+        /** Stored `daily_history` rows at this site for UTC-midnight keys in [startDateKey, endDateKey]. */
+        suspend fun dailyHistoryRows(startDateKey: Long, endDateKey: Long): List<DailyHistory>
 
         suspend fun repaint(reason: String)
 
@@ -78,6 +97,7 @@ class TargetedForecastSyncRun(private val clock: () -> Long) {
     private var firstRequestMs: Long? = null
     private var lastRequestMs: Long? = null
     private var firstYieldMs: Long? = null
+    private var unreachableRetryAttempt: Int = 0
     private val requested = linkedSetOf<String>()
 
     /** The fast path after a fetch for [sourceId]; [stored] is whether the fetch answered and was persisted. */
@@ -95,6 +115,7 @@ class TargetedForecastSyncRun(private val clock: () -> Long) {
         val state = host.tailState()
         val (enqueue, ids) = synchronized(lock) {
             requested += sourceIds
+            unreachableRetryAttempt = 0
             decide(state, clock()) to requested.toSet()
         }
         host.scheduleTail(enqueue, TAIL_DELAY_MS, ids)
@@ -180,16 +201,77 @@ class TargetedForecastSyncRun(private val clock: () -> Long) {
             ids
         } + host.visibleSourceIds()
         val startMs = clock()
+        val nowWallMs = wallClock()
+        val localZone = zone()
+        val today = Instant.ofEpochMilli(nowWallMs).atZone(localZone).toLocalDate()
+        val startDate = today.minusDays(DailyBlendRecomputeRun.MAX_DAYS_BACK)
+        val startKey = startDate.toEpochDay() * DAY_MS
+        val endKey = today.toEpochDay() * DAY_MS
+
         host.log(TAG_RUN, "sources=${served.joinToString("|")}")
-        val before = step(host, "signature_before") { host.actualsSignature() }
-        step(host, "observation_history") { host.fillObservationHistory(served) }
-        step(host, "observation_feeds") { host.refreshObservationFeeds(served) }
-        step(host, "recompute") { host.recomputeActuals() }
-        val after = step(host, "signature_after") { host.actualsSignature() }
+        val before = step(host, "signature_before") { host.dailyHistoryRows(startKey, endKey) }
+        val fillResult = step(host, "observation_history") { host.fillObservationHistory(served) }
+        scheduleUnreachableRetryIfNeeded(host, fillResult, served)
+        step(host, "observation_feeds") {
+            StationNetworkRefreshRun(wallClock).refreshIfDue(
+                host = host.stationNetworkHost(),
+                acceptTiers = setOf(MetarFetchPolicy.Tier.PRIMARY, MetarFetchPolicy.Tier.NON_PRIMARY),
+                reason = REPAINT_REASON,
+                hours = MetarFetchWindow.DEEP_HOURS,
+            )
+        }
+        step(host, "recompute") {
+            DailyBlendRecomputeRun.range(
+                host = host.blendRecomputeHost(),
+                startDate = startDate,
+                endDateInclusive = today,
+                nowMs = nowWallMs,
+                zone = localZone,
+            )
+        }
+        step(host, "repairs_and_upkeep") { host.repairsAndUpkeep(nowWallMs) }
+        val after = step(host, "signature_after") { host.dailyHistoryRows(startKey, endKey) }
         val changed = before == null || after == null || before != after
         if (changed) step(host, "repaint") { host.repaint(REPAINT_REASON) }
         host.log(TAG_RESULT, "changed=$changed ms=${clock() - startMs}")
         return TailOutcome.RAN
+    }
+
+    private suspend fun scheduleUnreachableRetryIfNeeded(
+        host: Host,
+        fillResult: NwsGapFillRun.Result?,
+        served: Set<String>,
+    ) {
+        val unreachable = fillResult?.unreachable == true
+        val retry = synchronized(lock) {
+            if (!unreachable) {
+                unreachableRetryAttempt = 0
+                null
+            } else {
+                val delayMs = ObservationBackfillRetryPolicy.nextRetryDelayMs(
+                    unreachable = true,
+                    attempt = unreachableRetryAttempt,
+                )
+                if (delayMs == null) {
+                    unreachableRetryAttempt = 0
+                    null
+                } else {
+                    unreachableRetryAttempt++
+                    unreachableRetryAttempt to delayMs
+                }
+            }
+        }
+        if (retry != null) {
+            val (attempt, delayMs) = retry
+            step(host, "observation_history_retry") {
+                host.scheduleTail(Enqueue.APPEND_AFTER_RUNNING, delayMs, served)
+                host.log(
+                    ObservationBackfillRetryPolicy.LOG_TAG,
+                    ObservationBackfillRetryPolicy.logMessage(REPAINT_REASON, attempt, delayMs),
+                    "INFO",
+                )
+            }
+        }
     }
 
     /** One tail step: a failure is logged and the next step still runs. */
@@ -207,10 +289,13 @@ class TargetedForecastSyncRun(private val clock: () -> Long) {
         firstRequestMs = null
         lastRequestMs = null
         firstYieldMs = null
+        unreachableRetryAttempt = 0
         requested.clear()
     }
 
     companion object {
+        private const val DAY_MS = 86_400_000L
+
         /** A tail runs this long after the newest request of a burst. */
         const val TAIL_DELAY_MS = 12_000L
 

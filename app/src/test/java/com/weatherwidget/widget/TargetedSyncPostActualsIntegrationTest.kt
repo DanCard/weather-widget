@@ -7,15 +7,23 @@ import androidx.work.WorkManager
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherDatabase
+import com.weatherwidget.data.model.DailyHistory
+import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.data.model.ObservationReading
+import com.weatherwidget.data.model.StationType
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
+import com.weatherwidget.shared.actuals.DailyBlendRecomputeRun
+import com.weatherwidget.shared.actuals.InMemoryReducedSignatureStore
+import com.weatherwidget.shared.observations.NwsGapFillRun
+import com.weatherwidget.shared.observations.ObservationBackfillRetryPolicy
+import com.weatherwidget.shared.observations.ObservationWriteRun
+import com.weatherwidget.shared.observations.StationNetworkRefreshRun
 import com.weatherwidget.shared.util.TargetedForecastSyncRun
 import com.weatherwidget.test.category.MediumDuration
-import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
-import io.mockk.just
 import io.mockk.mockk
 import io.mockk.slot
 import kotlinx.coroutines.runBlocking
@@ -29,15 +37,12 @@ import org.junit.experimental.categories.Category
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import java.time.LocalDate
 
 /**
  * The real [FullSyncPipeline] wired to `:shared` [TargetedForecastSyncRun] through [AndroidTargetedSyncHost]
- * and real WorkManager (plans/261123-shared-targeted-sync-paint-then-tail.md).
- *
- * The 2026-11-23 Pixel trace: a toggle's worker painted, then ran the Synoptic/METAR/NWS backfills and the
- * actuals recompute inline for 6.2 s, so the next toggle could not start on the serial sync queue. These
- * tests pin that a targeted sync returns with none of that work done, with the rain-chance freeze
- * (`dailyHistoryAfterFetch`) still run before the paint, and that the work lands in ONE debounced tail.
+ * and real WorkManager (plans/261123-shared-targeted-sync-paint-then-tail.md,
+ * plans/261123-targeted-sync-tail-parity.md).
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -57,6 +62,53 @@ class TargetedSyncPostActualsIntegrationTest {
 
     private val lat = 37.4220
     private val lon = -122.0841
+
+    private fun fakeStationHost() = object : StationNetworkRefreshRun.Host {
+        override val lat = this@TargetedSyncPostActualsIntegrationTest.lat
+        override val lon = this@TargetedSyncPostActualsIntegrationTest.lon
+        override suspend fun backgroundSources() = listOf(WeatherSource.NWS, WeatherSource.SILURIAN)
+        override suspend fun displayedSourceIds() = setOf(WeatherSource.OPEN_METEO.id)
+        override fun actualsPreference(source: WeatherSource) =
+            if (source == WeatherSource.SILURIAN) WeatherSource.METAR else null
+        override suspend fun newestStoredTimestampMs(api: String): Long? = null
+        override suspend fun fetchMetar(hours: Int): List<ObservationReading> {
+            order += "metar:$hours"
+            return emptyList()
+        }
+        override fun writeHost(): ObservationWriteRun.Host = object : ObservationWriteRun.Host {
+            override val latitude = lat
+            override val longitude = lon
+            override suspend fun insert(rows: List<ObservationReading>) = Unit
+            override suspend fun storedKeys(api: String, stationIds: Set<String>, startMs: Long, endMs: Long) = emptyList<ObservationWriteRun.StoredKey>()
+            override suspend fun delete(api: String, stationId: String, timestamps: List<Long>) = 0
+            override suspend fun retag(api: String, stationIds: Set<String>, stationType: StationType) = 0
+            override suspend fun retireProducts(api: String) = Unit
+            override suspend fun log(tag: String, message: String, level: String) = Unit
+        }
+        override suspend fun log(tag: String, message: String, level: String) = Unit
+    }
+
+    private fun fakeBlendHost() = object : DailyBlendRecomputeRun.Host {
+        override val lat = this@TargetedSyncPostActualsIntegrationTest.lat
+        override val lon = this@TargetedSyncPostActualsIntegrationTest.lon
+        private var recorded = false
+        override fun personalStationWeight() = 0.5
+        override suspend fun observations(startMs: Long, endMs: Long) = emptyList<ObservationReading>()
+        override suspend fun hourlyAllSources(startMs: Long, endMs: Long) = emptyList<HourlyForecast>()
+        override suspend fun observationSignature(startMs: Long, endMs: Long): String? {
+            if (!recorded) {
+                recorded = true
+                order += "recompute"
+            }
+            return null
+        }
+        override suspend fun dailyHistoryAt(dateKey: Long) = emptyList<DailyHistory>()
+        override suspend fun insert(rows: List<DailyHistory>) = Unit
+        override suspend fun updateBlendIfUnchanged(merged: DailyHistory, newUpdatedAt: Long, expectedUpdatedAt: Long) = 0
+        override val signatures = InMemoryReducedSignatureStore()
+        override suspend fun log(tag: String, message: String, level: String) = Unit
+        override fun elapsedMs() = 0L
+    }
 
     @Before
     fun setUp() {
@@ -81,6 +133,11 @@ class TargetedSyncPostActualsIntegrationTest {
             order += "nwsBackfill"
             null
         }
+        every { weatherRepository.blendRecomputeHost(any(), any()) } answers { fakeBlendHost() }
+        coEvery { weatherRepository.getDailyHistoryInRange(any(), any(), any(), any()) } answers {
+            order += "read"
+            emptyList()
+        }
         coEvery {
             painter.updateAllWidgets(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
         } answers { order += "paint" }
@@ -90,6 +147,7 @@ class TargetedSyncPostActualsIntegrationTest {
         coEvery { hourlyForecastLoader.load(any(), any(), any(), any()) } returns emptyList<HourlyForecastEntity>()
         coEvery { dataBundleLoader.fetchForecastSnapshots(any(), any()) } returns emptyMap()
         coEvery { metarRefresher.refreshIfDue(any(), any(), any(), any(), any()) } answers { order += "metar" }
+        every { metarRefresher.hostFor(any(), any()) } answers { fakeStationHost() }
     }
 
     @After
@@ -139,13 +197,7 @@ class TargetedSyncPostActualsIntegrationTest {
     }
 
     @Test
-    fun `the tail fills observations, recomputes, and repaints only when the displayed actuals changed`() = runBlocking {
-        val unchanged = mapOf(WeatherSource.OPEN_METEO.id to emptyMap<java.time.LocalDate, com.weatherwidget.data.model.DailyHistory>())
-        coEvery { dataBundleLoader.fetchDailyActuals(any(), any(), any(), any(), any()) } answers {
-            order += if (arg<Boolean>(4)) "recompute" else "read"
-            unchanged
-        }
-        // Counted at the host, not as WorkManager state: the UI work may already have run and finished.
+    fun `the tail runs shared station refresh, 9-day recompute, and repaints only when daily_history changed`() = runBlocking {
         var repaints = 0
         val real = host()
         val counting = object : TargetedForecastSyncRun.Host by real {
@@ -159,21 +211,44 @@ class TargetedSyncPostActualsIntegrationTest {
         println("outcome=$outcome order=$order")
 
         assertEquals(TargetedForecastSyncRun.TailOutcome.RAN, outcome)
-        assertEquals(listOf("read", "nwsBackfill", "metar", "recompute", "read"), order)
+        assertEquals(listOf("read", "nwsBackfill", "metar:24", "recompute", "read"), order)
         val served = slot<Collection<WeatherSource>>()
         coVerify { weatherRepository.backfillNwsObservationsIfNeeded(any(), any(), capture(served), any()) }
         assertEquals(setOf(WeatherSource.NWS, WeatherSource.OPEN_METEO), served.captured.toSet())
         coVerify(exactly = 1) { weatherRepository.repairFrozenRainChanceIfNeeded(any(), any()) }
         assertEquals("unchanged actuals: no repaint", 0, repaints)
 
-        // Now the recompute changes what the widget draws.
+        // Now the recompute changes daily_history.
         var reads = 0
-        coEvery { dataBundleLoader.fetchDailyActuals(any(), any(), any(), any(), any()) } answers {
-            if (arg<Boolean>(4)) unchanged else if (reads++ == 0) unchanged else emptyMap()
+        coEvery { weatherRepository.getDailyHistoryInRange(any(), any(), any(), any()) } answers {
+            if (reads++ == 0) emptyList() else listOf(
+                DailyHistory(
+                    date = 0L, source = "NWS", locationLat = lat, locationLon = lon,
+                    computedHighTemp = 72f, computedLowTemp = 50f, condition = "Clear", updatedAt = 1L,
+                ),
+            )
         }
         WidgetTargetedSync.run.runTail(counting, setOf(WeatherSource.OPEN_METEO.id))
         assertEquals("changed actuals: one repaint", 1, repaints)
         assertTrue("the repaint reached WorkManager", uiWork().isNotEmpty())
+    }
+
+    @Test
+    fun `unreachable history fill enqueues a 10s retry tail in WorkManager`() = runBlocking {
+        coEvery { weatherRepository.backfillNwsObservationsIfNeeded(any(), any(), any(), any()) } returns
+            NwsGapFillRun.Result(
+                needed = setOf(LocalDate.now()),
+                remaining = setOf(LocalDate.now()),
+                stationsTried = 0,
+                rows = 0,
+                unreachable = true,
+            )
+
+        WidgetTargetedSync.run.runTail(host(), setOf(WeatherSource.NWS.id))
+
+        val retry = tailWork().single { !it.state.isFinished }
+        assertEquals(WorkInfo.State.ENQUEUED, retry.state)
+        assertEquals(ObservationBackfillRetryPolicy.RETRY_DELAYS_MS[0], retry.initialDelayMillis)
     }
 
     @Test
@@ -183,7 +258,7 @@ class TargetedSyncPostActualsIntegrationTest {
             val outcome = WidgetTargetedSync.run.runTail(host(), setOf(WeatherSource.OPEN_METEO.id))
             println("outcome=$outcome tails=${tailWork().map { it.state to it.initialDelayMillis }}")
             assertEquals(TargetedForecastSyncRun.TailOutcome.YIELDED, outcome)
-            coVerify(exactly = 0) { metarRefresher.refreshIfDue(any(), any(), any(), any(), any()) }
+            assertTrue("no station fetch while yielded", order.none { it.startsWith("metar") })
             assertEquals(TargetedForecastSyncRun.YIELD_DELAY_MS, tailWork().single { !it.state.isFinished }.initialDelayMillis)
         } finally {
             WidgetBackfillDeferral.policy.userSyncEnded()
@@ -198,8 +273,7 @@ class TargetedSyncPostActualsIntegrationTest {
     private fun uiWork() = workManager().getWorkInfosForUniqueWork(WidgetWorkScheduler.WORK_NAME_UI).get()
 
     private fun host() = AndroidTargetedSyncHost(
-        context, weatherRepository, widgetStateManager, appLogDao, hourlyForecastLoader, dataBundleLoader,
-        metarRefresher, lat to lon,
+        context, weatherRepository, widgetStateManager, appLogDao, metarRefresher, lat to lon,
     )
 
     private fun pipeline() = FullSyncPipeline(

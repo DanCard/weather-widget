@@ -1045,12 +1045,12 @@ internal fun runDesktopUiApplication() = application {
             // from composition cannot cancel the fetch or discard its result.
             val cfgAtTap = currentConfig
             val refresh = if (!displayedFetched) null else refreshRunner.start("user_refresh:$origin") {
-                // In the daemon, with the daily NWS gap fill as Android's Refresh runs it: need-gated,
-                // so a complete 3 days costs no request (2026-10-27: cloud actuals stopped at 01:00).
+                // Popup/panel Refresh takes the targeted fast path + tail (like Android's
+                // widget_tap_to_refresh); Settings "Refresh data" keeps the inline observation window.
                 fetchClient.send(
                     FetchRequest(
                         FetchRequest.Kind.FORECAST, refreshedSourceId, cfgAtTap?.lat ?: 0.0, cfgAtTap?.lon ?: 0.0,
-                        origin, "user_refresh:$origin", userRefresh = true, observationWindow = true,
+                        origin, "user_refresh:$origin", userRefresh = true, observationWindow = origin == "settings",
                     ),
                 )
                 repo.loadCached()

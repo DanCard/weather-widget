@@ -88,7 +88,7 @@ class DesktopTargetedSyncIntegrationTest {
         val tailScope = TestScope(StandardTestDispatcher(testScheduler))
         val tailRuns = mutableListOf<Set<String>>()
         val tail = DesktopPostSyncTail(tailScope) { ids -> tailRuns += ids }
-        val run = TargetedForecastSyncRun { now }
+        val run = TargetedForecastSyncRun(clock = { now }, wallClock = { now })
         val host = DesktopTargetedSyncHost(
             repo = repo,
             weatherDao = dao,
@@ -113,7 +113,7 @@ class DesktopTargetedSyncIntegrationTest {
         assertEquals(listOf(setOf("NWS")), tailRuns)
 
         // The tail itself, as the daemon's timer runs it, a tail delay after the request.
-        val tailRun = TargetedForecastSyncRun { now + TargetedForecastSyncRun.TAIL_DELAY_MS }
+        val tailRun = TargetedForecastSyncRun(clock = { now + TargetedForecastSyncRun.TAIL_DELAY_MS }, wallClock = { now })
         val outcome = tailRun.runTail(host, setOf("NWS"))
         val extremes = repo.actualsSignature(now)
         println("tail outcome=$outcome events=$events extremes=${extremes.size}")
@@ -168,5 +168,101 @@ class DesktopTargetedSyncIntegrationTest {
         println("runs=$runs state=${tail.state()}")
         assertEquals(listOf(setOf("NWS"), setOf("OPEN_METEO")), runs)
         assertEquals(TailState.NONE, tail.state())
+    }
+
+    @Test
+    fun `tail fetches deep METAR for a background borrower without calling refreshObservations`() = runTest {
+        com.weatherwidget.shared.observations.ActualsProviderResolver.installPreferenceSource { source ->
+            if (source == com.weatherwidget.data.model.WeatherSource.SILURIAN) {
+                com.weatherwidget.data.model.WeatherSource.METAR
+            } else {
+                null
+            }
+        }
+        try {
+            val metarRow = reading("KNUQ", now - 600_000L, 66f).copy(
+                api = com.weatherwidget.data.model.WeatherSource.METAR.id,
+                stationType = com.weatherwidget.data.model.StationType.OFFICIAL,
+            )
+            coEvery { weatherService.fetchMetarObservations(24) } returns listOf(metarRow)
+
+            val repo = repo()
+            val tailScope = TestScope(StandardTestDispatcher(testScheduler))
+            val tail = DesktopPostSyncTail(tailScope) {}
+            val host = DesktopTargetedSyncHost(
+                repo = repo,
+                weatherDao = dao,
+                tail = tail,
+                visibleSources = { setOf("NWS", "SILURIAN") },
+                backgroundSources = {
+                    listOf(
+                        com.weatherwidget.data.model.WeatherSource.NWS,
+                        com.weatherwidget.data.model.WeatherSource.SILURIAN,
+                    )
+                },
+                displayedSources = { setOf("NWS") },
+                userSyncActive = { false },
+            )
+
+            val run = TargetedForecastSyncRun(clock = { now }, wallClock = { now })
+            run.runTail(host, setOf("NWS"))
+
+            io.mockk.coVerify(exactly = 1) { weatherService.fetchMetarObservations(24) }
+            io.mockk.coVerify(exactly = 0) { weatherService.fetchObservationsOnly(any(), any()) }
+            assertEquals(
+                metarRow.timestamp,
+                dao.getNewestObservationTimestampForApi(com.weatherwidget.data.model.WeatherSource.METAR.id, lat, lon),
+            )
+            val storedLog = dao.getLatestLogByTagAndMessagePrefix("METAR_OBS_STORED", "reason=post_sync_actuals")
+            assertTrue("expected METAR_OBS_STORED log", storedLog != null && "tier=NON_PRIMARY" in storedLog.message)
+        } finally {
+            com.weatherwidget.shared.observations.ActualsProviderResolver.resetPreferenceSource()
+        }
+    }
+
+    @Test
+    fun `tail yields on recent desktop interaction and re-arms unreachable NWS fill on 10s retry`() = runTest {
+        val repo = repo()
+        val tailScope = TestScope()
+        val scheduled = mutableListOf<Set<String>>()
+        val tail = DesktopPostSyncTail(tailScope) { scheduled += it }
+        val host = DesktopTargetedSyncHost(
+            repo = repo,
+            weatherDao = dao,
+            tail = tail,
+            visibleSources = { setOf("NWS") },
+            userSyncActive = { false },
+            lastInteractionMs = { now - 1_000L },
+        )
+
+        val run = TargetedForecastSyncRun(clock = { now }, wallClock = { now })
+        assertEquals(TargetedForecastSyncRun.TailOutcome.YIELDED, run.runTail(host, setOf("NWS")))
+        assertEquals(TailState.PENDING, tail.state())
+
+        // Now with no recent interaction and unreachable stations lookup, the tail schedules a 10s retry.
+        coEvery { weatherService.nwsObservationStations() } returns
+            com.weatherwidget.data.remote.FetchOutcome.Failed("timeout")
+        val retryScope = TestScope()
+        val retryRuns = mutableListOf<Set<String>>()
+        val retryTail = DesktopPostSyncTail(retryScope) { retryRuns += it }
+        val retryHost = DesktopTargetedSyncHost(
+            repo = repo,
+            weatherDao = dao,
+            tail = retryTail,
+            visibleSources = { setOf("NWS") },
+            userSyncActive = { false },
+            lastInteractionMs = { null },
+        )
+        val retryRun = TargetedForecastSyncRun(clock = { now }, wallClock = { now })
+        assertEquals(TargetedForecastSyncRun.TailOutcome.RAN, retryRun.runTail(retryHost, setOf("NWS")))
+        assertEquals(TailState.PENDING, retryTail.state())
+        retryScope.advanceTimeBy(com.weatherwidget.shared.observations.ObservationBackfillRetryPolicy.RETRY_DELAYS_MS[0] + 1)
+        retryScope.runCurrent()
+        assertEquals(listOf(setOf("NWS")), retryRuns)
+        val retryLog = dao.getLatestLogByTagAndMessagePrefix(
+            com.weatherwidget.shared.observations.ObservationBackfillRetryPolicy.LOG_TAG,
+            "reason=post_sync_actuals",
+        )
+        assertTrue("expected retry log, got $retryLog", retryLog != null && "attempt=1" in retryLog.message)
     }
 }

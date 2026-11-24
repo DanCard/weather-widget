@@ -579,6 +579,9 @@ class DesktopWeatherService(
         )
     }
 
+    override suspend fun fetchMetarObservations(hours: Int): List<ObservationReading> =
+        metarFetcher.fetchObservations(latitude, longitude, hours = hours)
+
     /**
      * Readings from a station network ([ActualsFeedPolicy.STATION_NETWORK_FEEDS]) for a source whose
      * actuals come from it. Which feed to use is decided by [ActualsFeedPolicy.feedFor], shared

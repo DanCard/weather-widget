@@ -1,7 +1,13 @@
 package com.weatherwidget.desktop
 
 import com.weatherwidget.data.local.desktop.DesktopWeatherDao
+import com.weatherwidget.data.model.DailyHistory
+import com.weatherwidget.data.model.ObservationReading
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.actuals.DailyBlendRecomputeRun
+import com.weatherwidget.shared.observations.NwsGapFillRun
+import com.weatherwidget.shared.observations.ObservationWriteRun
+import com.weatherwidget.shared.observations.StationNetworkRefreshRun
 import com.weatherwidget.shared.util.TargetedForecastSyncRun
 import com.weatherwidget.shared.util.TargetedForecastSyncRun.Enqueue
 import com.weatherwidget.shared.util.TargetedForecastSyncRun.TailState
@@ -9,6 +15,36 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+/**
+ * Desktop's [StationNetworkRefreshRun.Host] over SQLite ([DesktopWeatherDao]) and
+ * [DesktopWeatherRepository.fetchMetarObservations]; pinned to Android's Room host by
+ * `StationNetworkHostContract` (`:shared` testFixtures).
+ */
+internal class DesktopStationNetworkHost(
+    private val weatherDao: DesktopWeatherDao,
+    override val lat: Double,
+    override val lon: Double,
+    private val backgroundSourcesProvider: () -> List<WeatherSource>,
+    private val displayedSourceIdsProvider: () -> Set<String>,
+    private val fetchMetarFn: suspend (Int) -> List<ObservationReading>,
+) : StationNetworkRefreshRun.Host {
+    override suspend fun backgroundSources(): List<WeatherSource> = backgroundSourcesProvider()
+
+    override suspend fun displayedSourceIds(): Set<String> = displayedSourceIdsProvider()
+
+    override suspend fun newestStoredTimestampMs(api: String): Long? =
+        weatherDao.getNewestObservationTimestampForApi(api, lat, lon)
+
+    override suspend fun fetchMetar(hours: Int): List<ObservationReading> = fetchMetarFn(hours)
+
+    override fun writeHost(): ObservationWriteRun.Host =
+        DesktopObservationWriteHost(weatherDao, lat, lon)
+
+    override suspend fun log(tag: String, message: String, level: String) {
+        weatherDao.log(tag, message, level)
+    }
+}
 
 /**
  * The desktop timer for `:shared` [TargetedForecastSyncRun]'s post-sync tail, the counterpart of
@@ -66,18 +102,21 @@ internal class DesktopPostSyncTail(
 }
 
 /**
- * Desktop's I/O for `:shared` [TargetedForecastSyncRun]; the rule is the runner's. [paint] loads what the
- * caller publishes right after the fast path; [publish] pushes a tail's changed actuals to the panel
- * and the window.
+ * Desktop's narrow I/O for `:shared` [TargetedForecastSyncRun]; the rule (order, debounce, yield,
+ * station-network refresh, unreachable retry, recompute window, signature comparison, repaint gate,
+ * and log lines) is the runner's. [paint] loads what the caller publishes right after the fast path;
+ * [publish] pushes a tail's changed actuals to the panel and the window.
  */
 internal class DesktopTargetedSyncHost(
     private val repo: DesktopWeatherRepository,
     private val weatherDao: DesktopWeatherDao,
     private val tail: DesktopPostSyncTail,
     private val visibleSources: () -> Set<String>,
+    private val backgroundSources: () -> List<WeatherSource> = { visibleSources().map(WeatherSource::fromId) },
+    private val displayedSources: () -> Set<String> = { setOf(repo.sourceId) },
     private val userSyncActive: () -> Boolean,
+    private val lastInteractionMs: () -> Long? = { null },
     private val publish: suspend () -> Unit = {},
-    private val onWindowUnreachable: (List<WeatherSource>) -> Unit = {},
     private val paint: suspend () -> Unit = {},
 ) : TargetedForecastSyncRun.Host {
     override suspend fun afterFetch() = repo.dailyHistoryAfterFetch()
@@ -91,32 +130,30 @@ internal class DesktopTargetedSyncHost(
 
     override suspend fun visibleSourceIds(): Set<String> = visibleSources()
 
-    override suspend fun fillObservationHistory(sourceIds: Set<String>) {
-        val served = sourceIds.map(WeatherSource::fromId)
-        val outcome = repo.refreshObservationWindow(served, reason = TargetedForecastSyncRun.REPAINT_REASON)
-        if (outcome == DesktopWeatherRepository.OBS_WINDOW_UNREACHABLE) onWindowUnreachable(served)
-    }
+    override suspend fun fillObservationHistory(sourceIds: Set<String>): NwsGapFillRun.Result? =
+        repo.fillObservationHistory(sourceIds.map(WeatherSource::fromId), reason = TargetedForecastSyncRun.REPAINT_REASON)
 
-    override suspend fun refreshObservationFeeds(sourceIds: Set<String>) {
-        // Each feed once, behind its own due gate, as the charging loop runs them.
-        repo.refreshObservations(
-            visibleSources = sourceIds.map(WeatherSource::fromId),
-            reason = TargetedForecastSyncRun.REPAINT_REASON,
-        )
-    }
+    override fun stationNetworkHost(): StationNetworkRefreshRun.Host = DesktopStationNetworkHost(
+        weatherDao = weatherDao,
+        lat = repo.latitude,
+        lon = repo.longitude,
+        backgroundSourcesProvider = backgroundSources,
+        displayedSourceIdsProvider = displayedSources,
+        fetchMetarFn = { hours -> repo.fetchMetarObservations(hours) },
+    )
 
-    override suspend fun actualsSignature(): Any? = repo.actualsSignature()
+    override fun blendRecomputeHost(): DailyBlendRecomputeRun.Host = repo.blendRecomputeHost()
 
-    override suspend fun recomputeActuals() {
-        repo.recomputeActualsTail()
-    }
+    override suspend fun repairsAndUpkeep(nowMs: Long) = repo.repairsAndUpkeep(nowMs)
+
+    override suspend fun dailyHistoryRows(startDateKey: Long, endDateKey: Long): List<DailyHistory> =
+        repo.dailyHistoryRows(startDateKey, endDateKey)
 
     override suspend fun repaint(reason: String) = publish()
 
     override fun userSyncActive(): Boolean = userSyncActive.invoke()
 
-    /** The daemon sees no clicks; a user's fetch in flight is its busy signal ([userSyncActive]). */
-    override fun lastInteractionMs(): Long? = null
+    override fun lastInteractionMs(): Long? = lastInteractionMs.invoke()
 
     override suspend fun log(tag: String, message: String, level: String) {
         weatherDao.log(tag, message, level)

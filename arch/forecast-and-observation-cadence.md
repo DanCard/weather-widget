@@ -212,27 +212,34 @@ Repaints can therefore be more frequent than observation requests without changi
 ## Targeted forecast syncs
 
 A forecast fetch the user forced for **one** source paints first and does its slow work later, on both
-platforms, under `:shared` `TargetedForecastSyncRun` (`plans/261123-shared-targeted-sync-paint-then-tail.md`).
+platforms, under `:shared` `TargetedForecastSyncRun` (`plans/261123-shared-targeted-sync-paint-then-tail.md`,
+`plans/261123-targeted-sync-tail-parity.md`).
 Android: a forced, non-UI sync with a `targetSourceId` (toggle, viewing-stale tap, tap to refresh, source
-retry). Desktop: a `FORECAST` request without `observationWindow` (viewing-stale, single-source refresh), the
-source-switch launch refresh, and source retries. Settings "Refresh data" (every source; desktop's Refresh
-with the observation window) and routine syncs keep the inline order: backfills, recompute, paint.
+retry). Desktop: a `FORECAST` request without `observationWindow` (viewing-stale, popup/panel Refresh,
+single-source refresh), the source-switch launch refresh, and source retries. Settings "Refresh data"
+(every source; desktop's Refresh with `observationWindow = true`) and routine syncs keep the inline order:
+backfills, recompute, paint.
 
 1. **Fast path:** fetch (with the source's `SourceFetchTable` follow-ups), then `DailyHistoryRun.afterFetch`
    (the rain-chance freeze must see every fetch), then the paint from cached actuals, then a tail request
    (`TARGETED_SYNC stage=painted|tail_scheduled`). On Android the worker returns here, so the next toggle on
    the serial sync queue starts at once.
 2. **Tail** (`POST_SYNC_ACTUALS_RUN` / `_RESULT changed= ms=`): serves the requested sources plus every
-   visible one: the NWS history fill (`NwsGapFillRun.dailyForSources`), the observation feeds (Android:
-   due-gated METAR deep pull; desktop: `refreshObservations` over the served sources),
-   the daily-actuals recompute with its repairs and upkeep, then one repaint only if the displayed daily
-   actuals changed. A failed step logs `POST_SYNC_ACTUALS_FAIL` and the rest still run.
+   visible one, with `:shared` owning every step:
+   - the NWS history fill (`NwsGapFillRun.dailyForSources`); when NWS is unreachable, the runner re-arms
+     the tail on `ObservationBackfillRetryPolicy` delays (10 s → 1 m → 4 m, logged
+     `OBS_HOURLY_BACKFILL_RETRY reason=post_sync_actuals`);
+   - `StationNetworkRefreshRun` (METAR, both tiers, deep 24 h window);
+   - `DailyBlendRecomputeRun.range(today − MAX_DAYS_BACK .. today)` plus platform repairs and upkeep;
+   - one repaint only if the `daily_history` rows in that window changed. A failed step logs
+     `POST_SYNC_ACTUALS_FAIL` and the rest still run.
 3. **Debounce:** the tail runs 12 s after the newest request of a burst, never more than 60 s after the
    burst's first, so `Google → Meteo → Silurian` costs one tail. Nothing is replaced or cancelled
    (AGENTS.md rule 6): a pending tail is kept and re-arms itself for the rest of the 12 s when it comes due
    early (`POST_SYNC_ACTUALS_DEFERRED reason=settling`); a request while one runs queues one more after it.
-4. **Yield:** a tail that comes due while a user-forced sync runs (or, on Android, within 5 s of a widget
-   interaction) re-arms 20 s later (`POST_SYNC_ACTUALS_DEFERRED reason=busy`), for at most 90 s.
+4. **Yield:** a tail that comes due while any user-forced sync runs or within 5 s of a user interaction
+   (Android widget tap; desktop fetch request or source switch) re-arms 20 s later
+   (`POST_SYNC_ACTUALS_DEFERRED reason=busy`), for at most 90 s.
 
 The timer is the only per-platform part: Android's `weather_widget_post_sync_actuals` unique work (`KEEP`,
 or `APPEND_OR_REPLACE` behind a running tail), desktop's `DesktopPostSyncTail` coroutine in the daemon.

@@ -82,6 +82,9 @@ interface WeatherApiClient {
      */
     suspend fun fetchFeedObservations(feed: WeatherSource, recentOnly: Boolean = true): RawFetch
 
+    /** Direct METAR pull for `:shared` [com.weatherwidget.shared.observations.StationNetworkRefreshRun]. */
+    suspend fun fetchMetarObservations(hours: Int): List<ObservationReading> = emptyList()
+
     suspend fun nearestStationsForDailyActuals(): List<NwsApi.StationInfo>
 
     /**

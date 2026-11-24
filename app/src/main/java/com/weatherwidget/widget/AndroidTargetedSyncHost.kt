@@ -4,9 +4,12 @@ import android.content.Context
 import android.os.SystemClock
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.log
+import com.weatherwidget.data.model.DailyHistory
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
-import com.weatherwidget.shared.util.MetarFetchPolicy
+import com.weatherwidget.shared.actuals.DailyBlendRecomputeRun
+import com.weatherwidget.shared.observations.NwsGapFillRun
+import com.weatherwidget.shared.observations.StationNetworkRefreshRun
 import com.weatherwidget.shared.util.TargetedForecastSyncRun
 
 /**
@@ -14,12 +17,13 @@ import com.weatherwidget.shared.util.TargetedForecastSyncRun
  * worker that asks for or runs a tail. Same clock as [WidgetTimedRepaintGate].
  */
 internal object WidgetTargetedSync {
-    val run = TargetedForecastSyncRun(SystemClock::elapsedRealtime)
+    val run = TargetedForecastSyncRun(clock = SystemClock::elapsedRealtime)
 }
 
 /**
- * Android's I/O for `:shared` [TargetedForecastSyncRun]: the rule (order, debounce, yield, repaint gate,
- * log lines) is the runner's. The timer is the `weather_widget_post_sync_actuals` unique work
+ * Android's narrow I/O for `:shared` [TargetedForecastSyncRun]: the rule (order, debounce, yield,
+ * station-network refresh, unreachable retry, recompute window, signature comparison, repaint gate,
+ * and log lines) is the runner's. The timer is the `weather_widget_post_sync_actuals` unique work
  * ([WidgetWorkScheduler.enqueuePostSyncActuals]), which never replaces or cancels anything.
  *
  * [paint] is the caller's paint from cache; only the fast path ([TargetedForecastSyncRun.onFetched]) uses it.
@@ -29,8 +33,6 @@ internal class AndroidTargetedSyncHost(
     private val weatherRepository: WeatherRepository,
     private val widgetStateManager: WidgetStateManager,
     private val appLogDao: AppLogDao,
-    private val hourlyForecastLoader: HourlyForecastLoader,
-    private val dataBundleLoader: WidgetDataBundleLoader,
     private val metarRefresher: MetarObservationRefresher,
     private val location: Pair<Double, Double>,
     private val paint: suspend () -> Unit = {},
@@ -54,43 +56,24 @@ internal class AndroidTargetedSyncHost(
     override suspend fun visibleSourceIds(): Set<String> =
         widgetStateManager.getVisibleSourcesOrder().map { it.id }.toSet()
 
-    override suspend fun fillObservationHistory(sourceIds: Set<String>) {
+    override suspend fun fillObservationHistory(sourceIds: Set<String>): NwsGapFillRun.Result? =
         weatherRepository.backfillNwsObservationsIfNeeded(
             lat, lon, sourceIds.map(WeatherSource::fromId), reason = TargetedForecastSyncRun.REPAINT_REASON,
         )
-    }
 
-    override suspend fun refreshObservationFeeds(sourceIds: Set<String>) {
-        // Each refresher derives its own tier from the enabled sources; both tiers, as the full sync.
-        metarRefresher.refreshIfDue(
-            setOf(MetarFetchPolicy.Tier.PRIMARY, MetarFetchPolicy.Tier.NON_PRIMARY),
-            lat,
-            lon,
-            reason = TargetedForecastSyncRun.REPAINT_REASON,
-            // Deep pull: daily extremes need the whole day, not the last two hours.
-            hours = MetarObservationRefresher.DEEP_HOURS,
-        )
-    }
+    override fun stationNetworkHost(): StationNetworkRefreshRun.Host =
+        metarRefresher.hostFor(lat, lon)
 
-    override suspend fun actualsSignature(): Any? = readDisplayedActuals(recompute = false)
+    override fun blendRecomputeHost(): DailyBlendRecomputeRun.Host =
+        weatherRepository.blendRecomputeHost(lat, lon)
 
-    override suspend fun recomputeActuals() {
-        readDisplayedActuals(recompute = true)
+    override suspend fun repairsAndUpkeep(nowMs: Long) {
         weatherRepository.repairFrozenRainChanceIfNeeded(lat, lon)
         weatherRepository.dailyHistoryUpkeepIfDue(lat, lon, isCharging = BatterySnapshotProvider.snapshot(context).isCharging)
     }
 
-    /** The daily actuals the widgets draw, read as a paint reads them; [recompute] also re-reduces the last days first. */
-    private suspend fun readDisplayedActuals(recompute: Boolean): DailyActualsBySource {
-        val hourly = hourlyForecastLoader.load(lat, lon, hourlyForecastLoader.hourlySourceIds(), caller = "post_sync_actuals")
-        return dataBundleLoader.fetchDailyActuals(
-            lat = lat,
-            lon = lon,
-            hourlyForecasts = hourly,
-            activeSourceList = hourlyForecastLoader.currentDisplaySourceIds(),
-            recompute = recompute,
-        )
-    }
+    override suspend fun dailyHistoryRows(startDateKey: Long, endDateKey: Long): List<DailyHistory> =
+        weatherRepository.getDailyHistoryInRange(startDateKey, endDateKey, lat, lon)
 
     override suspend fun repaint(reason: String) {
         WidgetWorkScheduler.enqueueUiRepaint(context, reason = reason)

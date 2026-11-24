@@ -899,6 +899,31 @@ class DesktopWeatherRepository(
         dailyHistoryRun.afterFetch(latitude, longitude, now)
     }
 
+    /** Direct `:shared` [NwsGapFillRun.dailyForSources] entry for the targeted-sync tail. */
+    internal suspend fun fillObservationHistory(
+        sourcesServed: List<WeatherSource>,
+        reason: String,
+        now: Long = currentTimeMillis(),
+    ): NwsGapFillRun.Result? = withContext(Dispatchers.IO) {
+        NwsGapFillRun.dailyForSources(
+            nwsGapFillHost(now), latitude, longitude, sourcesServed, reason, now, ZoneId.systemDefault(),
+        )
+    }
+
+    internal suspend fun fetchMetarObservations(hours: Int): List<ObservationReading> =
+        weatherService.fetchMetarObservations(hours)
+
+    /** One-time platform repairs plus `DailyHistoryRun.upkeepIfDue` for the targeted-sync tail. */
+    internal suspend fun repairsAndUpkeep(now: Long = currentTimeMillis()): Unit = withContext(Dispatchers.IO) {
+        repairUtcDatedPredictionsIfNeeded()
+        dailyHistoryRun.upkeepIfDue(latitude, longitude, now, isCharging())
+    }
+
+    /** Stored `daily_history` rows for UTC-midnight keys in [startDateKey, endDateKey] at this site. */
+    internal suspend fun dailyHistoryRows(startDateKey: Long, endDateKey: Long): List<DailyHistory> = withContext(Dispatchers.IO) {
+        weatherDao.getExtremesInRange(startDateKey, endDateKey, latitude, longitude)
+    }
+
     /** The part of [runPostFetchBackfills] a targeted sync defers to its tail: recompute, repairs, upkeep. */
     suspend fun recomputeActualsTail(now: Long = currentTimeMillis()): Int = withContext(Dispatchers.IO) {
         val extremes = recomputeDailyExtremes(now)

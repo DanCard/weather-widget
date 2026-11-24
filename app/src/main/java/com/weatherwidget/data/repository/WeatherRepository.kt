@@ -130,6 +130,20 @@ class WeatherRepository
             lookbackHours: Long,
         ) = observationRepository.backfillRecentNwsObservations(latitude, longitude, lookbackHours)
 
+        internal fun blendRecomputeHost(
+            latitude: Double,
+            longitude: Double,
+        ): com.weatherwidget.shared.actuals.DailyBlendRecomputeRun.Host =
+            observationRepository.blendRecomputeHost(latitude, longitude)
+
+        internal suspend fun getDailyHistoryInRange(
+            startDate: Long,
+            endDate: Long,
+            latitude: Double,
+            longitude: Double,
+        ): List<com.weatherwidget.data.model.DailyHistory> =
+            observationRepository.getDailyHistoryInRange(startDate, endDate, latitude, longitude)
+
         suspend fun recomputeDailyExtremesFromStoredObservations(
             latitude: Double,
             longitude: Double,

@@ -82,6 +82,17 @@ class ObservationRepository private constructor(
     ): com.weatherwidget.shared.observations.NwsGapFillRun.RecentResult =
         components.backfiller.backfillRecentNwsObservations(latitude, longitude, lookbackHours)
 
+    internal fun blendRecomputeHost(latitude: Double, longitude: Double): com.weatherwidget.shared.actuals.DailyBlendRecomputeRun.Host =
+        components.dailyActualsStore.blendRecomputeHost(latitude, longitude)
+
+    internal suspend fun getDailyHistoryInRange(
+        startDate: Long,
+        endDate: Long,
+        latitude: Double,
+        longitude: Double,
+    ): List<com.weatherwidget.data.model.DailyHistory> =
+        components.dailyActualsStore.getDailyHistoryInRange(startDate, endDate, latitude, longitude)
+
     internal suspend fun recomputeDailyExtremesFromStoredObservations(
         latitude: Double,
         longitude: Double,
