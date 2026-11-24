@@ -123,7 +123,7 @@ A switch that refetches is a targeted forecast sync ([cadence](forecast-and-obse
 `TARGETED_SYNC stage=painted` marks the paint, and the next toggle's `SYNC_START` should follow within about a
 second on Android. The observation fill and recompute come later as one `POST_SYNC_ACTUALS_RUN` /
 `POST_SYNC_ACTUALS_RESULT changed= ms=` pair per burst; `POST_SYNC_ACTUALS_DEFERRED reason=settling|busy`
-means it re-armed. A `SYNOPTIC_FETCH` or `recomputeActuals` inside a toggle's worker is a regression.
+means it re-armed. A `recomputeActuals` inside a toggle's worker is a regression.
 
 A source switch (API button, daily home button) logs `SOURCE_SWITCH_E2E` on both platforms:
 `phase=critical … persistMs= paintMs= criticalMs=` as soon as the new source is painted, then
@@ -280,7 +280,7 @@ Do not change `WeatherSource`, source ordering, or defaults for a user's runtime
 | Desktop | `${XDG_CONFIG_HOME:-$HOME/.config}/weather-widget/config.json` | `settings.visibleSources` |
 
 Display-source IDs are `NWS`, `OPEN_METEO`, `SILURIAN`, `TOMORROW_IO`, `WEATHER_API`,
-`OPEN_WEATHER_MAP`, and `GOOGLE_WEATHER`. METAR and Synoptic are actuals feeds, not display sources.
+`OPEN_WEATHER_MAP`, and `GOOGLE_WEATHER`. METAR is an actuals feed, not a display source.
 Visual Crossing is not configurable.
 
 Fresh-install defaults are `NWS`, `OPEN_METEO`, `SILURIAN` (`WeatherSourceOrdering.DEFAULT_VISIBLE_IDS`).

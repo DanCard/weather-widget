@@ -160,48 +160,6 @@ class SynopticApiRulesTest {
         assertTrue("$malformed", malformed is FetchOutcome.Failed && malformed.reason.startsWith("parse: "))
     }
 
-    @Test
-    fun `a radius station keeps its place in metric units and is dropped without an id, a position or a reading`() {
-        val response = """
-            {"SUMMARY": {"RESPONSE_CODE": 1}, "STATION": [
-              {"STID": "KPAO", "NAME": "Palo Alto Airport", "LATITUDE": "37.4611", "LONGITUDE": "-122.1150",
-               "DISTANCE": "10", "ELEVATION": "100", "MNET_ID": "1", $oneReading},
-              {"STID": "C1234", "NAME": " ", "LATITUDE": "37.5", "LONGITUDE": "-122.2", $oneReading},
-              {"STID": " ", "LATITUDE": "37.5", "LONGITUDE": "-122.2", $oneReading},
-              {"LATITUDE": "37.5", "LONGITUDE": "-122.2", $oneReading},
-              {"STID": "NOLAT", "LONGITUDE": "-122.2", $oneReading},
-              {"STID": "NOLON", "LATITUDE": "37.5", $oneReading},
-              {"STID": "BADLAT", "LATITUDE": "north", "LONGITUDE": "-122.2", $oneReading},
-              {"STID": "SILENT", "LATITUDE": "37.5", "LONGITUDE": "-122.2",
-               "OBSERVATIONS": {"date_time": ["2026-07-13T17:00:00Z"], "air_temp_set_1": [null]}},
-              "not a station"
-            ]}
-        """.trimIndent()
-
-        val stations = (SynopticApi.parseRadiusTimeseries(json, response) as FetchOutcome.Success).value
-
-        assertEquals(
-            listOf(
-                NwsApi.StationInfo("KPAO", "Palo Alto Airport", 37.4611, -122.1150, StationType.OFFICIAL),
-                NwsApi.StationInfo("C1234", "C1234", 37.5, -122.2, StationType.PERSONAL),
-            ),
-            stations.map { it.info },
-        )
-        // 10 miles and 100 feet; a station that reports neither sits at distance 0 with no elevation.
-        assertEquals(16.09344, stations[0].distanceKm, 1e-9)
-        assertEquals(30.48, stations[0].elevationMeters!!, 1e-9)
-        assertEquals(0.0, stations[1].distanceKm, 0.0)
-        assertNull(stations[1].elevationMeters)
-        // A blank name falls back to the id on the observations too, not only on the station record.
-        assertEquals(listOf("Palo Alto Airport", "C1234"), stations.map { it.observations.single().stationName })
-
-        assertEquals(
-            FetchOutcome.NoData,
-            SynopticApi.parseRadiusTimeseries(json, """{"SUMMARY": {"RESPONSE_CODE": 1}, "STATION": [{"STID": "X"}]}"""),
-        )
-        assertEquals(FetchOutcome.NoData, SynopticApi.parseRadiusTimeseries(json, """{"SUMMARY": {"RESPONSE_CODE": 1}}"""))
-    }
-
     private val okReply = """{"SUMMARY": {"RESPONSE_CODE": 1}, "STATION": [{"STID": "KPAO", "LATITUDE": "37.4", "LONGITUDE": "-122.1", $oneReading}]}"""
 
     private fun capturing(requests: MutableList<HttpRequestData>, reply: (HttpRequestData) -> String = { okReply }) =
@@ -232,34 +190,6 @@ class SynopticApiRulesTest {
         assertEquals("https://www.weather.gov", request.headers["Origin"])
     }
 
-    @Test
-    fun `the radius request sends the centre and radius, the parsed variables by default, and none when asked`() = runBlocking {
-        val requests = Collections.synchronizedList(mutableListOf<HttpRequestData>())
-        val api = SynopticApi(capturing(requests), json) { "tok" }
-
-        val outcome = api.fetchRadiusTimeseries(37.4, -122.1)
-        assertEquals(listOf("KPAO"), (outcome as FetchOutcome.Success).value.map { it.info.id })
-        val byDefault = requests.single()
-        assertEquals(
-            mapOf(
-                "radius" to "37.4,-122.1,25.0", "recent" to "120", "token" to "tok", "obtimezone" to "utc",
-                "vars" to "air_temp,metar,cloud_layer_1,cloud_layer_2,cloud_layer_3,weather_summary,weather_condition",
-                "qc" to "on", "qc_checks" to "all", "qc_flags" to "on",
-            ),
-            byDefault.url.parameters.names().associateWith { byDefault.url.parameters[it] },
-        )
-        assertEquals("https://www.weather.gov/wrh/timeseries", byDefault.headers["Referer"])
-        assertEquals("https://www.weather.gov", byDefault.headers["Origin"])
-        assertEquals("GET", byDefault.method.value)
-
-        requests.clear()
-        api.fetchRadiusTimeseries(37.4, -122.1, radiusMiles = 10.0, recentMinutes = 60, vars = emptyList())
-        val unfiltered = requests.single()
-        assertNull(unfiltered.url.parameters["vars"])
-        assertEquals("37.4,-122.1,10.0", unfiltered.url.parameters["radius"])
-        assertEquals("60", unfiltered.url.parameters["recent"])
-    }
-
     private val staleToken = "0123456789abcdef0123456789abcdef"
     private val freshToken = "fedcba9876543210fedcba9876543210"
 
@@ -278,22 +208,20 @@ class SynopticApiRulesTest {
     private val rejected = """{"SUMMARY": {"RESPONSE_CODE": 2, "RESPONSE_MESSAGE": "Invalid token"}}"""
 
     @Test
-    fun `a failure on the weather-gov token fetches a new token and retries once, for both fetches`() = runBlocking {
-        for (radius in listOf(false, true)) {
-            val requests = Collections.synchronizedList(mutableListOf<HttpRequestData>())
-            val tokenFetches = mutableListOf<String>()
-            val api = SynopticApi(
-                capturing(requests) { if (it.url.parameters["token"] == freshToken) okReply else rejected },
-                json,
-                mesoTokenApi = tokenSource(tokenFetches),
-            )
+    fun `a failure on the weather-gov token fetches a new token and retries once`() = runBlocking {
+        val requests = Collections.synchronizedList(mutableListOf<HttpRequestData>())
+        val tokenFetches = mutableListOf<String>()
+        val api = SynopticApi(
+            capturing(requests) { if (it.url.parameters["token"] == freshToken) okReply else rejected },
+            json,
+            mesoTokenApi = tokenSource(tokenFetches),
+        )
 
-            val outcome = if (radius) api.fetchRadiusTimeseries(37.4, -122.1) else api.fetchSynopticObservations("KPAO", 120)
+        val outcome = api.fetchSynopticObservations("KPAO", 120)
 
-            assertTrue("radius=$radius $outcome", outcome is FetchOutcome.Success)
-            assertEquals(listOf(staleToken, freshToken), requests.map { it.url.parameters["token"] })
-            assertEquals(listOf(staleToken, freshToken), tokenFetches)
-        }
+        assertTrue("$outcome", outcome is FetchOutcome.Success)
+        assertEquals(listOf(staleToken, freshToken), requests.map { it.url.parameters["token"] })
+        assertEquals(listOf(staleToken, freshToken), tokenFetches)
     }
 
     @Test
@@ -310,8 +238,7 @@ class SynopticApiRulesTest {
         val requests = Collections.synchronizedList(mutableListOf<HttpRequestData>())
         val configured = SynopticApi(capturing(requests) { rejected }, json) { "tok" }
         assertEquals(FetchOutcome.Failed("synoptic: Invalid token"), configured.fetchSynopticObservations("KPAO", 120))
-        assertTrue(configured.fetchRadiusTimeseries(37.4, -122.1) is FetchOutcome.Failed)
-        assertEquals(2, requests.size)
+        assertEquals(1, requests.size)
 
         requests.clear()
         val tokenFetches = mutableListOf<String>()
@@ -321,16 +248,14 @@ class SynopticApiRulesTest {
             mesoTokenApi = tokenSource(tokenFetches),
         )
         assertEquals(FetchOutcome.NoData, empty.fetchSynopticObservations("KPAO", 120))
-        assertEquals(FetchOutcome.NoData, empty.fetchRadiusTimeseries(37.4, -122.1))
-        assertEquals("no retry, so one request each", 2, requests.size)
+        assertEquals("no retry, so one request", 1, requests.size)
         assertEquals(listOf(staleToken), tokenFetches)
     }
 
     @Test
-    fun `a dropped connection is a failure that names the exception, for both fetches`() = runBlocking {
+    fun `a dropped connection is a failure that names the exception`() = runBlocking {
         val api = SynopticApi(HttpClient(MockEngine { throw java.io.IOException("connection reset") }), json) { "tok" }
 
         assertEquals(FetchOutcome.Failed("IOException: connection reset"), api.fetchSynopticObservations("KPAO", 120))
-        assertEquals(FetchOutcome.Failed("IOException: connection reset"), api.fetchRadiusTimeseries(37.4, -122.1))
     }
 }

@@ -39,7 +39,7 @@ abstract class ObservationWriteHostContract {
         fun reading(
             station: String,
             timestamp: Long,
-            api: String = WeatherSource.SYNOPTIC.id,
+            api: String = WeatherSource.METAR.id,
             type: StationType = StationType.PERSONAL,
             lat: Double = LAT,
             temp: Float = 60f,
@@ -67,7 +67,7 @@ abstract class ObservationWriteHostContract {
 
         assertEquals(
             listOf(ObservationWriteRun.StoredKey("F4751", T0, StationType.PERSONAL), ObservationWriteRun.StoredKey("F4751", T0 + 5 * MIN, StationType.PERSONAL)),
-            host.storedKeys(WeatherSource.SYNOPTIC.id, setOf("F4751"), T0, T0 + 10 * MIN).sortedBy { it.timestamp },
+            host.storedKeys(WeatherSource.METAR.id, setOf("F4751"), T0, T0 + 10 * MIN).sortedBy { it.timestamp },
         )
     }
 
@@ -100,7 +100,7 @@ abstract class ObservationWriteHostContract {
             ),
         )
 
-        assertEquals(2, host.delete(WeatherSource.SYNOPTIC.id, "F4751", listOf(T0 + 5 * MIN, T0 + 10 * MIN)))
+        assertEquals(2, host.delete(WeatherSource.METAR.id, "F4751", listOf(T0 + 5 * MIN, T0 + 10 * MIN)))
         assertEquals(
             setOf(
                 Triple("F4751", T0, LAT),
@@ -126,9 +126,9 @@ abstract class ObservationWriteHostContract {
             ),
         )
 
-        assertEquals(2, host.retag(WeatherSource.SYNOPTIC.id, setOf("KXYZ"), StationType.RAWS))
+        assertEquals(2, host.retag(WeatherSource.METAR.id, setOf("KXYZ"), StationType.RAWS))
         assertEquals(
-            mapOf(WeatherSource.SYNOPTIC.id to setOf(StationType.RAWS), WeatherSource.NWS.id to setOf(StationType.OFFICIAL)),
+            mapOf(WeatherSource.METAR.id to setOf(StationType.RAWS), WeatherSource.NWS.id to setOf(StationType.OFFICIAL)),
             db.rows().groupBy({ it.api }, { it.stationType }).mapValues { it.value.toSet() },
         )
     }

@@ -85,19 +85,13 @@ class ActualsNonDisplayableSourceTest {
         )
 
     @Test
-    fun `SYNOPTIC never gets a group of its own`() {
-        val rows = aggregate(dayOf(WeatherSource.NWS.id, "KNUQ", 40f) + dayOf(WeatherSource.SYNOPTIC.id, "G4110", 41f))
+    fun `METAR never gets a group of its own`() {
+        val rows = aggregate(dayOf(WeatherSource.NWS.id, "KNUQ", 40f) + dayOf(WeatherSource.METAR.id, "KSJC", 41f))
         assertTrue(
-            "SYNOPTIC is absent from ALL_CONFIGURABLE, so no reader could ever select its row",
-            rows.none { it.source == WeatherSource.SYNOPTIC.id },
+            "METAR is absent from ALL_CONFIGURABLE, so no reader could ever select its row",
+            rows.none { it.source == WeatherSource.METAR.id },
         )
         assertNotNull("NWS is displayable and must keep its row", rows.find { it.source == WeatherSource.NWS.id })
-    }
-
-    @Test
-    fun `METAR still gets no group - the existing behaviour is unchanged`() {
-        val rows = aggregate(dayOf(WeatherSource.NWS.id, "KNUQ", 40f) + dayOf(WeatherSource.METAR.id, "KSJC", 41f))
-        assertTrue(rows.none { it.source == WeatherSource.METAR.id })
     }
 
     @Test
@@ -117,7 +111,6 @@ class ActualsNonDisplayableSourceTest {
     fun `every emitted source is one the user can select`() {
         val rows = aggregate(
             dayOf(WeatherSource.NWS.id, "KNUQ", 40f) +
-                dayOf(WeatherSource.SYNOPTIC.id, "G4110", 41f) +
                 dayOf(WeatherSource.METAR.id, "KSJC", 42f) +
                 dayOf(WeatherSource.VISUAL_CROSSING.id, "VC1", 43f),
         )
@@ -128,43 +121,37 @@ class ActualsNonDisplayableSourceTest {
     @Test
     fun `a borrower still receives its provider's rows after the provider group is dropped`() {
         // THE regression this filter could cause. Silurian has no actuals of its own; pointed at
-        // Synoptic it must still produce a curve, built from the very rows whose own group is gone.
+        // METAR it must still produce a curve, built from the very rows whose own group is gone.
         ActualsProviderResolver.installPreferenceSource { source ->
-            if (source == WeatherSource.SILURIAN) WeatherSource.SYNOPTIC else null
+            if (source == WeatherSource.SILURIAN) WeatherSource.METAR else null
         }
 
-        val synoptic = dayOf(WeatherSource.SYNOPTIC.id, "G4110", 41f)
-        val rows = aggregate(dayOf(WeatherSource.NWS.id, "KNUQ", 40f) + synoptic)
+        val metar = dayOf(WeatherSource.METAR.id, "KSJC", 41f)
+        val rows = aggregate(dayOf(WeatherSource.NWS.id, "KNUQ", 40f) + metar)
 
         val silurian = rows.find { it.source == WeatherSource.SILURIAN.id }
-        assertNotNull("Silurian borrows Synoptic and must still get a row", silurian)
-        assertTrue(rows.none { it.source == WeatherSource.SYNOPTIC.id })
+        assertNotNull("Silurian borrows METAR and must still get a row", silurian)
+        assertTrue(rows.none { it.source == WeatherSource.METAR.id })
 
-        // And the borrowed values are the Synoptic observations', not something degraded.
+        // And the borrowed values are the METAR observations', not something degraded.
         assertNotNull(silurian!!.computedHighTemp)
         assertNotNull(silurian.computedLowTemp)
     }
 
     @Test
     fun `a source with its own actuals that the user pointed at another provider gets that provider's rows`() {
-        // Regression 2026-09-25 (Pixel 7 Pro + emulator, Lviv): actuals_provider_OPEN_METEO =
-        // SYNOPTIC. Open-Meteo HAS its own analysis rows (supportsTemperatureActuals = true), so
-        // `borrows()` is false and no borrowed group was built; its own group was then emptied by the
-        // series builder's source matcher, which honours the preference and admits only SYNOPTIC.
-        // Result: no Open-Meteo actual at all, so today's low fell back to the forecast (50.3°) under
-        // a Synoptic-derived current temp (45.6°), inverting the thermostat.
         ActualsProviderResolver.installPreferenceSource { source ->
-            if (source == WeatherSource.OPEN_METEO) WeatherSource.SYNOPTIC else null
+            if (source == WeatherSource.OPEN_METEO) WeatherSource.METAR else null
         }
 
         val rows = aggregate(
             dayOf(WeatherSource.OPEN_METEO.id, "OPEN_METEO_MAIN", 50f) +
-                dayOf(WeatherSource.SYNOPTIC.id, "SYN33393", 30f),
+                dayOf(WeatherSource.METAR.id, "KSJC", 30f),
         )
 
         val openMeteo = rows.filter { it.source == WeatherSource.OPEN_METEO.id }
         assertEquals("exactly one Open-Meteo row for the day", 1, openMeteo.size)
-        // Synoptic readings span 36..50, Open-Meteo's own 56..70: the values must be Synoptic's.
+        // METAR readings span 36..50, Open-Meteo's own 56..70: the values must be METAR's.
         assertEquals(36f, openMeteo.single().computedLowTemp!!, 0.5f)
         assertEquals(50f, openMeteo.single().computedHighTemp!!, 0.5f)
     }

@@ -22,10 +22,10 @@ class TemperatureActualsSourceLabelLocalizationRoboTest {
         val label = requireNotNull(
             TemperatureStateResolver.temperatureActualsSourceLabel(
                 context,
-                WeatherSource.SYNOPTIC.displayName,
+                WeatherSource.METAR.displayName,
             ),
         )
 
-        assertEquals("Tatsächliche Temperaturdaten von Synoptic", label.fullText)
+        assertEquals("Tatsächliche Temperaturdaten von METAR", label.fullText)
     }
 }

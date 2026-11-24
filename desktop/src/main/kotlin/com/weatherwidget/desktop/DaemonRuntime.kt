@@ -119,7 +119,7 @@ internal class DaemonRuntime(
         fun repoFor(sourceId: String): Pair<DesktopWeatherService, DesktopWeatherRepository> {
             val service = DesktopWeatherService(
                 request.lat, request.lon, sourceId, cfg.settings.apiKeys, weatherDao,
-                isForeground = true, synopticBackoffStore = DesktopSynopticBackoffStore.default(), nowcastStore = DesktopNowcast.store, radarNowStore = DesktopRadarNow.store,
+                isForeground = true, nowcastStore = DesktopNowcast.store, radarNowStore = DesktopRadarNow.store,
                 personalStationWeight = cfg.personalStationWeight(),
             )
             return service to DesktopWeatherRepository(service, weatherDao, request.lat, request.lon, sourceId, cfg.personalStationWeight(), radarNowSampler = service.radarNowSampler)
@@ -287,7 +287,7 @@ internal class DaemonRuntime(
                         Log.i(TAG, "Loop retry of source $retrySource after a failed refresh...")
                         val retryService = DesktopWeatherService(
                             config.lat, config.lon, retrySource, config.settings.apiKeys, weatherDao,
-                            synopticBackoffStore = DesktopSynopticBackoffStore.default(), nowcastStore = DesktopNowcast.store, radarNowStore = DesktopRadarNow.store,
+                            nowcastStore = DesktopNowcast.store, radarNowStore = DesktopRadarNow.store,
                             personalStationWeight = config.personalStationWeight(),
                         )
                         try {
@@ -1368,7 +1368,7 @@ internal class DaemonRuntime(
         val config = currentConfig ?: return
         val svc = DesktopWeatherService(
             config.lat, config.lon, config.displaySource, config.settings.apiKeys, weatherDao,
-            synopticBackoffStore = DesktopSynopticBackoffStore.default(), nowcastStore = DesktopNowcast.store, radarNowStore = DesktopRadarNow.store,
+            nowcastStore = DesktopNowcast.store, radarNowStore = DesktopRadarNow.store,
             personalStationWeight = config.personalStationWeight(),
         )
         val newRepo = DesktopWeatherRepository(svc, weatherDao, config.lat, config.lon, config.displaySource, config.personalStationWeight(), radarNowSampler = svc.radarNowSampler)
@@ -1697,7 +1697,7 @@ internal class DaemonRuntime(
                                 otherSource,
                                 config.settings.apiKeys,
                                 weatherDao,
-                                synopticBackoffStore = DesktopSynopticBackoffStore.default(), nowcastStore = DesktopNowcast.store, radarNowStore = DesktopRadarNow.store,
+                                nowcastStore = DesktopNowcast.store, radarNowStore = DesktopRadarNow.store,
                                 personalStationWeight = config.personalStationWeight(),
                             )
                             val otherRepo = DesktopWeatherRepository(
@@ -1779,7 +1779,7 @@ internal class DaemonRuntime(
                                 otherSource,
                                 config.settings.apiKeys,
                                 weatherDao,
-                                synopticBackoffStore = DesktopSynopticBackoffStore.default(), nowcastStore = DesktopNowcast.store, radarNowStore = DesktopRadarNow.store,
+                                nowcastStore = DesktopNowcast.store, radarNowStore = DesktopRadarNow.store,
                                 personalStationWeight = config.personalStationWeight(),
                             )
                             val otherRepo = DesktopWeatherRepository(

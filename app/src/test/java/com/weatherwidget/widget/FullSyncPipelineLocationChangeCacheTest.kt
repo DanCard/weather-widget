@@ -87,9 +87,6 @@ class FullSyncPipelineLocationChangeCacheTest {
         metarRefresher = mockk<MetarObservationRefresher>(relaxed = true).also {
             coEvery { it.refreshIfDue(any(), any(), any(), any(), any()) } just Runs
         },
-        synopticRefresher = mockk<SynopticObservationRefresher>(relaxed = true).also {
-            coEvery { it.refreshIfDue(any(), any(), any(), any(), any()) } just Runs
-        },
     )
 
     private data class Fetch(val force: Boolean, val context: ForecastFetchContext?)

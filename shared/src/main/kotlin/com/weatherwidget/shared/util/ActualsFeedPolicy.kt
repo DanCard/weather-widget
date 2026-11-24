@@ -19,10 +19,10 @@ import com.weatherwidget.shared.observations.ActualsProviderResolver
 object ActualsFeedPolicy {
 
     /**
-     * Station networks with their own refreshers on both platforms (`MetarFetchPolicy`,
-     * `SynopticFetchPolicy`, and their schedulers), never fetched through a per-source path.
+     * Station networks with their own refreshers on both platforms (`MetarFetchPolicy` and its
+     * schedulers), never fetched through a per-source path.
      */
-    val STATION_NETWORK_FEEDS: Set<WeatherSource> = setOf(WeatherSource.METAR, WeatherSource.SYNOPTIC)
+    val STATION_NETWORK_FEEDS: Set<WeatherSource> = setOf(WeatherSource.METAR)
 
     /**
      * The feed that supplies [source]'s actuals at this location, or null when no feed can serve

@@ -61,8 +61,8 @@ interface ObservationDao {
 
     /**
      * Timestamp of the newest stored reading for [api] at this site, or null when there is none.
-     * Used by the Synoptic fetch window ([com.weatherwidget.shared.util.SynopticFetchWindow]) so a
-     * routine refresh only requests the gap since the last store instead of the full 24 h.
+     * Used by [com.weatherwidget.shared.util.MetarFetchWindow] so a routine refresh only requests
+     * the gap since the last store instead of the full 24 h.
      */
     @Query(
         """

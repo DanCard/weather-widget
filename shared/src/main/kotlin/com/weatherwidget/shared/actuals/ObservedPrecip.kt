@@ -67,8 +67,8 @@ object ObservedPrecip {
         if (!source.historicalDataKind.preservesHistoricalPrecipitation) return emptyList()
         return rows.filter { row ->
             row.api == source.id && when {
-                // Station feeds (NWS, METAR, Synoptic): their real gauges, never the NWS blend. METAR
-                // and Synoptic only arrive here as a borrowing source's actuals provider.
+                // Station feeds (NWS, METAR): their real gauges, never the NWS blend. METAR only
+                // arrives here as a borrowing source's actuals provider.
                 source.historicalDataKind == HistoricalDataKind.STATION_OBSERVATION -> row.stationId != NwsBlend.STATION_ID
                 source == WeatherSource.TOMORROW_IO -> TomorrowIoActuals.isAllowedStation(row.stationId)
                 else -> row.stationId == HistoricalActualsBackfill.syntheticStationId(source.id)
@@ -78,7 +78,7 @@ object ObservedPrecip {
 
     /**
      * Real gauge reports only, whichever source is being graded: rows from station-observation
-     * feeds (NWS, METAR, Synoptic), without the NWS blend or any re-filed `<SOURCE>_MAIN` provider
+     * feeds (NWS, METAR), without the NWS blend or any re-filed `<SOURCE>_MAIN` provider
      * series. Rain accuracy grades every source against this one series, not against a model's
      * own analysis of the past (plans/261113-per-source-rain-score.md).
      */

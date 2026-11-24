@@ -38,7 +38,6 @@ internal class FullSyncPipeline(
     private val dataBundleLoader: WidgetDataBundleLoader,
     private val painter: WidgetPaintCoordinator,
     private val metarRefresher: MetarObservationRefresher,
-    private val synopticRefresher: SynopticObservationRefresher,
 ) {
     suspend fun run(input: WorkInput, device: DeviceContext, stopReason: Int): ListenableWorker.Result {
         val isUserForecastSync = !input.uiOnlyRefresh && input.forceRefresh
@@ -256,7 +255,7 @@ internal class FullSyncPipeline(
         var painted: Pair<ActualsPhase, Long>? = null
         val host = AndroidTargetedSyncHost(
             context, weatherRepository, widgetStateManager, appLogDao, hourlyForecastLoader, dataBundleLoader,
-            metarRefresher, synopticRefresher, location,
+            metarRefresher, location,
         ) {
             val actuals = recomputeActuals(weatherList, input, location, activeSourceList, load, runRecompute = false)
             painted = actuals to paintAll(weatherList, input, location, bannerPlace, load, actuals)
@@ -345,8 +344,7 @@ internal class FullSyncPipeline(
                     "hourly=${load.afterHourlyMs - load.afterWeatherMs}ms " +
                     "backfill=${load.afterBackfillMs - load.afterHourlyMs}ms " +
                     "[nwsObs=${load.afterNwsBackfillMs - load.afterHourlyMs}ms " +
-                    "metar=${load.metarDoneMs - load.afterNwsBackfillMs}ms " +
-                    "synoptic=${load.afterBackfillMs - load.metarDoneMs}ms] " +
+                    "metar=${load.afterBackfillMs - load.afterNwsBackfillMs}ms] " +
                     "actuals=${actuals.afterActualsMs - load.afterBackfillMs}ms " +
                     "[currentTemps=${actuals.afterCurrentTempsMs - load.afterBackfillMs}ms " +
                     "recompute=${actuals.afterRecomputeMs - actuals.afterCurrentTempsMs}ms " +
@@ -447,14 +445,7 @@ internal class FullSyncPipeline(
             hours = MetarObservationRefresher.DEEP_HOURS,
         )
         val metarDoneMs = SystemClock.elapsedRealtime()
-        synopticRefresher.refreshIfDue(
-            setOf(com.weatherwidget.shared.util.SynopticFetchPolicy.Tier.PRIMARY, com.weatherwidget.shared.util.SynopticFetchPolicy.Tier.NON_PRIMARY),
-            location.first,
-            location.second,
-            reason = "full_sync",
-            userLocationChange = input.locationChangePlace != null,
-        )
-        return Triple(afterNwsBackfillMs, metarDoneMs, SystemClock.elapsedRealtime())
+        return Triple(afterNwsBackfillMs, metarDoneMs, metarDoneMs)
     }
 
     /** What [recomputeActuals] hands to the paint; the timestamps feed SYNC_PERF. */

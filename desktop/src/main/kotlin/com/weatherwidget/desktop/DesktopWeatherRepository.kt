@@ -634,8 +634,6 @@ class DesktopWeatherRepository(
                 weatherDao.log(
                     tag = "BORROWED_${feedId}_RECOVERY",
                     message = "source=${displaySource.id} " +
-                        // Synoptic recovery asks for the gap since the newest stored row, not 24 h;
-                        // its window is in the BORROWED_SYNOPTIC_FETCH line.
                         (if (feedId == WeatherSource.METAR.id) "hours=${DesktopWeatherService.RECOVERY_BORROWED_METAR_HOURS} " else "") +
                         "recentOnly=${borrowedPlan.recentOnly} " +
                         "rows=${borrowedRecovery.rawObservations.size} " +

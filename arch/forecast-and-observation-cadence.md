@@ -153,10 +153,10 @@ on both platforms (`NwsForecastReply`). Desktop's full refresh adds the shared
 itself included — taking the recent window when stored rows reach the last hour and the week only on a
 real gap.
 
-The station networks a source can borrow (METAR, Synoptic) size their routine pull from the gap since
+The station network a source can borrow (METAR) sizes its routine pull from the gap since
 the newest row stored for that feed at the site, plus a 30-minute margin, between 2 and 24 hours; with
-nothing stored, or a gap of a day or more, they ask for the whole day (`SynopticFetchWindow`, and
-`MetarFetchWindow` in whole hours for Aviation Weather's `hours=`). A switch of a source's actuals to
+nothing stored, or a gap of a day or more, it asks for the whole day (`MetarFetchWindow` in whole hours
+for Aviation Weather's `hours=`). A switch of a source's actuals to
 METAR therefore pulls 24 h on its first observations-only refresh, and a wake after a long sleep fills
 the sleep. Full refreshes (desktop's recovery pull, Android's full sync) always take the whole day
 (`plans/261121-metar-gap-fetch-window.md`). Logged as `BORROWED_METAR_FETCH hours=…` (desktop console) and
@@ -224,7 +224,7 @@ with the observation window) and routine syncs keep the inline order: backfills,
    the serial sync queue starts at once.
 2. **Tail** (`POST_SYNC_ACTUALS_RUN` / `_RESULT changed= ms=`): serves the requested sources plus every
    visible one: the NWS history fill (`NwsGapFillRun.dailyForSources`), the observation feeds (Android:
-   METAR deep pull and Synoptic, both due-gated; desktop: `refreshObservations` over the served sources),
+   due-gated METAR deep pull; desktop: `refreshObservations` over the served sources),
    the daily-actuals recompute with its repairs and upkeep, then one repaint only if the displayed daily
    actuals changed. A failed step logs `POST_SYNC_ACTUALS_FAIL` and the rest still run.
 3. **Debounce:** the tail runs 12 s after the newest request of a burst, never more than 60 s after the

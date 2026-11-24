@@ -42,9 +42,6 @@ import java.time.temporal.ChronoUnit
 import kotlin.math.*
 import com.weatherwidget.shared.util.ActualsFeedPolicy
 import com.weatherwidget.shared.observations.MetarObservationFetcher
-import com.weatherwidget.shared.observations.SynopticObservationFetcher
-import com.weatherwidget.shared.util.SynopticBackoffStore
-import com.weatherwidget.shared.util.SynopticFetchGate
 import com.weatherwidget.data.remote.AviationWeatherApi
 
 /**
@@ -64,8 +61,6 @@ class DesktopWeatherService(
     private val injectedSynopticApi: SynopticApi? = null,
     /** The NWS web leg's transport (NWS's own METAR text file); null = the real one. */
     private val injectedNwsMetarTextApi: NwsMetarTextApi? = null,
-    /** Shared Synoptic backoff state; production passes [DesktopSynopticBackoffStore.default]. */
-    synopticBackoffStore: SynopticBackoffStore = InMemorySynopticBackoffStore(),
     /**
      * The user's personal-station weight for the NWS current blend; production passes
      * `config.personalStationWeight()`. Defaults to an untouched setting's value.
@@ -152,21 +147,6 @@ class DesktopWeatherService(
             else -> Log.i(TAG, "$tag $message")
         }
     }
-    private val synopticFetcher = SynopticObservationFetcher(synopticApi) { tag, message, level ->
-        when (level) {
-            "WARN" -> Log.w(TAG, "$tag $message")
-            else -> Log.i(TAG, "$tag $message")
-        }
-    }
-
-    // Same backoff state machine and log rows as Android's SynopticObservationRefresher.
-    private val synopticGate = SynopticFetchGate(
-        store = synopticBackoffStore,
-        log = { tag, message, level ->
-            Log.i(TAG, "$tag $message")
-            weatherDao?.log(tag, message, level)
-        },
-    )
 
     constructor(config: DesktopConfig) : this(
         latitude = config.lat,
@@ -573,7 +553,7 @@ class DesktopWeatherService(
                 RawFetch()
             }
             WeatherSource.NWS -> fetchNwsObservationsOnly(recentOnly)
-            WeatherSource.METAR, WeatherSource.SYNOPTIC -> fetchStationNetworkObservations(feed, recentOnly, userLocationChange)
+            WeatherSource.METAR -> fetchStationNetworkObservations(feed, recentOnly)
             in com.weatherwidget.shared.observations.CurrentConditionsFetcher.FEEDS -> fetchCurrentConditions(feed)
             else -> {
                 Log.i(TAG, "Skipping observations-only refresh for $weatherSource; no current-only desktop path for feed ${feed.id}")
@@ -607,7 +587,6 @@ class DesktopWeatherService(
     private suspend fun fetchStationNetworkObservations(
         feed: WeatherSource,
         recentOnly: Boolean,
-        userLocationChange: Boolean,
     ): RawFetch {
         if (feed == WeatherSource.METAR) {
             // Recent pulls ask for the gap since the newest stored METAR row (MetarFetchWindow): a
@@ -627,35 +606,6 @@ class DesktopWeatherService(
             Log.i(
                 TAG,
                 "BORROWED_METAR_FETCH source=$weatherSource hours=$hours rows=${readings.size} " +
-                    "stations=${readings.map { it.stationId }.distinct().size}",
-            )
-            return RawFetch(rawObservations = readings)
-        } else if (feed == WeatherSource.SYNOPTIC) {
-            // Gap window, not a fixed 24 h: observations are stored for days, so a routine refresh
-            // only needs the minutes since the newest stored SYNOPTIC row (plus a margin).
-            // First run / long gap falls back to the deep window. See SynopticFetchWindow.
-            val newestStored = weatherDao?.getNewestObservationTimestampForApi(
-                WeatherSource.SYNOPTIC.id,
-                latitude,
-                longitude,
-            )
-            val recentMinutes = com.weatherwidget.shared.util.SynopticFetchWindow
-                .recentMinutes(newestStored, System.currentTimeMillis())
-                .toLong()
-            val readings = synopticGate.run(
-                context = "reason=borrowed_${if (recentOnly) "recent" else "recovery"}",
-                userLocationChange = userLocationChange,
-                siteKey = com.weatherwidget.shared.util.SynopticFetchGate.siteKey(latitude, longitude),
-            ) {
-                synopticFetcher.fetchObservationsResult(
-                    latitude,
-                    longitude,
-                    recentMinutes = recentMinutes,
-                )
-            }?.valueOrNull().orEmpty()
-            Log.i(
-                TAG,
-                "BORROWED_SYNOPTIC_FETCH source=$weatherSource recentMin=$recentMinutes rows=${readings.size} " +
                     "stations=${readings.map { it.stationId }.distinct().size}",
             )
             return RawFetch(rawObservations = readings)

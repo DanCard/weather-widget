@@ -21,7 +21,6 @@ import com.weatherwidget.data.repository.NwsForecastMapper
 import com.weatherwidget.data.repository.NwsCurrentObservationUpdater
 import com.weatherwidget.data.repository.NwsObservationBackfiller
 import com.weatherwidget.data.repository.MetarObservationSource
-import com.weatherwidget.data.repository.SynopticObservationSource
 import com.weatherwidget.data.repository.NwsObservationSource
 import com.weatherwidget.data.repository.ObservationRepository
 import com.weatherwidget.data.repository.PersonalStationWeightProvider
@@ -248,14 +247,6 @@ object AppModule {
         appLogDao: AppLogDao,
         aviationWeatherApi: AviationWeatherApi,
     ): MetarObservationSource = MetarObservationSource(context, aviationWeatherApi, appLogDao)
-
-    @Provides
-    @Singleton
-    fun provideSynopticObservationSource(
-        @ApplicationContext context: Context,
-        appLogDao: AppLogDao,
-        synopticApi: SynopticApi,
-    ): SynopticObservationSource = SynopticObservationSource(context, synopticApi, appLogDao)
 
     /** Which boot last reconciled NWS rows with METARs (plans/261117-metar-reconcile-once-per-device-boot.md). */
     @Provides

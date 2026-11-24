@@ -46,7 +46,6 @@ class FullSyncPipelineClimateSettleTest {
     private val dataBundleLoader = mockk<WidgetDataBundleLoader>(relaxed = true)
     private val painter = mockk<WidgetPaintCoordinator>(relaxed = true)
     private val metarRefresher = mockk<MetarObservationRefresher>(relaxed = true)
-    private val synopticRefresher = mockk<SynopticObservationRefresher>(relaxed = true)
 
     @Before
     fun setUp() {
@@ -58,7 +57,6 @@ class FullSyncPipelineClimateSettleTest {
         coEvery { hourlyForecastLoader.load(any(), any(), any()) } returns emptyList<HourlyForecastEntity>()
         coEvery { dataBundleLoader.fetchForecastSnapshots(any(), any()) } returns emptyMap()
         coEvery { metarRefresher.refreshIfDue(any(), any(), any(), any(), any()) } just Runs
-        coEvery { synopticRefresher.refreshIfDue(any(), any(), any(), any(), any()) } just Runs
     }
 
     @After
@@ -74,7 +72,6 @@ class FullSyncPipelineClimateSettleTest {
         dataBundleLoader = dataBundleLoader,
         painter = painter,
         metarRefresher = metarRefresher,
-        synopticRefresher = synopticRefresher,
     )
 
     private fun painted(): Boolean = runCatching {

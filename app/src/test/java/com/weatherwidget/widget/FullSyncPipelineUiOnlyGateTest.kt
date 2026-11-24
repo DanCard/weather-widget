@@ -59,7 +59,6 @@ class FullSyncPipelineUiOnlyGateTest {
     private lateinit var dataBundleLoader: WidgetDataBundleLoader
     private lateinit var painter: WidgetPaintCoordinator
     private lateinit var metarRefresher: MetarObservationRefresher
-    private lateinit var synopticRefresher: SynopticObservationRefresher
 
     private val lat = 37.4220
     private val lon = -122.0841
@@ -81,7 +80,6 @@ class FullSyncPipelineUiOnlyGateTest {
         dataBundleLoader = mockk(relaxed = true)
         painter = mockk(relaxed = true)
         metarRefresher = mockk(relaxed = true)
-        synopticRefresher = mockk(relaxed = true)
 
         // A successful fetch carrying an NWS row: the NWS backfill branch keys on the fetched
         // sources when targetSourceId is null, and asserting it never runs under uiOnly is only
@@ -94,7 +92,6 @@ class FullSyncPipelineUiOnlyGateTest {
         coEvery { hourlyForecastLoader.load(any(), any(), any()) } returns emptyList<HourlyForecastEntity>()
         coEvery { dataBundleLoader.fetchForecastSnapshots(any(), any()) } returns emptyMap()
         coEvery { metarRefresher.refreshIfDue(any(), any(), any(), any(), any()) } just Runs
-        coEvery { synopticRefresher.refreshIfDue(any(), any(), any(), any(), any()) } just Runs
     }
 
     @After
@@ -118,7 +115,6 @@ class FullSyncPipelineUiOnlyGateTest {
         dataBundleLoader = dataBundleLoader,
         painter = painter,
         metarRefresher = metarRefresher,
-        synopticRefresher = synopticRefresher,
     )
 
     @Test
@@ -127,7 +123,6 @@ class FullSyncPipelineUiOnlyGateTest {
 
         // THE regression guard. This call sat outside the gate on 2026-08-23.
         coVerify(exactly = 0) { metarRefresher.refreshIfDue(any(), any(), any(), any(), any()) }
-        coVerify(exactly = 0) { synopticRefresher.refreshIfDue(any(), any(), any(), any(), any()) }
         coVerify(exactly = 0) { weatherRepository.backfillNwsObservationsIfNeeded(any(), any(), any(), any()) }
 
         // The fetch still runs, but forbidden from going out to the network, and never forced.

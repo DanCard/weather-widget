@@ -67,10 +67,10 @@ class ActualsProviderChangeCoordinatorTest {
             context = context,
             widgetStateManager = stateManager,
             displaySource = WeatherSource.OPEN_METEO,
-            chosenProvider = WeatherSource.SYNOPTIC,
+            chosenProvider = WeatherSource.METAR,
         )
 
-        assertEquals(WeatherSource.SYNOPTIC, stateManager.getActualsProvider(WeatherSource.OPEN_METEO))
+        assertEquals(WeatherSource.METAR, stateManager.getActualsProvider(WeatherSource.OPEN_METEO))
         verify(exactly = 1) {
             workManager.enqueueUniqueWork(
                 eq(WidgetWorkScheduler.WORK_NAME_UI),
@@ -101,5 +101,15 @@ class ActualsProviderChangeCoordinatorTest {
                 getString(WeatherWidgetWorker.KEY_TARGET_SOURCE),
             )
         }
+    }
+
+    @Test
+    fun `legacy stored SYNOPTIC actuals preference falls back to default`() {
+        context.getSharedPreferences("widget_state_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .putString("actuals_provider_${WeatherSource.OPEN_METEO.name}", "SYNOPTIC")
+            .commit()
+
+        assertEquals(null, stateManager.getActualsProvider(WeatherSource.OPEN_METEO))
     }
 }

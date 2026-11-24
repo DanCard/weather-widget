@@ -19,7 +19,6 @@ object AndroidRainNow {
     private val APIS = setOf(
         WeatherSource.NWS.id,
         WeatherSource.METAR.id,
-        WeatherSource.SYNOPTIC.id,
         WeatherSource.TOMORROW_IO.id,
     )
 

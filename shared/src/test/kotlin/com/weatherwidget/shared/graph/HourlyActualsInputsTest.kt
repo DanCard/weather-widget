@@ -60,7 +60,7 @@ class HourlyActualsInputsTest {
 
     @Test
     fun `borrowed label only for a borrowing source with actuals drawn`() {
-        ActualsProviderResolver.installPreferenceSource { if (it == WeatherSource.SILURIAN) WeatherSource.SYNOPTIC else null }
+        ActualsProviderResolver.installPreferenceSource { if (it == WeatherSource.SILURIAN) WeatherSource.METAR else null }
         assertTrue(ActualsProviderResolver.showsBorrowedLabel(WeatherSource.SILURIAN, drawsActuals = true))
         assertFalse("future-only window", ActualsProviderResolver.showsBorrowedLabel(WeatherSource.SILURIAN, drawsActuals = false))
         assertFalse("its own actuals", ActualsProviderResolver.showsBorrowedLabel(WeatherSource.NWS, drawsActuals = true))

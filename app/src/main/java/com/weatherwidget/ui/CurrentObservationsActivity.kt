@@ -139,9 +139,6 @@ class CurrentObservationsActivity : AppCompatActivity() {
     @Inject
     lateinit var metarObservationSource: com.weatherwidget.data.repository.MetarObservationSource
 
-    @Inject
-    lateinit var synopticObservationSource: com.weatherwidget.data.repository.SynopticObservationSource
-
     private lateinit var recyclerView: RecyclerView
     private lateinit var adapter: ObservationAdapter
     private var currentSource: WeatherSource = WeatherSource.NWS
@@ -461,7 +458,6 @@ class CurrentObservationsActivity : AppCompatActivity() {
             val repository = weatherRepository
             val stateManager = widgetStateManager
             val metar = metarObservationSource
-            val synoptic = synopticObservationSource
             val dao = observationDao
             val historyDao = dailyHistoryDao
             val logDao = appLogDao
@@ -491,9 +487,8 @@ class CurrentObservationsActivity : AppCompatActivity() {
                         stateManager.getActualsProvider(it)
                     }
                 ) {
-                    // Both through the shared write (ObservationWriteRun), as every other observation path.
+                    // Through the shared write (ObservationWriteRun), as every other observation path.
                     WeatherSource.METAR -> store(metar.fetchObservations(lat, lon, hours = 24))
-                    WeatherSource.SYNOPTIC -> store(synoptic.fetchObservations(lat, lon, hours = 24))
                     else -> Unit
                 }
             }.await()
@@ -538,7 +533,6 @@ class CurrentObservationsActivity : AppCompatActivity() {
     private fun showActualsSourceChooser(activeId: String) {
         val options = ActualsProviderResolver.candidateOptions(
             defaultProvider = ActualsProviderResolver.defaultProviderFor(currentSource),
-            synopticConfigured = true,
         ) { com.weatherwidget.data.remote.BuiltInApiKeys.hasEffectiveKey(it, widgetStateManager) }
         if (options.isEmpty()) return
         ActualsProviderResolver.logPickerOpen(currentSource, options)

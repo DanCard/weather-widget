@@ -17,7 +17,6 @@ import androidx.work.testing.TestListenableWorkerBuilder
 import androidx.work.testing.WorkManagerTestInitHelper
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.repository.MetarObservationSource
-import com.weatherwidget.data.repository.SynopticObservationSource
 import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.test.category.LongDuration
 import io.mockk.mockk
@@ -89,7 +88,6 @@ class WeatherWidgetWorkerStartupCooldownTest {
                         db.appLogDao(),
                         mockk<GpsResampler>(relaxed = true),
                         mockk<MetarObservationSource>(relaxed = true),
-                        mockk<SynopticObservationSource>(relaxed = true),
                     )
             }
         return TestListenableWorkerBuilder<WeatherWidgetWorker>(context)

@@ -34,8 +34,8 @@ object HourlyActualsArchiveRun {
     private const val CONTEXT_MS = 24L * HOUR_MS
     private const val CONTEXT_HOURS = 24L
 
-    /** Sources a view can display. METAR and Synoptic are feeds read through them; the gap filler observes nothing. */
-    private val SOURCES = WeatherSource.entries - setOf(WeatherSource.METAR, WeatherSource.SYNOPTIC, WeatherSource.GENERIC_GAP)
+    /** Sources a view can display. METAR is a feed read through them; the gap filler observes nothing. */
+    private val SOURCES = WeatherSource.entries - setOf(WeatherSource.METAR, WeatherSource.GENERIC_GAP)
 
     interface Host {
         /** The newest archived hour; null on an empty table. */

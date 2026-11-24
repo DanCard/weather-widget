@@ -114,7 +114,7 @@ object ActualsProviderResolver {
 
     /** True when [source] allows configuring an alternative actuals provider. */
     fun allowsAlternativeProvider(source: WeatherSource): Boolean =
-        source != WeatherSource.GENERIC_GAP && source != WeatherSource.METAR && source != WeatherSource.SYNOPTIC
+        source != WeatherSource.GENERIC_GAP && source != WeatherSource.METAR
 
     /** The default provider for [source] at [location] (the active location unless given). */
     fun defaultProviderFor(
@@ -218,13 +218,11 @@ object ActualsProviderResolver {
      *
      * The platform supplies only its reads: [hasKey] is its effective-key resolver (Android
      * `BuiltInApiKeys.hasEffectiveKey`, desktop `!needsKeyFromUser`), asked only for
-     * [WeatherSource.requiresApiKey] feeds; [synopticConfigured] is whether this build carries a
-     * Synoptic token. Keyless feeds (NWS, METAR, Open-Meteo) always pass.
+     * [WeatherSource.requiresApiKey] feeds. Keyless feeds (NWS, METAR, Open-Meteo) always pass.
      */
     fun candidateOptions(
         defaultProvider: WeatherSource,
         location: Pair<Double, Double>? = installedLocation(),
-        synopticConfigured: Boolean,
         hasKey: (WeatherSource) -> Boolean,
     ): List<Candidate> = candidates(location).map { source ->
         Candidate(
@@ -233,7 +231,6 @@ object ActualsProviderResolver {
             isDefault = source == defaultProvider,
             unavailable = when {
                 !servesHere(source, location) -> Unavailable.OUTSIDE_COVERAGE
-                source == WeatherSource.SYNOPTIC && !synopticConfigured -> Unavailable.NO_KEY
                 source.requiresApiKey && !hasKey(source) -> Unavailable.NO_KEY
                 else -> null
             },

@@ -129,36 +129,6 @@ enum class WeatherSource(
         // whole point of the feed is that its actuals are independently measured.
         supportsHistoricalActualsBackfill = false,
     ),
-    /**
-     * Synoptic Data / MesoWest as a first-class **actuals provider** — its own station discovery and
-     * its own observation rows, selectable by a forecast-only source via [ActualsProviderResolver].
-     *
-     * Distinct from the long-standing Synoptic **web fallback**, which stays exactly as it is: that
-     * path fetches the 3 nearest *NWS* stations and files them under `api = "NWS"` with
-     * `isWebFallback = true`, because it redistributes the same ASOS METARs the NWS API serves and
-     * is merged per-station by `LatestObservationMerge.preferNewest` as the freshness path
-     * (20-60 minutes ahead of the API). Relabelling those rows would strip ~12 % of NWS's
-     * observations out of NWS's own blend and break that merge. Same upstream service, two
-     * deliberately separate uses.
-     *
-     * As a provider it is far denser than METAR — 386 stations within 25 miles of Mountain View
-     * versus 5, measured 2026-08-23 — but US-only (a Paris query returns none) and it needs a token,
-     * which is why [ActualsProviderResolver.DEFAULT_PROVIDER] remains METAR.
-     *
-     * Not in [com.weatherwidget.shared.util.WeatherSourceOrdering.ALL_CONFIGURABLE]: like METAR it is
-     * a feed, never a display source.
-     */
-    SYNOPTIC(
-        id = "SYNOPTIC",
-        displayName = "Synoptic",
-        shortDisplayName = "Syn",
-        description = "Synoptic/MesoWest stations (actuals only, never user-selectable)",
-        supportsHourly = false,
-        historicalDataKind = HistoricalDataKind.STATION_OBSERVATION,
-        supportsTemperatureActuals = true,
-        // No forecast of its own to re-file, and the point of the feed is measured data.
-        supportsHistoricalActualsBackfill = false,
-    ),
     GENERIC_GAP(
         id = "Generic",
         displayName = "Climate Avg",
@@ -233,7 +203,6 @@ enum class WeatherSource(
                 "Tomorrow.io", "TOMORROW_IO" -> TOMORROW_IO
                 "Google Weather", "GOOGLE_WEATHER" -> GOOGLE_WEATHER
                 "METAR" -> METAR
-                "SYNOPTIC" -> SYNOPTIC
                 else -> null
             }
 

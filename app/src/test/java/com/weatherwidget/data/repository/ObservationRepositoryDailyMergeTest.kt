@@ -270,7 +270,7 @@ class ObservationRepositoryDailyMergeTest {
     @Test
     fun `a past day seen only late in the evening keeps its stored high and low`() = runTest {
         com.weatherwidget.shared.observations.ActualsProviderResolver.installPreferenceSource { source ->
-            if (source == WeatherSource.SILURIAN) WeatherSource.SYNOPTIC else null
+            if (source == WeatherSource.SILURIAN) WeatherSource.METAR else null
         }
         val yesterday = today.minusDays(1)
         val yesterdayKey = yesterday.toEpochDay() * WidgetConstants.MS_IN_A_DAY
@@ -294,7 +294,7 @@ class ObservationRepositoryDailyMergeTest {
                 TestData.observation(
                     stationId = "G4110", stationName = "G4110",
                     timestamp = yesterday.atTime(minutes / 60, minutes % 60).atZone(zone).toInstant().toEpochMilli(),
-                    temperature = 62f - i * 0.25f, distanceKm = 2f, api = WeatherSource.SYNOPTIC.id,
+                    temperature = 62f - i * 0.25f, distanceKm = 2f, api = WeatherSource.METAR.id,
                 )
             },
         )

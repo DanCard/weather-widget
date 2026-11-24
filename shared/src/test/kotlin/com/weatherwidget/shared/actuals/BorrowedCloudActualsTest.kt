@@ -128,10 +128,10 @@ class BorrowedCloudActualsTest {
     }
 
     @Test
-    fun `silurian draws cloud from borrowed SYNOPTIC feed when configured`() = runBlocking {
-        ActualsProviderResolver.installPreferenceSource { WeatherSource.SYNOPTIC }
-        val synopticRow = metarRow("KNUQ", 85).copy(api = WeatherSource.SYNOPTIC.id)
-        val result = cloudFor(WeatherSource.SILURIAN, listOf(synopticRow))
+    fun `silurian draws cloud from borrowed NWS feed when configured`() = runBlocking {
+        ActualsProviderResolver.installPreferenceSource { WeatherSource.NWS }
+        val nwsRow = metarRow("KNUQ", 85).copy(api = WeatherSource.NWS.id)
+        val result = cloudFor(WeatherSource.SILURIAN, listOf(nwsRow))
         assertEquals(85, result.hours[hour])
         assertTrue(result.isMetarBlend)
     }

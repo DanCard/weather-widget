@@ -243,10 +243,10 @@ class DesktopWeatherRepositoryTest {
         assertTrue(dao.getRecentLogs(50).any { it.tag == "TODAY_LOW_UNCOVERED" })
     }
 
-    /** Three Synoptic readings today — 65° at [firstReadingHour], 67° at 12:00, 69° at 13:00. */
+    /** Three METAR readings today — 65° at [firstReadingHour], 67° at 12:00, 69° at 13:00. */
     private suspend fun loadSilurianTodayFromSynoptic(firstReadingHour: Int): com.weatherwidget.data.model.DailyHistory {
         com.weatherwidget.shared.observations.ActualsProviderResolver.installPreferenceSource { source ->
-            WeatherSource.SYNOPTIC.takeIf { source == WeatherSource.SILURIAN }
+            WeatherSource.METAR.takeIf { source == WeatherSource.SILURIAN }
         }
         try {
             val today = LocalDate.now()
@@ -286,7 +286,7 @@ class DesktopWeatherRepositoryTest {
                     distanceKm = 1.2f,
                     stationType = StationType.OFFICIAL,
                     fetchedAt = now,
-                    api = WeatherSource.SYNOPTIC.id,
+                    api = WeatherSource.METAR.id,
                 )
             }
             dao.upsertObservations(synopticObs)

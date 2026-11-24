@@ -7,7 +7,6 @@ import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.shared.util.MetarFetchPolicy
-import com.weatherwidget.shared.util.SynopticFetchPolicy
 import com.weatherwidget.shared.util.TargetedForecastSyncRun
 
 /**
@@ -33,7 +32,6 @@ internal class AndroidTargetedSyncHost(
     private val hourlyForecastLoader: HourlyForecastLoader,
     private val dataBundleLoader: WidgetDataBundleLoader,
     private val metarRefresher: MetarObservationRefresher,
-    private val synopticRefresher: SynopticObservationRefresher,
     private val location: Pair<Double, Double>,
     private val paint: suspend () -> Unit = {},
 ) : TargetedForecastSyncRun.Host {
@@ -71,12 +69,6 @@ internal class AndroidTargetedSyncHost(
             reason = TargetedForecastSyncRun.REPAINT_REASON,
             // Deep pull: daily extremes need the whole day, not the last two hours.
             hours = MetarObservationRefresher.DEEP_HOURS,
-        )
-        synopticRefresher.refreshIfDue(
-            setOf(SynopticFetchPolicy.Tier.PRIMARY, SynopticFetchPolicy.Tier.NON_PRIMARY),
-            lat,
-            lon,
-            reason = TargetedForecastSyncRun.REPAINT_REASON,
         )
     }
 

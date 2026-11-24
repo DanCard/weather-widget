@@ -252,7 +252,7 @@ falling now: then it is blue dots only, no cloud, sized by intensity (`ic_weathe
 `ic_weather_rain_now` / `ic_weather_rain_now_heavy`; `plans/261115-header-rain-now-dots.md`). The shared
 `RainNow` rule takes the strongest of three inputs:
 
-- the nearest official station's newest report (NWS, METAR or Synoptic rows only, ≤ 25 km, ≤ 75 min;
+- the nearest official station's newest report (NWS or METAR rows only, ≤ 25 km, ≤ 75 min;
   raw METAR present weather, `VC*` ignored);
 - the NOAA radar mosaic pixel at the site (`RadarNowSampler`, NWS coverage only, ≤ 25 min old), read
   by colour family: blue → sprinkling, green → raining, red ≥ 150 → heavy;

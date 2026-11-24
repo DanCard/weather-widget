@@ -53,7 +53,6 @@ class TargetedSyncPostActualsIntegrationTest {
     private lateinit var dataBundleLoader: WidgetDataBundleLoader
     private lateinit var painter: WidgetPaintCoordinator
     private lateinit var metarRefresher: MetarObservationRefresher
-    private lateinit var synopticRefresher: SynopticObservationRefresher
     private val order = mutableListOf<String>()
 
     private val lat = 37.4220
@@ -74,7 +73,6 @@ class TargetedSyncPostActualsIntegrationTest {
         dataBundleLoader = mockk(relaxed = true)
         painter = mockk(relaxed = true)
         metarRefresher = mockk(relaxed = true)
-        synopticRefresher = mockk(relaxed = true)
 
         coEvery { weatherRepository.getWeatherData(any(), any(), any(), any(), any(), any()) } returns
             Result.success(listOf(forecastRow()))
@@ -92,7 +90,6 @@ class TargetedSyncPostActualsIntegrationTest {
         coEvery { hourlyForecastLoader.load(any(), any(), any(), any()) } returns emptyList<HourlyForecastEntity>()
         coEvery { dataBundleLoader.fetchForecastSnapshots(any(), any()) } returns emptyMap()
         coEvery { metarRefresher.refreshIfDue(any(), any(), any(), any(), any()) } answers { order += "metar" }
-        coEvery { synopticRefresher.refreshIfDue(any(), any(), any(), any(), any()) } answers { order += "synoptic" }
     }
 
     @After
@@ -110,7 +107,6 @@ class TargetedSyncPostActualsIntegrationTest {
         assertTrue(result is androidx.work.ListenableWorker.Result.Success)
         assertEquals("freeze first, then paint, nothing slow", listOf("afterFetch", "paint"), order)
         coVerify(exactly = 0) { metarRefresher.refreshIfDue(any(), any(), any(), any(), any()) }
-        coVerify(exactly = 0) { synopticRefresher.refreshIfDue(any(), any(), any(), any(), any()) }
         coVerify(exactly = 0) { weatherRepository.backfillNwsObservationsIfNeeded(any(), any(), any(), any()) }
         coVerify(exactly = 0) { weatherRepository.repairFrozenRainChanceIfNeeded(any(), any()) }
         val recompute = slot<Boolean>()
@@ -138,7 +134,7 @@ class TargetedSyncPostActualsIntegrationTest {
         pipeline().run(targeted("manual_refresh", targetSourceId = null), device(), stopReason = 0)
         println("order=$order")
 
-        assertEquals(listOf("nwsBackfill", "metar", "synoptic", "afterFetch", "paint"), order)
+        assertEquals(listOf("nwsBackfill", "metar", "afterFetch", "paint"), order)
         assertTrue(tailWork().none { !it.state.isFinished })
     }
 
@@ -163,7 +159,7 @@ class TargetedSyncPostActualsIntegrationTest {
         println("outcome=$outcome order=$order")
 
         assertEquals(TargetedForecastSyncRun.TailOutcome.RAN, outcome)
-        assertEquals(listOf("read", "nwsBackfill", "metar", "synoptic", "recompute", "read"), order)
+        assertEquals(listOf("read", "nwsBackfill", "metar", "recompute", "read"), order)
         val served = slot<Collection<WeatherSource>>()
         coVerify { weatherRepository.backfillNwsObservationsIfNeeded(any(), any(), capture(served), any()) }
         assertEquals(setOf(WeatherSource.NWS, WeatherSource.OPEN_METEO), served.captured.toSet())
@@ -203,7 +199,7 @@ class TargetedSyncPostActualsIntegrationTest {
 
     private fun host() = AndroidTargetedSyncHost(
         context, weatherRepository, widgetStateManager, appLogDao, hourlyForecastLoader, dataBundleLoader,
-        metarRefresher, synopticRefresher, lat to lon,
+        metarRefresher, lat to lon,
     )
 
     private fun pipeline() = FullSyncPipeline(
@@ -216,7 +212,6 @@ class TargetedSyncPostActualsIntegrationTest {
         dataBundleLoader = dataBundleLoader,
         painter = painter,
         metarRefresher = metarRefresher,
-        synopticRefresher = synopticRefresher,
     )
 
     private fun forecastRow() = com.weatherwidget.data.local.ForecastEntity(

@@ -32,7 +32,7 @@ object ApiUsageClassifier {
         host.contains("weatherapi.com") -> "WEATHER_API"
         host == "weather.googleapis.com" -> "GOOGLE_WEATHER"
         host == "maps.googleapis.com" -> GOOGLE_GEOCODING
-        host.contains("synopticdata.com") -> "SYNOPTIC"
+        host.contains("synopticdata.com") -> SYNOPTIC
         // The radar view's NWS mosaics (opengeo.ncep.noaa.gov) count as NWS.
         host.endsWith("ncep.noaa.gov") -> "NWS"
         host.endsWith("rainviewer.com") -> RAINVIEWER
@@ -72,11 +72,13 @@ object ApiUsageClassifier {
 
     const val RAINVIEWER = "RAINVIEWER"
     const val GOOGLE_GEOCODING = "GOOGLE_GEOCODING"
+    const val SYNOPTIC = "SYNOPTIC"
 
     /** Usage rows for ids that are not a [com.weatherwidget.data.model.WeatherSource]. */
     val NON_SOURCE_NAMES = mapOf(
         RAINVIEWER to "RainViewer",
         GOOGLE_GEOCODING to "Google Geocoding",
+        SYNOPTIC to "Synoptic",
     )
 
     /**

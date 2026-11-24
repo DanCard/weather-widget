@@ -33,7 +33,7 @@ class DesktopActualsPreferenceTest {
             DesktopSettings(
                 actualsProviders = mapOf(
                     WeatherSource.OPEN_METEO.id to WeatherSource.NWS.id,
-                    WeatherSource.NWS.id to WeatherSource.SYNOPTIC.id,
+                    WeatherSource.NWS.id to WeatherSource.METAR.id,
                 ),
             ),
         )
@@ -43,7 +43,7 @@ class DesktopActualsPreferenceTest {
             ActualsProviderResolver.providerIdFor(WeatherSource.OPEN_METEO),
         )
         assertEquals(
-            WeatherSource.SYNOPTIC.id,
+            WeatherSource.METAR.id,
             ActualsProviderResolver.providerIdFor(WeatherSource.NWS),
         )
         assertEquals(
@@ -128,9 +128,7 @@ class DesktopActualsPreferenceTest {
             DesktopSettings(actualsProviders = mapOf(WeatherSource.OPEN_METEO.id to "SYNOPTIC")),
         )
         val looked = DesktopActualsPreference.lookup(WeatherSource.OPEN_METEO)
-        if (!ActualsProviderResolver.canProvide(WeatherSource.SYNOPTIC)) {
-            assertNull("a provider that cannot provide must not be honoured", looked)
-        }
+        assertNull("removed SYNOPTIC provider must resolve to null and fall back to default", looked)
     }
 
     @Test

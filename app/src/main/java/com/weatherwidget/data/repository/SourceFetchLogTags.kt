@@ -23,7 +23,6 @@ object SourceFetchLogTags {
             // Not fetched as forecast providers.
             WeatherSource.VISUAL_CROSSING,
             WeatherSource.METAR,
-            WeatherSource.SYNOPTIC,
             WeatherSource.GENERIC_GAP,
             -> null
         }

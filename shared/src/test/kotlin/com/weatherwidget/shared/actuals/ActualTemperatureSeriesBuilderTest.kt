@@ -102,12 +102,12 @@ class ActualTemperatureSeriesBuilderTest {
 
     @Test
     fun `borrowed actuals source blends multiple stations with IDW and captures dominant station`() {
-        ActualsProviderResolver.installPreferenceSource { WeatherSource.SYNOPTIC }
+        ActualsProviderResolver.installPreferenceSource { WeatherSource.METAR }
         try {
             val forecasts = forecasts("2026-06-03T08:00:00", 8, source = WeatherSource.SILURIAN.id)
             val observations = listOf(
-                observation("CWOP1", "2026-06-03T10:00:00", 80f, api = WeatherSource.SYNOPTIC.id, distanceKm = 1.5f, stationType = StationType.PERSONAL),
-                observation("KNUQ", "2026-06-03T10:00:00", 72f, api = WeatherSource.SYNOPTIC.id, distanceKm = 3.8f, stationType = StationType.OFFICIAL),
+                observation("CWOP1", "2026-06-03T10:00:00", 80f, api = WeatherSource.METAR.id, distanceKm = 1.5f, stationType = StationType.PERSONAL),
+                observation("KNUQ", "2026-06-03T10:00:00", 72f, api = WeatherSource.METAR.id, distanceKm = 3.8f, stationType = StationType.OFFICIAL),
             )
 
             val result = ActualTemperatureSeriesBuilder.build(
@@ -141,15 +141,15 @@ class ActualTemperatureSeriesBuilderTest {
     }
 
     @Test
-    fun `tomorrow forecast keeps synoptic rows when synoptic supplies actuals`() {
+    fun `tomorrow forecast keeps metar rows when metar supplies actuals`() {
         ActualsProviderResolver.installPreferenceSource { source ->
-            WeatherSource.SYNOPTIC.takeIf { source == WeatherSource.TOMORROW_IO }
+            WeatherSource.METAR.takeIf { source == WeatherSource.TOMORROW_IO }
         }
         try {
             val result = ActualTemperatureSeriesBuilder.blendObservationSeries(
                 observations = listOf(
-                    observation("KNUQ", "2026-06-03T10:00:00", 72f, api = WeatherSource.SYNOPTIC.id, distanceKm = 3.8f),
-                    observation("AW020", "2026-06-03T10:00:00", 76f, api = WeatherSource.SYNOPTIC.id, distanceKm = 2.0f),
+                    observation("KNUQ", "2026-06-03T10:00:00", 72f, api = WeatherSource.METAR.id, distanceKm = 3.8f),
+                    observation("AW020", "2026-06-03T10:00:00", 76f, api = WeatherSource.METAR.id, distanceKm = 2.0f),
                 ),
                 hourlyForecasts = forecasts("2026-06-03T08:00:00", 8, source = WeatherSource.TOMORROW_IO.id),
                 displaySourceId = WeatherSource.TOMORROW_IO.id,

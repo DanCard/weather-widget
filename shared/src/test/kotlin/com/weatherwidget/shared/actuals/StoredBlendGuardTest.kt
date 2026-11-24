@@ -30,13 +30,13 @@ class StoredBlendGuardTest {
 
     @Before
     fun setUp() = ActualsProviderResolver.installPreferenceSource { source ->
-        if (source == WeatherSource.SILURIAN) WeatherSource.SYNOPTIC else null
+        if (source == WeatherSource.SILURIAN) WeatherSource.METAR else null
     }
 
     @After
     fun tearDown() = ActualsProviderResolver.resetPreferenceSource()
 
-    private fun reading(date: LocalDate, hour: Int, minute: Int = 0, api: String = WeatherSource.SYNOPTIC.id) =
+    private fun reading(date: LocalDate, hour: Int, minute: Int = 0, api: String = WeatherSource.METAR.id) =
         ObservationReading(
             stationId = "G4110",
             stationName = "G4110",

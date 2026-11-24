@@ -20,9 +20,9 @@ class CloudCoverSourceLabelLocalizationRoboTest {
     fun `cloud actuals source label is localized instead of built in shared English`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val label = requireNotNull(
-            CloudCoverViewHandler.localizedActualsSourceLabel(context, WeatherSource.SYNOPTIC.displayName),
+            CloudCoverViewHandler.localizedActualsSourceLabel(context, WeatherSource.METAR.displayName),
         )
 
-        assertEquals("Tatsächliche Bewölkungsdaten von Synoptic", label.fullText)
+        assertEquals("Tatsächliche Bewölkungsdaten von METAR", label.fullText)
     }
 }

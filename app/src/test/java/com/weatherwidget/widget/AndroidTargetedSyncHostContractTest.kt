@@ -26,7 +26,7 @@ class AndroidTargetedSyncHostContractTest : TargetedForecastSyncHostContract() {
         workManager().pruneWork().result.get()
         return AndroidTargetedSyncHost(
             context, mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true),
-            mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), 37.422 to -122.084,
+            mockk(relaxed = true), mockk(relaxed = true), 37.422 to -122.084,
         )
     }
 

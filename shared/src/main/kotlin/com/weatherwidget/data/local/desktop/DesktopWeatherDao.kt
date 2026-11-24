@@ -1531,7 +1531,7 @@ class DesktopWeatherDao(private val db: DesktopWeatherDatabase) {
 
     /**
      * Timestamp of the newest stored observation row for [api] at this site, or null when there is
-     * none. Used by [com.weatherwidget.shared.util.SynopticFetchWindow] so a routine refresh only
+     * none. Used by [com.weatherwidget.shared.util.MetarFetchWindow] so a routine refresh only
      * requests the gap since the last store instead of the full 24 h.
      */
     fun getNewestObservationTimestampForApi(api: String, latitude: Double, longitude: Double): Long? {

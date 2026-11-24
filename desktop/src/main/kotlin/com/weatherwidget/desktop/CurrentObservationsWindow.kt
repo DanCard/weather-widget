@@ -509,7 +509,6 @@ internal fun CurrentObservationsContent(
                                     active = ActualsProviderResolver.providerIdFor(currentSource),
                                     options = ActualsProviderResolver.candidateOptions(
                                         defaultProvider = ActualsProviderResolver.defaultProviderFor(currentSource),
-                                        synopticConfigured = true,
                                     ) { !needsKeyFromUser(it, config.settings.apiKeys) },
                                     onChoose = { chosen ->
                                         val defaultProvider = ActualsProviderResolver.defaultProviderFor(currentSource)

@@ -60,7 +60,7 @@ class ObservationWriteRunTest {
     private fun reading(
         station: String,
         timestamp: Long,
-        api: String = WeatherSource.SYNOPTIC.id,
+        api: String = WeatherSource.METAR.id,
         type: StationType = StationType.PERSONAL,
         fetchedAt: Long = timestamp + MIN,
     ) = ObservationReading(
@@ -79,7 +79,7 @@ class ObservationWriteRunTest {
         for (fetch in 0 until 6) {
             host.write(listOf(reading("F4751", T0 + fetch * 5 * MIN)), now = T0 + fetch * 5 * MIN + MIN)
         }
-        assertEquals(listOf(T0, T0 + 10 * MIN, T0 + 20 * MIN, T0 + 25 * MIN), host.timestamps(WeatherSource.SYNOPTIC.id, "F4751"))
+        assertEquals(listOf(T0, T0 + 10 * MIN, T0 + 20 * MIN, T0 + 25 * MIN), host.timestamps(WeatherSource.METAR.id, "F4751"))
     }
 
     @Test
@@ -89,9 +89,9 @@ class ObservationWriteRunTest {
         host.write((0 until 6).map { reading("F4751", T0 + it * 5 * MIN, api = WeatherSource.NWS.id, type = StationType.PERSONAL) })
         host.write(listOf(reading("F4751", T0 + 2 * MIN)))
 
-        assertEquals(6, host.timestamps(WeatherSource.SYNOPTIC.id, "KSJC").size)
+        assertEquals(6, host.timestamps(WeatherSource.METAR.id, "KSJC").size)
         assertEquals(listOf(T0, T0 + 10 * MIN, T0 + 20 * MIN, T0 + 25 * MIN), host.timestamps(WeatherSource.NWS.id, "F4751"))
-        assertEquals(listOf(T0 + 2 * MIN), host.timestamps(WeatherSource.SYNOPTIC.id, "F4751"))
+        assertEquals(listOf(T0 + 2 * MIN), host.timestamps(WeatherSource.METAR.id, "F4751"))
     }
 
     @Test
@@ -100,7 +100,7 @@ class ObservationWriteRunTest {
         host.write(listOf(reading("F4751", T0 + 60 * MIN), reading("F4751", T0 + 65 * MIN)))
         host.write(listOf(reading("F4751", T0), reading("F4751", T0 + 5 * MIN)))
 
-        assertEquals(listOf(T0, T0 + 60 * MIN, T0 + 65 * MIN), host.timestamps(WeatherSource.SYNOPTIC.id, "F4751"))
+        assertEquals(listOf(T0, T0 + 60 * MIN, T0 + 65 * MIN), host.timestamps(WeatherSource.METAR.id, "F4751"))
     }
 
     @Test
@@ -160,9 +160,9 @@ class ObservationWriteRunTest {
             listOf(
                 reading("KSJC", T0, api = WeatherSource.NWS.id, type = StationType.OFFICIAL),
                 reading("KPAO", T0, api = WeatherSource.NWS.id, type = StationType.OFFICIAL),
-                reading("C8226", T0, api = WeatherSource.SYNOPTIC.id),
+                reading("C8226", T0, api = WeatherSource.METAR.id),
             ),
         )
-        assertEquals(listOf(WeatherSource.NWS.id, WeatherSource.SYNOPTIC.id), host.retired)
+        assertEquals(listOf(WeatherSource.NWS.id, WeatherSource.METAR.id), host.retired)
     }
 }

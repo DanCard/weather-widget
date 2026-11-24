@@ -13,9 +13,9 @@ class BlendInputApiTest {
     fun `a redirected source's blend inputs are its provider's rows`() {
         // 2026-09-28 Warsaw: Open-Meteo → Synoptic logged stations=[OPEN_METEO_MAIN].
         val prefs: (WeatherSource) -> WeatherSource? = {
-            if (it == WeatherSource.OPEN_METEO) WeatherSource.SYNOPTIC else null
+            if (it == WeatherSource.OPEN_METEO) WeatherSource.METAR else null
         }
-        assertEquals("SYNOPTIC", DailyBlendRecomputeRun.blendInputApi("OPEN_METEO", prefs))
+        assertEquals("METAR", DailyBlendRecomputeRun.blendInputApi("OPEN_METEO", prefs))
     }
 
     @Test

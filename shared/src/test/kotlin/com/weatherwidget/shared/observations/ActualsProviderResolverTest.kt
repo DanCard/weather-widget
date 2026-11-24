@@ -61,10 +61,10 @@ class ActualsProviderResolverTest {
     /** All forecast sources allow alternative providers when preferred. */
     @Test
     fun `installed preference can redirect any forecast source`() {
-        ActualsProviderResolver.installPreferenceSource { WeatherSource.SYNOPTIC }
-        assertEquals("SYNOPTIC", ActualsProviderResolver.providerIdFor(WeatherSource.NWS))
-        assertEquals("SYNOPTIC", ActualsProviderResolver.providerIdFor(WeatherSource.TOMORROW_IO))
-        assertEquals("SYNOPTIC", ActualsProviderResolver.providerIdFor(WeatherSource.WEATHER_API))
+        ActualsProviderResolver.installPreferenceSource { WeatherSource.METAR }
+        assertEquals("METAR", ActualsProviderResolver.providerIdFor(WeatherSource.NWS))
+        assertEquals("METAR", ActualsProviderResolver.providerIdFor(WeatherSource.TOMORROW_IO))
+        assertEquals("METAR", ActualsProviderResolver.providerIdFor(WeatherSource.WEATHER_API))
     }
 
     @Test
@@ -124,8 +124,8 @@ class ActualsProviderResolverTest {
             ActualsProviderResolver.providerIdFor(WeatherSource.SILURIAN) { WeatherSource.NWS },
         )
         assertEquals(
-            "SYNOPTIC",
-            ActualsProviderResolver.providerIdFor(WeatherSource.NWS) { WeatherSource.SYNOPTIC },
+            "METAR",
+            ActualsProviderResolver.providerIdFor(WeatherSource.NWS) { WeatherSource.METAR },
         )
         assertEquals(
             "METAR",
@@ -138,7 +138,7 @@ class ActualsProviderResolverTest {
     fun `a preference cannot override feeds and synthetic filler`() {
         assertEquals(
             "METAR",
-            ActualsProviderResolver.providerIdFor(WeatherSource.METAR) { WeatherSource.SYNOPTIC },
+            ActualsProviderResolver.providerIdFor(WeatherSource.METAR) { WeatherSource.NWS },
         )
         assertEquals(
             "Generic",
@@ -198,14 +198,14 @@ class ActualsProviderResolverTest {
     fun `measured feeds are offered ahead of derived ones`() {
         val candidates = ActualsProviderResolver.candidates()
         assertEquals(
-            listOf(WeatherSource.METAR, WeatherSource.NWS, WeatherSource.SYNOPTIC),
+            listOf(WeatherSource.METAR, WeatherSource.NWS),
             candidates.filter { ActualsProviderResolver.tierOf(it) == ActualsProviderResolver.Tier.MEASURED },
         )
         val derived = candidates.filter { ActualsProviderResolver.tierOf(it) == ActualsProviderResolver.Tier.DERIVED }
         assertEquals(setOf(WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API, WeatherSource.TOMORROW_IO), derived.toSet())
         assertTrue(
             "every measured option precedes every derived one",
-            candidates.indexOf(WeatherSource.SYNOPTIC) < candidates.indexOf(derived.first()),
+            candidates.indexOf(WeatherSource.NWS) < candidates.indexOf(derived.first()),
         )
     }
 
@@ -222,14 +222,14 @@ class ActualsProviderResolverTest {
     }
 
     @Test
-    fun `NWS and Synoptic are both selectable`() {
+    fun `NWS and METAR are both selectable`() {
         assertEquals(
             "NWS",
             ActualsProviderResolver.providerIdFor(WeatherSource.OPEN_METEO) { WeatherSource.NWS },
         )
         assertEquals(
-            "SYNOPTIC",
-            ActualsProviderResolver.providerIdFor(WeatherSource.OPEN_METEO) { WeatherSource.SYNOPTIC },
+            "METAR",
+            ActualsProviderResolver.providerIdFor(WeatherSource.OPEN_METEO) { WeatherSource.METAR },
         )
     }
 
@@ -384,7 +384,7 @@ class ActualsProviderResolverTest {
         default: WeatherSource,
         location: Pair<Double, Double>?,
         keys: (WeatherSource) -> Boolean,
-    ) = ActualsProviderResolver.candidateOptions(default, location, synopticConfigured = keys(WeatherSource.SYNOPTIC), hasKey = keys)
+    ) = ActualsProviderResolver.candidateOptions(default, location, hasKey = keys)
 
     @Test
     fun `NWS is greyed abroad, nothing is greyed at home with every key`() {
@@ -409,7 +409,7 @@ class ActualsProviderResolverTest {
     fun `no credentials greys the keyed feeds and never the keyless ones`() {
         val rows = options(WeatherSource.NWS, mountainView) { false }
         assertEquals(
-            setOf(WeatherSource.TOMORROW_IO, WeatherSource.WEATHER_API, WeatherSource.SYNOPTIC),
+            setOf(WeatherSource.TOMORROW_IO, WeatherSource.WEATHER_API),
             rows.filter { it.unavailable == ActualsProviderResolver.Unavailable.NO_KEY }.map { it.source }.toSet(),
         )
         for (keyless in listOf(WeatherSource.NWS, WeatherSource.METAR, WeatherSource.OPEN_METEO)) {
@@ -472,8 +472,8 @@ class ActualsProviderResolverTest {
         val silurianOnTomorrow: (WeatherSource) -> WeatherSource? = { if (it == WeatherSource.SILURIAN) WeatherSource.TOMORROW_IO else null }
         assertEquals("TOMORROW_IO", ActualsProviderResolver.providerIdAt(WeatherSource.SILURIAN, 37.42, -122.08, silurianOnTomorrow))
         assertEquals("NWS", rain(WeatherSource.SILURIAN, bayArea, silurianOnTomorrow))
-        // A user's Synoptic choice carries rain, so it stays.
-        val omOnSynoptic: (WeatherSource) -> WeatherSource? = { if (it == WeatherSource.OPEN_METEO) WeatherSource.SYNOPTIC else null }
-        assertEquals("SYNOPTIC", rain(WeatherSource.OPEN_METEO, bayArea, omOnSynoptic))
+        // A user's METAR choice carries rain, so it stays.
+        val omOnMetar: (WeatherSource) -> WeatherSource? = { if (it == WeatherSource.OPEN_METEO) WeatherSource.METAR else null }
+        assertEquals("METAR", rain(WeatherSource.OPEN_METEO, bayArea, omOnMetar))
     }
 }

@@ -41,7 +41,6 @@ class ActualsSourcePickerTest {
         ActualsProviderResolver.candidateOptions(
             defaultProvider = ActualsProviderResolver.defaultProviderFor(WeatherSource.GOOGLE_WEATHER, location),
             location = location,
-            synopticConfigured = true,
         ) { !needsKeyFromUser(it, userKeys) }
 
     private fun render(location: Pair<Double, Double>, userKeys: Map<String, String>) {

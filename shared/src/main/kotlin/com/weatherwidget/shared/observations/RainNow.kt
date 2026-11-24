@@ -49,7 +49,7 @@ object RainNow {
 
 
     /** Rows from these feeds are station reports; Tomorrow.io's and model currents are not. */
-    private val STATION_APIS = setOf(WeatherSource.NWS.id, WeatherSource.METAR.id, WeatherSource.SYNOPTIC.id)
+    private val STATION_APIS = setOf(WeatherSource.NWS.id, WeatherSource.METAR.id)
 
     data class Verdict(
         val level: Level?,

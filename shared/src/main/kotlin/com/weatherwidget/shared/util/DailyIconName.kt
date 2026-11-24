@@ -173,8 +173,8 @@ object DailyIconName {
             WeatherSource.SILURIAN, WeatherSource.NWS -> fromCondition(token)
             WeatherSource.GOOGLE_WEATHER -> fromCondition(WeatherCodeMapper.googleConditionToCondition(token))
             WeatherSource.TOMORROW_IO -> token.toIntOrNull()?.let { fromCondition(WeatherCodeMapper.tomorrowIoCodeToCondition(it)) }
-            // No daily forecast rows: GENERIC_GAP has no token, METAR/Synoptic are observation feeds.
-            WeatherSource.GENERIC_GAP, WeatherSource.METAR, WeatherSource.SYNOPTIC, WeatherSource.VISUAL_CROSSING -> null
+            // No daily forecast rows: GENERIC_GAP has no token, METAR is an observation feed.
+            WeatherSource.GENERIC_GAP, WeatherSource.METAR, WeatherSource.VISUAL_CROSSING -> null
         }
     }
 

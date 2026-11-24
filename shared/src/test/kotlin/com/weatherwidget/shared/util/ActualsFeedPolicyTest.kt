@@ -255,11 +255,10 @@ class ActualsFeedPolicyTest {
     }
 
     @Test
-    fun `borrowers matches the METAR and Synoptic consumer lists`() {
+    fun `borrowers matches the METAR consumer list`() {
         val visible = listOf(WeatherSource.NWS, WeatherSource.SILURIAN, WeatherSource.GOOGLE_WEATHER, WeatherSource.OPEN_METEO)
-        val pref = prefs(WeatherSource.GOOGLE_WEATHER to WeatherSource.SYNOPTIC)
+        val pref = prefs(WeatherSource.GOOGLE_WEATHER to WeatherSource.METAR)
         assertEquals(MetarFetchPolicy.consumers(visible, pref), ActualsFeedPolicy.borrowers(WeatherSource.METAR, visible, pref))
-        assertEquals(SynopticFetchPolicy.consumers(visible, pref), ActualsFeedPolicy.borrowers(WeatherSource.SYNOPTIC, visible, pref))
-        assertEquals(listOf(WeatherSource.GOOGLE_WEATHER), ActualsFeedPolicy.borrowers(WeatherSource.SYNOPTIC, visible, pref))
+        assertEquals(listOf(WeatherSource.SILURIAN, WeatherSource.GOOGLE_WEATHER), ActualsFeedPolicy.borrowers(WeatherSource.METAR, visible, pref))
     }
 }

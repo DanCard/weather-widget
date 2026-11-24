@@ -69,7 +69,7 @@ display source's actuals changed, or whose provisional map had no today, are rep
 refresh request (`WeatherData.actualsProvisional`); the live render makes it when one is due.
 Taps and worker paints use the live read only. `performance/261118-cold-start-daily-actuals-cost.md`
 
-The current observation table can include NWS, METAR, Synoptic, and provider analysis/history data.
+The current observation table can include NWS, METAR, and provider analysis/history data.
 Provenance matters: Synoptic web-fallback rows filed under NWS represent redistributed station
 observations, while a forecast-only provider's elapsed forecast hours must not become measured
 actuals.
@@ -111,7 +111,7 @@ on-demand single-day fetch runs none. The runner:
 Other providers use their own documented history/analysis products according to `HistoricalDataKind`
 and the shared ingestion runners. Google Weather and Silurian are forecast-only for temperature and
 cloud actuals, so their actuals are borrowed from an independently configured observation feed.
-METAR and Synoptic are actuals feeds, not user-selectable forecast providers.
+METAR is an actuals feed, not a user-selectable forecast provider.
 
 ## Forecast comparisons and upkeep
 
@@ -148,7 +148,7 @@ both to one scenario.
 
 - **Predicted:** for each hour, the newest snapshot captured on the hour's previous local calendar
   day (1-day-ahead; `HistorySnapshotRetention` rule 4 keeps that row).
-- **Measured:** one series for every source: `ObservedPrecip.measuredRows` (NWS/METAR/Synoptic gauge
+- **Measured:** one series for every source: `ObservedPrecip.measuredRows` (NWS/METAR gauge
   reports, never the NWS blend or a provider's `<SOURCE>_MAIN` analysis) through `ObservedPrecip.byHour`.
   Hours past raw-observation retention come from the NWS `hourly_actuals` archive; live hours win.
 - **Paired hours** (`RainScore`): totals sum only hours that have both a forecast and a measured
