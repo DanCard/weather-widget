@@ -3,11 +3,14 @@ package com.weatherwidget.desktop
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.DataStatus
@@ -248,5 +251,61 @@ class DesktopNoHourlyDayClickTest {
         assert(shownConfig!!.viewMode.isHourly)
         assertEquals(targetDate, fetchedDate)
         composeTestRule.onNodeWithText("Fetching hourly forecast for", substring = true).assertIsDisplayed()
+    }
+
+    /**
+     * OWM's 5-day horizon ends mid-day on day 5 (e.g. 11 AM). Clicking day 5 opens a WIDE
+     * 03:00..21:00 window, and TemperatureGraph stretches 03:00..11:00 across the full width so
+     * 9 AM sits at 75% across. Clicking 9 AM to zoom in must centre on 9 AM (drawn axis), not
+     * jump to 4–5 PM (unclipped window) where OWM has no data.
+     */
+    @Test
+    fun clickingNineAmOnTruncatedOwmDayZoomsIntoMorningWithoutEmptyNotice() {
+        val owm = WeatherSource.OPEN_WEATHER_MAP
+        val morningHours = (0..11).map { targetDate to it }.toTypedArray()
+        val stored = hourly(owm, today to 9, today to 12, *morningHours)
+        val hoursToTargetNoon = java.time.Duration
+            .between(java.time.LocalDateTime.now(), targetDate.atTime(12, 0))
+            .toHours().toInt()
+        val initial = config(owm).copy(
+            viewMode = ViewMode.TEMPERATURE,
+            hourlyOffset = hoursToTargetNoon,
+            zoomFactor = DesktopGraphUtils.DEFAULT_ZOOM_FACTOR,
+        )
+        shownConfig = initial
+        composeTestRule.setContent {
+            Box(Modifier.size(800.dp, 400.dp)) {
+                WidgetPopup(
+                    config = shownConfig!!,
+                    forecast = ForecastSnapshot(
+                        sourceId = owm.id,
+                        raw = RawFetch(daily = dailyEntries, hourly = stored),
+                        resolved = ResolvedView(currentTemp = 72f, currentCondition = "Sunny"),
+                    ),
+                    dataStatus = DataStatus.Live(System.currentTimeMillis()),
+                    onUpdateLocation = {},
+                    onUpdateConfig = { shownConfig = it },
+                    onOpenSettings = {},
+                    onOpenCurrentObservations = {},
+                    onNeedHourlyRefresh = { _, _ -> },
+                )
+            }
+        }
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag("hourly_empty_notice").assertDoesNotExist()
+
+        // Click at 75% width, upper-middle height (above the 44dp bottom icon strip): visually 9 AM.
+        composeTestRule.onNodeWithTag("hourly_temperature_surface").performTouchInput {
+            click(Offset(width * 0.75f, height * 0.35f))
+        }
+        composeTestRule.waitForIdle()
+
+        val zoomed = shownConfig!!
+        val expectedNineAmOffset = hoursToTargetNoon - 3
+        assert(kotlin.math.abs(zoomed.hourlyOffset - expectedNineAmOffset) <= 1) {
+            "Expected zoom near 9 AM (offset ~$expectedNineAmOffset), got ${zoomed.hourlyOffset}"
+        }
+        composeTestRule.onNodeWithTag("hourly_empty_notice").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("no_hourly_message").assertDoesNotExist()
     }
 }

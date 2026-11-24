@@ -1,5 +1,7 @@
 package com.weatherwidget.shared.graph
 
+import java.time.LocalDateTime
+import java.time.ZoneId
 import kotlin.math.roundToInt
 
 /**
@@ -108,13 +110,101 @@ object HourlyZoomRules {
 
     /**
      * The hour (offset from now) a tap centres the zoom on: the one at [fraction] (0 = left edge,
-     * 1 = right) of a window whose left edge is [startOffsetHours] from now and which spans
-     * [spanHours]. Android's 13 hour zones pass zone / 12, desktop the pointer's x / width. In hour
-     * offsets, not epoch millis: desktop computed the instant as a Float, ±65 s at epoch size, so a
-     * tap near a half hour could centre the wrong hour.
+     * 1 = right) of a drawn axis whose left edge is [startOffsetHours] from now and which spans
+     * [spanHours]. Callers should pass the **drawn** range ([DrawnTimeAxis], falling back to the
+     * nominal window when fewer than two distinct hours exist) so taps land on the hour under the
+     * finger/cursor even when a source's forecast ends mid-window. Android's 13 hour zones pass
+     * zone / 12, desktop the pointer's x / width. In hour offsets, not epoch millis: desktop
+     * computed the instant as a Float, ±65 s at epoch size, so a tap near a half hour could centre
+     * the wrong hour.
      */
     fun tapOffsetHours(fraction: Double, startOffsetHours: Double, spanHours: Double): Int =
         (startOffsetHours + fraction * spanHours).roundToInt()
+}
+
+/**
+ * The horizontal time axis an hourly graph actually draws across `0..width` (`startMs..endMs`).
+ * Both Android (`hourWidth` across plotted `hours`) and desktop (`xAtTime` across `points.first()..last()`)
+ * stretch their plotted points across the full width, so tap-zoom, wheel-zoom, and drag-pan must map
+ * pointer/touch fractions against this drawn range — falling back to the nominal window when fewer
+ * than two distinct timestamps were plotted.
+ */
+data class DrawnTimeAxis(val startMs: Long, val endMs: Long) {
+    /** Drawn span in hours. */
+    val spanHours: Double get() = (endMs - startMs) / HOUR_MS.toDouble()
+
+    /** Whole-hour span (at least 1) so horizontal drag-pan matches visual pixels-per-hour. */
+    val panSpanHours: Int get() = spanHours.roundToInt().coerceAtLeast(1)
+
+    /** Hour offset from [nowMs] at [fraction] (0 = left edge, 1 = right edge). */
+    fun tapOffsetHours(fraction: Double, nowMs: Long): Int =
+        HourlyZoomRules.tapOffsetHours(
+            fraction = fraction,
+            startOffsetHours = (startMs - nowMs) / HOUR_MS.toDouble(),
+            spanHours = spanHours,
+        )
+
+    companion object {
+        private const val HOUR_MS = 3_600_000L
+
+        /**
+         * Resolves the drawn axis from the first and last plotted timestamps (epoch millis),
+         * falling back to [fallbackStartMs]..[fallbackEndMs] when absent or degenerate.
+         */
+        fun resolve(
+            firstMs: Long?,
+            lastMs: Long?,
+            fallbackStartMs: Long,
+            fallbackEndMs: Long,
+        ): DrawnTimeAxis =
+            if (firstMs != null && lastMs != null && lastMs > firstMs) {
+                DrawnTimeAxis(firstMs, lastMs)
+            } else {
+                DrawnTimeAxis(fallbackStartMs, fallbackEndMs)
+            }
+
+        /**
+         * Resolves the drawn axis from plotted [LocalDateTime] endpoints (Android renderers),
+         * falling back to the nominal [zoom] window around [now] + [hourlyOffset].
+         */
+        fun resolve(
+            first: LocalDateTime?,
+            last: LocalDateTime?,
+            hourlyOffset: Int,
+            zoom: ZoomWindow,
+            now: LocalDateTime = LocalDateTime.now(),
+            zoneId: ZoneId = ZoneId.systemDefault(),
+        ): DrawnTimeAxis {
+            val nowMs = now.atZone(zoneId).toInstant().toEpochMilli()
+            val fallbackStartMs = nowMs + (hourlyOffset - zoom.backHours) * HOUR_MS
+            val fallbackEndMs = nowMs + (hourlyOffset + zoom.forwardHours) * HOUR_MS
+            return resolve(
+                firstMs = first?.atZone(zoneId)?.toInstant()?.toEpochMilli(),
+                lastMs = last?.atZone(zoneId)?.toInstant()?.toEpochMilli(),
+                fallbackStartMs = fallbackStartMs,
+                fallbackEndMs = fallbackEndMs,
+            )
+        }
+
+        /**
+         * Resolves the drawn axis and reference `nowMs` from plotted [LocalDateTime] endpoints
+         * anchored around [centerTime] (which sits at [hourlyOffset] hours from `now`). Deriving
+         * reference `now` from `centerTime.minusHours(hourlyOffset)` keeps offsets exact for both
+         * live widget renders and tests with synthetic dates.
+         */
+        fun resolveForCenter(
+            first: LocalDateTime?,
+            last: LocalDateTime?,
+            centerTime: LocalDateTime,
+            hourlyOffset: Int,
+            zoom: ZoomWindow,
+            zoneId: ZoneId = ZoneId.systemDefault(),
+        ): Pair<DrawnTimeAxis, Long> {
+            val referenceNow = centerTime.minusHours(hourlyOffset.toLong())
+            val referenceNowMs = referenceNow.atZone(zoneId).toInstant().toEpochMilli()
+            return resolve(first, last, hourlyOffset, zoom, referenceNow, zoneId) to referenceNowMs
+        }
+    }
 }
 
 /**

@@ -137,8 +137,16 @@ HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, header.isPrecipVis
 // 3. Center Icons & Navigation (headerButtons computed above, before the header fit)
 
         // 4. Setup Intent Listeners
+        val (drawnAxis, tapNowMs) = com.weatherwidget.shared.graph.DrawnTimeAxis.resolveForCenter(
+            first = state.graph.hourData.firstOrNull()?.dateTime,
+            last = state.graph.hourData.lastOrNull()?.dateTime,
+            centerTime = centerTime,
+            hourlyOffset = state.hourlyOffset,
+            zoom = state.zoom,
+        )
         setupZoomTapZones(
             context, views, appWidgetId, state.zoom, state.hourlyOffset,
+            drawnAxis = drawnAxis, nowMs = tapNowMs,
         )
         setupNavigationButtons(context, views, appWidgetId, stateManager)
         setupApiToggle(context, views, appWidgetId, state.numRows, scale = headerScale)
@@ -183,6 +191,8 @@ HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, header.isPrecipVis
                 currentViewMode = ViewMode.TEMPERATURE,
                 zoom = state.zoom,
                 hourlyOffset = state.hourlyOffset,
+                drawnAxis = drawnAxis,
+                nowMs = tapNowMs,
             )
 
             ErrorPillTouchTargetHelper.setupErrorPillTouchTarget(

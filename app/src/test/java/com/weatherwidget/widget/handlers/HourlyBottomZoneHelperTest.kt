@@ -145,4 +145,43 @@ class HourlyBottomZoneHelperTest {
         // Zone 6 is where WIDE's symmetric window puts the center hour itself (offset 0).
         assertEquals(21, action.zoneCenterOffset)
     }
+
+    @Test
+    fun `resolveZoneAction and HourlyTouchZoneMapper follow truncated drawnAxis instead of nominal window`() {
+        val zone = java.time.ZoneId.of("America/Phoenix")
+        val now = java.time.LocalDateTime.of(2026, 11, 24, 14, 0)
+        val nowMs = now.atZone(zone).toInstant().toEpochMilli()
+        val sun03 = java.time.LocalDateTime.of(2026, 11, 29, 3, 0) // +109h
+        val sun11 = java.time.LocalDateTime.of(2026, 11, 29, 11, 0) // +117h (OWM horizon)
+        val drawnAxis = com.weatherwidget.shared.graph.DrawnTimeAxis.resolve(
+            first = sun03,
+            last = sun11,
+            hourlyOffset = 118,
+            zoom = ZoomStage.WIDE.window(),
+            now = now,
+            zoneId = zone,
+        )
+
+        // Zone 9 of 12 is fraction 9/12 = 0.75 → visually 9 AM (+115), not 4-5 PM (+123).
+        val mapped = com.weatherwidget.widget.HourlyTouchZoneMapper.zoneIndexToOffset(
+            zoneIndex = 9,
+            currentHourlyOffset = 118,
+            zoom = ZoomStage.WIDE.window(),
+            drawnAxis = drawnAxis,
+            nowMs = nowMs,
+        )
+        assertEquals(115, mapped)
+
+        val action = HourlyBottomZoneHelper.resolveZoneAction(
+            iconRes = R.drawable.ic_weather_clear,
+            currentViewMode = ViewMode.TEMPERATURE,
+            zoneIndex = 9,
+            hourlyOffset = 118,
+            zoom = ZoomStage.WIDE.window(),
+            drawnAxis = drawnAxis,
+            nowMs = nowMs,
+        )
+        assertNull(action.targetView)
+        assertEquals(115, action.zoneCenterOffset)
+    }
 }

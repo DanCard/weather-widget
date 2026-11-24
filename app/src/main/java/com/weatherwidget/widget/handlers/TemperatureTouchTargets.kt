@@ -52,6 +52,8 @@ internal fun setupZoomTapZones(
     appWidgetId: Int,
     zoom: ZoomWindow,
     hourlyOffset: Int,
+    drawnAxis: com.weatherwidget.shared.graph.DrawnTimeAxis? = null,
+    nowMs: Long = System.currentTimeMillis(),
 ) {
     views.setViewVisibility(R.id.graph_hour_zones, View.VISIBLE)
     views.setViewVisibility(R.id.graph_body_tap_zone, View.GONE)
@@ -59,7 +61,7 @@ internal fun setupZoomTapZones(
     views.setOnClickPendingIntent(R.id.graph_body_tap_zone, null)
 
     HOUR_ZONE_IDS.forEachIndexed { i, zoneId ->
-        val zoneCenterOffset = HourlyTouchZoneMapper.zoneIndexToOffset(i, hourlyOffset, zoom)
+        val zoneCenterOffset = HourlyTouchZoneMapper.zoneIndexToOffset(i, hourlyOffset, zoom, drawnAxis, nowMs)
         val zoomIntent = Intent(context, WidgetInteractionReceiver::class.java).apply {
             action = WidgetActions.ACTION_CYCLE_ZOOM
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)

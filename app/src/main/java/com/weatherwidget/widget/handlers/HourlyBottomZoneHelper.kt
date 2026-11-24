@@ -115,10 +115,12 @@ object HourlyBottomZoneHelper {
         zoneIndex: Int,
         hourlyOffset: Int,
         zoom: ZoomWindow,
+        drawnAxis: com.weatherwidget.shared.graph.DrawnTimeAxis? = null,
+        nowMs: Long = System.currentTimeMillis(),
     ): ZoneAction {
         return ZoneAction(
             targetView = DayClickHelper.resolveHourlyBottomRowAction(iconRes, currentViewMode),
-            zoneCenterOffset = HourlyTouchZoneMapper.zoneIndexToOffset(zoneIndex, hourlyOffset, zoom),
+            zoneCenterOffset = HourlyTouchZoneMapper.zoneIndexToOffset(zoneIndex, hourlyOffset, zoom, drawnAxis, nowMs),
         )
     }
 
@@ -139,6 +141,8 @@ object HourlyBottomZoneHelper {
         zoom: ZoomWindow,
         hourlyOffset: Int,
         showBodyOverlayZones: Boolean = true,
+        drawnAxis: com.weatherwidget.shared.graph.DrawnTimeAxis? = null,
+        nowMs: Long = System.currentTimeMillis(),
     ) {
         views.setViewVisibility(R.id.graph_bottom_zone, View.GONE)
         // Consolidate: use the root-level graph_bottom_hour_zones for all hourly views.
@@ -157,7 +161,7 @@ object HourlyBottomZoneHelper {
         BOTTOM_HOUR_ZONE_IDS.forEachIndexed { i, zoneId ->
             val iconRes = resolveZoneIcon(hourIconResources, i, BOTTOM_HOUR_ZONE_IDS.size)
             val iconName = iconRes?.let { runCatching { context.resources.getResourceEntryName(it) }.getOrNull() } ?: "null"
-            val zoneAction = resolveZoneAction(iconRes, currentViewMode, i, hourlyOffset, zoom)
+            val zoneAction = resolveZoneAction(iconRes, currentViewMode, i, hourlyOffset, zoom, drawnAxis, nowMs)
             Log.d(
                 TAG,
                 "zone=$i iconRes=$iconRes iconName=$iconName targetView=${zoneAction.targetView} " +

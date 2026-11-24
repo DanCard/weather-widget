@@ -39,8 +39,11 @@ fun Modifier.hourlyPanZoomInput(
     onZoomScroll: (deltaZoom: Float, centerOffset: Int) -> Unit,
     onPanCommit: (deltaHours: Int) -> Unit,
 ): Modifier {
-    // Keep the gesture callbacks fresh even though the drag pointerInput is keyed only on spanHours
-    // (so it is NOT torn down mid-pan when start/cutoff shift at each hour boundary).
+    // Keep the gesture callbacks and axis bounds fresh even though the drag pointerInput is keyed
+    // only on spanHours (so it is NOT torn down mid-pan when start/cutoff shift at each hour boundary).
+    val currentStart by rememberUpdatedState(start)
+    val currentCutoff by rememberUpdatedState(cutoff)
+    val currentNowMs by rememberUpdatedState(nowMs)
     val currentOnZoomScroll by rememberUpdatedState(onZoomScroll)
     val currentOnPanCommit by rememberUpdatedState(onPanCommit)
     return this
@@ -48,7 +51,7 @@ fun Modifier.hourlyPanZoomInput(
             val dy = event.changes.firstOrNull()?.scrollDelta?.y ?: 0f
             if (dy != 0f) {
                 val cursorX = event.changes.first().position.x
-                val cursorOffset = tapZoomOffset(cursorX / size.width.toDouble(), start, cutoff, nowMs)
+                val cursorOffset = tapZoomOffset(cursorX / size.width.toDouble(), currentStart, currentCutoff, currentNowMs)
                 currentOnZoomScroll(dy * DesktopGraphUtils.ZOOM_SENSITIVITY, cursorOffset)
             }
         }
@@ -90,31 +93,38 @@ fun Modifier.hourlyGraphTapInput(
     onToggleZoom: (clickedOffset: Int) -> Unit,
     onZoomScroll: (deltaZoom: Float, centerOffset: Int) -> Unit,
     onPan: (deltaHours: Int) -> Unit,
-): Modifier = this
-    .hourlyPanZoomInput(start, cutoff, nowMs, spanHours, dragHours, onZoomScroll, onPan)
-    .pointerInput(points, zoomFactor, scale, start, cutoff) {
-        detectTapGestures { offset ->
-            if (offset.y >= size.height - 44.dp.toPx() * scale) {
-                // Bottom strip: switch the view to the tapped hour's condition home view.
-                val stepWidth = size.width / (points.size - 1).coerceAtLeast(1)
-                val index = (offset.x / stepWidth).roundToInt().coerceIn(0, points.lastIndex)
-                val clickedPoint = points[index]
-                val iconRes = WeatherIcon.getIconResource(clickedPoint.condition)
-                onViewModeChange(WeatherIcon.resolveIconHome(iconRes))
-            } else {
-                // Graph body: quick zoom in/out toggle centered on the tapped hour.
-                onToggleZoom(tapZoomOffset(offset.x / size.width.toDouble(), start, cutoff, nowMs))
+): Modifier {
+    // All three hourly graphs stretch points.first()..points.last() across 0..width (xAtTime),
+    // not start..cutoff. Delegate to :shared DrawnTimeAxis so desktop and Android resolve the
+    // drawn axis identically (including the < 2 distinct-points fallback and drag-pan span).
+    val axis = com.weatherwidget.shared.graph.DrawnTimeAxis.resolve(
+        firstMs = points.firstOrNull()?.dateTime,
+        lastMs = points.lastOrNull()?.dateTime,
+        fallbackStartMs = start,
+        fallbackEndMs = cutoff,
+    )
+    return this
+        .hourlyPanZoomInput(axis.startMs, axis.endMs, nowMs, axis.panSpanHours, dragHours, onZoomScroll, onPan)
+        .pointerInput(points, zoomFactor, scale, axis.startMs, axis.endMs) {
+            detectTapGestures { offset ->
+                if (offset.y >= size.height - 44.dp.toPx() * scale) {
+                    // Bottom strip: switch the view to the tapped hour's condition home view.
+                    val stepWidth = size.width / (points.size - 1).coerceAtLeast(1)
+                    val index = (offset.x / stepWidth).roundToInt().coerceIn(0, points.lastIndex)
+                    val clickedPoint = points[index]
+                    val iconRes = WeatherIcon.getIconResource(clickedPoint.condition)
+                    onViewModeChange(WeatherIcon.resolveIconHome(iconRes))
+                } else {
+                    // Graph body: quick zoom in/out toggle centered on the tapped hour.
+                    onToggleZoom(axis.tapOffsetHours(offset.x / size.width.toDouble(), nowMs))
+                }
             }
         }
-    }
+}
 
-/** The hour (offset from now) a body tap or wheel at [fraction] of the [start]..[cutoff] window zooms on. */
+/** The hour (offset from now) a body tap or wheel at [fraction] of the [start]..[cutoff] axis zooms on. */
 internal fun tapZoomOffset(fraction: Double, start: Long, cutoff: Long, nowMs: Long): Int =
-    com.weatherwidget.shared.graph.HourlyZoomRules.tapOffsetHours(
-        fraction = fraction,
-        startOffsetHours = (start - nowMs) / 3_600_000.0,
-        spanHours = (cutoff - start) / 3_600_000.0,
-    )
+    com.weatherwidget.shared.graph.DrawnTimeAxis(start, cutoff).tapOffsetHours(fraction, nowMs)
 
 /** Computed window + point/painter state shared by the desktop hourly graphs. */
 internal data class HourlyGraphSetup(

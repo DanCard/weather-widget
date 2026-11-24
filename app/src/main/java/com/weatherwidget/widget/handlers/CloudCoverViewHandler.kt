@@ -702,7 +702,14 @@ object CloudCoverViewHandler {
 
         // Cloud-cover body taps always zoom; bottom zones still route by icon.
         val hourIcons = hours.map { it.iconRes }
-        setupZoomTapZones(context, views, appWidgetId, zoom, hourlyOffset)
+        val (drawnAxis, tapNowMs) = com.weatherwidget.shared.graph.DrawnTimeAxis.resolveForCenter(
+            first = hours.firstOrNull()?.dateTime,
+            last = hours.lastOrNull()?.dateTime,
+            centerTime = centerTime,
+            hourlyOffset = hourlyOffset,
+            zoom = zoom,
+        )
+        setupZoomTapZones(context, views, appWidgetId, zoom, hourlyOffset, drawnAxis = drawnAxis, nowMs = tapNowMs)
         HourlyBottomZoneHelper.setup(
             context = context,
             views = views,
@@ -711,6 +718,8 @@ object CloudCoverViewHandler {
             currentViewMode = com.weatherwidget.widget.ViewMode.CLOUD_COVER,
             zoom = zoom,
             hourlyOffset = hourlyOffset,
+            drawnAxis = drawnAxis,
+            nowMs = tapNowMs,
         )
         ErrorPillTouchTargetHelper.setupErrorPillTouchTarget(
             context = context,
