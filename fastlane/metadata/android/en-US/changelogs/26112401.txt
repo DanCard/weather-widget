@@ -1,0 +1,1 @@
+Faster widget paints during source switches and syncs by deferring actuals and prior-day cloud fetches; climate normals load in parallel, retry automatically, and fill cut-off OpenWeatherMap daily highs; per-location refresh tracking; improved Open-Meteo retry and network diagnostics; and removed Synoptic as an optional actuals provider.
