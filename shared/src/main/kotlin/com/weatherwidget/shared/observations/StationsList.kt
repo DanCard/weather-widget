@@ -120,6 +120,16 @@ object StationsList {
         "loadObservations: currentSource=${source.id}${result.diagnostic}" +
             " staleAgeMs=${result.staleAgeMs ?: "none"} items=${result.rows.map(host::stationId)}"
 
+    /**
+     * Display name of the feed whose observations [load] actually queries for [source]: the
+     * borrowed actuals provider when [source] borrows (e.g. `"NWS"` or `"METAR"`), else [source]'s
+     * own display name. Used in `STALE` and `NONE_FOUND` subtitles on both platforms.
+     */
+    fun actualsDisplayName(
+        source: WeatherSource,
+        preference: (WeatherSource) -> WeatherSource? = ActualsProviderResolver.preferenceSource(),
+    ): String = WeatherSource.fromId(ActualsProviderResolver.providerIdFor(source, preference)).displayName
+
     /** The subtitle in English, equal to Android's default `obs_subtitle_*` strings (desktop shows it), or null when fresh. */
     fun englishSubtitle(result: Result<*>, sourceDisplayName: String): String? = when (result.subtitle) {
         Subtitle.NONE_FOUND -> "No recent observations found for $sourceDisplayName."

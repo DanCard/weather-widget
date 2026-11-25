@@ -820,6 +820,30 @@ class CurrentObservationsActivityRobolectricTest {
         }
     }
 
+    @Test
+    fun `borrowing source stale and empty subtitles name the actuals provider`() {
+        val remoteLat = 38.0
+        val remoteLon = -122.9
+        val threeDaysAgo = now - 3 * 24 * 60 * 60 * 1000L
+        stateManager.setCurrentDisplaySource(widgetId, WeatherSource.OPEN_METEO)
+        stateManager.setActualsProvider(WeatherSource.OPEN_METEO, WeatherSource.NWS)
+        runBlocking {
+            database.observationDao().insertAll(
+                listOf(observationAt("KAPC", "Napa County", threeDaysAgo, 58.0f, remoteLat, remoteLon)),
+            )
+        }
+        moveWidgetTo(remoteLat, remoteLon)
+
+        launchActivity().onActivity { activity ->
+            val subtitleView = activity.findViewById<TextView>(R.id.subtitle)
+            assertEquals(View.VISIBLE, subtitleView.visibility)
+            assertEquals(
+                context.getString(R.string.obs_subtitle_stale, WeatherSource.NWS.displayName, "3d"),
+                subtitleView.text.toString(),
+            )
+        }
+    }
+
     // ---------------------------------------------------------------------------------------------
     // Phase C: automatic stale-display repair
     // (plans/260821-observations-stale-site-autorefresh.md — the 2026-08-21 incident where the screen

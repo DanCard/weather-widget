@@ -263,4 +263,31 @@ class MetarObservationMapperTest {
         assertEquals(48.2f, corrupt.temperature, 0.01f)
         assertTrue(corrupt.qcFailed)
     }
+
+    @Test
+    fun `condition derives from raw METAR weather and sky layers, blank when unreported`() {
+        val clear = MetarObservationMapper.toReading(
+            row(id = "KGEU", temp = 20.0f, raw = "KGEU 251748Z 04006KT 10SM CLR 20/00 A3008"),
+            station("KGEU"),
+            33.53,
+            -112.29,
+        )!!
+        assertEquals("Clear", clear.condition)
+
+        val rain = MetarObservationMapper.toReading(
+            row(id = "KSJC", temp = 15.0f, raw = "METAR KSJC 231653Z 00000KT 5SM -RA OVC012 15/14 A2996"),
+            station("KSJC"),
+            37.4,
+            -122.1,
+        )!!
+        assertEquals("Light Rain", rain.condition)
+
+        val silent = MetarObservationMapper.toReading(
+            row(id = "KSJC", temp = 20.0f, raw = "METAR KSJC 231653Z AUTO 00000KT 10SM 20/14 A2996"),
+            station("KSJC"),
+            37.4,
+            -122.1,
+        )!!
+        assertEquals("", silent.condition)
+    }
 }

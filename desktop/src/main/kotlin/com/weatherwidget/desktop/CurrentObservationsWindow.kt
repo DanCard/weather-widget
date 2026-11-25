@@ -317,7 +317,7 @@ internal fun CurrentObservationsContent(
     var logFilter by remember { mutableStateOf(LogFilter.FETCHES) }
     val scope = rememberCoroutineScope()
 
-    val loadData = {
+    val loadData: ((List<ObservationReading>) -> Unit) -> Unit = { onLoaded ->
         scope.launch(Dispatchers.IO) {
             // :shared StationsList, as Android's Current Observations screen: scoped to the active
             // site, else the newest stored rows (with their age), else the source's main reading.
@@ -325,7 +325,7 @@ internal fun CurrentObservationsContent(
             val stations = StationsList.load(stationsHost, currentSource, config.lat to config.lon, System.currentTimeMillis())
             Log.d(TAG, StationsList.line(stationsHost, currentSource, stations))
             val obs = stations.rows
-            val subtitle = StationsList.englishSubtitle(stations, currentSource.displayName)
+            val subtitle = StationsList.englishSubtitle(stations, StationsList.actualsDisplayName(currentSource))
 
             // Filter by tag in SQL so the cap counts fetch rows, not the verbose current-temp
             // tags (CurrentTempResolver etc.) that otherwise swamp app_logs.
@@ -344,6 +344,7 @@ internal fun CurrentObservationsContent(
                 stationsSubtitle = subtitle
                 logs = recentLogs
                 if (selectedTab == ObservationsTabs.BLEND) blendTables = tables
+                onLoaded(obs)
             }
         }
     }
@@ -357,7 +358,7 @@ internal fun CurrentObservationsContent(
     // selectedTab is a key so switching to Blend loads its table on first open, not on the next
     // data-changed signal.
     LaunchedEffect(currentSource, logFilter, dataUpdateCount, showRequestId, selectedTab) {
-        loadData()
+        loadData {}
     }
 
     // Reading ages must advance on their own: ObservationOrigin.of() is evaluated during
@@ -522,13 +523,23 @@ internal fun CurrentObservationsContent(
                                         )
                                         DesktopActualsPreference.update(updatedSettings)
                                         saves.window(config.copy(settings = updatedSettings))
-                                        loadData()
                                         val neededApi = ActualsProviderResolver.providerIdFor(currentSource)
-                                        val hasData = observations.any { it.api == neededApi }
-                                        if (!hasData) {
-                                            onRefreshData()
+                                        loadData { loaded ->
+                                            if (loaded.none { it.api == neededApi }) {
+                                                onRefreshData()
+                                            }
                                         }
                                     },
+                                )
+                            }
+                            if (stationsSubtitle != null && observations.isNotEmpty()) {
+                                Text(
+                                    stationsSubtitle!!,
+                                    fontSize = 14.sp,
+                                    color = ObsStyle.textSecondary,
+                                    modifier = Modifier
+                                        .padding(horizontal = 14.dp, vertical = 4.dp)
+                                        .testTag("stations_subtitle"),
                                 )
                             }
                             ObservationList(observations, stationsSubtitle, config.settings.useCelsius, nowMs)
@@ -631,7 +642,7 @@ internal fun ActualsSourceRow(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("Actuals source", fontSize = 13.sp, color = ObsStyle.textSecondary)
+        Text("Actuals source", fontSize = 16.sp, color = ObsStyle.textSecondary)
         Spacer(Modifier.width(8.dp))
         Box {
             TextButton(onClick = {
@@ -640,7 +651,8 @@ internal fun ActualsSourceRow(
             }) {
                 Text(
                     ActualsPickerLabels.value(active, ActualsProviderResolver.overriddenChoice(source)),
-                    fontSize = 13.sp,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
                     color = ObsStyle.accent,
                 )
             }
@@ -651,7 +663,7 @@ internal fun ActualsSourceRow(
                         text = {
                             Text(
                                 ActualsPickerLabels.row(option),
-                                fontSize = 13.sp,
+                                fontSize = 16.sp,
                                 color = when {
                                     !usable -> ObsStyle.textSecondary
                                     option.source.id == active -> ObsStyle.accent
@@ -680,16 +692,6 @@ private fun ObservationList(
     nowMs: Long,
 ) {
     LazyColumn(modifier = Modifier.fillMaxSize().padding(6.dp)) {
-        if (subtitle != null && observations.isNotEmpty()) {
-            item {
-                Text(
-                    subtitle,
-                    fontSize = 13.sp,
-                    color = ObsStyle.textSecondary,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp).testTag("stations_subtitle"),
-                )
-            }
-        }
         items(observations) { obs ->
             ObservationCard(obs, useCelsius, nowMs)
         }

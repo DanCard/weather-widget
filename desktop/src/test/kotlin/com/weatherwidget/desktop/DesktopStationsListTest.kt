@@ -68,4 +68,16 @@ class DesktopStationsListTest {
         assertEquals(listOf("OPEN_METEO_MAIN"), r.rows.map { it.stationId })
         assertNull(r.subtitle)
     }
+
+    @Test
+    fun `stale borrowing source subtitle names the actuals provider`() = runTest {
+        dao.upsertObservations(listOf(row("KNUQ", now - 30 * hour, mountainView, api = WeatherSource.METAR.id)))
+        val r = load(WeatherSource.SILURIAN)
+        assertEquals(listOf("KNUQ"), r.rows.map { it.stationId })
+        assertEquals(StationsList.Subtitle.STALE, r.subtitle)
+        assertEquals(
+            "No recent METAR observations — showing the latest, 1d ago.",
+            StationsList.englishSubtitle(r, StationsList.actualsDisplayName(WeatherSource.SILURIAN)),
+        )
+    }
 }

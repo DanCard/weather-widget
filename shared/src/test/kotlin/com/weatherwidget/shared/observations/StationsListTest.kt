@@ -125,6 +125,22 @@ class StationsListTest {
     }
 
     @Test
+    fun `actualsDisplayName returns the borrowed provider name when borrowing`() {
+        assertEquals(
+            WeatherSource.NWS.displayName,
+            StationsList.actualsDisplayName(WeatherSource.NWS) { null },
+        )
+        assertEquals(
+            WeatherSource.METAR.displayName,
+            StationsList.actualsDisplayName(WeatherSource.SILURIAN) { null },
+        )
+        assertEquals(
+            WeatherSource.NWS.displayName,
+            StationsList.actualsDisplayName(WeatherSource.OPEN_METEO) { WeatherSource.NWS },
+        )
+    }
+
+    @Test
     fun `no location reads every site`() = runBlocking {
         val host = FakeHost(everywhere = listOf(obs("KAUS", now - hour, site = 30.27 to -97.74)))
         val r = StationsList.load(host, WeatherSource.NWS, null, now)

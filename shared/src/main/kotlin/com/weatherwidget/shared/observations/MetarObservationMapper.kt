@@ -51,10 +51,9 @@ object MetarObservationMapper {
             stationName = row.stationName.ifBlank { station.info.name },
             timestamp = row.observedAtMillis,
             temperature = temperatureF,
-            // This feed ships no textDescription. The present-weather codes in the raw report could
-            // supply one (brainstorm A4), but that is a separate change with its own UI surface;
-            // an empty condition is honest until then.
-            condition = "",
+            // This feed ships no textDescription; derive a standard label from present-weather
+            // groups and sky-cover layers (empty when neither is reported).
+            condition = MetarConditionFormatter.format(decoded, layers),
             locationLat = siteLat,
             locationLon = siteLon,
             distanceKm = station.distanceKm.toFloat(),

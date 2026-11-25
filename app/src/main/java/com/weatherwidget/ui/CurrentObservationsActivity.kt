@@ -793,13 +793,14 @@ class CurrentObservationsActivity : AppCompatActivity() {
                     Log.d(TAG, StationsList.line(host, source, result))
                     adapter.submitList(observations)
                     val subtitleView = findViewById<TextView>(R.id.subtitle)
+                    val actualsName = StationsList.actualsDisplayName(source) { widgetStateManager.getActualsProvider(it) }
                     val subtitleText = when (result.subtitle) {
-                        StationsList.Subtitle.NONE_FOUND -> getString(R.string.obs_subtitle_none_found, source.displayName)
+                        StationsList.Subtitle.NONE_FOUND -> getString(R.string.obs_subtitle_none_found, actualsName)
                         // Everything shown is older than the 24h window; say how old rather than
                         // letting it pass for current.
                         StationsList.Subtitle.STALE -> getString(
                             R.string.obs_subtitle_stale,
-                            source.displayName,
+                            actualsName,
                             StaleObservationFallback.formatAge(result.staleAgeMs ?: 0L),
                         )
                         null -> null

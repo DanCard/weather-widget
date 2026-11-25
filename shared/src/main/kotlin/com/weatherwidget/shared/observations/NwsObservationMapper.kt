@@ -81,7 +81,7 @@ object NwsObservationMapper {
             stationName = observation.stationName.ifBlank { station.name },
             timestamp = parseTimestamp(observation.timestamp),
             temperature = celsiusToFahrenheit(tempCelsius),
-            condition = observation.textDescription,
+            condition = observation.textDescription.ifBlank { MetarConditionFormatter.format(decodedMetar, layers) },
             locationLat = siteLat,
             locationLon = siteLon,
             distanceKm = distanceKm(siteLat, siteLon, station.lat, station.lon).toFloat(),

@@ -1,13 +1,20 @@
 package com.weatherwidget.desktop
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import com.weatherwidget.data.local.desktop.DesktopObservationEntity
+import com.weatherwidget.data.local.desktop.DesktopWeatherDao
+import com.weatherwidget.data.local.desktop.DesktopWeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.shared.observations.ActualsProviderResolver
+import com.weatherwidget.shared.observations.ObservationsTabs
 import com.weatherwidget.test.category.LongDuration
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -15,6 +22,7 @@ import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
 import org.junit.experimental.categories.Category
+import java.nio.file.Files
 
 /**
  * The Current Observations window's actuals picker greys feeds that cannot serve here instead of offering
@@ -89,5 +97,68 @@ class ActualsSourcePickerTest {
         val userKey = options(mountainView, mapOf(WeatherSource.WEATHER_API.id to "k"))
             .single { it.source == WeatherSource.WEATHER_API }
         assertNull(userKey.unavailable)
+    }
+
+    @Test
+    fun `switching actuals source skips refresh when rows for the chosen provider are already stored`() {
+        val dbPath = Files.createTempFile("actuals-picker-skip-refresh", ".db")
+        val db = DesktopWeatherDatabase(dbPath).apply { initialize() }
+        val dao = DesktopWeatherDao(db)
+        try {
+            val now = System.currentTimeMillis()
+            dao.upsertObservations(
+                listOf(
+                    DesktopObservationEntity(
+                        stationId = "KNUQ", stationName = "Moffett Field", timestamp = now - 60_000L,
+                        temperature = 65f, condition = "Clear", locationLat = mountainView.first,
+                        locationLon = mountainView.second, distanceKm = 2f, api = WeatherSource.NWS.id, fetchedAt = now,
+                    ),
+                    DesktopObservationEntity(
+                        stationId = "KPAO", stationName = "Palo Alto", timestamp = now - 60_000L,
+                        temperature = 66f, condition = "Clear", locationLat = mountainView.first,
+                        locationLon = mountainView.second, distanceKm = 3f, api = WeatherSource.METAR.id, fetchedAt = now,
+                    ),
+                ),
+            )
+            DesktopActualsPreference.install()
+            var cfg by mutableStateOf(
+                DesktopConfig(
+                    lat = mountainView.first,
+                    lon = mountainView.second,
+                    label = "Mountain View",
+                    obsSelectedTab = ObservationsTabs.OBSERVATIONS,
+                    settings = DesktopSettings(
+                        weatherSource = WeatherSource.OPEN_METEO.id,
+                        actualsProviders = mapOf(WeatherSource.OPEN_METEO.id to WeatherSource.NWS.id),
+                    ),
+                ),
+            )
+            DesktopActualsPreference.publish(cfg)
+            var refreshCalls = 0
+
+            composeTestRule.setContent {
+                CurrentObservationsContent(
+                    weatherDao = dao,
+                    config = cfg,
+                    onRefreshData = { refreshCalls++ },
+                    onClose = {},
+                    saves = DataWindowSaves(window = { cfg = it }, sourceSwitch = { cfg = it }),
+                )
+            }
+            composeTestRule.waitUntil(timeoutMillis = 3_000) {
+                runCatching { composeTestRule.onNodeWithText("Moffett Field").fetchSemanticsNode(); true }.getOrDefault(false)
+            }
+
+            composeTestRule.onNodeWithText("NWS", substring = true).performClick()
+            composeTestRule.onNodeWithTag("actuals_candidate_METAR").performClick()
+
+            composeTestRule.waitUntil(timeoutMillis = 3_000) {
+                runCatching { composeTestRule.onNodeWithText("Palo Alto").fetchSemanticsNode(); true }.getOrDefault(false)
+            }
+            assertEquals("METAR rows are already in SQLite; switching must not trigger a network refresh", 0, refreshCalls)
+        } finally {
+            db.getConnection().close()
+            Files.deleteIfExists(dbPath)
+        }
     }
 }

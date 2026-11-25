@@ -111,6 +111,16 @@ class HardcodedUserFacingStringTest {
                     "BugReportFormat.SUBJECT_PREFIX: fixed so the developer's inbox search finds every report, whatever the locale",
                 "epoch_ms\\tlocal_time\\tpart\\tlevel\\ttag\\tmessage" to
                     "BugReportLogs.TSV_HEADER: machine-read column names of the attached logs.tsv",
+                "Dust Whirls" to "MetarConditionFormatter canonical English observation condition stored in observations.condition (matching NWS textDescription)",
+                "Few Clouds" to "MetarConditionFormatter canonical English observation condition stored in observations.condition (matching NWS textDescription)",
+                "Funnel Cloud" to "MetarConditionFormatter canonical English observation condition stored in observations.condition (matching NWS textDescription)",
+                "Ice Crystals" to "MetarConditionFormatter canonical English observation condition stored in observations.condition (matching NWS textDescription)",
+                "Ice Pellets" to "MetarConditionFormatter canonical English observation condition stored in observations.condition (matching NWS textDescription)",
+                "Mostly Cloudy" to "MetarConditionFormatter canonical English observation condition stored in observations.condition (matching NWS textDescription)",
+                "Partly Cloudy" to "MetarConditionFormatter canonical English observation condition stored in observations.condition (matching NWS textDescription)",
+                "Small Hail" to "MetarConditionFormatter canonical English observation condition stored in observations.condition (matching NWS textDescription)",
+                "Snow Grains" to "MetarConditionFormatter canonical English observation condition stored in observations.condition (matching NWS textDescription)",
+                "Volcanic Ash" to "MetarConditionFormatter canonical English observation condition stored in observations.condition (matching NWS textDescription)",
             )
     }
 

@@ -3,7 +3,19 @@
 **Date:** 2026-11-25
 **Scope:** `:shared`, `:app`, `:desktop`
 
-## Context & Verified Evidence
+## Background & Context
+
+While inspecting the live desktop **Current Observations** window (`Meteo` / `Actuals source: NWS`, 2026-11-25), the user spotted a false subtitle line reading `"Latest reading from Open-Meteo"` directly above five nearby NWS airport stations (`KSDL`, `KDVT`, `KPHX`, `KFFZ`, `KGEU`). That bug existed on both Android and desktop because `:shared` `StationsList` predated actuals borrowing and mapped every non-NWS source to `Subtitle.LATEST_READING`.
+
+Commit `5ddf3b088` resolved that immediate issue by removing `NEARBY_STATIONS` and `LATEST_READING` from `StationsList` so both platforms show a subtitle only for `STALE` or `NONE_FOUND` states. During that screenshot and code audit, three related consistency gaps surfaced across the same screen:
+
+- **Provenance mismatch in error/stale copy:** Actuals borrowing lets forecast-only sources (like Open-Meteo and Silurian) read stations from NWS or METAR, but the remaining `STALE` and `NONE_FOUND` subtitles still interpolate the display source name instead of the actuals provider actually being queried.
+- **Missing conditions on METAR/web-fallback station cards:** `MetarObservationMapper` originally deferred condition text formatting (`condition = ""`) because Aviation Weather / NWS METAR text feeds have no `textDescription` field. On the live screen, this caused the exact same station (`KGEU`, raw METAR `... 10SM CLR ...`) to display a blank condition while served as `OFFICIAL (Web)` and then flip to `"Clear"` minutes later once refreshed as `OFFICIAL (API)`.
+- **Minor Android vs. desktop UI drift:** Desktop's `ActualsSourceRow` typography (`13sp` regular) looks undersized next to the `18sp–32sp` tabs and station cards, and desktop puts the `STALE` subtitle inside the scrolling `LazyColumn` instead of pinning it above the list like Android.
+
+The goal of this plan is to close all three gaps so the Current Observations screen is accurate about provenance in every state, displays consistent condition labels regardless of whether a station row came from API or METAR/web fallback, and matches across Android and desktop.
+
+## Verified Evidence
 
 Captured from the live desktop Current Observations window (`Meteo` / `Actuals source: NWS`, 2026-11-25) and verified in code across `:shared`, `:app`, and `:desktop`:
 
