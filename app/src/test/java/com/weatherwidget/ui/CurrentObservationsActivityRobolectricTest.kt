@@ -249,11 +249,12 @@ class CurrentObservationsActivityRobolectricTest {
         scenario.onActivity { activity ->
             val adapter = activity.findViewById<RecyclerView>(R.id.observations_list).adapter as ObservationAdapter
             val stationIds = adapter.items.map { it.stationId }
-            val subtitle = activity.findViewById<TextView>(R.id.subtitle).text.toString()
+            val subtitleView = activity.findViewById<TextView>(R.id.subtitle)
             val logs = activity.findViewById<TextView>(R.id.fetch_logs).text.toString()
 
             assertEquals(listOf("AW020", "KNUQ"), stationIds)
-            assertEquals("Real-time data from nearby stations", subtitle)
+            assertEquals(View.GONE, subtitleView.visibility)
+            assertEquals("", subtitleView.text.toString())
             assertEquals(StationType.PERSONAL, adapter.items[0].stationType)
             assertFalse(logs.contains("No recent fetch logs for NWS"))
             assertFalse(logs.contains("No current observation fetch logs found for NWS"))
@@ -628,7 +629,7 @@ class CurrentObservationsActivityRobolectricTest {
         scenario.onActivity { activity ->
             val adapter = activity.findViewById<RecyclerView>(R.id.observations_list).adapter as ObservationAdapter
             val stationIds = adapter.items.map { it.stationId }
-            val subtitle = activity.findViewById<TextView>(R.id.subtitle).text.toString()
+            val subtitleView = activity.findViewById<TextView>(R.id.subtitle)
             val logs = activity.findViewById<TextView>(R.id.fetch_logs).text.toString()
             val sourceButton = activity.findViewById<TextView>(R.id.api_source_button).text.toString()
 
@@ -638,7 +639,7 @@ class CurrentObservationsActivityRobolectricTest {
             // observations — SILURIAN_MAIN/SILURIAN_1 are not thermometers.
             assertEquals(listOf("KNUQ"), stationIds)
             assertFalse("Silurian model rows must not appear as stations", stationIds.any { it.startsWith("SILURIAN") })
-            assertNotEquals("No recent observations found for Silurian.", subtitle)
+            assertEquals(View.GONE, subtitleView.visibility)
             assertTrue(logs.contains("error error=timeout"))
         }
     }
@@ -810,9 +811,11 @@ class CurrentObservationsActivityRobolectricTest {
                 listOf("KAPC"),
                 adapterOf(activity).items.map { it.stationId },
             )
+            val subtitleView = activity.findViewById<TextView>(R.id.subtitle)
+            assertEquals(View.VISIBLE, subtitleView.visibility)
             assertEquals(
                 context.getString(R.string.obs_subtitle_stale, WeatherSource.NWS.displayName, "3d"),
-                activity.findViewById<TextView>(R.id.subtitle).text.toString(),
+                subtitleView.text.toString(),
             )
         }
     }

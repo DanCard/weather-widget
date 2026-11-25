@@ -4,6 +4,7 @@ import com.weatherwidget.shared.observations.StaleObservationFallback
 import com.weatherwidget.shared.observations.StationsList
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.experimental.categories.Category
 import org.w3c.dom.Element
@@ -24,7 +25,7 @@ class StationsListEnglishParityTest {
     private fun res(name: String, vararg args: String) =
         args.foldIndexed(strings.getValue(name)) { i, s, arg -> s.replace("%${i + 1}\$s", arg) }
 
-    private fun result(subtitle: StationsList.Subtitle, ageMs: Long? = null) =
+    private fun result(subtitle: StationsList.Subtitle?, ageMs: Long? = null) =
         StationsList.Result(emptyList<Any>(), subtitle, ageMs, "")
 
     @Test
@@ -35,7 +36,6 @@ class StationsListEnglishParityTest {
             res("obs_subtitle_stale", src, StaleObservationFallback.formatAge(7_200_000L)),
             StationsList.englishSubtitle(result(StationsList.Subtitle.STALE, 7_200_000L), src),
         )
-        assertEquals(res("obs_subtitle_nearby_stations"), StationsList.englishSubtitle(result(StationsList.Subtitle.NEARBY_STATIONS), src))
-        assertEquals(res("obs_subtitle_latest_reading", src), StationsList.englishSubtitle(result(StationsList.Subtitle.LATEST_READING), src))
+        assertNull(StationsList.englishSubtitle(result(null), src))
     }
 }

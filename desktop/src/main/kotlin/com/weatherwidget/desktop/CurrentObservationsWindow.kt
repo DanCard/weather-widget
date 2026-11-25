@@ -303,7 +303,7 @@ internal fun CurrentObservationsContent(
     // plans/261119-sync-data-screen-sources-with-main.md
     val currentSource = WeatherSource.valueOf(config.displaySource)
     var observations by remember { mutableStateOf<List<ObservationReading>>(emptyList()) }
-    // StationsList's subtitle, as Android's: nearby stations, latest reading, or how old the rows are.
+    // StationsList's subtitle, as Android's: shown only when rows are stale or absent.
     var stationsSubtitle by remember { mutableStateOf<String?>(null) }
     var logs by remember { mutableStateOf<List<DesktopLogEntity>>(emptyList()) }
     var blendTables by remember { mutableStateOf<List<BlendTable>>(emptyList()) }

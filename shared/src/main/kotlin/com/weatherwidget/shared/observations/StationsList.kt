@@ -21,11 +21,12 @@ import com.weatherwidget.data.model.WeatherSource
  *   its own main reading ([Host.latestMainReading]).
  */
 object StationsList {
-    enum class Subtitle { NONE_FOUND, STALE, NEARBY_STATIONS, LATEST_READING }
+    /** Shown only when observations are absent or older than the recent window; null when fresh. */
+    enum class Subtitle { NONE_FOUND, STALE }
 
     data class Result<R>(
         val rows: List<R>,
-        val subtitle: Subtitle,
+        val subtitle: Subtitle?,
         /** Set with [Subtitle.STALE]: the age of the newest row shown. */
         val staleAgeMs: Long?,
         /** The scoping diagnostic for [line]: location, box rows, sites, site rows. */
@@ -91,8 +92,7 @@ object StationsList {
         val subtitle = when {
             rows.isEmpty() -> Subtitle.NONE_FOUND
             fallback.ageMs != null && fallback.rows.isNotEmpty() -> Subtitle.STALE
-            source == WeatherSource.NWS -> Subtitle.NEARBY_STATIONS
-            else -> Subtitle.LATEST_READING
+            else -> null
         }
         return Result(rows, subtitle, fallback.ageMs.takeIf { subtitle == Subtitle.STALE }, diagnostic.toString())
     }
@@ -120,13 +120,12 @@ object StationsList {
         "loadObservations: currentSource=${source.id}${result.diagnostic}" +
             " staleAgeMs=${result.staleAgeMs ?: "none"} items=${result.rows.map(host::stationId)}"
 
-    /** The subtitle in English, equal to Android's default `obs_subtitle_*` strings (desktop shows it). */
-    fun englishSubtitle(result: Result<*>, sourceDisplayName: String): String = when (result.subtitle) {
+    /** The subtitle in English, equal to Android's default `obs_subtitle_*` strings (desktop shows it), or null when fresh. */
+    fun englishSubtitle(result: Result<*>, sourceDisplayName: String): String? = when (result.subtitle) {
         Subtitle.NONE_FOUND -> "No recent observations found for $sourceDisplayName."
         Subtitle.STALE ->
             "No recent $sourceDisplayName observations — showing the latest, " +
                 "${StaleObservationFallback.formatAge(result.staleAgeMs ?: 0L)} ago."
-        Subtitle.NEARBY_STATIONS -> "Real-time data from nearby stations"
-        Subtitle.LATEST_READING -> "Latest reading from $sourceDisplayName"
+        null -> null
     }
 }

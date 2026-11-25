@@ -792,7 +792,8 @@ class CurrentObservationsActivity : AppCompatActivity() {
                 withContext(Dispatchers.Main) {
                     Log.d(TAG, StationsList.line(host, source, result))
                     adapter.submitList(observations)
-                    findViewById<TextView>(R.id.subtitle).text = when (result.subtitle) {
+                    val subtitleView = findViewById<TextView>(R.id.subtitle)
+                    val subtitleText = when (result.subtitle) {
                         StationsList.Subtitle.NONE_FOUND -> getString(R.string.obs_subtitle_none_found, source.displayName)
                         // Everything shown is older than the 24h window; say how old rather than
                         // letting it pass for current.
@@ -801,9 +802,10 @@ class CurrentObservationsActivity : AppCompatActivity() {
                             source.displayName,
                             StaleObservationFallback.formatAge(result.staleAgeMs ?: 0L),
                         )
-                        StationsList.Subtitle.NEARBY_STATIONS -> getString(R.string.obs_subtitle_nearby_stations)
-                        StationsList.Subtitle.LATEST_READING -> getString(R.string.obs_subtitle_latest_reading, source.displayName)
+                        null -> null
                     }
+                    subtitleView.text = subtitleText.orEmpty()
+                    subtitleView.visibility = if (subtitleText != null) View.VISIBLE else View.GONE
 
                     maybeAutoRefreshStaleDisplay(location, observations)
                 }

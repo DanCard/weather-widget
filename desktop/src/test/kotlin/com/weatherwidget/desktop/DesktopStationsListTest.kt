@@ -9,6 +9,7 @@ import com.weatherwidget.test.category.ShortDuration
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.experimental.categories.Category
 import java.nio.file.Files
@@ -49,7 +50,7 @@ class DesktopStationsListTest {
         dao.upsertObservations(listOf(row("KAUS", now - 3 * hour, austin), row("KNUQ", now - hour, mountainView)))
         val r = load()
         assertEquals(listOf("KNUQ"), r.rows.map { it.stationId })
-        assertEquals(StationsList.Subtitle.NEARBY_STATIONS, r.subtitle)
+        assertNull(r.subtitle)
     }
 
     @Test
@@ -65,6 +66,6 @@ class DesktopStationsListTest {
         dao.upsertObservations(listOf(row("OPEN_METEO_MAIN", now - 60_000L, mountainView, api = WeatherSource.OPEN_METEO.id)))
         val r = load(WeatherSource.OPEN_METEO)
         assertEquals(listOf("OPEN_METEO_MAIN"), r.rows.map { it.stationId })
-        assertEquals(StationsList.Subtitle.LATEST_READING, r.subtitle)
+        assertNull(r.subtitle)
     }
 }

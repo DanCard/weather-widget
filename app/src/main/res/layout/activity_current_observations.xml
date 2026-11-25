@@ -227,7 +227,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="8dp"
-                android:text="@string/obs_subtitle_nearby_stations"
+                android:visibility="gone"
                 android:textColor="#AAAAAA"
                 android:textSize="14sp" />
 

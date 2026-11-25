@@ -58,7 +58,7 @@ class StationsListTest {
         val r = StationsList.load(host, WeatherSource.NWS, mountainView, now)
         assertEquals(listOf("KPAO", "KNUQ"), r.rows.map { it.stationId })
         assertEquals(now - hour, r.rows.last().timestamp)
-        assertEquals(StationsList.Subtitle.NEARBY_STATIONS, r.subtitle)
+        assertNull(r.subtitle)
         assertNull(r.staleAgeMs)
     }
 
@@ -106,11 +106,22 @@ class StationsListTest {
         val main = obs("OPEN_METEO_MAIN", now - hour, api = WeatherSource.OPEN_METEO.id)
         val meteo = StationsList.load(FakeHost(main = main), WeatherSource.OPEN_METEO, mountainView, now)
         assertEquals(listOf(main), meteo.rows)
-        assertEquals(StationsList.Subtitle.LATEST_READING, meteo.subtitle)
+        assertNull(meteo.subtitle)
+        assertNull(StationsList.englishSubtitle(meteo, WeatherSource.OPEN_METEO.displayName))
 
         val nws = StationsList.load(FakeHost(main = main), WeatherSource.NWS, mountainView, now)
         assertEquals(emptyList<ObservationReading>(), nws.rows)
         assertEquals(StationsList.Subtitle.NONE_FOUND, nws.subtitle)
+    }
+
+    @Test
+    fun `a borrowing source showing fresh stations has no subtitle`() = runBlocking {
+        val borrowedApi = ActualsProviderResolver.providerIdFor(WeatherSource.SILURIAN)
+        val host = FakeHost(box = listOf(obs("KSDL", now - hour, api = borrowedApi)))
+        val r = StationsList.load(host, WeatherSource.SILURIAN, mountainView, now)
+        assertEquals(listOf("KSDL"), r.rows.map { it.stationId })
+        assertNull(r.subtitle)
+        assertNull(StationsList.englishSubtitle(r, WeatherSource.SILURIAN.displayName))
     }
 
     @Test
