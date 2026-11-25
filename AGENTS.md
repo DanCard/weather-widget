@@ -12,11 +12,19 @@ limits a task to one platform.
    database or logs are not accessible, stop and ask for the exact missing command or data. When the
    user says the widget still looks wrong, the emulator/device screenshot and renderer logcat outrank
    code inspection; add targeted logging before choosing a fix.
-2. **Review significant changes before editing.** Write a plan file for each significant change
-   (directory and naming rules are under "Documentation and commits"), present the evidence, root
-   cause, and proposed fix, then wait for approval. Routine releases and explicit single-purpose
-   instructions such as "run tests" or "commit" are exempt. After approval, continue through
-   verification without unnecessary check-ins.
+2. **Plan significant changes; just describe small ones.**
+   - **Significant** (plan file in `plans/`, present evidence/root cause/fix, wait for approval):
+     new features or UI, schema/migration changes, new or restructured shared runners/Hosts,
+     changes to a rule's logic or ordering, fixes whose root cause is still uncertain, or work
+     spanning more than a few files beyond tests and docs.
+   - **Small** (no plan file): tuning a constant or list (timeouts, retry delays, cadences,
+     thresholds, font sizes), adding or adjusting logging, a localized fix with a verified root
+     cause, and test-only or doc-only changes. Give the evidence and the one-line change in chat.
+     If the user already asked for it, proceed; otherwise ask once and continue on "yes".
+   - Exempt entirely: routine releases and single-purpose instructions ("run tests", "commit").
+   - Small changes still follow rules 3 and 9 and the Definition of Done (device/desktop
+     verification, living docs, tests).
+   After approval, continue through verification without unnecessary check-ins.
 3. **Verify runtime changes on a device/emulator or in the desktop app.** A successful build alone
    does not prove rendering, scheduling, persistence, or interaction behavior.
 4. **Do not commit unless explicitly requested.** Never make mid-task commits.
@@ -121,9 +129,9 @@ When changing documented behavior, update the relevant living document in the sa
 
 ## Documentation and commits
 
-- Always create a plan for significant changes and write it directly to `plans/`, with a
-  `YYMMDD-kebab-title.md` name; use `performance/` for performance investigations. Do not create
-  plan or summary files for simple fixes or routine releases. Do not overwrite an existing plan.
+- Write a plan to `plans/` (`YYMMDD-kebab-title.md`; `performance/` for performance
+  investigations) only for significant changes as defined in rule 2. Do not overwrite an
+  existing plan.
 - Dated plans, summaries, notes, and session logs are historical records, not current documentation.
   Link to them for evidence without treating their old behavior as authoritative.
 - Session logs include user prompts and prefer numbered lists for long sequences.

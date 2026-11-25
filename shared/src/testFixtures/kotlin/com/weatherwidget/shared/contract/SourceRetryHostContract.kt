@@ -46,6 +46,22 @@ abstract class SourceRetryHostContract {
         assertNull(host.pending("NWS"))
     }
 
+    /** Fold 4 2026-11-24: an outage outlasting the short retries must reach the 30/60 min tail through the host. */
+    @Test
+    fun `a full failure chain arms every delay through the host, ends at 60 min, then caps`() = runBlocking {
+        val host = open("OPEN_METEO")
+        var t = now
+        repeat(SourceRetry.MAX_RETRIES) {
+            SourceRetry.onFailure(host, "OPEN_METEO", "TIMEOUT", "contract", t)
+            t = host.pending("OPEN_METEO")!!.atMs // the retry fails as it comes due
+        }
+        println("SOURCE_RETRY contract wakes=${wakes()}")
+        assertEquals(SourceRetry.DELAYS_MS.map { "OPEN_METEO" to it }, wakes())
+        assertEquals(SourceRetry.Pending(t, 60 * 60_000L, attempt = SourceRetry.MAX_RETRIES), host.pending("OPEN_METEO"))
+        assertNull(SourceRetry.onFailure(host, "OPEN_METEO", "TIMEOUT", "contract", t))
+        assertEquals(SourceRetry.MAX_RETRIES, host.pending("OPEN_METEO")?.attempt)
+    }
+
     @Test
     fun `a success ends the chain, and the next failure starts at the first delay`() = runBlocking {
         val host = open("OPEN_METEO")

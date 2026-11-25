@@ -2,7 +2,8 @@ package com.weatherwidget.shared.util
 
 /**
  * A failed forecast fetch of any enabled source that waiting can fix (a timeout, no network, a 5xx) is
- * retried on its own: after 1, 2, 5 and 10 min ([DELAYS_MS], user 2026-11-12), then it waits for the next tap or
+ * retried on its own: after 20 s, 1, 2, 5, 10, 30 and 60 min ([DELAYS_MS], user 2026-11-12; 30/60 min tail
+ * 2026-11-24), then it waits for the next tap or
  * scheduled fetch. Never on battery with the screen off, neither armed nor run ([mayRun]): a provider
  * down all day must not wake a pocketed phone every hour (user, 2026-11-12). Before this, a
  * tap-stale source that timed out was not fetched again until its background cadence came due, hours
@@ -19,8 +20,15 @@ object SourceRetry {
     /** The reason a retry fetch runs under (silent: no notice is owed for it). */
     const val REASON = "source_retry"
 
-    /** The wait before each retry of a failure streak: 20 s, 1, 2, 5, 10 min — 18 min 20 s in all. */
-    val DELAYS_MS: List<Long> = listOf(20_000L, 60_000L, 2 * 60_000L, 5 * 60_000L, 10 * 60_000L)
+    /**
+     * The wait before each retry of a failure streak: 20 s, 1, 2, 5, 10, 30, 60 min — 1 h 48 min 20 s in all.
+     * The 30/60 min tail (user 2026-11-24) covers provider outages longer than the first 18 min: Fold 4
+     * 2026-11-24 21:01–21:45, api.open-meteo.com accepted TCP but never finished TLS, so the five short
+     * retries capped and the source waited for its cadence (`FORECAST_DUE_WAKE sleepMin=442`). Each gap
+     * stays under [STREAK_GAP_MS], so the tail continues the streak instead of starting a new one.
+     */
+    val DELAYS_MS: List<Long> =
+        listOf(20_000L, 60_000L, 2 * 60_000L, 5 * 60_000L, 10 * 60_000L, 30 * 60_000L, 60 * 60_000L)
 
     /** Retries per failure streak. */
     val MAX_RETRIES: Int = DELAYS_MS.size

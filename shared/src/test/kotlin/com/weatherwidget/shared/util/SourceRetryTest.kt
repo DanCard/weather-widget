@@ -55,21 +55,24 @@ class SourceRetryTest {
     }
 
     @Test
-    fun `consecutive failures wait 20 s, 1, 2, 5, 10 min`() = runBlocking {
+    fun `consecutive failures wait 20 s, 1, 2, 5, 10, 30, 60 min`() = runBlocking {
         val host = FakeHost()
-        val delays = (0 until 5).map { i ->
-            val t = now + i * 15 * minute
-            SourceRetry.onFailure(host, "OPEN_METEO", "TIMEOUT", "test", t)!! - t
+        var t = now
+        val delays = (0 until 7).map {
+            val d = SourceRetry.onFailure(host, "OPEN_METEO", "TIMEOUT", "test", t)!! - t
+            t += d // the next failure is the retry failing as it comes due
+            d
         }
-        assertEquals(listOf(firstDelay, minute, 2 * minute, 5 * minute, 10 * minute), delays)
+        println("SOURCE_RETRY delays(min)=${delays.map { it / minute.toDouble() }}")
+        assertEquals(listOf(firstDelay, minute, 2 * minute, 5 * minute, 10 * minute, 30 * minute, 60 * minute), delays)
     }
 
     @Test
-    fun `the sixth failure in a row gets no retry - capped`() = runBlocking {
+    fun `the eighth failure in a row gets no retry - capped`() = runBlocking {
         val host = FakeHost()
         repeat(SourceRetry.MAX_RETRIES) { i -> SourceRetry.onFailure(host, "OPEN_METEO", "TIMEOUT", "test", now + i * 10 * minute) }
-        assertEquals(5, host.armed["OPEN_METEO"]?.attempt)
-        assertNull(SourceRetry.onFailure(host, "OPEN_METEO", "TIMEOUT", "test", now + 50 * minute))
+        assertEquals(7, host.armed["OPEN_METEO"]?.attempt)
+        assertNull(SourceRetry.onFailure(host, "OPEN_METEO", "TIMEOUT", "test", now + 70 * minute))
         assertTrue(host.logs.last().contains("reason=cap"))
     }
 
@@ -126,16 +129,16 @@ class SourceRetryTest {
     }
 
     @Test
-    fun `a non-displayed source's chain runs 20 s, 1, 2, 5, 10 min and caps`() = runBlocking {
+    fun `a non-displayed source's chain runs 20 s, 1, 2, 5, 10, 30, 60 min and caps`() = runBlocking {
         val host = FakeHost()
         var t = now
         val delays = mutableListOf<Long>()
         SourceRetry.onFailure(host, "OPEN_METEO", "TIMEOUT", "request:settings", t)!!.also { delays += it - t }
-        repeat(4) {
+        repeat(SourceRetry.MAX_RETRIES - 1) {
             t = host.armed.getValue("OPEN_METEO").atMs // each retry fails as it comes due
             SourceRetry.onFailure(host, "OPEN_METEO", "TIMEOUT", SourceRetry.REASON, t)!!.also { delays += it - t }
         }
-        assertEquals(listOf(firstDelay, minute, 2 * minute, 5 * minute, 10 * minute), delays)
+        assertEquals(listOf(firstDelay, minute, 2 * minute, 5 * minute, 10 * minute, 30 * minute, 60 * minute), delays)
 
         t = host.armed.getValue("OPEN_METEO").atMs
         assertNull(SourceRetry.onFailure(host, "OPEN_METEO", "TIMEOUT", SourceRetry.REASON, t))
@@ -151,7 +154,7 @@ class SourceRetryTest {
         val (tag, msg, lvl) = logs.single()
         assertEquals(SourceRetry.LOG_TAG, tag)
         assertEquals("INFO", lvl)
-        assertEquals("recovered source=OPEN_METEO attempt=2/5 elapsedMs=450", msg)
+        assertEquals("recovered source=OPEN_METEO attempt=2/7 elapsedMs=450", msg)
     }
 
     @Test

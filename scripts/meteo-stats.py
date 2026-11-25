@@ -43,21 +43,26 @@ def adb_bin():
 
 
 def connected_devices(only_serial=None):
+    """Returns (ready serials, [(serial, state)] adb lists but cannot use, e.g. offline/unauthorized)."""
     adb = adb_bin()
     if not adb or not os.path.exists(adb):
-        return []
+        print(f"   (adb not found at {adb})", file=sys.stderr)
+        return [], []
     try:
         out = subprocess.run([adb, "devices"], capture_output=True, text=True, timeout=15).stdout
-    except Exception:
-        return []
-    serials = [
-        line.split()[0]
-        for line in out.splitlines()[1:]
-        if line.strip().endswith("\tdevice") or line.strip().endswith(" device")
-    ]
+    except Exception as e:
+        print(f"   (adb devices failed: {e})", file=sys.stderr)
+        return [], []
+    ready, not_ready = [], []
+    for line in out.splitlines()[1:]:
+        parts = line.split()
+        if len(parts) < 2:
+            continue
+        (ready if parts[1] == "device" else not_ready).append(parts[0] if parts[1] == "device" else (parts[0], parts[1]))
     if only_serial:
-        serials = [s for s in serials if s == only_serial]
-    return serials
+        ready = [s for s in ready if s == only_serial]
+        not_ready = [(s, st) for s, st in not_ready if s == only_serial]
+    return ready, not_ready
 
 
 def device_label(serial):
@@ -72,15 +77,33 @@ def device_label(serial):
 
 
 def pull_device_db(serial, dest_dir):
+    """Returns (db path, None) or (None, reason). run-as fails e.g. while installDebug swaps the APK."""
+    main_err = None
     for name in DB_FILES:
         dest = os.path.join(dest_dir, name)
-        with open(dest, "wb") as f:
-            subprocess.run(
-                [adb_bin(), "-s", serial, "exec-out", "run-as", PACKAGE, "cat", f"databases/{name}"],
-                stdout=f, stderr=subprocess.DEVNULL, timeout=45,
-            )
+        try:
+            with open(dest, "wb") as f:
+                res = subprocess.run(
+                    [adb_bin(), "-s", serial, "exec-out", "run-as", PACKAGE, "cat", f"databases/{name}"],
+                    stdout=f, stderr=subprocess.PIPE, timeout=45,
+                )
+        except subprocess.TimeoutExpired:
+            if name == DB_FILES[0]:
+                return None, f"pulling {name} timed out after 45s"
+            continue
+        if name == DB_FILES[0] and res.returncode != 0:
+            main_err = (res.stderr or b"").decode(errors="replace").strip() or f"run-as exit {res.returncode}"
     path = os.path.join(dest_dir, DB_FILES[0])
-    return path if os.path.exists(path) and os.path.getsize(path) > 0 else None
+    with open(path, "rb") as f:
+        header = f.read(16)
+    if header != b"SQLite format 3\x00":
+        # exec-out writes run-as errors to stdout on some devices, so read them from the file too.
+        detail = main_err or header.decode(errors="replace").strip() or "empty file"
+        if not main_err and os.path.getsize(path) > 0:
+            with open(path, "rb") as f:
+                detail = f.read(300).decode(errors="replace").strip()
+        return None, f"no readable {DB_FILES[0]}: {detail}"
+    return path, None
 
 
 def pull_device_logcat(serial):
@@ -520,10 +543,16 @@ def fetch_desktop(since_dt, since_ms):
 def fetch_device(serial, since_ms):
     label = device_label(serial)
     with tempfile.TemporaryDirectory(prefix="om-stats-") as tmp:
-        db_path = pull_device_db(serial, tmp)
-        db_stats = analyze_db(db_path, since_ms) if db_path else None
+        try:
+            db_path, db_err = pull_device_db(serial, tmp)
+            db_stats = analyze_db(db_path, since_ms) if db_path else None
+        except Exception as e:  # keep the other devices' report; say why this one has no DB stats
+            db_stats, db_err = None, f"{type(e).__name__}: {e}"
         logcat_lines = pull_device_logcat(serial)
         text_stats = analyze_text_lines(logcat_lines) if logcat_lines else None
+        if db_err:
+            label = f"{label} [no DB]"
+            print(f"\n!! {label}: {db_err}", file=sys.stderr, flush=True)
         return (label, db_stats, text_stats, "logcat buffer")
 
 
@@ -542,7 +571,10 @@ def main():
     since_ms = int(since_dt.timestamp() * 1000)
     print(f"Open-Meteo stats since {since_dt.strftime('%Y-%m-%d %H:%M:%S')} (local)", flush=True)
 
-    serials = [] if args.no_devices else connected_devices(args.serial)
+    serials, not_ready = ([], []) if args.no_devices else connected_devices(args.serial)
+    for serial, state in not_ready:
+        print(f"!! adb lists {serial} as '{state}', skipped (unlock / accept the USB prompt, or reconnect)",
+              file=sys.stderr, flush=True)
     results = []
 
     with ThreadPoolExecutor(max_workers=max(1, 1 + len(serials))) as pool:

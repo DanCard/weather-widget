@@ -429,14 +429,16 @@ refresh counts only its own user refreshes (observations scope); the forecast fe
 
 A forecast fetch of any enabled source, shown on screen or not, that fails with a transient code
 (`TIMEOUT`, `DNS_ERROR`, `CONN_REFUSED`, `SOCKET_ERROR`, `SSL_ERROR`, `HTTP_5xx`) arms a retry of that
-source after 20 s, 1, 2, 5 and 10 minutes (`SourceRetry.DELAYS_MS`, 5 per failure streak). A retry counts as
+source after 20 s, 1, 2, 5, 10, 30 and 60 minutes (`SourceRetry.DELAYS_MS`, 7 per failure streak, 1 h 48 min
+in all; the 30/60 min tail covers provider outages such as Open-Meteo's HTTPS stall on 2026-11-24). A retry counts as
 due only within `SourceRetry.DUE_GRACE_MS` (2 s) of its time, never the forecast cadence's 2 min grace, which
 made the short retries due on arming
 ([plans/261117-source-retry-due-grace.md](../plans/261117-source-retry-due-grace.md)); a success ends the streak
-and logs `SOURCE_RETRY recovered source=… attempt=…/5 elapsedMs=…`, and a failure
+and logs `SOURCE_RETRY recovered source=… attempt=…/7 elapsedMs=…`, and a failure
 more than an hour after the last retry starts a fresh one. Quotas, rate limits, 4xx and `NO_COVERAGE`
 are not retried here. On battery with the screen off a retry is neither armed nor run
-(`reason=battery_screen_off`, `fire_skip`); a skipped retry ends its chain. Without it, a tap-stale
+(`reason=battery_screen_off`, `fire_skip`); a skipped retry ends its chain, so the long tail only
+runs while the device is charging or in use. Without it, a tap-stale
 source that timed out waited for its background cadence (hours).
 
 - Android: prefs `source_retry_at_<id>`/`_delay_`/`_attempt_` (cleared on success) and a delayed
