@@ -638,47 +638,51 @@ internal fun ActualsSourceRow(
     var expanded by remember { mutableStateOf(false) }
     if (options.isEmpty()) return
 
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text("Actuals source", fontSize = 16.sp, color = ObsStyle.textSecondary)
-        Spacer(Modifier.width(8.dp))
-        Box {
-            TextButton(onClick = {
+    Box(modifier = Modifier.padding(start = 8.dp, top = 6.dp, bottom = 2.dp)) {
+        Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = ObsStyle.sourceButtonFill,
+            modifier = Modifier.clickable {
                 ActualsProviderResolver.logPickerOpen(source, options)
                 expanded = true
-            }) {
+            },
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Actuals source", fontSize = 15.sp, color = ObsStyle.textSecondary)
+                Spacer(Modifier.width(8.dp))
                 Text(
                     ActualsPickerLabels.value(active, ActualsProviderResolver.overriddenChoice(source)),
-                    fontSize = 16.sp,
+                    fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
                     color = ObsStyle.accent,
                 )
             }
-            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                options.forEach { option ->
-                    val usable = option.unavailable == null
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                ActualsPickerLabels.row(option),
-                                fontSize = 16.sp,
-                                color = when {
-                                    !usable -> ObsStyle.textSecondary
-                                    option.source.id == active -> ObsStyle.accent
-                                    else -> Color.White
-                                },
-                            )
-                        },
-                        enabled = usable,
-                        modifier = Modifier.testTag("actuals_candidate_${option.source.id}"),
-                        onClick = {
-                            expanded = false
-                            onChoose(option.source)
-                        },
-                    )
-                }
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            options.forEach { option ->
+                val usable = option.unavailable == null
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            ActualsPickerLabels.row(option),
+                            fontSize = 15.sp,
+                            color = when {
+                                !usable -> ObsStyle.textSecondary
+                                option.source.id == active -> ObsStyle.accent
+                                else -> Color.White
+                            },
+                        )
+                    },
+                    enabled = usable,
+                    modifier = Modifier.testTag("actuals_candidate_${option.source.id}"),
+                    onClick = {
+                        expanded = false
+                        onChoose(option.source)
+                    },
+                )
             }
         }
     }
