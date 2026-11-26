@@ -741,7 +741,9 @@ class ConfigActivity : AppCompatActivity() {
     private fun finishGlobalSave(lat: Double, lon: Double, label: String, mode: String, friendlyName: String?) {
         // Name the place: "Location updated" alone left users unsure what was actually chosen.
         val displayName = friendlyName ?: label.takeUnless { FriendlyLocationName.isCoordinateLabel(it) }
-        val recentLabel = displayName ?: label
+        // Recents keep what the user chose ("860 Avery Dr, Mountain View, CA 94043"), as on desktop:
+        // the dropdown filters by label, so storing only the city made the address unfindable.
+        val recentLabel = label.takeUnless { FriendlyLocationName.isCoordinateLabel(it) } ?: displayName ?: label
         widgetStateManager.addRecentLocation(RecentLocation(lat, lon, recentLabel))
         // applyToAllWidgets enqueues its own force-refresh worker, and paints "Getting weather for
         // {place}…" on the widgets meanwhile when the new site has nothing cached for today. The

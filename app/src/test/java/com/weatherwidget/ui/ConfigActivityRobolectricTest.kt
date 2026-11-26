@@ -228,6 +228,47 @@ class ConfigActivityRobolectricTest {
     }
 
     @Test
+    fun `global search save remembers the full address in recents, not the friendly city`() {
+        ConfigActivity.setupSourceSelectorForTesting = { current, _, _ ->
+            SetupSourceSelection(sources = current, nwsCoverage = SetupNwsCoverage.SUPPORTED)
+        }
+        bindWidget(9001, 34.0522, -118.2437)
+        val stateManager = WidgetStateManager(context)
+        stateManager.clearRecentLocations()
+        val address = "860 Avery Dr, Mountain View, CA 94043"
+
+        val intent = Intent(context, ConfigActivity::class.java).apply {
+            putExtra(ConfigActivity.EXTRA_GLOBAL_CONFIG, true)
+        }
+        val scenario = ActivityScenario.launch<ConfigActivity>(intent)
+        val mockResolver = mockk<SharedLocationResolver>()
+        coEvery { mockResolver.searchText("860 Avery dr. , 94043") } returns listOf(
+            ResolvedLocation(lat = 37.416794, lon = -122.088936, label = address, source = "Google"),
+        )
+        coEvery { mockResolver.friendlyName(any(), any()) } returns "Mountain View, California"
+
+        scenario.onActivity { activity ->
+            activity.sharedLocationResolver = mockResolver
+            activity.findViewById<EditText>(R.id.location_search_input).setText("860 Avery dr. , 94043")
+            activity.findViewById<Button>(R.id.search_location_button).performClick()
+        }
+        shadowOf(context.mainLooper).idle()
+        scenario.onActivity {
+            val dialog = ShadowDialog.getLatestDialog() as androidx.appcompat.app.AlertDialog
+            dialog.listView.performItemClick(dialog.listView, 0, 0)
+        }
+        shadowOf(context.mainLooper).idle()
+
+        val recents = stateManager.getRecentLocations()
+        println("recents after save: $recents")
+        assertEquals(address, recents.first().label)
+        // The autocomplete filter must find it by street or ZIP.
+        for (query in listOf("860 Avery", "94043")) {
+            assertEquals(query, 1, com.weatherwidget.shared.util.RecentLocationsHelper.filterMatching(recents, query).size)
+        }
+    }
+
+    @Test
     fun `global mode drops NWS when the new location is outside its coverage`() {
         val stateManager = WidgetStateManager(context)
         stateManager.setVisibleSourcesOrder(
