@@ -33,6 +33,7 @@ import com.weatherwidget.data.repository.SharedLocationResolver
 import com.weatherwidget.desktop.theme.WeatherDarkColorScheme
 import com.weatherwidget.desktop.theme.WeatherTypography
 import com.weatherwidget.data.model.RecentLocation
+import com.weatherwidget.shared.sourceview.SourceViewTrigger
 import com.weatherwidget.shared.util.RecentLocationsHelper
 import com.weatherwidget.shared.util.Log
 import java.time.LocalDate
@@ -361,6 +362,30 @@ internal fun handlePopupKeyEvent(
     onClose: () -> Unit,
     onUpdateConfig: (DesktopConfig) -> Unit,
     arrowKeyHandler: ((left: Boolean) -> Boolean)?,
+): Boolean = handleSourceWindowKeyEvent(
+    key = key,
+    type = type,
+    config = config,
+    onClose = onClose,
+    onUpdateConfig = onUpdateConfig,
+    sourceSwitchTrigger = SourceViewTrigger.TOGGLE,
+    arrowKeyHandler = arrowKeyHandler,
+)
+
+/**
+ * Shared key handler for desktop windows that expose a weather-API source switcher (the main
+ * popup, Forecast Comparison, and Current Observations): Escape closes, Down/Up cycle the
+ * displayed API forward/backward using [sourceSwitchTrigger], and Left/Right delegate to
+ * [arrowKeyHandler] when provided.
+ */
+internal fun handleSourceWindowKeyEvent(
+    key: Key,
+    type: KeyEventType,
+    config: DesktopConfig,
+    onClose: () -> Unit,
+    onUpdateConfig: (DesktopConfig) -> Unit,
+    sourceSwitchTrigger: SourceViewTrigger,
+    arrowKeyHandler: ((left: Boolean) -> Boolean)? = null,
 ): Boolean {
     if (type != KeyEventType.KeyDown) return false
     return when (key) {
@@ -371,11 +396,11 @@ internal fun handlePopupKeyEvent(
         Key.DirectionLeft -> arrowKeyHandler?.invoke(true) ?: false
         Key.DirectionRight -> arrowKeyHandler?.invoke(false) ?: false
         Key.DirectionDown -> {
-            cycleDisplaySource(config, forward = true, onUpdateConfig = onUpdateConfig)
+            cycleDisplaySource(config, forward = true, trigger = sourceSwitchTrigger, onUpdateConfig = onUpdateConfig)
             true
         }
         Key.DirectionUp -> {
-            cycleDisplaySource(config, forward = false, onUpdateConfig = onUpdateConfig)
+            cycleDisplaySource(config, forward = false, trigger = sourceSwitchTrigger, onUpdateConfig = onUpdateConfig)
             true
         }
         else -> false

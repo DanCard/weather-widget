@@ -247,18 +247,23 @@ internal fun CurrentObservationsWindow(
         }
     }
 
+    val latestConfig = rememberUpdatedState(config)
+    val latestSaves = rememberUpdatedState(saves)
+
     Window(
         onCloseRequest = onClose,
         state = state,
         title = "Current Observations",
-        onKeyEvent = { keyEvent ->
-            if (keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.Escape) {
-                onClose()
-                true
-            } else {
-                false
-            }
-        }
+        onPreviewKeyEvent = { keyEvent ->
+            handleSourceWindowKeyEvent(
+                key = keyEvent.key,
+                type = keyEvent.type,
+                config = latestConfig.value,
+                onClose = onClose,
+                onUpdateConfig = latestSaves.value.sourceSwitch,
+                sourceSwitchTrigger = com.weatherwidget.shared.sourceview.SourceViewTrigger.OBSERVATIONS,
+            )
+        },
     ) {
         BringToFrontOnShow(
             window = window,

@@ -237,4 +237,66 @@ class DesktopSourceViewsTest {
         assertFalse(handlePopupKeyEvent(Key.DirectionDown, KeyEventType.KeyUp, current, {}, update, null))
         assertEquals("NWS", current.settings.weatherSource)
     }
+
+    @Test
+    fun `data window arrow keys cycle api and record window trigger`() {
+        var current = config
+        var closed = false
+        val update: (DesktopConfig) -> Unit = { current = it }
+
+        assertTrue(
+            handleSourceWindowKeyEvent(
+                key = Key.DirectionDown,
+                type = KeyEventType.KeyDown,
+                config = current,
+                onClose = { closed = true },
+                onUpdateConfig = update,
+                sourceSwitchTrigger = SourceViewTrigger.COMPARISON,
+            )
+        )
+        assertEquals("OPEN_METEO", current.settings.weatherSource)
+        assertTrue(
+            rows().containsKey(Triple("OPEN_METEO", SourceViewTrigger.COMPARISON.name, SourceViewKind.DAILY.name))
+        )
+
+        assertTrue(
+            handleSourceWindowKeyEvent(
+                key = Key.DirectionUp,
+                type = KeyEventType.KeyDown,
+                config = current,
+                onClose = { closed = true },
+                onUpdateConfig = update,
+                sourceSwitchTrigger = SourceViewTrigger.OBSERVATIONS,
+            )
+        )
+        assertEquals("NWS", current.settings.weatherSource)
+        assertTrue(
+            rows().containsKey(Triple("NWS", SourceViewTrigger.OBSERVATIONS.name, SourceViewKind.HOURLY.name))
+        )
+
+        assertFalse(
+            handleSourceWindowKeyEvent(
+                key = Key.DirectionDown,
+                type = KeyEventType.KeyUp,
+                config = current,
+                onClose = { closed = true },
+                onUpdateConfig = update,
+                sourceSwitchTrigger = SourceViewTrigger.COMPARISON,
+            )
+        )
+        assertEquals("NWS", current.settings.weatherSource)
+        assertFalse(closed)
+
+        assertTrue(
+            handleSourceWindowKeyEvent(
+                key = Key.Escape,
+                type = KeyEventType.KeyDown,
+                config = current,
+                onClose = { closed = true },
+                onUpdateConfig = update,
+                sourceSwitchTrigger = SourceViewTrigger.COMPARISON,
+            )
+        )
+        assertTrue(closed)
+    }
 }
