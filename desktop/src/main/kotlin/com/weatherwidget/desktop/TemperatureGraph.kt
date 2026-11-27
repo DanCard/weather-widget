@@ -394,8 +394,29 @@ fun TemperatureGraph(
 
         drawCloudAndPrecipOverlays(points, scale, ::xAt)
 
-        // Gradient fill always spans the full window under the expected curve
-        drawFill(expectedCoords, scale)
+        // Ghost gate (shifted forecast curve = expected path). Hoisted above the fill: the fill and the
+        // dotted stroke are both the ghost and share this gate and the future-only clip.
+        val transitionX = lastActualPoint?.let { xAtTime(it.timeMs) }
+        val ghostSpanHours = (windowEnd - windowStart) / 3_600_000L
+        val hoursFromNowToWindowStart = (windowStart - now) / 3_600_000L
+        val nowInWindow = now in windowStart..windowEnd
+        // Hoisted: the free-floating labels below must know whether this line is actually painted before
+        // they reserve clearance from it.
+        val ghostLineDrawn = transitionX != null && ForecastDeltaLine.drawsGhost(appliedDelta) &&
+            com.weatherwidget.shared.graph.GhostLineGate.shouldProcess(
+                fetchDotX = transitionX,
+                graphWidthPx = w,
+                spanHours = ghostSpanHours,
+                nowIndicatorVisible = nowInWindow,
+                hoursFromNowToWindowStart = hoursFromNowToWindowStart,
+            )
+        // The ghost projects forward from the latest observation: fill only right of the fetch dot,
+        // so the past shows just the forecast and actual lines (same clip as the stroke and Android).
+        if (transitionX != null && ghostLineDrawn) {
+            clipRect(left = transitionX, top = 0f, right = w, bottom = footer.graphBottom(h, scale)) {
+                drawFill(expectedCoords, scale)
+            }
+        }
 
         // Lines:
         // 1. Forecast Line segments (dashed, one neutral colour since 2026-11-15)
@@ -429,21 +450,7 @@ fun TemperatureGraph(
             }
         }
 
-        // 2. Ghost Line (Shifted forecast curve representing expected path)
-        val transitionX = lastActualPoint?.let { xAtTime(it.timeMs) }
-        val ghostSpanHours = (windowEnd - windowStart) / 3_600_000L
-        val hoursFromNowToWindowStart = (windowStart - now) / 3_600_000L
-        val nowInWindow = now in windowStart..windowEnd
-        // Hoisted: the free-floating labels below must know whether this line is actually painted before
-        // they reserve clearance from it.
-        val ghostLineDrawn = transitionX != null && ForecastDeltaLine.drawsGhost(appliedDelta) &&
-            com.weatherwidget.shared.graph.GhostLineGate.shouldProcess(
-                fetchDotX = transitionX,
-                graphWidthPx = w,
-                spanHours = ghostSpanHours,
-                nowIndicatorVisible = nowInWindow,
-                hoursFromNowToWindowStart = hoursFromNowToWindowStart,
-            )
+        // 2. Ghost Line (Shifted forecast curve representing expected path; gate computed above)
         if (transitionX != null && ghostLineDrawn) {
             clipRect(left = transitionX, top = 0f, right = w, bottom = footer.graphBottom(h, scale)) {
                 val expectedPath = buildCurve(expectedCoords)

@@ -200,6 +200,11 @@ and no `graph_view` side margins (`plans/261118-remove-widget-edge-padding.md`).
 the pill touch zones and the nav-arrow overlap read that inset from `WidgetInsets`, and
 `WidgetEdgeInsetRoboTest` lays out the real XML to keep the two in step.
 
+The hourly graph's ghost — the forecast shifted by the observed-minus-forecast delta, drawn as a
+faint dotted stroke over a grey gradient fill — projects forward from the latest observation: both
+stroke and fill are clipped to the right of the fetch dot and share `GhostLineGate` on both platforms
+(`TemperatureGraphGhostFutureOnlyRoboTest`). The past shows only the forecast and actual lines.
+
 Hourly-graph labels share one top limit, `GraphLabelArea.TOP` (the canvas edge, not the plot top), so
 no placer carries its own exception. Value and ghost labels do not check for collision with the header
 row. The context annotations — the dominant station (`knuq 71.6° @ 2:35 pm`) and "Actual temperature

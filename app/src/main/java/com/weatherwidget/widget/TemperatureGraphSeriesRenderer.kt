@@ -66,8 +66,6 @@ internal object TemperatureGraphSeriesRenderer {
                             alphaBottom = TemperatureGraphStyle.EXPECTED_FILL_ALPHA_BOTTOM,
                         )
                 }
-            input.canvas.drawPath(input.series.expectedFillPath, expectedFillPaint)
-
             val fetchDotX = requireNotNull(input.series.fetchDotX)
             input.lastObservedTemp?.let {
                 input.onGhostLineDebug?.invoke(
@@ -84,6 +82,8 @@ internal object TemperatureGraphSeriesRenderer {
                     ),
                 )
             }
+            // The ghost (fill and stroke) is a projection forward from the latest observation, so
+            // both are clipped to the right of the fetch dot; the past shows only forecast + actuals.
             input.canvas.save()
             input.canvas.clipRect(
                 fetchDotX.coerceAtLeast(0f),
@@ -91,6 +91,7 @@ internal object TemperatureGraphSeriesRenderer {
                 input.widthPx.toFloat(),
                 input.heightPx.toFloat(),
             )
+            input.canvas.drawPath(input.series.expectedFillPath, expectedFillPaint)
             input.canvas.drawPath(input.series.expectedPath, input.paints.ghostPaint)
             input.canvas.restore()
         }
