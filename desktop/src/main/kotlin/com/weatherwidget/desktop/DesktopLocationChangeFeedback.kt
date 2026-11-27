@@ -7,7 +7,7 @@ import java.time.LocalDate
 /**
  * Desktop half of the setup-driven location change feedback (Android: `LocationUpdater`).
  *
- * A config save from the location picker to a *different* site returns the place name the popup
+ * A config save from the location picker (or Settings' previous-location toggle) to a *different* site returns the place name the popup
  * should announce ("Getting weather for {place}…") while the new site's first fetch is in flight.
  * Every other writer — Settings, the popup's own zoom/offset persistence, Current Observations window —
  * returns null: they never move the site, and a jittered re-save of the same site is not a move.
@@ -15,8 +15,14 @@ import java.time.LocalDate
 internal object DesktopLocationChangeFeedback {
     const val PICKER_SOURCE = "location-picker"
 
+    /** Settings' previous-location toggle ([DesktopLocationToggle]): a location move like the picker's. */
+    const val TOGGLE_SOURCE = "location-toggle"
+
+    /** Writers that move the site: they get the location-change banner and may change only the location fields. */
+    val LOCATION_SOURCES = setOf(PICKER_SOURCE, TOGGLE_SOURCE)
+
     fun pendingPlaceName(source: String, previous: DesktopConfig?, saved: DesktopConfig): String? {
-        if (source != PICKER_SOURCE) return null
+        if (source !in LOCATION_SOURCES) return null
         val previousSite = previous?.let { it.lat to it.lon }
         if (LocationChangePaintPolicy.isSameSite(previousSite, saved.lat, saved.lon)) return null
         return saved.label

@@ -29,6 +29,8 @@
     <string name="set_location_button">Atur lokasi…</string>
     <string name="location_mode_pinned">Disematkan</string>
     <string name="location_mode_follow">Mengikuti perangkat</string>
+    <string name="toggle_previous_location">Beralih ke lokasi sebelumnya: %1$s</string>
+    <string name="toggle_previous_follow_device">Ikuti perangkat</string>
     <string name="offline">Offline</string>
     <string name="tap_to_configure">Ketuk untuk mengonfigurasi</string>
     <string name="settings">Setelan</string>

@@ -34,6 +34,7 @@ import com.weatherwidget.desktop.theme.WeatherDarkColorScheme
 import com.weatherwidget.desktop.theme.WeatherTypography
 import com.weatherwidget.data.model.RecentLocation
 import com.weatherwidget.shared.sourceview.SourceViewTrigger
+import com.weatherwidget.shared.util.CurrentLocationSetting
 import com.weatherwidget.shared.util.RecentLocationsHelper
 import com.weatherwidget.shared.util.Log
 import java.time.LocalDate
@@ -45,6 +46,8 @@ internal fun LocationPickerWindowHost(
     locationResolver: LocationResolver,
     isFirstLaunch: Boolean,
     recentLocations: List<RecentLocation> = emptyList(),
+    /** The location in force before this pick; its recents entry is stamped "last used now". */
+    current: CurrentLocationSetting? = null,
     icon: Painter,
     showRequestId: Int = 0,
     onClose: () -> Unit,
@@ -84,7 +87,9 @@ internal fun LocationPickerWindowHost(
             recentLocations = recentLocations,
         ) { resolved ->
             val newRecent = RecentLocation(lat = resolved.lat, lon = resolved.lon, label = resolved.label)
-            val updatedRecents = RecentLocationsHelper.addRecent(recentLocations, newRecent)
+            val updatedRecents = RecentLocationsHelper.addRecent(
+                recentLocations, newRecent, leaving = current, nowMs = newRecent.timestamp,
+            )
             onResolved(resolved.toConfig().copy(recentLocations = updatedRecents))
         }
     }
@@ -151,6 +156,7 @@ internal fun SettingsWindowHost(
     onClose: () -> Unit,
     onExit: () -> Unit,
     onUpdateLocation: () -> Unit,
+    onTogglePreviousLocation: (RecentLocation) -> Unit = {},
     onOpenIconGallery: () -> Unit,
     onOpenUsageStats: () -> Unit,
     onRefreshData: () -> Unit,
@@ -218,6 +224,7 @@ internal fun SettingsWindowHost(
             onDraftChanged = { draft -> settingsDraft = draft.takeIf { it != latestConfig.value } },
             onExit = onExit,
             onUpdateLocation = onUpdateLocation,
+            onTogglePreviousLocation = onTogglePreviousLocation,
             onOpenIconGallery = onOpenIconGallery,
             onOpenUsageStats = onOpenUsageStats,
             isRefreshing = isRefreshing,

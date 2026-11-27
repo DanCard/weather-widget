@@ -16,6 +16,8 @@ import android.view.View
 import android.view.ViewGroup
 import com.weatherwidget.data.local.LocationMatch
 import com.weatherwidget.data.model.RecentLocation
+import com.weatherwidget.shared.util.CurrentLocationSetting
+import com.weatherwidget.shared.util.PreviousLocationToggle
 import com.weatherwidget.shared.util.RecentLocationsHelper
 import com.weatherwidget.util.SharedPreferencesUtil
 import android.view.KeyEvent
@@ -118,6 +120,9 @@ class ConfigActivity : AppCompatActivity() {
     private var saveJob: Job? = null
     private var recentAdapter: RecentLocationAdapter? = null
 
+    /** Opened by Settings' previous-location toggle: a completed save stamps the toggle as used. */
+    private var fromLocationToggle = false
+
     @Inject
     lateinit var widgetStateManager: WidgetStateManager
 
@@ -159,6 +164,10 @@ class ConfigActivity : AppCompatActivity() {
         }
 
         setupViews()
+
+        if (isGlobalMode && savedInstanceState == null) {
+            startLocationToggleIfRequested()
+        }
 
         // Initial widget setup defaults to the precise-location flow: most users want the widget
         // to follow the device, so kick off permissions → fix right away. The auto-fill flow
@@ -580,7 +589,39 @@ class ConfigActivity : AppCompatActivity() {
         saveChosenLocation(lat, lon, null, LocationMode.FOLLOW_DEVICE)
     }
 
-    private fun saveChosenLocation(lat: Double, lon: Double, label: String?, mode: String) {
+    /**
+     * Settings' "↔ Place" button lands here with the target in the extras and runs the same save the
+     * recents dropdown ("↔ Follow device": the "Use device location" button) would, so the toggle has
+     * no save path of its own (plans/261126-previous-location-toggle.md).
+     */
+    private fun startLocationToggleIfRequested() {
+        val extras = intent?.extras ?: return
+        if (extras.getBoolean(EXTRA_TOGGLE_FOLLOW_DEVICE, false)) {
+            fromLocationToggle = true
+            logConfig("LOCATION_TOGGLE start target=follow-device")
+            autoFillFlow = false
+            checkAndRequestLocationPermissions()
+            return
+        }
+        if (!extras.containsKey(EXTRA_TOGGLE_LAT) || !extras.containsKey(EXTRA_TOGGLE_LON)) return
+        val lat = extras.getDouble(EXTRA_TOGGLE_LAT)
+        val lon = extras.getDouble(EXTRA_TOGGLE_LON)
+        val label = extras.getString(EXTRA_TOGGLE_LABEL)
+        fromLocationToggle = true
+        logConfig("LOCATION_TOGGLE start target=$lat,$lon label=\"$label\"")
+        // The toggle already knows the place: no reverse-geocode round trip for the toast name.
+        saveChosenLocation(lat, lon, label, LocationMode.FIXED, knownFriendlyName = label?.let(PreviousLocationToggle::shortLabel))
+    }
+
+    private fun saveChosenLocation(
+        lat: Double,
+        lon: Double,
+        label: String?,
+        mode: String,
+        knownFriendlyName: String? = null,
+    ) {
+        // Captured before LocationMode.set overwrites it: the recents stamp the setting being left.
+        val leaving = LocationUpdater.currentSetting(this)
         if (isGlobalMode) {
             LocationMode.set(this, mode)
             lifecycleScope.launch {
@@ -595,8 +636,9 @@ class ConfigActivity : AppCompatActivity() {
                     String.format(Locale.US, "%.4f, %.4f", lat, lon)
                 }
                 // "Mountain View, California" for the toast; the full label is what gets stored.
-                val friendlyName = runCatching { sharedLocationResolver.friendlyName(lat, lon) }.getOrNull()
-                finishGlobalSave(lat, lon, resolvedLabel, mode, friendlyName)
+                val friendlyName = knownFriendlyName
+                    ?: runCatching { sharedLocationResolver.friendlyName(lat, lon) }.getOrNull()
+                finishGlobalSave(lat, lon, resolvedLabel, mode, friendlyName, leaving)
             }
             return
         }
@@ -617,7 +659,7 @@ class ConfigActivity : AppCompatActivity() {
         saveJob = lifecycleScope.launch {
             applySetupSourceSelection(lat, lon, widgetIds) ?: return@launch
             LocationMode.set(this@ConfigActivity, mode)
-            persistWidgetLocation(lat, lon, label, mode, widgetIds)
+            persistWidgetLocation(lat, lon, label, mode, widgetIds, leaving)
             saveSucceeded = true
             checkAndPromptBackgroundDataRestrictions {
                 finishWithSuccess()
@@ -685,6 +727,7 @@ class ConfigActivity : AppCompatActivity() {
         label: String?,
         mode: String,
         widgetIds: IntArray,
+        leaving: CurrentLocationSetting,
     ) {
         LocationUpdater.applyActiveLocationToAllWidgets(
             context = this,
@@ -695,7 +738,10 @@ class ConfigActivity : AppCompatActivity() {
         )
 
         val recentLabel = label ?: String.format(Locale.US, "%.4f, %.4f", lat, lon)
-        widgetStateManager.addRecentLocation(RecentLocation(lat, lon, recentLabel))
+        widgetStateManager.addRecentLocation(
+            RecentLocation(lat, lon, recentLabel, followDevice = mode == LocationMode.FOLLOW_DEVICE),
+            leaving = leaving,
+        )
 
         lifecycleScope.launch {
             appLogDao.log("CONFIG", "Widget $appWidgetId configured with lat=$lat, lon=$lon mode=$mode")
@@ -738,13 +784,27 @@ class ConfigActivity : AppCompatActivity() {
         }
     }
 
-    private fun finishGlobalSave(lat: Double, lon: Double, label: String, mode: String, friendlyName: String?) {
+    private fun finishGlobalSave(
+        lat: Double,
+        lon: Double,
+        label: String,
+        mode: String,
+        friendlyName: String?,
+        leaving: CurrentLocationSetting,
+    ) {
         // Name the place: "Location updated" alone left users unsure what was actually chosen.
         val displayName = friendlyName ?: label.takeUnless { FriendlyLocationName.isCoordinateLabel(it) }
         // Recents keep what the user chose ("860 Avery Dr, Mountain View, CA 94043"), as on desktop:
         // the dropdown filters by label, so storing only the city made the address unfindable.
         val recentLabel = label.takeUnless { FriendlyLocationName.isCoordinateLabel(it) } ?: displayName ?: label
-        widgetStateManager.addRecentLocation(RecentLocation(lat, lon, recentLabel))
+        val chosen = RecentLocation(lat, lon, recentLabel, followDevice = mode == LocationMode.FOLLOW_DEVICE)
+        if (fromLocationToggle) {
+            val nowMs = System.currentTimeMillis()
+            val line = PreviousLocationToggle.usedLogLine(leaving, chosen, widgetStateManager.getLastLocationToggleAt())
+            logConfig(line)
+            widgetStateManager.markLocationToggleUsed(nowMs)
+        }
+        widgetStateManager.addRecentLocation(chosen, leaving = leaving)
         // applyToAllWidgets enqueues its own force-refresh worker, and paints "Getting weather for
         // {place}…" on the widgets meanwhile when the new site has nothing cached for today. The
         // toast says the same thing unconditionally: a site that IS cached keeps its graph, so the
@@ -835,8 +895,9 @@ class ConfigActivity : AppCompatActivity() {
                 .filter { it != AppWidgetManager.INVALID_APPWIDGET_ID }
                 .distinct()
                 .toIntArray()
+        val leaving = LocationUpdater.currentSetting(this)
         LocationMode.set(this, mode)
-        persistWidgetLocation(lat, lon, label, mode, widgetIds)
+        persistWidgetLocation(lat, lon, label, mode, widgetIds, leaving)
         finishWithSuccess()
     }
 
@@ -1051,6 +1112,12 @@ class ConfigActivity : AppCompatActivity() {
 
         /** Launch extra: no widget id; saves apply to all widgets and no RESULT_OK is set. */
         const val EXTRA_GLOBAL_CONFIG = "extra_global_config"
+
+        // Settings' previous-location toggle (with EXTRA_GLOBAL_CONFIG): a pinned target, or follow-device.
+        const val EXTRA_TOGGLE_LAT = "extra_toggle_lat"
+        const val EXTRA_TOGGLE_LON = "extra_toggle_lon"
+        const val EXTRA_TOGGLE_LABEL = "extra_toggle_label"
+        const val EXTRA_TOGGLE_FOLLOW_DEVICE = "extra_toggle_follow_device"
 
         /**
          * Test seam for the fix stages. The auto-fill flow starts inside [onCreate], before a

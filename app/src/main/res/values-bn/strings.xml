@@ -29,6 +29,8 @@
     <string name="set_location_button">অবস্থান নির্ধারণ…</string>
     <string name="location_mode_pinned">পিন করা</string>
     <string name="location_mode_follow">ডিভাইস অনুসরণ করে</string>
+    <string name="toggle_previous_location">আগের অবস্থানে ফিরুন: %1$s</string>
+    <string name="toggle_previous_follow_device">ডিভাইস অনুসরণ করুন</string>
     <string name="offline">অফলাইন</string>
     <string name="tap_to_configure">কনফিগার করতে ট্যাপ করুন</string>
     <string name="settings">সেটিংস</string>

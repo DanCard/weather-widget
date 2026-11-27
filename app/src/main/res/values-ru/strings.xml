@@ -29,6 +29,8 @@
     <string name="set_location_button">Задать местоположение…</string>
     <string name="location_mode_pinned">Закреплено</string>
     <string name="location_mode_follow">Следует за устройством</string>
+    <string name="toggle_previous_location">Вернуться к прошлому месту: %1$s</string>
+    <string name="toggle_previous_follow_device">Следовать за устройством</string>
     <string name="offline">Офлайн</string>
     <string name="tap_to_configure">Нажмите для настройки</string>
     <string name="settings">Настройки</string>

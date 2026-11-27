@@ -29,6 +29,8 @@
     <string name="set_location_button">ตั้งค่าตำแหน่ง…</string>
     <string name="location_mode_pinned">ปักหมุดแล้ว</string>
     <string name="location_mode_follow">ติดตามอุปกรณ์</string>
+    <string name="toggle_previous_location">สลับไปตำแหน่งก่อนหน้า: %1$s</string>
+    <string name="toggle_previous_follow_device">ติดตามอุปกรณ์</string>
     <string name="offline">ออฟไลน์</string>
     <string name="tap_to_configure">แตะเพื่อตั้งค่า</string>
     <string name="settings">การตั้งค่า</string>

@@ -29,6 +29,8 @@
     <string name="set_location_button">تعيين الموقع…</string>
     <string name="location_mode_pinned">مثبّت</string>
     <string name="location_mode_follow">يتبع الجهاز</string>
+    <string name="toggle_previous_location">التبديل إلى الموقع السابق: %1$s</string>
+    <string name="toggle_previous_follow_device">اتباع الجهاز</string>
     <string name="offline">غير متصل</string>
     <string name="tap_to_configure">انقر للتهيئة</string>
     <string name="settings">الإعدادات</string>

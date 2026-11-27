@@ -29,6 +29,8 @@
     <string name="set_location_button">位置を設定…</string>
     <string name="location_mode_pinned">固定中</string>
     <string name="location_mode_follow">端末に追従</string>
+    <string name="toggle_previous_location">前の場所に切り替え: %1$s</string>
+    <string name="toggle_previous_follow_device">端末に追従</string>
     <string name="offline">オフライン</string>
     <string name="tap_to_configure">タップして設定</string>
     <string name="settings">設定</string>

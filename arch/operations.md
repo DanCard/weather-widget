@@ -381,7 +381,9 @@ client is `genmon/genmon-weather-bin`, built with `make -C genmon`; it reads cac
 
 `config.json` is written whole by several windows, so each save is reconciled against the persisted
 config (`resolveDesktopConfigSave`): Settings owns `settings`, other windows may change only their own
-fields, and the location picker changes only `lat`, `lon`, `label` and `recentLocations`. To trace a
+fields, and the location writers (`location-picker`, Settings' `location-toggle`) change only `lat`,
+`lon`, `label`, `recentLocations` and the toggle's `locationToggleUsedAtMs`. Toggle presses log
+`LOCATION_TOGGLE from=… to=…` under app_logs tag `CONFIG` on both platforms. To trace a
 setting or window state that changed unexpectedly, query `app_logs` tag `CONFIG_SAVE`:
 
 - `source=… settings-fields-changed: field: old -> new` — a settings field really changed.

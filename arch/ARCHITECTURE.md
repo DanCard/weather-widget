@@ -126,6 +126,17 @@ location only; an active precise fix is reserved for the explicit foreground loc
 locations remain pinned, while follow-device mode applies a genuinely different weather site without
 a candidate/readiness holding period.
 
+Recent locations (`RecentLocation`, newest first, up to `RecentLocationsHelper.DEFAULT_MAX_ENTRIES`) are
+written only by explicit choices: the pickers, "Use device location" (one `followDevice` entry, never
+duplicated), and Settings' previous-location toggle. Automatic follow-device moves are not recorded.
+An entry's `timestamp` is "last used": it is set when the place is chosen and again when it is left.
+`PreviousLocationToggle` (`:shared`) owns Settings → Location's "Toggle to previous location: Place" button on both platforms. Its
+target is the newest entry that isn't the current setting. It is shown while that entry, or the
+toggle's last press (Android pref `location_toggle_used_at`, desktop `locationToggleUsedAtMs`), is
+within `VISIBILITY_WINDOW_MS`. A tap runs the platform's normal location save. A follow-device target
+restores follow-device mode on Android; desktop never offers one
+([plan](../plans/261126-previous-location-toggle.md)).
+
 Retention is not a flat 30-day policy. See [data pruning](data-pruning.md) for active snapshots,
 settled history, observations, logs, and usage data.
 

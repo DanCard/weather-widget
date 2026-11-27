@@ -12,6 +12,7 @@ import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkManager
 import com.weatherwidget.R
 import com.weatherwidget.data.local.LocationMatch
+import com.weatherwidget.shared.util.CurrentLocationSetting
 import com.weatherwidget.shared.util.LocationChangePaintPolicy
 import com.weatherwidget.util.FriendlyLocationName
 import com.weatherwidget.util.LocationMode
@@ -29,6 +30,16 @@ import com.weatherwidget.widget.WidgetStateManager
  * until their weather can produce a useful body.
  */
 object LocationUpdater {
+
+    /** The location setting in force now, for the recents' "last used" stamp and the previous-location toggle. */
+    fun currentSetting(context: Context): CurrentLocationSetting {
+        val active = ActiveLocationResolver.current(context)
+        return CurrentLocationSetting(
+            lat = active?.first,
+            lon = active?.second,
+            followDevice = LocationMode.get(context) == LocationMode.FOLLOW_DEVICE,
+        )
+    }
 
     fun getWidgetIds(context: Context): IntArray =
         AppWidgetManager.getInstance(context).getAppWidgetIds(

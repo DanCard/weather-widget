@@ -172,6 +172,9 @@ data class DesktopConfig(
     val settingsWindowY: Float? = null,
     val settingsWindowWidth: Float? = null,
     val settingsWindowHeight: Float? = null,
+    // When Settings' previous-location toggle was last pressed (epoch ms); keeps the button visible
+    // for PreviousLocationToggle.VISIBILITY_WINDOW_MS (plans/261126-previous-location-toggle.md).
+    val locationToggleUsedAtMs: Long? = null,
 ) {
     fun personalStationWeight(): Double = settings.personalStationWeight()
 
@@ -366,15 +369,17 @@ internal fun resolveDesktopConfigSave(
     draft: DesktopConfig,
     source: String,
 ): DesktopConfigSaveResolution {
-    var effective = if (persisted != null && source == DesktopLocationChangeFeedback.PICKER_SOURCE) {
+    var effective = if (persisted != null && source in DesktopLocationChangeFeedback.LOCATION_SOURCES) {
         // The picker builds a whole config from defaults (`ResolvedLocation.toConfig()`); only the
         // location is its to change. Taking the rest of its draft wiped the window geometry, zoom and
         // view mode on every move (2026-11-21, plans/261121-desktop-location-change-freshness-and-config-clobber.md).
+        // The Settings toggle is held to the same fields, plus its own "last pressed" stamp.
         persisted.copy(
             lat = draft.lat,
             lon = draft.lon,
             label = draft.label,
             recentLocations = draft.recentLocations,
+            locationToggleUsedAtMs = draft.locationToggleUsedAtMs ?: persisted.locationToggleUsedAtMs,
         )
     } else if (persisted != null && source !in SETTINGS_SAVE_SOURCES) {
         mergeNonSettingsSave(

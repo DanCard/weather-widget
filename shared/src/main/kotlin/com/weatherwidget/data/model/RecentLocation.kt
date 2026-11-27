@@ -14,6 +14,10 @@ data class RecentLocation(
     @OptIn(ExperimentalSerializationApi::class)
     @EncodeDefault
     val timestamp: Long = System.currentTimeMillis(),
+    // The "Use device location" setting rather than a pinned place: the previous-location toggle
+    // restores follow-device mode for it instead of pinning the fix's coordinates. Old stored
+    // entries decode as false (plans/261126-previous-location-toggle.md).
+    val followDevice: Boolean = false,
 ) {
     fun toResolvedLocation(): ResolvedLocation =
         ResolvedLocation(

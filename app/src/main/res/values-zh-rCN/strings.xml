@@ -29,6 +29,8 @@
     <string name="set_location_button">设置位置…</string>
     <string name="location_mode_pinned">已固定</string>
     <string name="location_mode_follow">跟随设备</string>
+    <string name="toggle_previous_location">切换到上一个位置：%1$s</string>
+    <string name="toggle_previous_follow_device">跟随设备</string>
     <string name="offline">离线</string>
     <string name="tap_to_configure">点按以配置</string>
     <string name="settings">设置</string>

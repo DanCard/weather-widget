@@ -29,6 +29,8 @@
     <string name="set_location_button">Standort festlegen…</string>
     <string name="location_mode_pinned">Fixiert</string>
     <string name="location_mode_follow">Folgt dem Gerät</string>
+    <string name="toggle_previous_location">Zum vorherigen Standort wechseln: %1$s</string>
+    <string name="toggle_previous_follow_device">Gerät folgen</string>
     <string name="offline">Offline</string>
     <string name="tap_to_configure">Zum Konfigurieren tippen</string>
     <string name="settings">Einstellungen</string>

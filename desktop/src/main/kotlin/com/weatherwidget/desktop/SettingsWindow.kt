@@ -35,12 +35,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.weatherwidget.data.model.RecentLocation
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.SharedLocationResolver
 import com.weatherwidget.desktop.theme.AlertActionButton
 import com.weatherwidget.desktop.theme.PrimaryActionButton
 import com.weatherwidget.desktop.theme.PrimaryActionProminentButton
 import com.weatherwidget.desktop.theme.SecondaryActionButton
+import com.weatherwidget.desktop.theme.SecondaryActionDarkTextButton
 import com.weatherwidget.desktop.theme.SettingsCard
 import com.weatherwidget.desktop.theme.TertiaryActionButton
 import com.weatherwidget.desktop.theme.WeatherDarkColorScheme
@@ -50,6 +52,7 @@ import com.weatherwidget.shared.graph.HourlyZoomRules
 import com.weatherwidget.shared.util.ApiKeySignupUrls
 import com.weatherwidget.shared.sourceview.SourceDragRun
 import com.weatherwidget.shared.util.Log
+import com.weatherwidget.shared.util.PreviousLocationToggle
 import com.weatherwidget.shared.settings.DisplaySettings
 import com.weatherwidget.shared.settings.IntSliderSpec
 import com.weatherwidget.shared.settings.SettingsSection
@@ -67,6 +70,9 @@ internal fun SettingsWindow(
     onSave: (DesktopConfig) -> Unit,
     onExit: () -> Unit,
     onUpdateLocation: () -> Unit = {},
+    // Settings → Location's "↔ Place" button ([DesktopLocationToggle]); the caller saves the move.
+    onTogglePreviousLocation: (RecentLocation) -> Unit = {},
+    nowMsProvider: () -> Long = System::currentTimeMillis,
     // Android's Settings has no Observations entry — the widget's current-temperature tap opens
     // that screen, and the desktop header's thermometer icon is the same door — so there is no
     // onOpenCurrentObservations here. The icon gallery, by contrast, IS a Settings destination on Android
@@ -267,6 +273,20 @@ internal fun SettingsWindow(
                                     text = "Set Location…",
                                     onClick = onUpdateLocation,
                                     modifier = Modifier.testTag("set_location_btn"),
+                                )
+                            }
+                            // From the persisted `config`, not the draft: the location is not a
+                            // settings field, and the toggle's own save rebases this window.
+                            val toggleTarget = remember(config.lat, config.lon, config.recentLocations, config.locationToggleUsedAtMs) {
+                                DesktopLocationToggle.target(config, nowMsProvider())
+                            }
+                            if (toggleTarget != null) {
+                                Spacer(Modifier.height(12.dp))
+                                // Copy follows Android's R.string.toggle_previous_location.
+                                SecondaryActionDarkTextButton(
+                                    text = "Toggle to previous location: ${PreviousLocationToggle.shortLabel(toggleTarget.label)}",
+                                    onClick = { onTogglePreviousLocation(toggleTarget) },
+                                    modifier = Modifier.fillMaxWidth().testTag("previous_location_btn"),
                                 )
                             }
                         }

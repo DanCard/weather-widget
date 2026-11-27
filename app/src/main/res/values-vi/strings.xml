@@ -29,6 +29,8 @@
     <string name="set_location_button">Đặt vị trí…</string>
     <string name="location_mode_pinned">Đã ghim</string>
     <string name="location_mode_follow">Đi theo thiết bị</string>
+    <string name="toggle_previous_location">Chuyển về vị trí trước: %1$s</string>
+    <string name="toggle_previous_follow_device">Theo thiết bị</string>
     <string name="offline">Ngoại tuyến</string>
     <string name="tap_to_configure">Nhấn để cấu hình</string>
     <string name="settings">Cài đặt</string>

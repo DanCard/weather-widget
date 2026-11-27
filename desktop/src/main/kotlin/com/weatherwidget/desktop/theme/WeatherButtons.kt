@@ -1,5 +1,11 @@
 package com.weatherwidget.desktop.theme
 
+import androidx.compose.ui.text.style.TextAlign
+
+import androidx.compose.ui.text.style.TextOverflow
+
+import androidx.compose.ui.unit.TextUnit
+
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -127,6 +133,8 @@ private fun ActionButton(
     prominent: Boolean,
     containerColor: Color,
     contentColor: Color,
+    textSize: TextUnit? = null,
+    maxLines: Int = Int.MAX_VALUE,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     Button(
@@ -140,8 +148,11 @@ private fun ActionButton(
     ) {
         Text(
             text = text,
-            fontSize = if (prominent) PROMINENT_TEXT_SP else STANDARD_TEXT_SP,
+            fontSize = textSize ?: if (prominent) PROMINENT_TEXT_SP else STANDARD_TEXT_SP,
             fontWeight = FontWeight.SemiBold,
+            maxLines = maxLines,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
         )
     }
 }
@@ -216,6 +227,32 @@ fun SecondaryActionButton(
         prominent = prominent,
         containerColor = Color(WeatherThemeTokens.BUTTON_BLUE),
         contentColor = Color(WeatherThemeTokens.ON_SURFACE), // white
+    )
+}
+
+/**
+ * Blue action with **dark** text, for a blue button that sits on the dark card where white-on-blue
+ * read poorly: Settings → Location's previous-location toggle. Matches Android's
+ * `previous_location_button` (dark #1A1A1A on `rounded_button_blue`).
+ */
+@Composable
+fun SecondaryActionDarkTextButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    ActionButton(
+        text = text,
+        onClick = onClick,
+        modifier = modifier,
+        enabled = enabled,
+        prominent = false,
+        containerColor = Color(WeatherThemeTokens.BUTTON_BLUE),
+        contentColor = Color(WeatherThemeTokens.ON_PRIMARY_DARK), // dark
+        // Android's previous_location_button: 16sp, up to two lines (user: 21sp was too big).
+        textSize = 16.sp,
+        maxLines = 2,
     )
 }
 

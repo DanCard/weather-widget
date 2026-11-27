@@ -7,6 +7,7 @@ import com.weatherwidget.BuildConfig
 import com.weatherwidget.data.model.RecentLocation
 import com.weatherwidget.data.model.ForecastProduct
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.shared.util.CurrentLocationSetting
 import com.weatherwidget.shared.util.RecentLocationsHelper
 import com.weatherwidget.util.NavigationUtils
 import com.weatherwidget.util.SharedPreferencesUtil
@@ -471,10 +472,19 @@ class WidgetStateManager internal constructor(
         return RecentLocationsHelper.decodeFromJson(raw)
     }
 
-    fun addRecentLocation(location: RecentLocation) {
+    /** [leaving] = the setting being switched away from; its entry's "last used" becomes now. */
+    fun addRecentLocation(location: RecentLocation, leaving: CurrentLocationSetting? = null) {
         val current = getRecentLocations()
-        val updated = RecentLocationsHelper.addRecent(current, location)
+        val updated = RecentLocationsHelper.addRecent(current, location, leaving = leaving, nowMs = System.currentTimeMillis())
         prefs.edit().putString(KEY_RECENT_LOCATIONS, RecentLocationsHelper.encodeToJson(updated)).apply()
+    }
+
+    /** When Settings' previous-location toggle last completed a switch (epoch ms), or null if never. */
+    fun getLastLocationToggleAt(): Long? =
+        prefs.getLong(KEY_LOCATION_TOGGLE_USED_AT, 0L).takeIf { it > 0L }
+
+    fun markLocationToggleUsed(atMs: Long) {
+        prefs.edit().putLong(KEY_LOCATION_TOGGLE_USED_AT, atMs).apply()
     }
 
     fun removeRecentLocation(location: RecentLocation) {
@@ -650,6 +660,7 @@ class WidgetStateManager internal constructor(
 
         /** Global: JSON array of recent locations. */
         const val KEY_RECENT_LOCATIONS = "recent_locations"
+        const val KEY_LOCATION_TOGGLE_USED_AT = "location_toggle_used_at"
 
         const val SOURCE_FAILURE_WATERMARK_THRESHOLD = 3
         val DEFAULT_PERSONAL_STATION_DISCOUNT =

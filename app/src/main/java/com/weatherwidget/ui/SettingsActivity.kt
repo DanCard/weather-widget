@@ -58,6 +58,7 @@ import com.weatherwidget.widget.DominantTempWatchPreferences
 import com.weatherwidget.widget.WidgetActionReceiver
 import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetStateManager
+import com.weatherwidget.shared.util.PreviousLocationToggle
 import com.weatherwidget.widget.ActiveLocationResolver
 import com.weatherwidget.widget.SettingsRefreshPartitionLoader
 import com.weatherwidget.data.local.WeatherDatabase
@@ -799,6 +800,7 @@ class SettingsActivity : AppCompatActivity() {
             )
         }
         refreshLocationLabel()
+        refreshPreviousLocationButton()
     }
 
     override fun onResume() {
@@ -807,6 +809,7 @@ class SettingsActivity : AppCompatActivity() {
         // site outside NWS coverage retires NWS from the visible list while this screen is paused,
         // and the rows built in onCreate would otherwise keep showing it ticked.
         refreshLocationLabel()
+        refreshPreviousLocationButton()
         rebuildSourceRows()
         widgetStateManager.registerPreferenceListener(watchPrefsListener)
         // Catch a fire that landed while this screen was in the background — the listener only
@@ -829,6 +832,45 @@ class SettingsActivity : AppCompatActivity() {
             return
         }
         requestNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
+
+    /**
+     * Settings → Location's "↔ Place" button. [PreviousLocationToggle] owns the rule; the tap hands the
+     * target to [ConfigActivity], which saves it the way picking it from the recents would.
+     */
+    private fun refreshPreviousLocationButton() {
+        val button = findViewById<Button>(R.id.previous_location_button)
+        val current = LocationUpdater.currentSetting(this)
+        val target = PreviousLocationToggle.target(
+            recents = widgetStateManager.getRecentLocations(),
+            current = current,
+            lastToggleUsedAtMs = widgetStateManager.getLastLocationToggleAt(),
+            nowMs = System.currentTimeMillis(),
+        )
+        if (target == null) {
+            button.visibility = View.GONE
+            button.setOnClickListener(null)
+            return
+        }
+        val place = if (target.followDevice) {
+            getString(R.string.toggle_previous_follow_device)
+        } else {
+            PreviousLocationToggle.shortLabel(target.label)
+        }
+        button.text = getString(R.string.toggle_previous_location, place)
+        button.visibility = View.VISIBLE
+        button.setOnClickListener {
+            val intent = Intent(this, ConfigActivity::class.java)
+                .putExtra(ConfigActivity.EXTRA_GLOBAL_CONFIG, true)
+            if (target.followDevice) {
+                intent.putExtra(ConfigActivity.EXTRA_TOGGLE_FOLLOW_DEVICE, true)
+            } else {
+                intent.putExtra(ConfigActivity.EXTRA_TOGGLE_LAT, target.lat)
+                    .putExtra(ConfigActivity.EXTRA_TOGGLE_LON, target.lon)
+                    .putExtra(ConfigActivity.EXTRA_TOGGLE_LABEL, target.label)
+            }
+            startActivity(intent)
+        }
     }
 
     private fun refreshLocationLabel() {

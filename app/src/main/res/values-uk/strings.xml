@@ -29,6 +29,8 @@
     <string name="set_location_button">Встановити місцезнаходження…</string>
     <string name="location_mode_pinned">Закріплено</string>
     <string name="location_mode_follow">Стежить за пристроєм</string>
+    <string name="toggle_previous_location">Повернутися до попереднього місця: %1$s</string>
+    <string name="toggle_previous_follow_device">Стежити за пристроєм</string>
     <string name="offline">Офлайн</string>
     <string name="tap_to_configure">Торкніться, щоб налаштувати</string>
     <string name="settings">Налаштування</string>

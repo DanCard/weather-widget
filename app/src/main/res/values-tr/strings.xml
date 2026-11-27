@@ -29,6 +29,8 @@
     <string name="set_location_button">Konumu ayarla…</string>
     <string name="location_mode_pinned">Sabitlendi</string>
     <string name="location_mode_follow">Cihazı takip ediyor</string>
+    <string name="toggle_previous_location">Önceki konuma geç: %1$s</string>
+    <string name="toggle_previous_follow_device">Cihazı takip et</string>
     <string name="offline">Çevrimdışı</string>
     <string name="tap_to_configure">Yapılandırmak için dokunun</string>
     <string name="settings">Ayarlar</string>

@@ -29,6 +29,8 @@
     <string name="set_location_button">위치 설정…</string>
     <string name="location_mode_pinned">고정됨</string>
     <string name="location_mode_follow">기기 따라감</string>
+    <string name="toggle_previous_location">이전 위치로 전환: %1$s</string>
+    <string name="toggle_previous_follow_device">기기 따라가기</string>
     <string name="offline">오프라인</string>
     <string name="tap_to_configure">탭하여 구성</string>
     <string name="settings">설정</string>

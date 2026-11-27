@@ -4,6 +4,7 @@ import com.weatherwidget.data.local.desktop.SwitchRefreshLog
 import com.weatherwidget.data.remote.weathernext.WeatherNextDomain
 import com.weatherwidget.shared.rainmap.WeatherNextLoop
 import com.weatherwidget.shared.util.DayTap
+import com.weatherwidget.shared.util.PreviousLocationToggle
 import com.weatherwidget.shared.util.SettingsRefreshAllSources
 import com.weatherwidget.shared.util.UserRefreshStampKey
 import com.weatherwidget.shared.util.WeatherSourceOrdering
@@ -1347,11 +1348,12 @@ internal fun runDesktopUiApplication() = application {
                 locationResolver = locationResolver,
                 isFirstLaunch = config == null,
                 recentLocations = config?.recentLocations ?: emptyList(),
+                current = config?.let(DesktopLocationToggle::currentSetting),
                 icon = appIcon,
                 showRequestId = pickerShowRequestId,
                 onClose = { pickerVisible = false },
                 onResolved = { saved ->
-                    saveConfigAndNotify(saved, "location-picker")
+                    saveConfigAndNotify(saved, DesktopLocationChangeFeedback.PICKER_SOURCE)
                     pickerVisible = false
                     popupVisible = true
                     showRequestId++
@@ -1373,6 +1375,19 @@ internal fun runDesktopUiApplication() = application {
                 onUpdateLocation = {
                     pickerVisible = true
                     pickerShowRequestId++
+                },
+                onTogglePreviousLocation = { target ->
+                    val current = config ?: return@SettingsWindowHost
+                    val nowMs = System.currentTimeMillis()
+                    val line = PreviousLocationToggle.usedLogLine(
+                        DesktopLocationToggle.currentSetting(current), target, current.locationToggleUsedAtMs,
+                    )
+                    Log.i(TAG, line)
+                    com.weatherwidget.shared.util.AppLog.i("CONFIG", line)
+                    saveConfigAndNotify(
+                        DesktopLocationToggle.switched(current, target, nowMs),
+                        DesktopLocationChangeFeedback.TOGGLE_SOURCE,
+                    )
                 },
                 onOpenIconGallery = {
                     iconGalleryVisible = true

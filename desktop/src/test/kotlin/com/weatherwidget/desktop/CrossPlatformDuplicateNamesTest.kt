@@ -48,6 +48,7 @@ class CrossPlatformDuplicateNamesTest {
             "resetLogMemoForTesting" to ADAPTER, // SourceFetchGate loaders
             "getIconResource" to ADAPTER, // icon name is shared (DailyIconName); drawable lookup is not
             "showOutcome" to ADAPTER, // RefreshNotice.Gate.restart + outcomeLine; Toast vs Compose pill
+            "currentSetting" to ADAPTER, // PreviousLocationToggle's CurrentLocationSetting from prefs+mode vs DesktopConfig
             "calculateRainAmountPlacements" to ADAPTER, // RainAmountLabelPlacer (+ PADDING_DP); rect types, Paint vs TextMeasurer
             "drawActualLine" to DRAWING,
             "drawDayLabels" to DRAWING,

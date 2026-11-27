@@ -29,6 +29,9 @@
     <string name="set_location_button">Set Location…</string>
     <string name="location_mode_pinned">Pinned</string>
     <string name="location_mode_follow">Follows device</string>
+    <!-- Settings → Location previous-location toggle (plans/261126-previous-location-toggle.md) -->
+    <string name="toggle_previous_location">Toggle to previous location: %1$s</string>
+    <string name="toggle_previous_follow_device">Follow device</string>
     <string name="offline">Offline</string>
     <string name="tap_to_configure">Tap to configure</string>
     <string name="settings">Settings</string>

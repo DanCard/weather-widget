@@ -29,6 +29,8 @@
     <string name="set_location_button">Imposta posizione…</string>
     <string name="location_mode_pinned">Bloccata</string>
     <string name="location_mode_follow">Segue il dispositivo</string>
+    <string name="toggle_previous_location">Torna alla posizione precedente: %1$s</string>
+    <string name="toggle_previous_follow_device">Segui il dispositivo</string>
     <string name="offline">Offline</string>
     <string name="tap_to_configure">Tocca per configurare</string>
     <string name="settings">Impostazioni</string>
