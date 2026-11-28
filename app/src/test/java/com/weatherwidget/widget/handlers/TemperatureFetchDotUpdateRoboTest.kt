@@ -213,4 +213,75 @@ class TemperatureFetchDotUpdateRoboTest {
         assertEquals("Anchor should stay at raw observed timestamp", rawObservedAt, resolved.single().observedAt)
         assertTrue("Fetch dot should resolve within the graphed window", resolved.single().withinWindow)
     }
+
+    /**
+     * The startup paint used to skip the observation read ("deferred actuals") and draw the past
+     * hours' forecast where the actual line goes, swapped for the observed line up to 30 s later — a
+     * fake actual line on the Fold 4 (2026-11-27). Every paint, startup included, now reads the
+     * observations, so the very first frame graphs the real actual line.
+     */
+    @Test
+    fun `startup paint reads observations and graphs the actual line`() = runBlocking {
+        val appWidgetManager = mockk<AppWidgetManager>()
+        every { appWidgetManager.getAppWidgetOptions(appWidgetId) } returns Bundle().apply {
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 400)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 300)
+        }
+        every { appWidgetManager.updateAppWidget(appWidgetId, any()) } returns Unit
+        every { appWidgetManager.partiallyUpdateAppWidget(appWidgetId, any()) } returns Unit
+        val repository = mockk<WeatherRepository>(relaxed = true)
+
+        val now = LocalDateTime.now()
+        val zone = java.time.ZoneId.systemDefault()
+        val baseHour = now.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
+        val hourly = (-3L..3L).map { offset ->
+            HourlyForecastEntity(
+                dateTime = baseHour.plusHours(offset).atZone(zone).toInstant().toEpochMilli(),
+                locationLat = 37.0,
+                locationLon = -122.0,
+                temperature = 60.0f + offset,
+                condition = "Clear",
+                source = WeatherSource.NWS.id,
+                precipProbability = 0,
+                fetchedAt = System.currentTimeMillis(),
+            )
+        }
+        val observedAt = now.minusMinutes(20).atZone(zone).toInstant().toEpochMilli()
+        val actuals = (0L..2L).map { i ->
+            ObservationEntity(
+                stationId = "KTEST",
+                stationName = "Test Station",
+                timestamp = observedAt - i * 60 * 60 * 1000L,
+                temperature = 70.0f - i,
+                condition = "Clear",
+                locationLat = 37.0,
+                locationLon = -122.0,
+                api = "NWS",
+            )
+        }
+        io.mockk.coEvery { repository.getObservationsInRange(any(), any(), any(), any(), any()) } returns actuals
+        io.mockk.coEvery { repository.readObservationsInRange(any(), any(), any(), any(), any()) } returns observationReadOf(actuals)
+        val resolved = mutableListOf<FetchDotDebug>()
+
+        TemperatureViewHandler.updateWidget(
+            context = context,
+            appWidgetManager = appWidgetManager,
+            appWidgetId = appWidgetId,
+            hourlyForecasts = hourly,
+            currentTempHourlyForecasts = hourly,
+            centerTime = now,
+            displaySource = WeatherSource.NWS,
+            lastObservedTemp = 70.0f,
+            observedAt = observedAt,
+            onFetchDotResolved = { resolved.add(it) },
+            repository = repository,
+            startupToken = "startup-test",
+        )
+
+        io.mockk.coVerify(atLeast = 1) { repository.readObservationsInRange(any(), any(), any(), any(), any()) }
+        println("startup paint fetch dot: $resolved")
+        assertEquals("startup paint must graph the observed actual line", 1, resolved.size)
+        assertEquals(observedAt, resolved.single().observedAt)
+        assertTrue("actual line should end inside the graphed window", resolved.single().withinWindow)
+    }
 }

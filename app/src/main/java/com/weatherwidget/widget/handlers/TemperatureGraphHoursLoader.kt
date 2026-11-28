@@ -52,7 +52,6 @@ internal object TemperatureGraphHoursLoader {
         lat: Double,
         lon: Double,
         useGraph: Boolean,
-        deferGraphActuals: Boolean,
         smoothedForecasts: Map<Long, Float>,
         sourceMissingFromLoad: Boolean,
     ): GraphLoadOutcome {
@@ -63,19 +62,15 @@ internal object TemperatureGraphHoursLoader {
 
         val alignedCenter = com.weatherwidget.shared.util.WeatherTimeUtils.alignToNearestHourHalfUp(centerTime)
 
-        val obsRead = if (deferGraphActuals) {
-            ObsRead.DEFERRED
-        } else {
-            readObservations(
-                context, appWidgetId, database, stateManager, repository, displaySource, alignedCenter, lat, lon,
-            )
-        }
+        // Always read: an actuals-free paint draws the past hours' forecast where the observed line
+        // belongs, and the swap to the real line reads as a fake actual line (Fold 4, 2026-11-27).
+        val obsRead = readObservations(
+            context, appWidgetId, database, stateManager, repository, displaySource, alignedCenter, lat, lon,
+        )
         val observations = obsRead.rows
 
-        // Hours past the raw observations, from the 18-month archive. Deferred with the actuals.
-        val archivedTemps = if (deferGraphActuals) {
-            emptyMap()
-        } else {
+        // Hours past the raw observations, from the 18-month archive.
+        val archivedTemps = run {
             val readStart = alignedCenter.minusHours(zoom.backHours).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
             val readEnd = alignedCenter.plusHours(zoom.forwardHours).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
             com.weatherwidget.data.model.HourlyActualsHistory.temperatures(
@@ -111,12 +106,10 @@ internal object TemperatureGraphHoursLoader {
             return GraphLoadOutcome.Empty("buildHourDataResult_empty")
         }
 
-        if (!deferGraphActuals) {
-            logBlendDiagnostics(
-                appWidgetId, database, observations, displaySource, centerTime, alignedCenter, zoom, hourDataResult,
-                blendDebugCollector, actualCount, buildHourDataMs,
-            )
-        }
+        logBlendDiagnostics(
+            appWidgetId, database, observations, displaySource, centerTime, alignedCenter, zoom, hourDataResult,
+            blendDebugCollector, actualCount, buildHourDataMs,
+        )
 
         return GraphLoadOutcome.Loaded(
             hours = hourData,
@@ -131,18 +124,14 @@ internal object TemperatureGraphHoursLoader {
         )
     }
 
-    /** [loadGraphHours]'s observation read and its window; [DEFERRED] when the actuals wait. */
+    /** [loadGraphHours]'s observation read and its window. */
     private class ObsRead(
         val rows: List<ObservationEntity>,
         val diagnostics: ObservationPoolDiagnostics.Summary?,
         val windowStartMs: Long,
         val windowEndMs: Long,
         val queryMs: Long,
-    ) {
-        companion object {
-            val DEFERRED = ObsRead(emptyList(), null, 0L, 0L, 0L)
-        }
-    }
+    )
 
     /**
      * Reads the graph window's observations and enqueues the hourly backfill. Split out of

@@ -33,8 +33,6 @@ internal object GraphInteractionRenderer {
         val extraMetadata: String = "",
         val partialPush: Boolean = false,
         val origin: WidgetPushDispatcher.Origin = WidgetPushDispatcher.Origin.USER_INTERACTION,
-        /** See InteractionRenderDispatcher.Request.deferActuals. */
-        val deferActuals: Boolean = false,
     )
 
     suspend fun navigate(request: GraphRenderRequest, isLeft: Boolean) {
@@ -221,23 +219,10 @@ internal object GraphInteractionRenderer {
             observation = observation,
         )
 
-        val plan = paintPlan(request.deferActuals, viewMode, request.partialPush)
-        plan.forEachIndexed { index, phase ->
-            paint(request, paintInputs, phase.deferGraphActuals, phase.partialPush)
-            if (plan.size > 1 && index == 0) {
-                // Logcat, not app_logs: this fires on every tap of the opted-in actions, and a
-                // diagnostic's own write must not land on the path it measures. Same rule as
-                // INTERACTION_E2E and OBS_RANGE_READ.
-                Log.i(
-                    "INTERACTION_PHASE1",
-                    "action=${request.actionTag} widget=${request.appWidgetId} " +
-                        "view=${viewMode.name} phase1=${SystemClock.elapsedRealtime() - request.startTimeMs}ms",
-                )
-            }
-        }
+        paint(request, paintInputs, request.partialPush)
     }
 
-    /** Everything a paint needs that is identical between the two phases; loaded once. */
+    /** Everything a paint needs, loaded once. */
     private data class PaintInputs(
         val appWidgetManager: AppWidgetManager,
         val viewMode: ViewMode,
@@ -249,44 +234,9 @@ internal object GraphInteractionRenderer {
         val observation: ObservationResolver.ObservedCurrentTemperature?,
     )
 
-    /** One paint: whether it skips the observation read, and how it is delivered. */
-    @VisibleForTesting
-    internal data class PaintPhase(val deferGraphActuals: Boolean, val partialPush: Boolean)
-
-    /**
-     * The paints one render performs, in order. Pure so the two-phase decision — which is the risky
-     * part of this change — is testable without a Context.
-     *
-     * One phase unless the caller opted in AND the view mode has a deferral to use: PrecipViewHandler
-     * and CloudCoverViewHandler run their own observation reads with no equivalent skip, so painting
-     * them twice would double the cost this is meant to halve.
-     *
-     * Phase 1 keeps the request's own delivery mode so the visible behaviour of the first frame is
-     * unchanged. Phase 2 pushes partially: its body is complete either way, so a second full update
-     * would buy another launcher re-inflate for nothing. Both RemoteViews carry the same view set
-     * (every visibility is bound explicitly, both ways), so the partial merge cannot strand a view
-     * hidden — the sticky-visibility trap this change had to avoid.
-     */
-    @VisibleForTesting
-    internal fun paintPlan(
-        deferActuals: Boolean,
-        viewMode: ViewMode,
-        requestPartialPush: Boolean,
-    ): List<PaintPhase> {
-        val supportsDeferral = viewMode != ViewMode.PRECIPITATION && viewMode != ViewMode.CLOUD_COVER
-        if (!deferActuals || !supportsDeferral) {
-            return listOf(PaintPhase(deferGraphActuals = false, partialPush = requestPartialPush))
-        }
-        return listOf(
-            PaintPhase(deferGraphActuals = true, partialPush = requestPartialPush),
-            PaintPhase(deferGraphActuals = false, partialPush = true),
-        )
-    }
-
     private suspend fun paint(
         request: GraphRenderRequest,
         inputs: PaintInputs,
-        deferGraphActuals: Boolean,
         partialPush: Boolean,
     ) {
         when (inputs.viewMode) {
@@ -335,7 +285,6 @@ internal object GraphInteractionRenderer {
                     observedAt = inputs.observation?.observedAt,
                     deltaFromYesterday = inputs.observation?.deltaFromYesterday,
                     repository = request.repository,
-                    deferGraphActuals = deferGraphActuals,
                     partialPush = partialPush,
                     origin = request.origin,
                 )

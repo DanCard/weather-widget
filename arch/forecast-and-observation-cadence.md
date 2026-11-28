@@ -338,7 +338,7 @@ hourly source set, so a source switch never reads another source's hours. Its ac
 same `DailyActualsStore.getDailyActualsWithLiveToday` (`:shared` `DailyActualsAssembler`) as worker
 paints, so a tap draws the same today — live fog, gated low — as the refresh before it
 (`plans/261111-tap-render-today-fog-shared-actuals.md`). Only the startup paint draws a provisional
-today first ([the daily view's actuals read](daily-history-extremes.md#the-daily-views-actuals-read)). An entry also ends at the next stored-data write: the shared write runners (`ForecastPersistRun`,
+today first ([the daily view's actuals read](daily-history-extremes.md#the-daily-views-actuals-read)). The hourly temperature graph, by contrast, always paints with its observation read, at startup and on every tap: an actuals-free first frame drew the past hours' forecast in the actual line's place and then swapped in the observed line, which read as a fake actual line (Fold 4, 2026-11-27). An entry also ends at the next stored-data write: the shared write runners (`ForecastPersistRun`,
 `CurrentConditionsRun`, `NwsGapFillRun`) bump `StoredDataVersion` after they store rows, and
 `VersionedTtlCache` (`:shared`) misses on any bump since the entry's load began. So the UI-only
 repaint a screen sends after its fetch (History, Observations) draws the fetched rows, without each

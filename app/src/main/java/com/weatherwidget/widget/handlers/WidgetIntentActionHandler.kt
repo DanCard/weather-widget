@@ -125,7 +125,6 @@ internal object WidgetIntentActionHandler {
                 repository,
                 startMs,
                 "NAV",
-                deferActuals = true,
             )
         if (viewMode.isGraphMode) {
             GraphInteractionRenderer.navigate(
@@ -163,7 +162,6 @@ internal object WidgetIntentActionHandler {
                     repository,
                     startMs,
                     "RECENTER_TODAY",
-                    deferActuals = true,
                 ),
             ),
         )
@@ -192,7 +190,6 @@ internal object WidgetIntentActionHandler {
                     repository,
                     startMs,
                     "CYCLE_ZOOM",
-                    deferActuals = true,
                 ),
             ),
             zoomCenterOffset,
@@ -269,12 +266,11 @@ internal object WidgetIntentActionHandler {
         val staleReason: String,
         val actionTag: String,
         val noticeOrigin: String,
-        val deferActuals: Boolean,
     ) {
-        TOGGLE(SourceViewTrigger.TOGGLE, "toggle_api", "toggle_api_stale", "TOGGLE_API", "widget_toggle_api", true),
-        RESET(SourceViewTrigger.HOME, "reset_source", "reset_source_stale", "RESET_SOURCE", "widget_reset_source", false),
-        COMPARISON(SourceViewTrigger.COMPARISON, "toggle_api", "toggle_api_stale", "TOGGLE_API", "comparison_source", true),
-        OBSERVATIONS(SourceViewTrigger.OBSERVATIONS, "toggle_api", "toggle_api_stale", "TOGGLE_API", "observations_source", true),
+        TOGGLE(SourceViewTrigger.TOGGLE, "toggle_api", "toggle_api_stale", "TOGGLE_API", "widget_toggle_api"),
+        RESET(SourceViewTrigger.HOME, "reset_source", "reset_source_stale", "RESET_SOURCE", "widget_reset_source"),
+        COMPARISON(SourceViewTrigger.COMPARISON, "toggle_api", "toggle_api_stale", "TOGGLE_API", "comparison_source"),
+        OBSERVATIONS(SourceViewTrigger.OBSERVATIONS, "toggle_api", "toggle_api_stale", "TOGGLE_API", "observations_source"),
     }
 
     /**
@@ -363,7 +359,6 @@ internal object WidgetIntentActionHandler {
                     startMs,
                     kind.actionTag,
                     "source=${source.id}",
-                    deferActuals = kind.deferActuals,
                 ),
             )
         }
@@ -478,7 +473,6 @@ internal object WidgetIntentActionHandler {
                 append("mode=${targetMode.name}")
                 interactionToken?.let { append(" token=$it") }
             },
-            deferActuals = true,
         )
     }
 
@@ -522,7 +516,6 @@ internal object WidgetIntentActionHandler {
         staleReason: String,
         actionTag: String,
         metadata: String = "",
-        deferActuals: Boolean = false,
     ) {
         val refreshContext = prepareContext(context, appWidgetId, staleReason) ?: return
         announceIfQueued(context, appWidgetId, "widget_$staleReason", refreshContext)
@@ -537,7 +530,6 @@ internal object WidgetIntentActionHandler {
                 startMs,
                 actionTag,
                 metadata,
-                deferActuals = deferActuals,
             ),
         )
     }
@@ -644,7 +636,6 @@ internal object WidgetIntentActionHandler {
         extraMetadata: String = "",
         partialPush: Boolean = false,
         origin: WidgetPushDispatcher.Origin = WidgetPushDispatcher.Origin.USER_INTERACTION,
-        deferActuals: Boolean = false,
     ) = InteractionRenderDispatcher.Request(
         context,
         appWidgetId,
@@ -656,6 +647,5 @@ internal object WidgetIntentActionHandler {
         extraMetadata,
         partialPush,
         origin,
-        deferActuals,
     )
 }

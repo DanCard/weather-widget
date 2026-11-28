@@ -141,11 +141,6 @@ internal object TemperatureStateResolver {
         repository: WeatherRepository?,
         deferCurrentTempResolution: Boolean,
         startupToken: String? = null,
-        // Skip the graph's observation read and paint the forecast curve alone. Set by the startup
-        // token, and — since 2026-09-06 — by the interaction path's phase-1 paint, which follows it
-        // immediately with a full one. See [deferGraphActuals] below; the mechanism is identical,
-        // only the caller is new.
-        deferGraphActualsRequested: Boolean = false,
         onFetchDotResolved: ((FetchDotDebug) -> Unit)? = null,
         appLogDao: AppLogDao? = null,
         now: LocalDateTime = LocalDateTime.now(),
@@ -189,8 +184,6 @@ internal object TemperatureStateResolver {
         val currentTempSmoothedForecasts = computeSmoothedForecasts(currentTempHourlyForecasts, displaySource)
         val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
         val useGraph = rawRows >= GRAPH_MIN_ROWS
-        val deferGraphActuals =
-            shouldDeferGraphActuals(startupToken, deferGraphActualsRequested, useGraph)
 
         // 3. Load Graph Hours
         val graphLoadResult = TemperatureGraphHoursLoader.loadGraphHours(
@@ -207,7 +200,6 @@ internal object TemperatureStateResolver {
             lat = lat,
             lon = lon,
             useGraph = useGraph,
-            deferGraphActuals = deferGraphActuals,
             smoothedForecasts = smoothedForecasts,
             sourceMissingFromLoad = sourceMissingFromLoad,
         )
@@ -224,7 +216,7 @@ internal object TemperatureStateResolver {
                     "HOURLY_PAINT_TRACE",
                     "phase=resolve_EMPTY widget=$appWidgetId reason=${graphLoadResult.reason} " +
                         "hourlyCount=${hourlyForecasts.size} " +
-                        "centerTime=$centerTime useGraph=$useGraph defer=$deferGraphActuals",
+                        "centerTime=$centerTime useGraph=$useGraph",
                     "WARN",
                 )
                 return buildFallbackResult(appWidgetId, displaySource, zoom, hourlyOffset, lat, lon, smoothedForecasts = smoothedForecasts)
@@ -689,21 +681,6 @@ internal object TemperatureStateResolver {
         val resolveMs = System.currentTimeMillis() - resolveStartMs
         return currentTempResolution to resolveMs
     }
-
-    /**
-     * Whether this render skips the graph's observation read and paints the forecast curve alone.
-     *
-     * Two callers, one mechanism: the startup fast path (which follows itself up with a deferred
-     * broadcast) and an interaction's phase-1 paint (whose caller runs phase 2 inline). Text mode
-     * has no graph and no actual overlay to defer, so [useGraph] is the real precondition — not who
-     * asked.
-     */
-    @androidx.annotation.VisibleForTesting
-    internal fun shouldDeferGraphActuals(
-        startupToken: String?,
-        deferGraphActualsRequested: Boolean,
-        useGraph: Boolean,
-    ): Boolean = (startupToken != null || deferGraphActualsRequested) && useGraph
 
     /**
      * 5 dp, matching the `configuredLoc`/`dataLoc` pair already logged by `TemperatureViewHandler`:
