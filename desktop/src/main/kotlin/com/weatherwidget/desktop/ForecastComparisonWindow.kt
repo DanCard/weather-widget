@@ -149,6 +149,8 @@ internal fun ForecastComparisonWindow(
 
     val latestConfig = rememberUpdatedState(config)
     val latestSaves = rememberUpdatedState(saves)
+    // ←/→ step the viewed day, registered by the content (which owns targetDate), as the popup does.
+    var arrowKeyHandler by remember { mutableStateOf<((left: Boolean) -> Boolean)?>(null) }
 
     Window(
         onCloseRequest = onClose,
@@ -162,6 +164,7 @@ internal fun ForecastComparisonWindow(
                 onClose = onClose,
                 onUpdateConfig = latestSaves.value.sourceSwitch,
                 sourceSwitchTrigger = SourceViewTrigger.COMPARISON,
+                arrowKeyHandler = arrowKeyHandler,
             )
         },
     ) {
@@ -181,6 +184,7 @@ internal fun ForecastComparisonWindow(
             onRefreshSource = onRefreshSource,
             onOpenSettings = onOpenSettings,
             saves = saves,
+            onRegisterArrowKeyHandler = { arrowKeyHandler = it },
         )
     }
 }
@@ -207,6 +211,8 @@ internal fun ForecastComparisonContent(
      * save of this window that may change the main view's source.
      */
     saves: DataWindowSaves = DataWindowSaves.NONE,
+    /** Receives the ←/→ handler: left = previous day (while [ForecastComparisonHeader.canGoBack]), right = next day. */
+    onRegisterArrowKeyHandler: (((left: Boolean) -> Boolean)?) -> Unit = {},
 ) {
     val visibleSources = remember(config.effectiveSources) {
         config.effectiveSources.map { WeatherSource.fromId(it) }.ifEmpty { listOf(WeatherSource.NWS) }
@@ -214,6 +220,17 @@ internal fun ForecastComparisonContent(
     // Keyed on showRequestId: each fresh open re-seeds the viewed date (e.g. the hourly
     // graph's center day), while prev/next navigation within one showing is untouched.
     var targetDate by remember(showRequestId) { mutableStateOf(initialDate) }
+    // ←/→ do what ‹ › do; ← past the history limit is not consumed, as the disabled ‹ does nothing.
+    SideEffect {
+        onRegisterArrowKeyHandler { left ->
+            val next = ForecastComparisonHeader.arrowKeyDay(targetDate, left)
+            if (next != null) {
+                Log.v("ForecastComparison", "arrow ${if (left) "left" else "right"}: $targetDate -> $next")
+                targetDate = next
+            }
+            next != null
+        }
+    }
     // No copy of the source: this window shows the main view's, so a switch in either place shows
     // in both (a stored copy went stale while the window stayed composed, 2026-11-19).
     // plans/261119-sync-data-screen-sources-with-main.md

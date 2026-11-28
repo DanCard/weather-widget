@@ -3,6 +3,7 @@ package com.weatherwidget.shared.graph
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.experimental.categories.Category
@@ -28,5 +29,15 @@ class ForecastComparisonHeaderTest {
     @Test
     fun `future days can always page back`() {
         assertTrue(ForecastComparisonHeader.canGoBack(today.plusDays(10), today))
+    }
+
+    @Test
+    fun `arrow keys step one day and left stops at the history limit`() {
+        val limit = today.minusDays(ForecastComparisonViewLogic.MAX_HISTORY_DAYS_BACK)
+        assertEquals(today.plusDays(1), ForecastComparisonHeader.arrowKeyDay(today, left = false, today = today))
+        assertEquals(today.minusDays(1), ForecastComparisonHeader.arrowKeyDay(today, left = true, today = today))
+        assertEquals(limit, ForecastComparisonHeader.arrowKeyDay(limit.plusDays(1), left = true, today = today))
+        assertNull(ForecastComparisonHeader.arrowKeyDay(limit, left = true, today = today))
+        assertEquals(limit.plusDays(1), ForecastComparisonHeader.arrowKeyDay(limit, left = false, today = today))
     }
 }

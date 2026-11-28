@@ -21,4 +21,11 @@ object ForecastComparisonHeader {
     /** ‹ stays enabled until [ForecastComparisonViewLogic.MAX_HISTORY_DAYS_BACK] before [today]. */
     fun canGoBack(date: LocalDate, today: LocalDate = LocalDate.now()): Boolean =
         date.isAfter(today.minusDays(ForecastComparisonViewLogic.MAX_HISTORY_DAYS_BACK))
+
+    /** The day a ←/→ key moves to from [date], as ‹ / › do; null when ‹ is disabled ([canGoBack]). */
+    fun arrowKeyDay(date: LocalDate, left: Boolean, today: LocalDate = LocalDate.now()): LocalDate? = when {
+        !left -> date.plusDays(1)
+        canGoBack(date, today) -> date.minusDays(1)
+        else -> null
+    }
 }
